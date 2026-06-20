@@ -1,5 +1,7 @@
 # Pangya Fun - Legacy Version (v1.0) ⛳
 
+based on version JP.R7.983.00
+
 Choose your language / Escolha seu idioma:
 
 ---
