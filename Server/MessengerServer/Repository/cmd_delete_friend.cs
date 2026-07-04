@@ -1,9 +1,9 @@
-﻿using Pangya_MessengerServer.Models;
+﻿using MessengerServer.Models;
 using PangyaAPI.SQL;
 using PangyaAPI.Utilities;
 using System;
 
-namespace Pangya_MessengerServer.Repository
+namespace MessengerServer.Repository
 {
 	public class CmdDeleteFriend : Pangya_DB
 	{

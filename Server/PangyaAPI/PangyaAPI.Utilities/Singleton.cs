@@ -1,20 +1,22 @@
 ﻿using System;
 namespace PangyaAPI.Utilities
 {
-    public class Singleton<_ST> where _ST : class
+    public class Singleton<_ST> where _ST : class, new()
     {
-        public static _ST myInstance = default;
+        private static _ST myInstance = default;
 
         public static _ST getInstance()
         {
             try
             {
                 if (myInstance == null)
-                    myInstance = (_ST)Activator.CreateInstance(typeof(_ST));
+                    myInstance = new _ST();
+
                 return myInstance;
             }
             catch (Exception e)
-            { 
+            {
+
                 throw e;
             }
         }

@@ -155,12 +155,12 @@ namespace Pangya_GameServer.Game.System
             }
 
             Lottery.LotteryCtx ctx = null;
-            number_of_winners = lottery.getCountItem() < number_of_winners ? (uint)lottery.getCountItem() : number_of_winners;
+            number_of_winners = lottery.GetCountItem() < number_of_winners ? (uint)lottery.GetCountItem() : number_of_winners;
 
             while (number_of_winners > 0)
             {
 
-                if ((ctx = lottery.spinRoleta(true)) != null && ctx.Value is stPlayerReward)
+                if ((ctx = lottery.SpinRoleta(true)) != null && ctx.Value is stPlayerReward)
                 {
 
                     reward.players.Add(ctx.Value as stPlayerReward);
@@ -170,7 +170,7 @@ namespace Pangya_GameServer.Game.System
                 }
                 else
                 {
-                    _smp.message_pool.getInstance().push(new message("[GoldenTimeSystem::calculeRoundReward][Error][Warning] nao conseguiu sortear um player em lottery.spinRoleta(). Bug", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                    _smp.message_pool.getInstance().push(new message("[GoldenTimeSystem::calculeRoundReward][Error][Warning] nao conseguiu sortear um player em Lottery.spinRoleta(). Bug", type_msg.CL_FILE_LOG_AND_CONSOLE));
                 }
             }
 
@@ -516,7 +516,7 @@ namespace Pangya_GameServer.Game.System
 
             foreach (var round in m_current_golden_time.rounds)
             {
-                var ctx = lottery.spinRoleta(flag_repeat_item);
+                var ctx = lottery.SpinRoleta(flag_repeat_item);
                 var reward = ctx.Value;
 
                 if (reward == null)

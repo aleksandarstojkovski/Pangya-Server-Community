@@ -61,7 +61,8 @@ namespace Pangya_GameServer.Repository
         protected override Response prepareConsulta()
         {
 
-            var r = procedure(m_szConsulta, "");
+            var r = procedure(
+                m_szConsulta, "");
 
             checkResponse(r, "nao conseguiu pegar os Memorial Normal Item Info");
 

@@ -9,7 +9,7 @@ namespace Pangya_GameServer.Repository
     {
         public CmdInsertCPLogItem(bool _waiter = false) : base(_waiter)
         {
-            this.m_uid = 0;
+            this.m_uid = 0u;
             this.m_log_id = -1L;
             this.m_item_id = -1L;
             this.m_item = new CPLog.stItem(0);
@@ -80,7 +80,8 @@ namespace Pangya_GameServer.Repository
 
             m_item_id = -1L;
 
-            var r = procedure(m_szConsulta,
+            var r = procedure(
+                m_szConsulta,
                 Convert.ToString(m_log_id) + ", " + Convert.ToString(m_item._typeid) + ", " + Convert.ToString(m_item.qntd) + ", " + Convert.ToString(m_item.price));
 
             checkResponse(r, "nao conseguiu inserir CPLogItem[LOD_ID=" + Convert.ToString(m_log_id) + ", ITEM_TYPEID=" + Convert.ToString(m_item._typeid) + ", ITEM_QNTD=" + Convert.ToString(m_item.qntd) + ", ITEM_PRICE=" + Convert.ToString(m_item.price) + "] do PLAYER[UID=" + Convert.ToString(m_uid) + "]");

@@ -69,7 +69,13 @@ namespace Pangya_GameServer.Repository
 
             m_mail_id = -1;
 
-            var r = procedure(m_szConsulta, m_uid_from + ", " + m_uid_to + ", " + makeText(m_msg));
+            var r = procedureWithParams(
+   m_szConsulta,
+   new string[] { "@From_UID", "@To_UID", "@MSG" },
+   new SqlDbType[] { SqlDbType.Int, SqlDbType.Int, SqlDbType.NVarChar },
+   new object[] { m_uid_from, m_uid_to, m_msg },
+   ParameterDirection.Input
+);
 
 
 

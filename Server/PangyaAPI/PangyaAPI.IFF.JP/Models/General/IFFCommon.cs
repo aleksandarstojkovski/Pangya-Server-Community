@@ -2,7 +2,7 @@ using System;
 using System.Runtime.InteropServices;
 using System.Text;
 using PangyaAPI.IFF.JP.Models.Flags;
-using PangyaAPI.Utilities.Models;
+using PangyaAPI.Utilities.BinaryModels;
 
 namespace PangyaAPI.IFF.JP.Models.General
 {

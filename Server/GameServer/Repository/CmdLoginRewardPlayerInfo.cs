@@ -26,7 +26,7 @@ namespace Pangya_GameServer.Repository
         public CmdLoginRewardPlayerInfo()
         {
             this.m_id = 0Ul;
-            this.m_uid = 0;
+            this.m_uid = 0u;
             this.m_player = new stPlayerState(0u);
         }
 
@@ -91,7 +91,7 @@ namespace Pangya_GameServer.Repository
 
             m_player.clear();
 
-            var r = consulta(m_szConsulta(m_id, m_uid));
+            var r = consulta(m_szConsulta[0] + Convert.ToString(m_id) + m_szConsulta[1] + Convert.ToString(m_uid));
 
             checkResponse(r, "nao conseguiu pegar o PLAYER[UID=" + Convert.ToString(m_uid) + "] do Login Reward[ID=" + Convert.ToString(m_id) + "]");
 
@@ -103,12 +103,6 @@ namespace Pangya_GameServer.Repository
 
         private stPlayerState m_player = new stPlayerState();
 
-        // Uma alternativa mais limpa ao array de strings:
-        public string m_szConsulta(ulong rewardId, uint uid)
-        {
-            return $"SELECT {makeEscapeKeyword("index")}, uid, count_days, count_seq, is_clear, update_date " +
-                   $"FROM pangya.pangya_login_reward_player " +
-                   $"WHERE login_reward_id = {rewardId} AND uid = {uid}";
-        }
+        private string[] m_szConsulta = { "SELECT [index],uid,count_days,count_seq,is_clear	,update_date FROM pangya.pangya_login_reward_player WHERE login_reward_id = ", " AND uid = " };
     }
 }

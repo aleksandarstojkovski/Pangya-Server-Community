@@ -1,34 +1,32 @@
-﻿using Pangya_GameServer.Game.Manager;
+﻿using Pangya_GameServer.Repository;
+using Pangya_GameServer.Game.Manager;
 using Pangya_GameServer.Game.System;
 using Pangya_GameServer.Models;
 using Pangya_GameServer.Models.golden_time_type;
 using Pangya_GameServer.PacketFunc;
 using Pangya_GameServer.PangyaEnums;
-using Pangya_GameServer.Repository;
 using Pangya_GameServer.UTIL;
 using PangyaAPI.IFF.JP.Extensions;
 using PangyaAPI.IFF.JP.Models.Data;
 using PangyaAPI.IFF.JP.Models.Flags;
 using PangyaAPI.IFF.JP.Models.General;
+using PangyaAPI.Network.Repository;
 using PangyaAPI.Network.Models;
 using PangyaAPI.Network.PangyaPacket;
-using PangyaAPI.Network.PangyaSession;
-using PangyaAPI.Network.Repository;
 using PangyaAPI.SQL;
 using PangyaAPI.Utilities;
+using PangyaAPI.Utilities.BinaryModels;
 using PangyaAPI.Utilities.Log;
-using PangyaAPI.Utilities.Models;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using System.Reflection;
+using System.Reflection; 
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading;
+using System.Threading; 
 using static Pangya_GameServer.Models.ChangePlayerItemRoom;
 using static Pangya_GameServer.Models.DefineConstants;
-using static PangyaAPI.IFF.JP.Models.Data.GrandPrixData;
 namespace Pangya_GameServer.Game
 {
     public class Channel
@@ -61,11 +59,11 @@ namespace Pangya_GameServer.Game
         public Channel(ChannelInfo _ci, uProperty _type)
         {
             m_ci = _ci;
-            m_rm = new RoomManager();
+            m_rm = new RoomManager(m_ci.id);
             m_type = (_type);
             m_state = (int)ESTADO.INITIALIZED;
-            v_sessions = new List<Player>(_ci.max_user);
-            m_player_info = new Dictionary<Player, PlayerLobbyInfo>(_ci.max_user);
+            v_sessions = new List<Player>();
+            m_player_info = new Dictionary<Player, PlayerLobbyInfo>();
             v_invite = new List<InviteChannelInfo>();
         }
 
@@ -86,7 +84,7 @@ namespace Pangya_GameServer.Game
 
             addSession(_session);
 
-            _smp.message_pool.getInstance().push(new message($"[Channel::EnterChannel][Sucess] CHANNEL[ID: {m_ci.id}, Users: {m_ci.curr_user}/{m_ci.max_user}, Rooms: {m_rm.getCount()}]", type_msg.CL_FILE_LOG_AND_CONSOLE));
+            _smp.message_pool.getInstance().push(new message($"[Channel::EnterChannel][Sucess] CHANNEL[Id: {m_ci.id}, Users: {m_ci.curr_user}/{m_ci.max_user}, Rooms: {m_rm.getCount()}]", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
             packet_func.session_send(packet_func.pacote095(0x102), // Não sei direito desse aqui mas passa antes de entrar no canal, talvez é o que faz o cliente pedir MSN server acho
                 _session, 0);
@@ -117,7 +115,7 @@ namespace Pangya_GameServer.Game
                 if (_session.m_pi.mi.sala_numero != ushort.MaxValue)
                     leaveRoom(_session, 0);
 
-                _smp.message_pool.getInstance().push(new message($"[Channel::leaveChannel][Sucess] CHANNEL[ID: {m_ci.id}, Users: {m_ci.curr_user}/{m_ci.max_user}, Rooms: {m_rm.getCount()}]", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                _smp.message_pool.getInstance().push(new message($"[Channel::leaveChannel][Sucess] CHANNEL[Id: {m_ci.id}, Users: {m_ci.curr_user}/{m_ci.max_user}, Rooms: {m_rm.getCount()}]", type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
             catch (exception e)
             {
@@ -134,33 +132,42 @@ namespace Pangya_GameServer.Game
         }
 
 
-        public bool checkEnterChannel(Player _session)
+public void checkEnterChannel(Player _session)
         {
             // Não é GM verifica se o player pode entrar nesse canal
             if (!_session.m_pi.m_cap.game_master)
             {
 
-                if (_session.m_pi.mi.level < m_ci.min_level_allow || _session.m_pi.mi.level > m_ci.max_level_allow)
-                    return false;
+                if (_session.m_pi.level < m_ci.min_level_allow || _session.m_pi.level > m_ci.max_level_allow)
+                    throw new exception("[Channel::checkEnterChannel][Error] PLAYER [UID=" + (_session.m_pi.uid) + ", LEVEL=" + (_session.m_pi.level)
+                        + "] nao tem o level necessario para entrar no canal[ID=" + (m_ci.id) + ", MIN=" + m_ci.min_level_allow
+                        + ", MAX=" + m_ci.max_level_allow + "].");
 
-                if (m_ci.type.only_rookie && _session.m_pi.mi.level > (short)enLEVEL.ROOKIE_A)
-                    return false;
+                if (m_ci.flag.only_rookie && _session.m_pi.level > (short)enLEVEL.ROOKIE_A)
+                    throw new exception("[Channel::checkEnterChannel][Error] PLAYER [UID=" + (_session.m_pi.uid) + ", LEVEL=" + (_session.m_pi.level)
+                        + "] nao tem o level necessario para entrar no canal[ID=" + (m_ci.id) + ", MIN=" + m_ci.min_level_allow
+                        + ", MAX=" + m_ci.max_level_allow + "] com a flag So Rookie.");
 
-                if (m_ci.type.LowLevel && _session.m_pi.mi.level > (short)enLEVEL.JUNIOR_A)
-                    return false;
+                if (m_ci.flag.LowLevel && _session.m_pi.level > (short)enLEVEL.JUNIOR_A)
+                    throw new exception("[Channel::checkEnterChannel][Error] PLAYER [UID=" + (_session.m_pi.uid) + ", LEVEL=" + (_session.m_pi.level)
+                        + "] nao tem o level necessario para entrar no canal[ID=" + (m_ci.id) + ", MIN=" + m_ci.min_level_allow
+                        + ", MAX=" + m_ci.max_level_allow + "] com a flag Junior A pra baixo.");
 
-                if (m_ci.type.HighLevel && _session.m_pi.mi.level < (short)enLEVEL.JUNIOR_E)
-                    return false;
+                if (m_ci.flag.HighLevel && _session.m_pi.level < (short)enLEVEL.JUNIOR_E)
+                    throw new exception("[Channel::checkEnterChannel][Error] PLAYER [UID=" + (_session.m_pi.uid) + ", LEVEL=" + (_session.m_pi.level)
+                        + "] nao tem o level necessario para entrar no canal[ID=" + (m_ci.id) + ", MIN=" + m_ci.min_level_allow
+                        + ", MAX=" + m_ci.max_level_allow + "] com a flag Junior E pra cima.");
 
-                if (m_ci.type.senior && (_session.m_pi.mi.level < (short)enLEVEL.JUNIOR_E || _session.m_pi.mi.level > (short)enLEVEL.SENIOR_A))
-                    return false;
+                if (m_ci.flag.senior && (_session.m_pi.level < (short)enLEVEL.JUNIOR_E || _session.m_pi.level > (short)enLEVEL.SENIOR_A))
+                    throw new exception("[Channel::checkEnterChannel][Error] PLAYER [UID=" + (_session.m_pi.uid) + ", LEVEL=" + (_session.m_pi.level)
+                        + "] nao tem o level necessario para entrar no canal[ID=" + (m_ci.id) + ", MIN=" + m_ci.min_level_allow
+                        + ", MAX=" + m_ci.max_level_allow + "] com a flag junior E a Senior A.");
 
-                if (m_ci.type.beginner && (_session.m_pi.mi.level < (short)enLEVEL.BEGINNER_E || _session.m_pi.mi.level > (short)enLEVEL.JUNIOR_A))
-                    return false;
-
-                return true;
-            }
-            return true;
+                if (m_ci.flag.beginner && (_session.m_pi.level < (short)enLEVEL.BEGINNER_E || _session.m_pi.level > (short)enLEVEL.JUNIOR_A))
+                    throw new exception("[Channel::checkEnterChannel][Error] PLAYER [UID=" + (_session.m_pi.uid) + ", LEVEL=" + (_session.m_pi.level)
+                        + "] nao tem o level necessario para entrar no canal[ID=" + (m_ci.id) + ", MIN=" + m_ci.min_level_allow
+                        + ", MAX=" + m_ci.max_level_allow + "] com a flag Beginner E a Junior A.");
+            } 
         }
 
         public ChannelInfo getInfo()
@@ -305,8 +312,11 @@ namespace Pangya_GameServer.Game
                 {
                     packet_func.session_send(packet_func.pacote046(v_pci, 5), _session, 0);
                 }
-                //precisa mandar pois pode causar bugs....
-                packet_func.session_send(packet_func.pacote047(v_ri, 0), _session, 0);
+
+                if (v_ri.Count > 0)
+                {
+                    packet_func.session_send(packet_func.pacote047(v_ri, 0), _session, 0);
+                }
 
                 packet_func.channel_broadcast(this, packet_func.pacote046(new List<PlayerLobbyInfo>() { (pci == null) ? new PlayerLobbyInfo() : pci }, 1), 0);
 
@@ -317,7 +327,6 @@ namespace Pangya_GameServer.Game
                 throw e;
             }
         }
-
         public void leaveLobby(Player _session)
         {
 
@@ -364,7 +373,6 @@ namespace Pangya_GameServer.Game
             }
 
         }
-
         public void leaveLobbyMultiPlayer(Player _session)
         {
 
@@ -382,7 +390,6 @@ namespace Pangya_GameServer.Game
                 _smp.message_pool.getInstance().push(new message("[Channel::leaveLobbyMultiPlayer][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
-
         public void enterLobbyGrandPrix(Player _session)
         {
 
@@ -447,17 +454,18 @@ namespace Pangya_GameServer.Game
                     _session, 1);
             }
         }
-
         public void leaveLobbyGrandPrix(Player _session)
         {
+
 
             try
             {
 
                 leaveLobby(_session);
 
-                if (_session.m_client != null)
+                if (_session.m_sock != null)
                 {
+
                     // Sai Lobby Grand Prix
                     PangyaBinaryWriter p = new PangyaBinaryWriter((ushort)0x251);
 
@@ -477,19 +485,21 @@ namespace Pangya_GameServer.Game
 
         public List<stPlayerReward> getAllEligibleToGoldenTime()
         {
-            List<stPlayerReward> players = new List<stPlayerReward>();
-
 
             // Channel verifica se o player está elegível a participar do Golden Time Event
             // Verifica se o player está em sala jogando ou no lounge, practice e Grand Prix Rookie não conta
             // [Lambda] get Room Info
             (bool isGaming, RoomInfoEx info) getRoomInfoLambda(Player _p)
-            { 
+            {
+                bool isGaming = false;
+                RoomInfoEx info = new RoomInfoEx();
+
                 var r = m_rm.findRoom((short)_p.m_pi.mi.sala_numero);
 
                 if (r != null)
                 {
-                    return (r.isGaming(), r.getInfo());
+                    info = r.getInfo();
+                    isGaming = r.isGaming();
                 }
                 else
                 {
@@ -497,53 +507,73 @@ namespace Pangya_GameServer.Game
                         $"[Channel::isGoldenTimeGood::lambda(getRoomInfo)][Error][WARNNING] PLAYER [UID={_p.m_pi.uid}] esta na sala[NUMERO={_p.m_pi.mi.sala_numero}], mas ela nao existe. Hacker ou Bug",
                         type_msg.CL_FILE_LOG_AND_CONSOLE));
                 }
-                return (false, null);
+
+
+                return (isGaming, info);
             }
- 
+
+
+
+            (bool isGaming, RoomInfoEx info) pair_ri;
+
+            List<stPlayerReward> players = new List<stPlayerReward>();
+
             foreach (var p in v_sessions)
             {
+
                 // Invalid Player
-                if (p?.m_pi == null) continue;
-
-                // Não está no lobby (pode estar carregando ou trocando de canal)
-                if (p.m_pi.lobby == 255) continue;
-
-                // Não está em nenhuma sala
-                if (p.m_pi.mi.sala_numero == ushort.MaxValue) continue;
-
-                var (isPlaying, ri) = getRoomInfoLambda(p);
-
-                // Não encontrou a sala ou RoomInfo inválido
-                if (ri == null || ri.numero == ushort.MaxValue) continue;
-
-                // 1. Filtro: Practice ou Grand Zodiac Practice não contam
-                if (ri.getTipo() == RoomInfo.ROOM_INFO_TYPE.PRACTICE ||
-                    ri.getTipo() == RoomInfo.ROOM_INFO_TYPE.GRAND_ZODIAC_PRACTICE)
-                    continue;
-
-                // 2. Filtro: Grand Prix Rookie (Tutorial) não conta
-                if (ri.getTipo() == RoomInfo.ROOM_INFO_TYPE.GRAND_PRIX)
+                if (p == null)
                 {
-                    var aba = sIff.getInstance().getGrandPrixAba(ri.grand_prix.dados_typeid);
-                    bool isNormal = sIff.getInstance().isGrandPrixNormal(ri.grand_prix.dados_typeid);
-
-                    if (aba == 0 && isNormal)
-                        continue;
+                    continue;
                 }
 
-                // 3. Regra do Lounge: Lounge conta sempre. Outros modos só se estiver "In-Game" (Playing)
-                if (ri.getTipo() != RoomInfo.ROOM_INFO_TYPE.LOUNGE && !isPlaying)
-                    continue;
-
-                // Se passou em todos os filtros, adiciona à lista de recompensa
-                players.Add(new stPlayerReward
+                // Não está na lobby
+                if (p.m_pi.lobby == 255)
                 {
-                    uid = p.m_pi.uid,
-                    is_premium = true,
-                    is_playing = isPlaying
-                });
-            } 
-            return players;
+                    continue;
+                }
+
+                // Não está em nenhum sala
+                if (p.m_pi.mi.sala_numero == ushort.MaxValue)
+                {
+                    continue;
+                }
+
+                pair_ri = getRoomInfoLambda(p);
+
+                // Não encontrou a sala
+                if (pair_ri.info.numero == ushort.MaxValue)
+                {
+                    continue;
+                }
+
+                // Practice ou grand zodiac practice não conta
+                if (pair_ri.info.getTipo() == RoomInfo.TIPO.PRACTICE || pair_ri.info.getTipo() == RoomInfo.TIPO.GRAND_ZODIAC_PRACTICE)
+                {
+                    continue;
+                }
+
+                // Grand Prix Rookie(tuto) não conta
+                if (pair_ri.info.getTipo() == RoomInfo.TIPO.GRAND_PRIX
+                    && sIff.getInstance().getGrandPrixAbaType(pair_ri.info.grand_prix.dados_typeid) == GrandPrixData.GP_ABA.ROOKIE
+                    && sIff.getInstance().isGrandPrixNormal(pair_ri.info.grand_prix.dados_typeid))
+                {
+                    continue;
+                }
+
+                // Lounge é o único que não precisa está jogando
+                if (pair_ri.info.getTipo() != RoomInfo.TIPO.LOUNGE && !pair_ri.isGaming)
+                {
+                    continue;
+                }
+
+                // Push player
+                players.Add(new stPlayerReward(p.m_pi.uid,
+                    true,
+                    pair_ri.isGaming));
+            }
+
+            return new List<stPlayerReward>(players);
         }
 
         public void sendFireWorksWinnerGoldenTime(List<stPlayerReward> _winners)
@@ -573,7 +603,7 @@ namespace Pangya_GameServer.Game
                     if (r != null)
                     {
 
-                        if (r.getInfo().getTipo() == RoomInfo.ROOM_INFO_TYPE.LOUNGE)
+                        if (r.getInfo().getTipo() == RoomInfo.TIPO.LOUNGE)
                         {
 
                             // send "chat" da sala fogos de artifícios em cima da cabela do player(*p)
@@ -603,7 +633,6 @@ namespace Pangya_GameServer.Game
         {
             LEAVE_ROOM_STATE state = LEAVE_ROOM_STATE.DO_NOTHING;
 
-            // Simulação do BEGIN_FIND_ROOM (Busca da sala pelo número)
             var r = m_rm.findRoom((short)_session.m_pi.mi.sala_numero);
 
             if (r != null)
@@ -612,71 +641,72 @@ namespace Pangya_GameServer.Game
 
                 try
                 {
-                    // Deleta Convidado
+                    // Deleta convidado
                     if (r.isInvited(_session))
                     {
-                        var ici = r.deleteInvited(_session);
-                        deleteInviteTimeRequest(ici);
+                        if (r.findIndexSession(_session) == -1)
+                        {
+                            var ici = r._deleteInvited(_session);
+                            deleteInviteTimeRequest(ici);
+                        }
+                        else
+                        {
+                            var ici = r.deleteInvited(_session);
+                            deleteInviteTimeRequest(ici);
+                        }
                     }
                     else
                     {
                         opt = r.leave(_session, _option);
                     }
 
-                    // Verifica se todos players da sala são convite
+                    // Verifica se todos os jogadores são convidados
                     var all_invite = r.getAllInvite();
 
                     if (r.getNumPlayers() == all_invite.Count)
                     {
-                        Player s = null;
-                        InviteChannelInfo ici = new InviteChannelInfo();
-
-                        // Usamos ToList para poder iterar enquanto a coleção original é modificada
-                        var all_invite_copy = all_invite.ToList();
-
-                        foreach (var invite_item in all_invite_copy)
+                        InviteChannelInfo ici;
+                        while (all_invite.Count > 0)
                         {
-                            s = null;
-                            ici = new InviteChannelInfo();
-
-                            s = sgs.gs.getInstance().findPlayer(invite_item.invited_uid);
-
-                            if (s == null)
+                            Player s;
+                            var _ici = all_invite.FirstOrDefault();
+                            if ((s = sgs.gs.getInstance().findPlayer(_ici.invited_uid)) == null && _ici != null)
                             {
-                                // Player não está online no server
-                                ici = r.deleteInvited(invite_item.invited_uid);
+                                // Player não está online no server, tenta deletar o convite com o uid do player
+                                ici = r.deleteInvited(_ici.invited_uid);
+
                             }
                             else
                             {
-                                // Player está online
+                                // Player está online deleta o convite com o objeto do player
                                 ici = r.deleteInvited(s);
                             }
 
                             // Deleta invite
-                            if (ici.room_number >= 0 && ici.invited_uid > 0 && ici.invite_uid > 0)
+                            if (ici.room_number >= 0 && ici.invited_uid > 0u && ici.invite_uid > 0u)
                                 deleteInviteTimeRequest(ici);
                         }
                     }
                 }
-                catch (exception e)
+                catch (Exception e)
                 {
-                    _smp.message_pool.getInstance().push(new message("[channel::leaveRoom][Error] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
+                    _smp.message_pool.getInstance().push(new message("[Channel::leaveRoom][Error] " + e.Message, type_msg.CL_FILE_LOG_AND_CONSOLE));
                 }
 
-                // Att PlayerCanalInfo
+                // Atualiza info do jogador
                 updatePlayerInfo(_session);
 
-                if (r.getNumPlayers() > 0 || opt == 0 /*Não exclui a sala*/)
+                if (r.getNumPlayers() > 0 || opt == 0)
                 {
                     r.sendUpdate();
 
                     try
                     {
-                        r.sendPlayerInfo(_session, 2);
+                        r.sendCharacter(_session, 2);
                     }
                     catch (Exception e)
                     {
-                        _smp.message_pool.getInstance().push(new message("[channel::leaveRoom][Error] " + e.Message, type_msg.CL_FILE_LOG_AND_CONSOLE));
+                        _smp.message_pool.getInstance().push(new message("[Channel::leaveRoom][Error] " + e.Message, type_msg.CL_FILE_LOG_AND_CONSOLE));
                     }
 
                     sendUpdatePlayerInfo(_session, 3);
@@ -684,49 +714,58 @@ namespace Pangya_GameServer.Game
 
                     try
                     {
-                        // Deleta Todos da sala (Expulsão em massa)
+                        // Se opt == 0x801, deleta todos os jogadores da sala
                         if (opt == 0x801 && r.getNumPlayers() > 0)
                         {
-                            while (r.getNumPlayers() > 0)
+                            var players = r.getSessions().ToList(); // Clone
+                            foreach (var player in players)
                             {
-                                var first_session = r.getSessions().FirstOrDefault();
-                                if (first_session == null || leaveRoom(first_session, 0x800) == LEAVE_ROOM_STATE.ROOM_DESTROYED)
-                                    break; // Deletou a sala
+                                var result = leaveRoom(player, 0x800);
+                                if (result == LEAVE_ROOM_STATE.ROOM_DESTROYED)
+                                    break;
+                            }
+
+                            // Força destruição da sala se estiver vazia
+                            if (r.getNumPlayers() == 0)
+                            {
+                                m_rm.destroyRoom(r);
+                                state = LEAVE_ROOM_STATE.ROOM_DESTROYED;
                             }
                         }
                     }
                     catch (Exception e)
                     {
-                        _smp.message_pool.getInstance().push(new message("[channel::leaveRoom][ErrorSystem] " + e.Message, type_msg.CL_FILE_LOG_AND_CONSOLE));
+                        _smp.message_pool.getInstance().push(new message("[Channel::leaveRoom][ErrorSystem] " + e.Message, type_msg.CL_FILE_LOG_AND_CONSOLE));
                     }
                 }
                 else
                 {
-                    // Criamos uma cópia das informações antes de destruir
-                    RoomInfoEx ri = r.getInfo();
-
-                    // Destruíndo a sala
-                    r.setDestroying();
                     m_rm.destroyRoom(r);
 
                     sendUpdatePlayerInfo(_session, 3);
-                    sendUpdateRoomInfo(ri, 2);
+                    sendUpdateRoomInfo(r.getInfo(), 2);
 
                     state = LEAVE_ROOM_STATE.ROOM_DESTROYED;
+
+                    if (r.getInfo().getTipo() == RoomInfo.TIPO.GRAND_PRIX && (r.getNumPlayers() == 1 || r.getNumPlayers() == 0))//limpa tudo aqui
+                        r.Dispose();
                 }
 
-                // Send Packet Leave Room To client if necessary
+                // Envia pacote de saída para o cliente se necessário
                 if (state < LEAVE_ROOM_STATE.ROOM_DESTROYED)
                     state = LEAVE_ROOM_STATE.SEND_UPDATE_CLIENT;
             }
             else if (_option == 1)
             {
-                _smp.message_pool.getInstance().push(new message("[channel::leaveRoom][Error][WARNNING] player[UID=" + _session.m_pi.uid + "] tentou sair da sala[NUMERO="
-                    + _session.m_pi.mi.sala_numero + "], mas ela nao existe. Hacker ou Bug", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                _smp.message_pool.getInstance().push(new message(
+                    $"[Channel::leaveRoom][Error][WARNNING] PLAYER [UID={_session.m_pi.uid}] tentou sair da sala[NUMERO={_session.m_pi.mi.sala_numero}], mas ela nao existe. Hacker ou Bug",
+                    type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
 
             return state;
         }
+
+
         public LEAVE_ROOM_STATE leaveRoomMultiPlayer(Player _session, int _option)
         {
 
@@ -782,7 +821,7 @@ namespace Pangya_GameServer.Game
         public List<Player> getSessions(int _lobby = 255)//default
         {
             List<Player> v_session = new List<Player>();
-            //Monitor.Exit(m_cs);
+            Monitor.Enter(m_cs);
             for (var i = 0; i < v_sessions.Count(); ++i)
             {
                 if (v_sessions[i] != null && v_sessions[i].m_pi.channel != DEFAULT_CHANNEL
@@ -790,108 +829,305 @@ namespace Pangya_GameServer.Game
                     v_session.Add(v_sessions[i]);
 
             }
-            //Monitor.Exit(m_cs);
+            Monitor.Exit(m_cs);
             return v_session;
         }
 
         public void makeGrandZodiacEventRoom(range_time _rt)
         {
+
             try
             {
-                const string NAME_INT = "HIO Event (Intermediate)";
-                const string NAME_ADV = "HIO Event (Advanced)";
 
-                // 1. Cálculo de salas (Garantindo no mínimo 1 de cada tipo se o evento estiver ativo)
-                int num_rooms = Math.Max(1, (int)Math.Ceiling(v_sessions.Count / 200.0));
+                const string GRAND_ZODIAC_EVENT_INT_NAME = "HIO Event (Itermediare)";
+                const string GRAND_ZODIAC_EVENT_ADV_NAME = "HIO Event (Advance)";
 
-                // 2. Limpeza de Salas Inválidas (Anti-Zumbi)
-                // Antes de contar, limpamos salas que estão marcadas como destruídas mas ainda no Manager
-                lock (m_rm)
+                // Verifica se tem room grand zodiac event criado se não cria
+                RoomInfoEx ri = new RoomInfoEx();
+                RoomGrandZodiacEvent r = null;
+
+                var num_rooms = ((v_sessions.Count % 200) == 0) ? v_sessions.Count / 200 : v_sessions.Count / 200 + 1;
+
+                if (num_rooms > 0)
                 {
-                    var allRooms = m_rm.getAllRoomsGrandZodiacEvent();
-                    foreach (var r in allRooms)
+
+                    var rooms = m_rm.getAllRoomsGrandZodiacEvent();
+
+                    if (rooms.empty())
                     {
-                        // Se for uma sala de evento vazia ou marcada para destruição, removemos do Manager
-                        if ((r is RoomGrandZodiacEvent) && (r.getNumPlayers() == 0 && r.geDestroying()))
+
+                        // Intermediare
+                        if (_rt.m_type == range_time.eTYPE_MAKE_ROOM.TMR_MAKE_ALL || _rt.m_type == range_time.eTYPE_MAKE_ROOM.TMR_MAKE_INTERMEDIARE)
                         {
-                            m_rm.addRoom(r);
-                        }
-                    }
-                }
 
-                // Recuperamos a lista atualizada após a limpeza
-                var currentRooms = m_rm.getAllRoomsGrandZodiacEvent();
-
-                // 3. Função local de criação robusta
-                void CreateNeededRooms(RoomInfo.ROOM_INFO_TYPE tipo, string nome, int goal)
-                {
-                    // Filtra apenas salas do tipo específico que ainda estão "vivas"
-                    int currentCount = currentRooms.Count(el => el != null && el.getInfo().getTipo() == tipo && !el.geDestroying());
-
-                    // LOG de Debug no Console para você monitorar o ciclo
-                    _smp.message_pool.getInstance().push(new message(
-                        $"[Zodiac Check] Tipo: {tipo} | Atuais: {currentCount} | Meta: {goal}",
-                        type_msg.CL_ONLY_CONSOLE));
-
-                    for (int i = currentCount; i < goal; i++)
-                    {
-                        try
-                        {
-                            // Criamos um RoomInfoEx limpo e específico
-                            RoomInfoEx ri = new RoomInfoEx();
-                            ri.time_30s = 7 * 60000; // 7 minutos de espera (exemplo)
-                            ri.tipo = (byte)tipo;
+                            ri.time_30s = 7 * 60000; // 7 min
+                            ri.tipo = (byte)RoomInfo.TIPO.GRAND_ZODIAC_INT;
                             ri.qntd_hole = 1;
-                            ri.course = RoomInfo.ROOM_INFO_COURSE.GRAND_ZODIAC;
+                            ri.course = RoomInfo.eCOURSE.GRAND_ZODIAC;
                             ri.max_player = 100;
+
+                            // Flag do canal, se for rookie passa para sala, que no jogo, essa flag faz vir vento de 1m a 5m
                             ri.channel_rookie = true;
-                            ri.name = nome;
-                            ri.senha = ""; // Garante que a sala seja pública 
-
-                            // m_rm.makeRoomGrandZodiacEvent deve retornar uma instância NOVA de RoomGrandZodiacEvent
-                            var r = m_rm.makeRoomGrandZodiacEvent(m_ci.id, ri, _rt.m_end);
-
-                            if (r != null)
+                            ri.nome = GRAND_ZODIAC_EVENT_INT_NAME;
+                            // INTERMEDIARE
+                            for (var i = 0u; i < num_rooms; ++i)
                             {
-                                // Adiciona ao Manager e avisa os players no Lobby (Pacote 0x48 / 0x49)
-                                if (m_rm.addRoom(r))
-                                {
-                                    sendUpdateRoomInfo(r.getInfo(), 1); // 1 = Add/Update
 
-                                    _smp.message_pool.getInstance().push(new message(
-                                        $"[Zodiac] Sala {tipo} #{r.getNumero()} criada com sucesso no Canal {m_ci.id}.",
-                                        type_msg.CL_FILE_LOG_AND_CONSOLE));
+                                try
+                                {
+
+                                    r = m_rm.makeRoomGrandZodiacEvent(m_ci.id, ri);
+
+                                    if (r == null)
+                                    {
+                                        throw new exception("[Channel::makeGrandZodiacEventRoom][Error] Channel[ID=" + ((ushort)m_ci.id) + "] tentou criar a sala Grand Zodiac Event, mas deu erro na criacao. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                                            8, 0));
+                                    }
+
+
+                                    _rt.m_room_created = true;//seta aqui agora
+
+                                    _rt.RoomID = r.getNumero();
+
+                                    sGrandZodiacEvent.getInstance().setInterval(_rt);
+
+#if RELEASE
+        								_smp.message_pool.getInstance().push(new message("[Channel::makeGrandZodiacEventRoom][Sucess] New Room Maked.", type_msg.CL_FILE_LOG_AND_CONSOLE));
+#endif // RELEASE
+
+                                    sendUpdateRoomInfo(r.getInfo(), 1);
+
+                                    // Libera a sala
+                                    if (r != null)
+                                    {
+                                        m_rm.addRoom(r);
+
+                                        m_rm.unlockRoom(r);
+                                    }
+                                }
+                                catch (exception e)
+                                {
+
+                                    // Libera a sala
+                                    if (r != null)
+                                    {
+                                        m_rm.unlockRoom(r);
+                                    }
+
+                                    _smp.message_pool.getInstance().push(new message("[Channel::makeGrandZodiacEventRoom][ErrorSystem][make] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
                                 }
                             }
                         }
-                        catch (Exception ex)
+
+                        // Advanced
+                        if (_rt.m_type == range_time.eTYPE_MAKE_ROOM.TMR_MAKE_ALL || _rt.m_type == range_time.eTYPE_MAKE_ROOM.TMR_MAKE_ADVANCED)
                         {
-                            _smp.message_pool.getInstance().push(new message(
-                                $"[makeGrandZodiacEventRoom][CreateLoopError] {ex.Message}",
-                                type_msg.CL_FILE_LOG_AND_CONSOLE));
+
+                            ri = new RoomInfoEx();
+
+                            // Flag do canal, se for rookie passa para sala, que no jogo, essa flag faz vir vento de 1m a 5m
+                            ri.channel_rookie = true;
+
+                            ri.time_30s = 7 * 60000; // 7 min
+                            ri.tipo = (byte)RoomInfo.TIPO.GRAND_ZODIAC_ADV;
+                            ri.qntd_hole = 1;
+                            ri.course = RoomInfo.eCOURSE.GRAND_ZODIAC;
+                            ri.max_player = 100;
+                            ri.nome = GRAND_ZODIAC_EVENT_ADV_NAME;
+                            // ADVANCED
+                            for (var i = 0u; i < num_rooms; ++i)
+                            {
+
+                                try
+                                {
+
+                                    r = m_rm.makeRoomGrandZodiacEvent(m_ci.id, ri);
+
+                                    if (r == null)
+                                    {
+                                        throw new exception("[Channel::makeGrandZodiacEventRoom][Error] Channel[ID=" + ((ushort)m_ci.id) + "] tentou criar a sala Grand Zodiac Event, mas deu erro na criacao. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                                            8, 0));
+                                    }
+                                    _rt.m_room_created = true;//seta aqui agora
+
+                                    _rt.RoomID = r.getNumero();
+
+                                    sGrandZodiacEvent.getInstance().setInterval(_rt);
+
+#if RELEASE
+        								_smp.message_pool.getInstance().push(new message("[Channel::makeGrandZodiacEventRoom][Sucess] New Room Maked.", type_msg.CL_FILE_LOG_AND_CONSOLE));
+#endif // RELEASE 
+                                    sendUpdateRoomInfo(r.getInfo(), 1);
+
+
+                                    // Libera a sala
+                                    if (r != null)
+                                    {
+                                        m_rm.addRoom(r);
+
+                                        m_rm.unlockRoom(r);
+                                    }
+
+
+                                }
+                                catch (exception e)
+                                {
+
+                                    // Libera a sala
+                                    if (r != null)
+                                    {
+                                        m_rm.unlockRoom(r);
+                                    }
+
+                                    _smp.message_pool.getInstance().push(new message("[Channel::makeGrandZodiacEventRoom][ErrorSystem][make] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
+                                }
+                            }
+                        }
+
+                    }
+                    else
+                    {
+
+                        int count = 0;
+
+                        // INTERMEDIARE
+                        if (_rt.m_type == range_time.eTYPE_MAKE_ROOM.TMR_MAKE_ALL || _rt.m_type == range_time.eTYPE_MAKE_ROOM.TMR_MAKE_INTERMEDIARE)
+                        {
+
+                            count = rooms.Count(_el => _el.getInfo().getTipo() == RoomInfo.TIPO.GRAND_ZODIAC_INT);
+                            if (count < num_rooms)
+                            {
+
+                                ri.time_30s = 7 * 60000; // 7 min
+                                ri.tipo = (byte)RoomInfo.TIPO.GRAND_ZODIAC_INT;
+                                ri.qntd_hole = 1;
+                                ri.course = RoomInfo.eCOURSE.GRAND_ZODIAC;
+                                ri.max_player = 100;
+
+                                // Flag do canal, se for rookie passa para sala, que no jogo, essa flag faz vir vento de 1m a 5m
+                                ri.channel_rookie = true;
+                                ri.nome = GRAND_ZODIAC_EVENT_INT_NAME;
+                                for (var i = count; i < num_rooms; ++i)
+                                {
+
+                                    try
+                                    {
+
+                                        r = m_rm.makeRoomGrandZodiacEvent(m_ci.id, ri);
+
+                                        if (r == null)
+                                        {
+                                            throw new exception("[Channel::makeGrandZodiacEventRoom][Error] Channel[ID=" + ((ushort)m_ci.id) + "] tentou criar a sala Grand Zodiac Event, mas deu erro na criacao. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                                                8, 0));
+                                        }
+
+#if RELEASE
+        									_smp.message_pool.getInstance().push(new message("[Channel::makeGrandZodiacEventRoom][Sucess] New Room Maked.", type_msg.CL_FILE_LOG_AND_CONSOLE));
+#endif // RELEASE
+
+                                        sendUpdateRoomInfo(r.getInfo(), 1);
+
+
+                                        // Libera a sala
+                                        if (r != null)
+                                        {
+                                            m_rm.addRoom(r);
+
+                                            m_rm.unlockRoom(r);
+                                        }
+
+
+                                    }
+                                    catch (exception e)
+                                    {
+
+                                        // Libera a sala
+                                        if (r != null)
+                                        {
+                                            m_rm.unlockRoom(r);
+                                        }
+
+                                        _smp.message_pool.getInstance().push(new message("[Channel::makeGrandZodiacEventRoom][ErrorSystem][make] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
+                                    }
+                                }
+                            }
+                        }
+
+                        // ADVANCED
+                        if (_rt.m_type == range_time.eTYPE_MAKE_ROOM.TMR_MAKE_ALL || _rt.m_type == range_time.eTYPE_MAKE_ROOM.TMR_MAKE_ADVANCED)
+                        {
+
+                            count = rooms.Count(_el => _el.getInfo().getTipo() == RoomInfo.TIPO.GRAND_ZODIAC_INT);
+                            if (count < num_rooms)
+                            {
+
+                                ri.clear();
+
+                                ri.time_30s = 7 * 60000; // 7 min
+                                ri.tipo = (byte)RoomInfo.TIPO.GRAND_ZODIAC_ADV;
+                                ri.qntd_hole = 1;
+                                ri.course = RoomInfo.eCOURSE.GRAND_ZODIAC;
+                                ri.max_player = 100;
+
+                                // Flag do canal, se for rookie passa para sala, que no jogo, essa flag faz vir vento de 1m a 5m
+                                ri.channel_rookie = true;
+                                ri.nome = GRAND_ZODIAC_EVENT_ADV_NAME;
+
+                                for (var i = count; i < num_rooms; ++i)
+                                {
+
+                                    try
+                                    {
+
+                                        r = m_rm.makeRoomGrandZodiacEvent(m_ci.id, ri);
+
+                                        if (r == null)
+                                        {
+                                            throw new exception("[Channel::makeGrandZodiacEventRoom][Error] Channel[ID=" + ((ushort)m_ci.id) + "] tentou criar a sala Grand Zodiac Event, mas deu erro na criacao. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                                                8, 0));
+                                        }
+
+#if RELEASE
+        									_smp.message_pool.getInstance().push(new message("[Channel::makeGrandZodiacEventRoom][Sucess] New Room Maked.", type_msg.CL_FILE_LOG_AND_CONSOLE));
+#endif // RELEASE
+
+                                        sendUpdateRoomInfo(r.getInfo(), 1);
+
+
+                                        // Libera a sala
+                                        if (r != null)
+                                        {
+                                            m_rm.addRoom(r);
+
+                                            m_rm.unlockRoom(r);
+                                        }
+
+
+                                    }
+                                    catch (exception e)
+                                    {
+
+                                        // Libera a sala
+                                        if (r != null)
+                                        {
+                                            m_rm.unlockRoom(r);
+                                        }
+
+                                        _smp.message_pool.getInstance().push(new message("[Channel::makeGrandZodiacEventRoom][ErrorSystem][make] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
+                                    }
+                                }
+                            }
                         }
                     }
                 }
 
-                // 4. Lógica de Disparo (Baseada no range_time)
-                if (_rt.m_type == range_time.eTYPE_MAKE_ROOM.TMR_MAKE_ALL || _rt.m_type == range_time.eTYPE_MAKE_ROOM.TMR_MAKE_INTERMEDIARE)
-                {
-                    CreateNeededRooms(RoomInfo.ROOM_INFO_TYPE.GRAND_ZODIAC_INT, NAME_INT, num_rooms);
-                }
-
-                if (_rt.m_type == range_time.eTYPE_MAKE_ROOM.TMR_MAKE_ALL || _rt.m_type == range_time.eTYPE_MAKE_ROOM.TMR_MAKE_ADVANCED)
-                {
-                    CreateNeededRooms(RoomInfo.ROOM_INFO_TYPE.GRAND_ZODIAC_ADV, NAME_ADV, num_rooms);
-                }
             }
-            catch (Exception e)
+            catch (exception e)
             {
-                _smp.message_pool.getInstance().push(new message(
-                    $"[GameServer::makeGrandZodiacEventRoom][CriticalError] {e.Message}",
-                    type_msg.CL_FILE_LOG_AND_CONSOLE));
+
+                _smp.message_pool.getInstance().push(new message("[Channel::makeGrandZodiacEventRoom][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
-
         public void makeBotGMEventRoom(stRangeTime _rt, List<stReward> _reward)
         {
 
@@ -908,16 +1144,16 @@ namespace Pangya_GameServer.Game
 
                     ri.clear();
 
-                    // Flag do canal, se for rookie passa para sala, que no jogo, essa type faz vir vento de 1m a 5m
+                    // Flag do canal, se for rookie passa para sala, que no jogo, essa flag faz vir vento de 1m a 5m
                     ri.channel_rookie = true;
 
                     ri.time_30s = 35 * 60000; // 35 min
-                    ri.tipo = (byte)RoomInfo.ROOM_INFO_TYPE.TOURNEY;
+                    ri.tipo = (byte)RoomInfo.TIPO.TOURNEY;
                     ri.qntd_hole = 18; // 18 Holes
-                    ri.course = RoomInfo.ROOM_INFO_COURSE.RANDOM;
+                    ri.course = RoomInfo.eCOURSE.RANDOM;
                     ri.max_player = 250;
-                    ri.modo = (byte)RoomInfo.ROOM_INFO_MODO.M_SHUFFLE;
-                    ri.name = BOT_GM_EVENT_NAME;
+                    ri.modo = (byte)RoomInfo.eMODO.M_SHUFFLE;
+                    ri.nome = BOT_GM_EVENT_NAME;
 
                     try
                     {
@@ -932,6 +1168,8 @@ namespace Pangya_GameServer.Game
                         }
 
                         _rt.m_room_created = true;//seta aqui agora
+
+                        _smp.message_pool.getInstance().push(new message("[Channel::makeBotGMEventRoom][Sucess] New Room Maked.", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
                         sendUpdateRoomInfo(r.getInfo(), 1);
 
@@ -974,6 +1212,11 @@ namespace Pangya_GameServer.Game
 
             try
             {
+
+                
+                
+
+
                 enterLobbyMultiPlayer(_session);
 
             }
@@ -989,8 +1232,8 @@ namespace Pangya_GameServer.Game
             //
 
             try
-            {
-                leaveLobbyMultiPlayer(_session);
+            { 
+                leaveLobbyMultiPlayer(_session); 
             }
             catch (exception e)
             {
@@ -1000,10 +1243,10 @@ namespace Pangya_GameServer.Game
         }
 
         public void requestEnterLobbyGrandPrix(Player _session, packet _packet)
-        {
+        { 
             try
-            {
-                enterLobbyGrandPrix(_session);
+            { 
+                enterLobbyGrandPrix(_session); 
             }
             catch (exception e)
             {
@@ -1011,7 +1254,7 @@ namespace Pangya_GameServer.Game
                 _smp.message_pool.getInstance().push(new message("[Channel::requestEnterLobbyGrandPrix][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
-
+  
         public void requestExitLobbyGrandPrix(Player _session, packet _packet)
         {
             //
@@ -1019,8 +1262,8 @@ namespace Pangya_GameServer.Game
             try
             {
 
-
-
+                
+                
 
 
                 leaveLobbyGrandPrix(_session);
@@ -1032,11 +1275,16 @@ namespace Pangya_GameServer.Game
                 _smp.message_pool.getInstance().push(new message("[Channel::requestExitLobbyGrandPrix][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
-
+    
         public void requestEnterSpyRoom(Player _session, packet _packet)
         {
+            //
+
             try
             {
+
+                _smp.message_pool.getInstance().push(new message("[Channel::requestEnterSpyRoom][Debug] Packet Hex: " + _packet.Log(), type_msg.CL_FILE_LOG_AND_CONSOLE));
+
                 var sala_numero = _packet.ReadUInt16();
                 string senha = _packet.ReadString();
 
@@ -1101,7 +1349,7 @@ namespace Pangya_GameServer.Game
                     nc = NICK_CHECK.INCORRECT_NICK;
 
                     _smp.message_pool.getInstance().push(new message(
-                        $"[Channel::requestCheckNick][Log] Player[UID={_session.m_pi.uid}] Pediu para verificar o nick é menor que 4 letras ou tem caracteres que nao pode: {nick}",
+                        $"[Channel::requestCheckNick][Log] Player[UID={_session.m_pi.uid}] Pediu para verificar o nick eh menor que 4 letras ou tem caracteres que nao pode: {nick}",
                         type_msg.CL_FILE_LOG_AND_CONSOLE));
                 }
 
@@ -1177,16 +1425,13 @@ namespace Pangya_GameServer.Game
 
         public void requestMakeRoom(Player _session, packet _packet)
         {
+
+            _smp.message_pool.getInstance().push(new message($"[{this.GetType().Name}::{MethodBase.GetCurrentMethod().Name}][Debug] Packet 0x08.\n\rHex Dump.\n\r" + _packet.Log(), type_msg.CL_FILE_LOG_AND_CONSOLE));
+
             PangyaBinaryWriter p = new PangyaBinaryWriter();
 
             try
             {
-                // 1. Validação de tamanho mínimo do pacote (Prevenção de Buffer Overflow/Crash)
-                if (_packet.GetSize < 20)
-                {
-                    throw new exception($"[Channel::requestMakeRoom] Packet size ({_packet.GetSize}) too small. Hacker attempt.",
-                        ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL, 7, 0));
-                }
 
                 int option;
                 RoomInfoEx ri = new RoomInfoEx();
@@ -1199,54 +1444,29 @@ namespace Pangya_GameServer.Game
                 ri.max_player = _packet.ReadUInt8();
                 ri.tipo = _packet.ReadUInt8();
                 ri.qntd_hole = _packet.ReadUInt8();
-                ri.course = (RoomInfo.ROOM_INFO_COURSE)(_packet.ReadUInt8());
-                // 3. Verificação de Course Válido
-                if (!Enum.IsDefined(typeof(RoomInfo.ROOM_INFO_COURSE), ri.course))
-                {
-                    throw new exception($"[Channel::requestMakeRoom] Course ID {(int)ri.course} inválido.",
-                       ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL, 7, 0));
-                }
-
+                ri.course = (RoomInfo.eCOURSE)(_packet.ReadUInt8());
                 ri.modo = _packet.ReadUInt8();
-                if (!Enum.IsDefined(typeof(RoomInfo.ROOM_INFO_MODO), ri.modo))
-                {
-                    throw new exception($"[Channel::requestMakeRoom] Modo ID {(int)ri.modo} inválido.",
-                       ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL, 7, 0));
-                }
-
                 var len = _packet.GetSize;
 
                 bool practice = false;
                 //hole repeted = 68, chip-in = 63
-                if (len == 68 && ri.tipo == 19) // Hole Repeated
+                if (len == 68)
                 {
                     _packet.Skip(5);
                     ri.hole_repeat = 1;
                     ri.fixed_hole = 7;
                     practice = true;
                 }
-                else if (len == 63 && ri.tipo == 19) // Chip-in Practice
+                //okay
+                if (len == 63)
                 {
                     ri.hole_repeat = 0;
                     ri.fixed_hole = 0;
                     practice = true;
                 }
 
-                if (!_session.m_pi.m_cap.game_master && ri.max_player > 30)//criar comparacao melhor
-                {
-                    throw new exception("[Channel::requestMakeRoom][Error] Channel[ID=" + ((ushort)m_ci.id) + "] limite atingido, Hacker, por que o cliente nao deixa criar uma sala maior que 30, pois o cliente nao e gm/adm.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
-                        7, 0));
-                }
+                ri.natural.ulNaturalAndShortGame = _packet.ReadUInt32(); // Short Game e Natural está nessa flag também
 
-                ri.special_flag_mod.ulNaturalAndShortGame = _packet.ReadUInt32();
-
-                // CHECK DE SEGURANÇA: 
-                // Natural (Bit 0) + Short Game (Bit 1) = Valor máximo 3
-                if (ri.special_flag_mod.ulNaturalAndShortGame > 3)
-                {
-                    throw new exception("[Channel::requestMakeRoom][Error] Channel[ID=" + ((ushort)m_ci.id) + "] tentou criar sala com NaturalAndShortGame inválido.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
-                                      7, 0));
-                }
                 s_tmp = _packet.ReadString();
 
                 if (s_tmp.Length == 0)//criar comparacao melhor
@@ -1254,13 +1474,6 @@ namespace Pangya_GameServer.Game
                     throw new exception("[Channel::requestMakeRoom][Error] Channel[ID=" + ((ushort)m_ci.id) + "] Nome da sala vazio, Hacker, por que o cliente nao deixa enviar esse pacote sem um nome da sala.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                         7, 0));
                 }
-
-                if (s_tmp.Length > 32)//criar comparacao melhor
-                {
-                    throw new exception("[Channel::requestMakeRoom][Error] Channel[ID=" + ((ushort)m_ci.id) + "] Nome da sala vazio, Hacker, por que o cliente nao deixa enviar esse pacote sem um nome da sala.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
-                        7, 0));
-                }
-
 
                 if (practice)
                 {
@@ -1272,14 +1485,8 @@ namespace Pangya_GameServer.Game
                     }
                 }
 
-                ri.name = s_tmp;
+                ri.nome = s_tmp;
                 s_tmp = _packet.ReadString();
-
-                if (s_tmp.Length > 8)//criar comparacao melhor
-                {
-                    throw new exception("[Channel::requestMakeRoom][Error] Channel[ID=" + ((ushort)m_ci.id) + "] tamanho da senha esta errado, Code[0].", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
-                        7, 0));
-                }
 
                 if (practice)
                 {
@@ -1287,12 +1494,6 @@ namespace Pangya_GameServer.Game
                     {
                         throw new exception("[Channel::requestMakeRoom][Error] Channel[ID=" + (m_ci.id)
                             + "] senha da sala practice esta errada!.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL, 7, 0));
-                    }
-
-                    if (s_tmp.Length < 8)//criar comparacao melhor
-                    {
-                        throw new exception("[Channel::requestMakeRoom][Error] Channel[ID=" + ((ushort)m_ci.id) + "] tamanho da senha esta errado, Code[2].", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
-                            7, 0));
                     }
                 }
 
@@ -1303,32 +1504,33 @@ namespace Pangya_GameServer.Game
                     ri.senha = s_tmp;
                 }
 
-                ri.typeid_artefatic = _packet.ReadUInt32();
+                ri.artefato = _packet.ReadUInt32();
                 //::::::::::::::::::::::: Termina Leitura de dados do cliente ::::::::::::::::::::::::::::::://
 
                 //Check Max Players, 30s, vs 
                 FilterRoom(_session, ri);
 
                 // Short game só pode em torneio, Special shuffle course e Grand Prix se estiver com o short game ativado, desativa
-                if (ri.special_flag_mod.short_game && ri.getTipo() != RoomInfo.ROOM_INFO_TYPE.TOURNEY
-                    && ri.getTipo() != RoomInfo.ROOM_INFO_TYPE.SPECIAL_SHUFFLE_COURSE
-                    && ri.getTipo() != RoomInfo.ROOM_INFO_TYPE.GRAND_PRIX)
+                if (ri.natural.short_game == 1
+                    && ri.getTipo() != RoomInfo.TIPO.TOURNEY
+                    && ri.getTipo() != RoomInfo.TIPO.SPECIAL_SHUFFLE_COURSE
+                    && ri.getTipo() != RoomInfo.TIPO.GRAND_PRIX)
                 {
-                    ri.special_flag_mod.short_game = false;
+                    ri.natural.short_game = 0u;
                 }
 
                 // Se for natural Modo ativa o Modo natural na sala, para mostrar os detalhes na rosa dos ventos,
                 // por que o cliente muda o vento, mas não mostra os detalhes
                 if (m_type.natural)
                 {
-                    ri.special_flag_mod.natural = true;
+                    ri.natural.natural = 1;
                 }
 
                 // Flag Server
                 uFlag flag = _session.m_pi.block_flag.m_flag;
 
                 // Player não pode criar sala, exceto Lounge, se ele não estiver bloqueado
-                if (flag.all_game && (ri.getTipo() != RoomInfo.ROOM_INFO_TYPE.LOUNGE || flag.lounge))
+                if (flag.all_game && (ri.getTipo() != RoomInfo.TIPO.LOUNGE || flag.lounge))
                 {
                     throw new exception("[Channel::requestMakeRoom][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] Channel[ID=" + ((ushort)m_ci.id) + "] tentou criar um sala, mas ele nao pode criar nenhuma sala. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                         1, 0x780001));
@@ -1336,86 +1538,86 @@ namespace Pangya_GameServer.Game
 
                 switch (ri.getTipo())
                 {
-                    case RoomInfo.ROOM_INFO_TYPE.STROKE:
+                    case RoomInfo.TIPO.STROKE:
                         if (flag.stroke)
                         {
                             throw new exception("[Channel::requestMakeRoom][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] Channel[ID=" + ((ushort)m_ci.id) + "] tentou criar sala[TIPO=" + ((ushort)ri.getTipo()) + "], mas ele nao pode criar Stroke. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                                 2, 0x770001));
                         }
                         break;
-                    case RoomInfo.ROOM_INFO_TYPE.MATCH:
+                    case RoomInfo.TIPO.MATCH:
                         if (flag.match)
                         {
                             throw new exception("[Channel::requestMakeRoom][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] Channel[ID=" + ((ushort)m_ci.id) + "] tentou criar sala[TIPO=" + ((ushort)ri.getTipo()) + "], mas ele nao pode criar Match. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                                 3, 0x770001));
                         }
                         break;
-                    case RoomInfo.ROOM_INFO_TYPE.TOURNEY:
+                    case RoomInfo.TIPO.TOURNEY:
                         if (flag.tourney)
                         {
                             throw new exception("[Channel::requestMakeRoom][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] Channel[ID=" + ((ushort)m_ci.id) + "] tentou criar sala[TIPO=" + ((ushort)ri.getTipo()) + "], mas ele nao pode criar Tourney. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                                 4, 0x770001));
                         }
                         break;
-                    case RoomInfo.ROOM_INFO_TYPE.TOURNEY_TEAM:
+                    case RoomInfo.TIPO.TOURNEY_TEAM:
                         if (flag.team_tourney)
                         {
                             throw new exception("[Channel::requestMakeRoom][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] Channel[ID=" + ((ushort)m_ci.id) + "] tentou criar sala[TIPO=" + ((ushort)ri.getTipo()) + "], mas ele nao pode criar Team Tourney. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                                 5, 0x770001));
                         }
                         break;
-                    case RoomInfo.ROOM_INFO_TYPE.GUILD_BATTLE:
+                    case RoomInfo.TIPO.GUILD_BATTLE:
                         if (flag.guild_battle)
                         {
                             throw new exception("[Channel::requestMakeRoom][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] Channel[ID=" + ((ushort)m_ci.id) + "] tentou criar sala[TIPO=" + ((ushort)ri.getTipo()) + "], mas ele nao pode criar Guild Battle. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                                 6, 0x770001));
                         }
                         break;
-                    case RoomInfo.ROOM_INFO_TYPE.PANG_BATTLE:
+                    case RoomInfo.TIPO.PANG_BATTLE:
                         if (flag.pang_battle)
                         {
                             throw new exception("[Channel::requestMakeRoom][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] Channel[ID=" + ((ushort)m_ci.id) + "] tentou criar sala[TIPO=" + ((ushort)ri.getTipo()) + "], mas ele nao pode criar Pang Battle. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                                 7, 0x770001));
                         }
                         break;
-                    case RoomInfo.ROOM_INFO_TYPE.APPROCH:
+                    case RoomInfo.TIPO.APPROCH:
                         if (flag.approach)
                         {
                             throw new exception("[Channel::requestMakeRoom][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] Channel[ID=" + ((ushort)m_ci.id) + "] tentou criar sala[TIPO=" + ((ushort)ri.getTipo()) + "], mas ele nao pode criar Approach. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                                 8, 0x770001));
                         }
                         break;
-                    case RoomInfo.ROOM_INFO_TYPE.LOUNGE:
+                    case RoomInfo.TIPO.LOUNGE:
                         if (flag.lounge)
                         {
                             throw new exception("[Channel::requestMakeRoom][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] Channel[ID=" + ((ushort)m_ci.id) + "] tentou criar sala[TIPO=" + ((ushort)ri.getTipo()) + "], mas ele nao pode criar Lounge. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                                 9, 0x770001));
                         }
                         break;
-                    case RoomInfo.ROOM_INFO_TYPE.GRAND_ZODIAC_INT:
-                    case RoomInfo.ROOM_INFO_TYPE.GRAND_ZODIAC_ADV:
-                    case RoomInfo.ROOM_INFO_TYPE.GRAND_ZODIAC_PRACTICE:
+                    case RoomInfo.TIPO.GRAND_ZODIAC_INT:
+                    case RoomInfo.TIPO.GRAND_ZODIAC_ADV:
+                    case RoomInfo.TIPO.GRAND_ZODIAC_PRACTICE:
                         if (flag.grand_zodiac)
                         {
                             throw new exception("[Channel::requestMakeRoom][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] Channel[ID=" + ((ushort)m_ci.id) + "] tentou criar sala[TIPO=" + ((ushort)ri.getTipo()) + "], mas ele nao pode criar Grand Zodiac. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                                 10, 0x770001));
                         }
                         break;
-                    case RoomInfo.ROOM_INFO_TYPE.GRAND_PRIX:
+                    case RoomInfo.TIPO.GRAND_PRIX:
                         if (flag.grand_prix)
                         {
                             throw new exception("[Channel::requestMakeRoom][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] Channel[ID=" + ((ushort)m_ci.id) + "] tentou criar sala[TIPO=" + ((ushort)ri.getTipo()) + "], mas ele nao pode criar Grand Prix. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                                 11, 0x770001));
                         }
                         break;
-                    case RoomInfo.ROOM_INFO_TYPE.SPECIAL_SHUFFLE_COURSE:
+                    case RoomInfo.TIPO.SPECIAL_SHUFFLE_COURSE:
                         if (flag.ssc)
                         {
                             throw new exception("[Channel::requestMakeRoom][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] Channel[ID=" + ((ushort)m_ci.id) + "] tentou criar sala[TIPO=" + ((ushort)ri.getTipo()) + "], mas ele nao pode criar Special Shuffle Course. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                                 12, 0x770001));
                         }
                         break;
-                    case RoomInfo.ROOM_INFO_TYPE.PRACTICE:
+                    case RoomInfo.TIPO.PRACTICE:
                         if (flag.single_play)
                         {
                             throw new exception("[Channel::requestMakeRoom][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] Channel[ID=" + ((ushort)m_ci.id) + "] tentou criar sala[TIPO=" + ((ushort)ri.getTipo()) + "], mas ele nao pode criar Practice. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
@@ -1424,34 +1626,34 @@ namespace Pangya_GameServer.Game
                         break;
                 }
 
-                if (ri.special_flag_mod.short_game && (flag.team_tourney || flag.short_game))
+                if (ri.natural.short_game == 1 && (flag.team_tourney || flag.short_game))
                 {
                     throw new exception("[Channel::requestMakeRoom][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] Channel[ID=" + ((ushort)m_ci.id) + "] tentou criar a sala[TIPO=" + ((ushort)ri.getTipo()) + "], mas ele nao pode criar sala Short Game. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                         1, 770001));
                 }
 
-                if (ri.getTipo() == RoomInfo.ROOM_INFO_TYPE.GRAND_ZODIAC_PRACTICE && ri.time_30s != (30 * 60000))
+                if (ri.getTipo() == RoomInfo.TIPO.GRAND_ZODIAC_PRACTICE && ri.time_30s != (30 * 60000))
                 {
-                    throw new exception("[Channel::requestMakeRoom][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] Channel[ID=" + ((ushort)m_ci.id) + "] tentou criar a sala[TIPO=" + ((ushort)ri.getTipo()) + "], mas o tempo é diferente do tempo do Chip-in Practice[CERTO=" + (30 * 60000) + ", HACKER=" + (ri.time_30s) + "]. Hacker.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                    throw new exception("[Channel::requestMakeRoom][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] Channel[ID=" + ((ushort)m_ci.id) + "] tentou criar a sala[TIPO=" + ((ushort)ri.getTipo()) + "], mas o tempo eh diferente do tempo do Chip-in Practice[CERTO=" + (30 * 60000) + ", HACKER=" + (ri.time_30s) + "]. Hacker.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                         1, 780002));
                 }
 
-                if ((ri.getTipo() >= RoomInfo.ROOM_INFO_TYPE.GRAND_ZODIAC_INT && ri.getTipo() <= RoomInfo.ROOM_INFO_TYPE.GRAND_ZODIAC_ADV) && !_session.m_pi.m_cap.game_master)
+                if ((ri.getTipo() >= RoomInfo.TIPO.GRAND_ZODIAC_INT && ri.getTipo() <= RoomInfo.TIPO.GRAND_ZODIAC_ADV) && !_session.m_pi.m_cap.game_master)
                 {
-                    throw new exception("[Channel::requestMakeRoom][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] Channel[ID=" + ((ushort)m_ci.id) + "] tentou criar a sala[TIPO=" + ((uint)ri.getTipo()) + "], mas ele nao é GM para poder criar sala de Grand Zodiac Event. Hacker.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                    throw new exception("[Channel::requestMakeRoom][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] Channel[ID=" + ((ushort)m_ci.id) + "] tentou criar a sala[TIPO=" + ((uint)ri.getTipo()) + "], mas ele nao eh GM para poder criar sala de Grand Zodiac Event. Hacker.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                         2, 760001));
                 }
 
-                if (ri.getTipo() == RoomInfo.ROOM_INFO_TYPE.GRAND_PRIX)
+                if (ri.getTipo() == RoomInfo.TIPO.GRAND_PRIX)
                 {
                     throw new exception("[Channel::requestMakeRoom][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] Channel[ID=" + ((ushort)m_ci.id) + "] tentou criar a sala[TIPO=" + ((ushort)ri.getTipo()) + "], mas nao pode criar sala Grand Prix com esse pacote. Hacker.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                         15, 0x770001));
                 }
 
-                // Flag do canal, se for rookie passa para sala, que no jogo, essa type faz vir vento de 1m a 5m
+                // Flag do canal, se for rookie passa para sala, que no jogo, essa flag faz vir vento de 1m a 5m
                 ri.channel_rookie = true;
 
-                if (ri.getTipo() == RoomInfo.ROOM_INFO_TYPE.SPECIAL_SHUFFLE_COURSE)
+                if (ri.getTipo() == RoomInfo.TIPO.SPECIAL_SHUFFLE_COURSE)
                 {
 
                     var pWi = _session.m_pi.findWarehouseItemByTypeid(SPECIAL_SHUFFLE_COURSE_TICKET_TYPEID);
@@ -1488,7 +1690,7 @@ namespace Pangya_GameServer.Game
 
                     // Diminui o tempo do SSC se for Short Game
                     // Se for short game, coloca para o tempo ser de 20 minutos
-                    if (ri.special_flag_mod.short_game)
+                    if (ri.natural.short_game == 1)
                     {
                         ri.time_30s = 20 * 60000;
                     }
@@ -1519,9 +1721,9 @@ namespace Pangya_GameServer.Game
 
                     r.sendMake(_session);
 
-                    r.sendPlayerInfo(_session, 0);
+                    r.sendCharacter(_session, 0);
 
-                    r.SendPlayerStateLounge(_session);
+                    r.sendCharacterStateLounge(_session);
 
                     r.sendWeatherLounge(_session);
 
@@ -1529,21 +1731,21 @@ namespace Pangya_GameServer.Game
 
                     // r.SendGalleryList(_session, 0);
 
-                    if (r.getInfo().getTipo() != RoomInfo.ROOM_INFO_TYPE.PRACTICE && r.getInfo().getTipo() != RoomInfo.ROOM_INFO_TYPE.GRAND_ZODIAC_PRACTICE)
+                    if (r.getInfo().getTipo() != RoomInfo.TIPO.PRACTICE && r.getInfo().getTipo() != RoomInfo.TIPO.GRAND_ZODIAC_PRACTICE)
                     {
                         sendUpdatePlayerInfo(_session, 3);
                     }
 
                     // Guild Battle precisa enviar o sendCharacter opção 0 duas vezes.
                     // Uma na sua posição normal e outra depois de atualizar o info da sala na lobby
-                    if (r.getInfo().getTipo() == RoomInfo.ROOM_INFO_TYPE.GUILD_BATTLE)
+                    if (r.getInfo().getTipo() == RoomInfo.TIPO.GUILD_BATTLE)
                     {
-                        r.sendPlayerInfo(_session, 0);
+                        r.sendCharacter(_session, 0);
                     }
 
                     // Verifica se é Tourney, Short Game, SSC e ver se tem senha e se a senha é "bot", para criar a sala com bot
                     // Verifica se tem o item para criar o bot se tiver cria se não só da a mensagem
-                    if (!r.IsWithBot() && !r.IsRoomGM() && r.getInfo().getTipo() == RoomInfo.ROOM_INFO_TYPE.TOURNEY || r.getInfo().getTipo() == RoomInfo.ROOM_INFO_TYPE.SPECIAL_SHUFFLE_COURSE)
+                    if (r.getInfo().getTipo() == RoomInfo.TIPO.TOURNEY || r.getInfo().getTipo() == RoomInfo.TIPO.SPECIAL_SHUFFLE_COURSE)
                     {
 
                         try
@@ -1621,7 +1823,7 @@ namespace Pangya_GameServer.Game
                 uFlag flag = _session.m_pi.block_flag.m_flag;
 
                 // Player não pode criar sala, exceto Lounge, se ele não estiver bloqueado
-                if (flag.all_game && (r.getInfo().getTipo() != RoomInfo.ROOM_INFO_TYPE.LOUNGE || flag.lounge))
+                if (flag.all_game && (r.getInfo().getTipo() != RoomInfo.TIPO.LOUNGE || flag.lounge))
                 {
                     throw new exception("[Channel::requestEnterRoom][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] Channel[ID=" + ((ushort)m_ci.id) + "] tentou entrar um sala[NUMERO=" + (r.getNumero()) + "], mas ele nao pode entrar em nenhuma sala. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                         1, 0x780001));
@@ -1629,86 +1831,86 @@ namespace Pangya_GameServer.Game
 
                 switch (r.getInfo().getTipo())
                 {
-                    case RoomInfo.ROOM_INFO_TYPE.STROKE:
+                    case RoomInfo.TIPO.STROKE:
                         if (flag.stroke)
                         {
                             throw new exception("[Channel::requestEnterRoom][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] Channel[ID=" + ((ushort)m_ci.id) + "] tentou entrar na sala[TIPO=" + ((ushort)r.getInfo().getTipo()) + ", NUMERO=" + (r.getNumero()) + "], mas ele nao pode entrar Stroke. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                                 2, 0x770001));
                         }
                         break;
-                    case RoomInfo.ROOM_INFO_TYPE.MATCH:
+                    case RoomInfo.TIPO.MATCH:
                         if (flag.match)
                         {
                             throw new exception("[Channel::requestEnterRoom][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] Channel[ID=" + ((ushort)m_ci.id) + "] tentou entrar na sala[TIPO=" + ((ushort)r.getInfo().getTipo()) + ", NUMERO=" + (r.getNumero()) + "], mas ele nao pode entrar Match. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                                 3, 0x770001));
                         }
                         break;
-                    case RoomInfo.ROOM_INFO_TYPE.TOURNEY:
+                    case RoomInfo.TIPO.TOURNEY:
                         if (flag.tourney)
                         {
                             throw new exception("[Channel::requestEnterRoom][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] Channel[ID=" + ((ushort)m_ci.id) + "] tentou entrar na sala[TIPO=" + ((ushort)r.getInfo().getTipo()) + ", NUMERO=" + (r.getNumero()) + "], mas ele nao pode entrar Tourney. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                                 4, 0x770001));
                         }
                         break;
-                    case RoomInfo.ROOM_INFO_TYPE.TOURNEY_TEAM:
+                    case RoomInfo.TIPO.TOURNEY_TEAM:
                         if (flag.team_tourney)
                         {
                             throw new exception("[Channel::requestEnterRoom][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] Channel[ID=" + ((ushort)m_ci.id) + "] tentou entrar na sala[TIPO=" + ((ushort)r.getInfo().getTipo()) + ", NUMERO=" + (r.getNumero()) + "], mas ele nao pode entrar Team Tourney. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                                 5, 0x770001));
                         }
                         break;
-                    case RoomInfo.ROOM_INFO_TYPE.GUILD_BATTLE:
+                    case RoomInfo.TIPO.GUILD_BATTLE:
                         if (flag.guild_battle)
                         {
                             throw new exception("[Channel::requestEnterRoom][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] Channel[ID=" + ((ushort)m_ci.id) + "] tentou entrar na sala[TIPO=" + ((ushort)r.getInfo().getTipo()) + ", NUMERO=" + (r.getNumero()) + "], mas ele nao pode entrar Guild Battle. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                                 6, 0x770001));
                         }
                         break;
-                    case RoomInfo.ROOM_INFO_TYPE.PANG_BATTLE:
+                    case RoomInfo.TIPO.PANG_BATTLE:
                         if (flag.pang_battle)
                         {
                             throw new exception("[Channel::requestEnterRoom][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] Channel[ID=" + ((ushort)m_ci.id) + "] tentou entrar na sala[TIPO=" + ((ushort)r.getInfo().getTipo()) + ", NUMERO=" + (r.getNumero()) + "], mas ele nao pode entrar Pang Battle. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                                 7, 0x770001));
                         }
                         break;
-                    case RoomInfo.ROOM_INFO_TYPE.APPROCH:
+                    case RoomInfo.TIPO.APPROCH:
                         if (flag.approach)
                         {
                             throw new exception("[Channel::requestEnterRoom][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] Channel[ID=" + ((ushort)m_ci.id) + "] tentou entrar na sala[TIPO=" + ((ushort)r.getInfo().getTipo()) + ", NUMERO=" + (r.getNumero()) + "], mas ele nao pode entrar Approach. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                                 8, 0x770001));
                         }
                         break;
-                    case RoomInfo.ROOM_INFO_TYPE.LOUNGE:
+                    case RoomInfo.TIPO.LOUNGE:
                         if (flag.lounge)
                         {
                             throw new exception("[Channel::requestEnterRoom][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] Channel[ID=" + ((ushort)m_ci.id) + "] tentou entrar na sala[TIPO=" + ((ushort)r.getInfo().getTipo()) + ", NUMERO=" + (r.getNumero()) + "], mas ele nao pode entrar Lounge. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                                 9, 0x770001));
                         }
                         break;
-                    case RoomInfo.ROOM_INFO_TYPE.GRAND_ZODIAC_INT:
-                    case RoomInfo.ROOM_INFO_TYPE.GRAND_ZODIAC_ADV:
-                    case RoomInfo.ROOM_INFO_TYPE.GRAND_ZODIAC_PRACTICE:
+                    case RoomInfo.TIPO.GRAND_ZODIAC_INT:
+                    case RoomInfo.TIPO.GRAND_ZODIAC_ADV:
+                    case RoomInfo.TIPO.GRAND_ZODIAC_PRACTICE:
                         if (flag.grand_zodiac)
                         {
                             throw new exception("[Channel::requestEnterRoom][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] Channel[ID=" + ((ushort)m_ci.id) + "] tentou entrar na sala[TIPO=" + ((ushort)r.getInfo().getTipo()) + ", NUMERO=" + (r.getNumero()) + "], mas ele nao pode entrar Grand Zodiac. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                                 10, 0x770001));
                         }
                         break;
-                    case RoomInfo.ROOM_INFO_TYPE.GRAND_PRIX:
+                    case RoomInfo.TIPO.GRAND_PRIX:
                         if (flag.grand_prix)
                         {
                             throw new exception("[Channel::requestEnterRoom][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] Channel[ID=" + ((ushort)m_ci.id) + "] tentou entrar na sala[TIPO=" + ((ushort)r.getInfo().getTipo()) + ", NUMERO=" + (r.getNumero()) + "], mas ele nao pode entrar Grand Prix. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                                 11, 0x770001));
                         }
                         break;
-                    case RoomInfo.ROOM_INFO_TYPE.SPECIAL_SHUFFLE_COURSE:
+                    case RoomInfo.TIPO.SPECIAL_SHUFFLE_COURSE:
                         if (flag.ssc)
                         {
                             throw new exception("[Channel::requestEnterRoom][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] Channel[ID=" + ((ushort)m_ci.id) + "] tentou entrar na sala[TIPO=" + ((ushort)r.getInfo().getTipo()) + ", NUMERO=" + (r.getNumero()) + "], mas ele nao pode entrar Special Shuffle Course. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                                 12, 0x770001));
                         }
                         break;
-                    case RoomInfo.ROOM_INFO_TYPE.PRACTICE:
+                    case RoomInfo.TIPO.PRACTICE:
                         if (flag.single_play)
                         {
                             throw new exception("[Channel::requestEnterRoom][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] Channel[ID=" + ((ushort)m_ci.id) + "] tentou entrar na sala[TIPO=" + ((ushort)r.getInfo().getTipo()) + ", NUMERO=" + (r.getNumero()) + "], mas ele nao pode entrar Practice. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
@@ -1717,13 +1919,13 @@ namespace Pangya_GameServer.Game
                         break;
                 }
 
-                if (r.getInfo().special_flag_mod.short_game && (flag.team_tourney || flag.short_game))
+                if (r.getInfo().natural.short_game == 1 && (flag.team_tourney || flag.short_game))
                 {
                     throw new exception("[Channel::requestEnterRoom][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] Channel[ID=" + ((ushort)m_ci.id) + "] tentou entrar na sala[TIPO=" + ((ushort)r.getInfo().getTipo()) + ", NUMERO=" + (r.getNumero()) + "], mas ele nao pode entrar sala Short Game. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                         1, 770001));
                 }
 
-                if (r.getInfo().getTipo() == RoomInfo.ROOM_INFO_TYPE.GRAND_PRIX)
+                if (r.getInfo().getTipo() == RoomInfo.TIPO.GRAND_PRIX)
                 {
                     throw new exception("[Channel::requestEnterRoom][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] Channel[ID=" + ((ushort)m_ci.id) + "] tentou entrar na sala[TIPO=" + ((ushort)r.getInfo().getTipo()) + ", NUMERO=" + (r.getNumero()) + "], mas nao pode entrar na sala Grand Prix com esse pacote. Hacker.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                         15, 0x770001));
@@ -1773,7 +1975,7 @@ namespace Pangya_GameServer.Game
                     }
                     else
                     {
-                        throw new exception("[Channel::requestEnterRoom][Warning] PLAYER [UID=" + (_session.m_pi.uid) + "] Channel[ID=" + ((ushort)m_ci.id) + "] tentou entrar na sala[NUMERO=" + (sala_numero) + "], mas a senha nao é igual a da sala.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                        throw new exception("[Channel::requestEnterRoom][Warning] PLAYER [UID=" + (_session.m_pi.uid) + "] Channel[ID=" + ((ushort)m_ci.id) + "] tentou entrar na sala[NUMERO=" + (sala_numero) + "], mas a senha nao eh igual a da sala.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                             4, 0));
                     }
 
@@ -1784,26 +1986,26 @@ namespace Pangya_GameServer.Game
 
                     r.sendMake(_session);
 
-                    r.sendPlayerInfo(_session, 0);//zero e a lista
+                    r.sendCharacter(_session, 0);//zero e a lista
 
-                    r.sendPlayerInfo(_session, 1);//1 e o criador
+                    r.sendCharacter(_session, 1);//1 e o criador
 
-                    r.SendPlayerStateLounge(_session);
+                    r.sendCharacterStateLounge(_session);
 
                     r.sendWeatherLounge(_session);
 
                     sendUpdateRoomInfo(r.getInfo(), 3);
 
-                    if (r.getInfo().getTipo() != RoomInfo.ROOM_INFO_TYPE.PRACTICE && r.getInfo().getTipo() != RoomInfo.ROOM_INFO_TYPE.GRAND_ZODIAC_PRACTICE)
+                    if (r.getInfo().getTipo() != RoomInfo.TIPO.PRACTICE && r.getInfo().getTipo() != RoomInfo.TIPO.GRAND_ZODIAC_PRACTICE)
                     {
                         sendUpdatePlayerInfo(_session, 3);
                     }
 
                     // Guild Battle precisa enviar o sendCharacter opção 0 duas vezes.
                     // Uma na sua posição normal e outra depois de atualizar o info da sala na lobby
-                    if (r.getInfo().getTipo() == RoomInfo.ROOM_INFO_TYPE.GUILD_BATTLE)
+                    if (r.getInfo().getTipo() == RoomInfo.TIPO.GUILD_BATTLE)
                     {
-                        r.sendPlayerInfo(_session, 0);
+                        r.sendCharacter(_session, 0);
                     }
                 }
             }
@@ -1815,16 +2017,28 @@ namespace Pangya_GameServer.Game
                 // Resposta Error
                 p.init_plain(0x49);
 
-                p.WriteByte(1); // Error
+                p.WriteUInt16(2); // Error
 
-                packet_func.session_send(p, _session, 1);
+                packet_func.session_send(p,
+                    _session, 1);
             }
         }
-
         public void requestChangeInfoRoom(Player _session, packet _packet)
         {
+            //
+
+#if RELEASE
+        		_smp.message_pool.getInstance().push(new message($"{this.GetType().Name}::{System.Reflection.MethodBase.GetCurrentMethod().Name}[Debug] Packet 0x0A.\n\rHex Dump.\n\r" + _packet.Log(), type_msg.CL_FILE_LOG_AND_CONSOLE));
+#endif
+
             try
             {
+
+                
+                
+
+
+
                 var r = m_rm.findRoom((short)_session.m_pi.mi.sala_numero);
 
                 if (r == null)
@@ -1860,15 +2074,16 @@ namespace Pangya_GameServer.Game
             // 2 Byte -1, deve ser o número da sala ou outra coisa que não sei, tipo um valor constante
             // 16 Bytes acho que deve ser a senha da sala de encriptação do pacote1B da sala
             byte option;
-            short room_Id;
+            short flag;
             try
             {
                 option = _packet.ReadUInt8();
-                room_Id = _packet.ReadInt16();
-                uint gamePang = _packet.ReadUInt32();   // v15
-                uint gameBonus = _packet.ReadUInt32();  // v17
-                _packet.ReadBytes(out byte[] senhaEncriptSala, 8);
+                flag = _packet.ReadInt16();
+                _packet.ReadBytes(out byte[] senhaEncriptSala, 16);
+                var sala_numero = _session.m_pi.mi.sala_numero;
+
                 leaveRoomMultiPlayer(_session, 1);
+
             }
             catch (exception e)
             {
@@ -1898,7 +2113,7 @@ namespace Pangya_GameServer.Game
 
                 p.WriteUInt32(ri.num_player);
                 p.WriteByte(ri.qntd_hole);
-                p.WriteUInt32((ri.getTipo() == RoomInfo.ROOM_INFO_TYPE.STROKE || ri.getTipo() == RoomInfo.ROOM_INFO_TYPE.MATCH || ri.getTipo() == RoomInfo.ROOM_INFO_TYPE.PANG_BATTLE) ? ri.time_vs : ((ri.getTipo() == RoomInfo.ROOM_INFO_TYPE.GUILD_BATTLE) ? 0 : ri.time_30s));
+                p.WriteUInt32((ri.getTipo() == RoomInfo.TIPO.STROKE || ri.getTipo() == RoomInfo.TIPO.MATCH || ri.getTipo() == RoomInfo.TIPO.PANG_BATTLE) ? ri.time_vs : ((ri.getTipo() == RoomInfo.TIPO.GUILD_BATTLE) ? 0 : ri.time_30s));
                 p.WriteByte((byte)ri.course);
                 p.WriteByte((byte)ri.getTipo());
                 p.WriteByte(ri.modo);
@@ -1921,10 +2136,10 @@ namespace Pangya_GameServer.Game
                     p.WriteByte(pci.level);
                     p.WriteByte(r.requestPlace(v_session[i])); // se estiver jogando, aqui fica o número do hole
 
-                    // Cap do player, se for GM so mostra se estiver com a type visible
+                    // Cap do player, se for GM so mostra se estiver com a flag visible
                     p.WriteInt32(pci.capability.ulCapability);
                     p.WriteUInt32(pci.title);
-                    p.WriteUInt32(pci.ladder_point);
+                    p.WriteUInt32(pci.team_point);
                 }
 
                 packet_func.session_send(p,
@@ -2120,9 +2335,14 @@ namespace Pangya_GameServer.Game
                 _smp.message_pool.getInstance().push(new message("[Channel::requestPlayerLocationRoom][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
-
         public void requestChangePlayerStateReadyRoom(Player _session, packet _packet)
         {
+            //
+
+#if RELEASE
+        		_smp.message_pool.getInstance().push(new message($"{this.GetType().Name}::{System.Reflection.MethodBase.GetCurrentMethod().Name}[Debug] Packet 0x0D.\n\rHex Dump.\n\r" + _packet.Log(), type_msg.CL_FILE_LOG_AND_CONSOLE));
+#endif
+
             try
             {
                 var r = m_rm.findRoom((short)_session.m_pi.mi.sala_numero);
@@ -2142,12 +2362,23 @@ namespace Pangya_GameServer.Game
                 _smp.message_pool.getInstance().push(new message("[Channel::requestChangePlayerStateReadyRoom][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
-
         public void requestKickPlayerOfRoom(Player _session, packet _packet)
         {
+            //
+
+#if RELEASE
+        		_smp.message_pool.getInstance().push(new message($"{this.GetType().Name}::{System.Reflection.MethodBase.GetCurrentMethod().Name}[Debug] Packet 0x26.\n\rHex Dump.\n\r" + _packet.Log(), type_msg.CL_FILE_LOG_AND_CONSOLE));
+#endif
+
             try
             {
+
+                
+                
+
+
                 uint uid = _packet.ReadUInt32();
+
 
                 var r = m_rm.findRoom((short)_session.m_pi.mi.sala_numero);
 
@@ -2159,14 +2390,14 @@ namespace Pangya_GameServer.Game
 
                 if (r.getMaster() != _session.m_pi.uid)
                 {
-                    throw new exception("[Channel::requestKickPlayerOfRoom][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] Channel[ID=" + ((ushort)m_ci.id) + "] tentou chutar um PLAYER [UID=" + (uid) + "] da sala[NUMERO=" + (r.getNumero()) + "], mas o player nao é master da sala para poder chutar(kick) o player. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                    throw new exception("[Channel::requestKickPlayerOfRoom][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] Channel[ID=" + ((ushort)m_ci.id) + "] tentou chutar um PLAYER [UID=" + (uid) + "] da sala[NUMERO=" + (r.getNumero()) + "], mas o player nao eh master da sala para poder chutar(kick) o player. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                         11, 0));
                 }
 
                 // Se não for GM, não pode kikar o player da sala com jogo em andamento
                 if (!_session.m_pi.m_cap.game_master && r.isGaming())
                 {
-                    throw new exception("[Channel::requestKickPlayerOfRoom][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] Channel[ID=" + ((ushort)m_ci.id) + "] tentou chutar um PLAYER [UID=" + (uid) + "] da sala[NUMERO=" + (r.getNumero()) + "], mas o player é GM para poder chutar o player da sala com o jogo em andamento.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                    throw new exception("[Channel::requestKickPlayerOfRoom][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] Channel[ID=" + ((ushort)m_ci.id) + "] tentou chutar um PLAYER [UID=" + (uid) + "] da sala[NUMERO=" + (r.getNumero()) + "], mas o player eh GM para poder chutar o player da sala com o jogo em andamento.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                         13, 0));
                 }
 
@@ -2189,11 +2420,22 @@ namespace Pangya_GameServer.Game
                 _smp.message_pool.getInstance().push(new message("[channel:requestKickPlayerOfRoom][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
-
         public void requestChangePlayerTeamRoom(Player _session, packet _packet)
         {
+            //
+
             try
             {
+
+#if RELEASE
+        			_smp.message_pool.getInstance().push(new message($"{this.GetType().Name}::{System.Reflection.MethodBase.GetCurrentMethod().Name}[Debug] Packet 0x10.\n\rHex Dump.\n\r" + _packet.Log(), type_msg.CL_FILE_LOG_AND_CONSOLE));
+#endif
+
+                
+                
+
+
+
                 var r = m_rm.findRoom((short)_session.m_pi.mi.sala_numero);
 
                 if (r == null)
@@ -2215,8 +2457,8 @@ namespace Pangya_GameServer.Game
             try
             {
 
-
-
+                
+                
 
 
                 byte state = _packet.ReadUInt8();
@@ -2280,9 +2522,9 @@ namespace Pangya_GameServer.Game
                         10, 0));
                 }
 
-                if (r.getInfo().getTipo() != RoomInfo.ROOM_INFO_TYPE.LOUNGE)
+                if (r.getInfo().getTipo() != RoomInfo.TIPO.LOUNGE)
                 {
-                    throw new exception("[Channel::requestPlayerStateCharacterLounge][Error] Channel[ID=" + ((ushort)m_ci.id) + "] sala[NUMERO=" + (_session.m_pi.mi.sala_numero) + "] nao é um lounge.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                    throw new exception("[Channel::requestPlayerStateCharacterLounge][Error] Channel[ID=" + ((ushort)m_ci.id) + "] sala[NUMERO=" + (_session.m_pi.mi.sala_numero) + "] nao eh um lounge.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                         12, 0));
                 }
 
@@ -2317,8 +2559,8 @@ namespace Pangya_GameServer.Game
             try
             {
 
-
-
+                
+                
 
 
 
@@ -2338,7 +2580,6 @@ namespace Pangya_GameServer.Game
                 _smp.message_pool.getInstance().push(new message("[Channel::requestToggleAssist][Error] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
-
         public void requestInvite(Player _session, packet _packet)
         {
             //
@@ -2351,8 +2592,8 @@ namespace Pangya_GameServer.Game
                 string nickname = _packet.ReadString();
                 uint uid = _packet.ReadUInt32();
 
-
-
+                
+                
 
 
                 var s = findSessionByNickname(nickname);
@@ -2441,7 +2682,6 @@ namespace Pangya_GameServer.Game
                     _session, 1);
             }
         }
-
         public void requestCheckInvite(Player _session, packet _packet)
         {
             //
@@ -2464,7 +2704,6 @@ namespace Pangya_GameServer.Game
                 _smp.message_pool.getInstance().push(new message("[Channel::requestCheckInvite][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
-
         public void requestChatTeam(Player _session, packet _packet)
         {
             //
@@ -2472,8 +2711,8 @@ namespace Pangya_GameServer.Game
             try
             {
 
-
-
+                
+                
 
 
 
@@ -2504,8 +2743,8 @@ namespace Pangya_GameServer.Game
             try
             {
 
-
-
+                
+                
 
 
                 // Verifica se tem alteração nos pangs
@@ -2655,8 +2894,8 @@ namespace Pangya_GameServer.Game
                                         // Ele não está mais em uma guild
                                         _session.m_pi.gi.clear();
 
-                                        _session.m_pi.mi.guild_mark_img_no = 0;
-                                        _session.m_pi.mi.guild_uid = 0;
+                                        _session.m_pi.mi.guild_mark_img_no = 0u;
+                                        _session.m_pi.mi.guild_uid = 0u;
                                         _session.m_pi.mi.guild_pang = 0;
                                         _session.m_pi.mi.guild_point = 0;
                                         // 
@@ -2704,8 +2943,8 @@ namespace Pangya_GameServer.Game
                                             // Ele não está mais em uma guild
                                             s.m_pi.gi.clear();
 
-                                            s.m_pi.mi.guild_mark_img_no = 0;
-                                            s.m_pi.mi.guild_uid = 0;
+                                            s.m_pi.mi.guild_mark_img_no = 0u;
+                                            s.m_pi.mi.guild_uid = 0u;
                                             s.m_pi.mi.guild_pang = 0;
                                             s.m_pi.mi.guild_point = 0;
                                             s.m_pi.mi.guild_name = "";
@@ -2753,8 +2992,8 @@ namespace Pangya_GameServer.Game
             try
             {
 
-
-
+                
+                
 
 
 
@@ -2770,7 +3009,7 @@ namespace Pangya_GameServer.Game
                 {
 
                     // Atualiza na lobby a sala, que acabou de começar o jogo
-                    if (r.getInfo().getTipo() != RoomInfo.ROOM_INFO_TYPE.PRACTICE && r.getInfo().getTipo() != RoomInfo.ROOM_INFO_TYPE.GRAND_ZODIAC_PRACTICE)
+                    if (r.getInfo().getTipo() != RoomInfo.TIPO.PRACTICE && r.getInfo().getTipo() != RoomInfo.TIPO.GRAND_ZODIAC_PRACTICE)
                     {
                         PangyaBinaryWriter p = new PangyaBinaryWriter();
 
@@ -2787,7 +3026,6 @@ namespace Pangya_GameServer.Game
             }
 
         }
-
         public void requestInitHole(Player _session, packet _packet)
         {
             //
@@ -2795,8 +3033,8 @@ namespace Pangya_GameServer.Game
             try
             {
 
-
-
+                
+                
 
 
 
@@ -2817,13 +3055,18 @@ namespace Pangya_GameServer.Game
                 _smp.message_pool.getInstance().push(new message("[Channel::requestInitHole][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
-
         public void requestFinishLoadHole(Player _session, packet _packet)
         {
             //
 
             try
             {
+
+                
+                
+
+
+
                 var r = m_rm.findRoom((short)_session.m_pi.mi.sala_numero);
 
                 if (r == null)
@@ -2839,13 +3082,8 @@ namespace Pangya_GameServer.Game
                     r.setState(1);
                     r.setFlag(1);
 
-                    r.requestStartAfterEnter(() =>
-                    {
-                        if (_session != null && _session.isConnected())
-                        {
-                            _enter_left_time_is_over(this, _session.m_pi.mi.sala_numero);
-                        }
-                    });
+                    r.requestStartAfterEnter(() => _enter_left_time_is_over(this, r.getNumero()));
+
                     PangyaBinaryWriter p = new PangyaBinaryWriter();
 
                     // Update Room ON LOBBY
@@ -2861,13 +3099,18 @@ namespace Pangya_GameServer.Game
                 _smp.message_pool.getInstance().push(new message("[Channel::requestFinishLoadHole][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
-
         public void requestFinishCharIntro(Player _session, packet _packet)
         {
             //
 
             try
             {
+
+                
+                
+
+
+
                 var r = m_rm.findRoom((short)_session.m_pi.mi.sala_numero);
 
                 if (r == null)
@@ -2877,6 +3120,9 @@ namespace Pangya_GameServer.Game
                 }
 
                 r.requestFinishCharIntro(_session, _packet);
+
+
+
             }
             catch (exception e)
             {
@@ -2884,13 +3130,18 @@ namespace Pangya_GameServer.Game
                 _smp.message_pool.getInstance().push(new message("[Channel::requestFinishCharIntro][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
-
         public void requestFinishHoleData(Player _session, packet _packet)
         {
             //
 
             try
-            { 
+            {
+
+                
+                
+
+
+
                 var r = m_rm.findRoom((short)_session.m_pi.mi.sala_numero);
 
                 if (r == null)
@@ -2907,7 +3158,6 @@ namespace Pangya_GameServer.Game
                 _smp.message_pool.getInstance().push(new message("[Channel::requestFinishHoleData][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
-
         public void requestInitShotSended(Player _session, packet _packet)
         {
             //
@@ -2935,7 +3185,6 @@ namespace Pangya_GameServer.Game
                 _smp.message_pool.getInstance().push(new message("[Channel::requestInitShotSended][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
-
         public void requestInitShot(Player _session, packet _packet)
         {
             //
@@ -2943,8 +3192,8 @@ namespace Pangya_GameServer.Game
             try
             {
 
-
-
+                
+                
 
 
 
@@ -2968,13 +3217,17 @@ namespace Pangya_GameServer.Game
             }
 
         }
-
         public void requestSyncShot(Player _session, packet _packet)
         {
             //
 
             try
             {
+
+                
+                
+
+
 
                 var r = m_rm.findRoom((short)_session.m_pi.mi.sala_numero);
 
@@ -2995,13 +3248,18 @@ namespace Pangya_GameServer.Game
                 _smp.message_pool.getInstance().push(new message("[Channel::requestSyncShot][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
-
         public void requestInitShotArrowSeq(Player _session, packet _packet)
         {
             //
 
             try
             {
+
+                
+                
+
+
+
                 var r = m_rm.findRoom((short)_session.m_pi.mi.sala_numero);
 
                 if (r == null)
@@ -3021,13 +3279,18 @@ namespace Pangya_GameServer.Game
                 _smp.message_pool.getInstance().push(new message("[Channel::requestInitShotArrowSeq][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
-
         public void requestShotEndData(Player _session, packet _packet)
         {
             //
 
             try
             {
+
+                
+                
+
+
+
                 var r = m_rm.findRoom((short)_session.m_pi.mi.sala_numero);
 
                 if (r == null)
@@ -3047,13 +3310,17 @@ namespace Pangya_GameServer.Game
                 _smp.message_pool.getInstance().push(new message("[Channel::requestShotEndData][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
-
         public void requestFinishShot(Player _session, packet _packet)
         {
             //
 
             try
             {
+
+                
+                
+
+
 
                 var r = m_rm.findRoom((short)_session.m_pi.mi.sala_numero);
 
@@ -3082,13 +3349,18 @@ namespace Pangya_GameServer.Game
                 _smp.message_pool.getInstance().push(new message("[Channel::requestFinishShot][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
-
         public void requestChangeMira(Player _session, packet _packet)
         {
             //
 
             try
             {
+
+                
+                
+
+
+
                 var r = m_rm.findRoom((short)_session.m_pi.mi.sala_numero);
 
                 if (r == null)
@@ -3108,13 +3380,18 @@ namespace Pangya_GameServer.Game
                 _smp.message_pool.getInstance().push(new message("[Channel::requestChangeMira][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
-
         public void requestChangeStateBarSpace(Player _session, packet _packet)
         {
             //
 
             try
             {
+
+                
+                
+
+
+
                 var r = m_rm.findRoom((short)_session.m_pi.mi.sala_numero);
 
                 if (r == null)
@@ -3134,7 +3411,6 @@ namespace Pangya_GameServer.Game
                 _smp.message_pool.getInstance().push(new message("[Channel::requestChangeStateBarSpace][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
-
         public void requestActivePowerShot(Player _session, packet _packet)
         {
             //
@@ -3142,8 +3418,8 @@ namespace Pangya_GameServer.Game
             try
             {
 
-
-
+                
+                
 
 
 
@@ -3166,13 +3442,18 @@ namespace Pangya_GameServer.Game
                 _smp.message_pool.getInstance().push(new message("[Channel::requestActivePowerShot][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
-
         public void requestChangeClub(Player _session, packet _packet)
         {
             //
 
             try
             {
+
+                
+                
+
+
+
                 var r = m_rm.findRoom((short)_session.m_pi.mi.sala_numero);
 
                 if (r == null)
@@ -3182,13 +3463,16 @@ namespace Pangya_GameServer.Game
                 }
 
                 r.requestChangeClub(_session, _packet);
+
+
+
             }
             catch (exception e)
             {
+
                 _smp.message_pool.getInstance().push(new message("[Channel::requestChangeClub][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
-
         public void requestUseActiveItem(Player _session, packet _packet)
         {
             //
@@ -3196,8 +3480,8 @@ namespace Pangya_GameServer.Game
             try
             {
 
-
-
+                
+                
 
 
 
@@ -3220,7 +3504,6 @@ namespace Pangya_GameServer.Game
                 _smp.message_pool.getInstance().push(new message("[Channel::requestUseActiveItem][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
-
         public void requestChangeStateTypeing(Player _session, packet _packet)
         {
             //
@@ -3228,8 +3511,8 @@ namespace Pangya_GameServer.Game
             try
             {
 
-
-
+                
+                
 
 
 
@@ -3252,7 +3535,6 @@ namespace Pangya_GameServer.Game
                 _smp.message_pool.getInstance().push(new message("[Channel::requestChangeStateTypeing][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
-
         public void requestMoveBall(Player _session, packet _packet)
         {
             //
@@ -3260,8 +3542,8 @@ namespace Pangya_GameServer.Game
             try
             {
 
-
-
+                
+                
 
 
 
@@ -3284,13 +3566,18 @@ namespace Pangya_GameServer.Game
                 _smp.message_pool.getInstance().push(new message("[Channel::requestMoveBall][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
-
         public void requestChangeStateChatBlock(Player _session, packet _packet)
         {
             //
 
             try
             {
+
+                
+                
+
+
+
                 var r = m_rm.findRoom((short)_session.m_pi.mi.sala_numero);
 
                 if (r == null)
@@ -3300,6 +3587,9 @@ namespace Pangya_GameServer.Game
                 }
 
                 r.requestChangeStateChatBlock(_session, _packet);
+
+
+
             }
             catch (exception e)
             {
@@ -3307,7 +3597,6 @@ namespace Pangya_GameServer.Game
                 _smp.message_pool.getInstance().push(new message("[Channel::requestChangeStateChatBlock][ErrorSysttem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
-
         public void requestActiveBooster(Player _session, packet _packet)
         {
             //
@@ -3315,8 +3604,8 @@ namespace Pangya_GameServer.Game
             try
             {
 
-
-
+                
+                
 
 
 
@@ -3339,7 +3628,6 @@ namespace Pangya_GameServer.Game
                 _smp.message_pool.getInstance().push(new message("[Channel::requestActiveBooster][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
-
         public void requestActiveReplay(Player _session, packet _packet)
         {
             //
@@ -3347,8 +3635,8 @@ namespace Pangya_GameServer.Game
             try
             {
 
-
-
+                
+                
 
 
 
@@ -3371,7 +3659,6 @@ namespace Pangya_GameServer.Game
                 _smp.message_pool.getInstance().push(new message("[Channel::requestActiveReplay][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
-
         public void requestActiveCutin(Player _session, packet _packet)
         {
             //
@@ -3379,8 +3666,8 @@ namespace Pangya_GameServer.Game
             try
             {
 
-
-
+                
+                
 
 
 
@@ -3403,7 +3690,6 @@ namespace Pangya_GameServer.Game
                 _smp.message_pool.getInstance().push(new message("[Channel::requestActiveCutin][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
-
         public void requestActiveAutoCommand(Player _session, packet _packet)
         {
             //
@@ -3411,8 +3697,8 @@ namespace Pangya_GameServer.Game
             try
             {
 
-
-
+                
+                
 
 
 
@@ -3435,7 +3721,6 @@ namespace Pangya_GameServer.Game
                 _smp.message_pool.getInstance().push(new message("[Channel::requestActiveAutoCommand][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
-
         public void requestActiveAssistGreen(Player _session, packet _packet)
         {
             //
@@ -3443,8 +3728,8 @@ namespace Pangya_GameServer.Game
             try
             {
 
-
-
+                
+                
 
 
 
@@ -3468,7 +3753,6 @@ namespace Pangya_GameServer.Game
 
             }
         }
-
         public void requestLoadGamePercent(Player _session, packet _packet)
         {
             //
@@ -3476,8 +3760,8 @@ namespace Pangya_GameServer.Game
             try
             {
 
-
-
+                
+                
 
 
 
@@ -3500,7 +3784,6 @@ namespace Pangya_GameServer.Game
                 _smp.message_pool.getInstance().push(new message("[Channel::requestLoadGamePercent][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
-
         public void requestMarkerOnCourse(Player _session, packet _packet)
         {
             //
@@ -3508,8 +3791,8 @@ namespace Pangya_GameServer.Game
             try
             {
 
-
-
+                
+                
 
 
 
@@ -3532,7 +3815,6 @@ namespace Pangya_GameServer.Game
                 _smp.message_pool.getInstance().push(new message("[Channel::requestMarkerOnCourse][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
-
         public void requestStartTurnTime(Player _session, packet _packet)
         {
             //
@@ -3540,8 +3822,8 @@ namespace Pangya_GameServer.Game
             try
             {
 
-
-
+                
+                
 
 
 
@@ -3564,7 +3846,6 @@ namespace Pangya_GameServer.Game
                 _smp.message_pool.getInstance().push(new message("[Channel::requestStartTurnTime][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
-
         public void requestUnOrPauseGame(Player _session, packet _packet)
         {
             //
@@ -3572,8 +3853,8 @@ namespace Pangya_GameServer.Game
             try
             {
 
-
-
+                
+                
 
 
 
@@ -3596,7 +3877,6 @@ namespace Pangya_GameServer.Game
                 _smp.message_pool.getInstance().push(new message("[Channel::requestUnOrPauseGame][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
-
         public void requestLastPlayerFinishVersus(Player _session, packet _packet)
         {
             //
@@ -3604,8 +3884,8 @@ namespace Pangya_GameServer.Game
             try
             {
 
-
-
+                
+                
 
 
 
@@ -3620,7 +3900,7 @@ namespace Pangya_GameServer.Game
                 if (r.requestLastPlayerFinishVersus(_session, _packet))
                 {
 
-                    if (r.getInfo().getTipo() != RoomInfo.ROOM_INFO_TYPE.PRACTICE && r.getInfo().getTipo() != RoomInfo.ROOM_INFO_TYPE.GRAND_ZODIAC_PRACTICE)
+                    if (r.getInfo().getTipo() != RoomInfo.TIPO.PRACTICE && r.getInfo().getTipo() != RoomInfo.TIPO.GRAND_ZODIAC_PRACTICE)
                     {
                         // Atualiza info da sala na lobby 
                         packet_func.channel_broadcast(this,
@@ -3641,7 +3921,6 @@ namespace Pangya_GameServer.Game
                 _smp.message_pool.getInstance().push(new message("[Channel::requestLastPlayerFinishVersus][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
-
         public void requestReplyContinueVersus(Player _session, packet _packet)
         {
             //
@@ -3649,8 +3928,8 @@ namespace Pangya_GameServer.Game
             try
             {
 
-
-
+                
+                
 
 
 
@@ -3665,7 +3944,7 @@ namespace Pangya_GameServer.Game
                 if (r.requestReplyContinueVersus(_session, _packet))
                 {
 
-                    if (r.getInfo().getTipo() != RoomInfo.ROOM_INFO_TYPE.PRACTICE && r.getInfo().getTipo() != RoomInfo.ROOM_INFO_TYPE.GRAND_ZODIAC_PRACTICE)
+                    if (r.getInfo().getTipo() != RoomInfo.TIPO.PRACTICE && r.getInfo().getTipo() != RoomInfo.TIPO.GRAND_ZODIAC_PRACTICE)
                     {
                         // Atualiza info da sala na lobby
                         packet_func.channel_broadcast(this,
@@ -3686,7 +3965,6 @@ namespace Pangya_GameServer.Game
                 _smp.message_pool.getInstance().push(new message("[Channel::requestReplyContinueVersus][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
-
         public void requestTeamFinishHole(Player _session, packet _packet)
         {
             //
@@ -3694,8 +3972,8 @@ namespace Pangya_GameServer.Game
             try
             {
 
-
-
+                
+                
 
 
 
@@ -3718,7 +3996,6 @@ namespace Pangya_GameServer.Game
                 _smp.message_pool.getInstance().push(new message("[Channel::requestTeamFinishHole][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
-
         public void requestLeavePractice(Player _session, packet _packet)
         {
             //
@@ -3726,8 +4003,8 @@ namespace Pangya_GameServer.Game
             try
             {
 
-
-
+                
+                
 
 
 
@@ -3739,9 +4016,9 @@ namespace Pangya_GameServer.Game
                         1, 0x6202001));
                 }
 
-                if (r.getInfo().getTipo() != RoomInfo.ROOM_INFO_TYPE.PRACTICE)
+                if (r.getInfo().getTipo() != RoomInfo.TIPO.PRACTICE)
                 {
-                    throw new exception("[Channel::requestLeavePratice][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] Channel[ID=" + ((ushort)m_ci.id) + "] tentou sair do practice na sala[NUMERO=" + (_session.m_pi.mi.sala_numero) + ", TIPO=" + (r.getInfo().getTipo()) + "], mas a sala nao é um tipo de sala do practice. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                    throw new exception("[Channel::requestLeavePratice][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] Channel[ID=" + ((ushort)m_ci.id) + "] tentou sair do practice na sala[NUMERO=" + (_session.m_pi.mi.sala_numero) + ", TIPO=" + (r.getInfo().getTipo()) + "], mas a sala nao eh um tipo de sala do practice. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                         2, 0x6202002));
                 }
 
@@ -3756,7 +4033,6 @@ namespace Pangya_GameServer.Game
                 _smp.message_pool.getInstance().push(new message("[Channel::requestLeavePractice][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
-
         public void requestUseTicketReport(Player _session, packet _packet)
         {
             //
@@ -3764,8 +4040,8 @@ namespace Pangya_GameServer.Game
             try
             {
 
-
-
+                
+                
 
 
 
@@ -3792,7 +4068,6 @@ namespace Pangya_GameServer.Game
                 _smp.message_pool.getInstance().push(new message("[Channel::requestUseTicketReport][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
-
         public void requestLeaveChipInPractice(Player _session, packet _packet)
         {
             //
@@ -3800,8 +4075,8 @@ namespace Pangya_GameServer.Game
             try
             {
 
-
-
+                
+                
 
 
                 var r = m_rm.findRoom((short)_session.m_pi.mi.sala_numero);
@@ -3823,7 +4098,6 @@ namespace Pangya_GameServer.Game
                 _smp.message_pool.getInstance().push(new message("[Channel::requestLeaveChipInPractice][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
-
         public void requestStartFirstHoleGrandZodiac(Player _session, packet _packet)
         {
             //
@@ -3831,8 +4105,8 @@ namespace Pangya_GameServer.Game
             try
             {
 
-
-
+                
+                
 
 
                 var r = m_rm.findRoom((short)_session.m_pi.mi.sala_numero);
@@ -3862,8 +4136,8 @@ namespace Pangya_GameServer.Game
             try
             {
 
-
-
+                
+                
 
 
                 var r = m_rm.findRoom((short)_session.m_pi.mi.sala_numero);
@@ -3885,7 +4159,6 @@ namespace Pangya_GameServer.Game
                 _smp.message_pool.getInstance().push(new message("[Channel::requestReplyInitialValueGrandZodiac][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
-
         public void requestActiveRing(Player _session, packet _packet)
         {
             //
@@ -3893,8 +4166,8 @@ namespace Pangya_GameServer.Game
             try
             {
 
-
-
+                
+                
 
 
 
@@ -3917,14 +4190,18 @@ namespace Pangya_GameServer.Game
                 _smp.message_pool.getInstance().push(new message("[Channel::requestActiveRing][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
-
         public void requestActiveRingGround(Player _session, packet _packet)
         {
             //
 
             try
             {
-                 
+
+                
+                
+
+
+
                 var r = m_rm.findRoom((short)_session.m_pi.mi.sala_numero);
 
                 if (r == null)
@@ -3933,7 +4210,10 @@ namespace Pangya_GameServer.Game
                         1, 0x6201101));
                 }
 
-                r.requestActiveRingGround(_session, _packet); 
+                r.requestActiveRingGround(_session, _packet);
+
+
+
             }
             catch (exception e)
             {
@@ -3941,7 +4221,6 @@ namespace Pangya_GameServer.Game
                 _smp.message_pool.getInstance().push(new message("[Channel::requestActiveRingGround][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
-
         public void requestActiveRingPawsRainbowJP(Player _session, packet _packet)
         {
             //
@@ -3949,8 +4228,8 @@ namespace Pangya_GameServer.Game
             try
             {
 
-
-
+                
+                
 
 
 
@@ -3973,7 +4252,6 @@ namespace Pangya_GameServer.Game
                 _smp.message_pool.getInstance().push(new message("[Channel::requestActiveRingPawsRainbowJP][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
-
         public void requestActiveRingPawsRingSetJP(Player _session, packet _packet)
         {
             //
@@ -3981,8 +4259,8 @@ namespace Pangya_GameServer.Game
             try
             {
 
-
-
+                
+                
 
 
 
@@ -4005,7 +4283,6 @@ namespace Pangya_GameServer.Game
                 _smp.message_pool.getInstance().push(new message("[Channel::requestActiveRingPawsRingSetJP][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
-
         public void requestActiveRingPowerGagueJP(Player _session, packet _packet)
         {
             //
@@ -4013,8 +4290,8 @@ namespace Pangya_GameServer.Game
             try
             {
 
-
-
+                
+                
 
 
 
@@ -4037,7 +4314,6 @@ namespace Pangya_GameServer.Game
                 _smp.message_pool.getInstance().push(new message("[Channel::requestActiveRingPowerGagueJP][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
-
         public void requestActiveRingMiracleSignJP(Player _session, packet _packet)
         {
             //
@@ -4045,8 +4321,8 @@ namespace Pangya_GameServer.Game
             try
             {
 
-
-
+                
+                
 
 
 
@@ -4069,7 +4345,6 @@ namespace Pangya_GameServer.Game
                 _smp.message_pool.getInstance().push(new message("[Channel::requestActiveRingMiracleSignJP][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
-
         public void requestActiveWing(Player _session, packet _packet)
         {
             //
@@ -4077,8 +4352,8 @@ namespace Pangya_GameServer.Game
             try
             {
 
-
-
+                
+                
 
 
 
@@ -4097,7 +4372,6 @@ namespace Pangya_GameServer.Game
                 _smp.message_pool.getInstance().push(new message("[Channel::requestActiveWing][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
-
         public void requestActivePaws(Player _session, packet _packet)
         {
             //
@@ -4105,8 +4379,8 @@ namespace Pangya_GameServer.Game
             try
             {
 
-
-
+                
+                
 
 
 
@@ -4129,7 +4403,6 @@ namespace Pangya_GameServer.Game
                 _smp.message_pool.getInstance().push(new message("[Channel::requestActivePaws][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
-
         public void requestActiveGlove(Player _session, packet _packet)
         {
             //
@@ -4137,8 +4410,8 @@ namespace Pangya_GameServer.Game
             try
             {
 
-
-
+                
+                
 
 
 
@@ -4161,7 +4434,6 @@ namespace Pangya_GameServer.Game
                 _smp.message_pool.getInstance().push(new message("[Channel::requestActiveGlove][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
-
         public void requestActiveEarcuff(Player _session, packet _packet)
         {
             //
@@ -4169,8 +4441,8 @@ namespace Pangya_GameServer.Game
             try
             {
 
-
-
+                
+                
 
 
 
@@ -4193,7 +4465,6 @@ namespace Pangya_GameServer.Game
                 _smp.message_pool.getInstance().push(new message("[Channel::requestActiveEarcuff][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
-
         public void requestEnterGameAfterStarted(Player _session, packet _packet)
         {
             //
@@ -4205,8 +4476,8 @@ namespace Pangya_GameServer.Game
 
                 byte option = _packet.ReadUInt8();
 
-
-
+                
+                
 
 
                 if (option == 0 || option == 1)
@@ -4223,15 +4494,15 @@ namespace Pangya_GameServer.Game
                             2700, 1));
                     }
 
-                    if (r.getInfo().getTipo() != RoomInfo.ROOM_INFO_TYPE.TOURNEY)
+                    if (r.getInfo().getTipo() != RoomInfo.TIPO.TOURNEY)
                     {
-                        throw new exception("[Channel::requestEnterGameAfterStarted][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] Channel[ID=" + ((ushort)m_ci.id) + "] tentou entrar na sala[TIPO=" + ((ushort)r.getInfo().getTipo()) + ", NUMERO=" + (r.getNumero()) + "] ja em jogo, mas o tipo da sala nao é Tourney. Hacker.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                        throw new exception("[Channel::requestEnterGameAfterStarted][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] Channel[ID=" + ((ushort)m_ci.id) + "] tentou entrar na sala[TIPO=" + ((ushort)r.getInfo().getTipo()) + ", NUMERO=" + (r.getNumero()) + "] ja em jogo, mas o tipo da sala nao eh Tourney. Hacker.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                             15, 0x770001));
                     }
 
                     if (r.isLocked())
                     {
-                        throw new exception("[Channel::requestEnterGameAfterStarted][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] Channel[ID=" + ((ushort)m_ci.id) + "] tentou entrar na sala[NUMERO=" + (sala_numero) + "] ja em jogo, mas a sala é privada. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                        throw new exception("[Channel::requestEnterGameAfterStarted][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] Channel[ID=" + ((ushort)m_ci.id) + "] tentou entrar na sala[NUMERO=" + (sala_numero) + "] ja em jogo, mas a sala eh privada. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                             2710, 1));
                     }
 
@@ -4269,7 +4540,7 @@ namespace Pangya_GameServer.Game
                                 // update info player no canal
                                 updatePlayerInfo(_session);
 
-                                if (r.getInfo().getTipo() != RoomInfo.ROOM_INFO_TYPE.PRACTICE && r.getInfo().getTipo() != RoomInfo.ROOM_INFO_TYPE.GRAND_ZODIAC_PRACTICE)
+                                if (r.getInfo().getTipo() != RoomInfo.TIPO.PRACTICE && r.getInfo().getTipo() != RoomInfo.TIPO.GRAND_ZODIAC_PRACTICE)
                                 {
                                     sendUpdatePlayerInfo(_session, 3);
                                 }
@@ -4349,13 +4620,18 @@ namespace Pangya_GameServer.Game
                     _session, 1);
             }
         }
-
         public void requestFinishGame(Player _session, packet _packet)
         {
             //
 
             try
             {
+
+                
+                
+
+
+
                 var r = m_rm.findRoom((short)_session.m_pi.mi.sala_numero);
 
                 if (r == null)
@@ -4367,7 +4643,7 @@ namespace Pangya_GameServer.Game
                 if (r.requestFinishGame(_session, _packet))
                 { // Terminou o jogo
 
-                    if (r.getInfo().getTipo() != RoomInfo.ROOM_INFO_TYPE.PRACTICE && r.getInfo().getTipo() != RoomInfo.ROOM_INFO_TYPE.GRAND_ZODIAC_PRACTICE)
+                    if (r.getInfo().getTipo() != RoomInfo.TIPO.PRACTICE && r.getInfo().getTipo() != RoomInfo.TIPO.GRAND_ZODIAC_PRACTICE)
                     {
                         // Atualiza info da sala na lobby
                         packet_func.channel_broadcast(this,
@@ -4378,6 +4654,9 @@ namespace Pangya_GameServer.Game
                                3), 1);
                     }
                 }
+
+
+
             }
             catch (exception e)
             {
@@ -4385,7 +4664,6 @@ namespace Pangya_GameServer.Game
                 _smp.message_pool.getInstance().push(new message("[Channel::requestFinishGame][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
-
         public void requestChangeWindNextHoleRepeat(Player _session, packet _packet)
         {
             //
@@ -4393,8 +4671,8 @@ namespace Pangya_GameServer.Game
             try
             {
 
-
-
+                
+                
 
 
 
@@ -4429,6 +4707,9 @@ namespace Pangya_GameServer.Game
 
                 uint _typeid_gp = _packet.ReadUInt32();
 
+                
+                
+
 
                 // Flag Server
                 uFlag flag = _session.m_pi.block_flag.m_flag;
@@ -4442,7 +4723,7 @@ namespace Pangya_GameServer.Game
 
                 if (flag.grand_prix)
                 {
-                    throw new exception("[Channel::requestEnterRoomGrandPrix][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] Channel[ID=" + ((ushort)m_ci.id) + "] tentou criar ou entrar sala Grand Prix[TYPEID=" + (_typeid_gp) + ", TIPO=" + (RoomInfo.ROOM_INFO_TYPE.GRAND_PRIX) + "], mas ele nao pode criar Grand Prix ou entrar(jogar). Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                    throw new exception("[Channel::requestEnterRoomGrandPrix][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] Channel[ID=" + ((ushort)m_ci.id) + "] tentou criar ou entrar sala Grand Prix[TYPEID=" + (_typeid_gp) + ", TIPO=" + (RoomInfo.TIPO.GRAND_PRIX) + "], mas ele nao pode criar Grand Prix ou entrar(jogar). Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                         0x6700004, 0x6700004));
                 }
 
@@ -4476,9 +4757,9 @@ namespace Pangya_GameServer.Game
                 }
 
                 // Verifica level
-                if (_session.m_pi.mi.level < gp.MinLevel || (gp.MaxLevel > 0u && _session.m_pi.mi.level > gp.MaxLevel))
+                if (_session.m_pi.level < gp.MinLevel || (gp.MaxLevel > 0u && _session.m_pi.level > gp.MaxLevel))
                 {
-                    throw new exception("[Channel::requestEnterRoomGrandPrix][Error] PLAYER [UID=" + (_session.m_pi.uid) + ", LEVEL=" + (_session.m_pi.mi.level) + "] Canal[ID=" + ((ushort)m_ci.id) + "] tentou entrar na sala Grand Prix[TYPEID=" + (gp.ID) + ", LVL_MIN=" + (gp.MinLevel) + ", LVL_MAX=" + (gp.MaxLevel) + "] mas ele nao tem o level necessario para entrar na sala. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                    throw new exception("[Channel::requestEnterRoomGrandPrix][Error] PLAYER [UID=" + (_session.m_pi.uid) + ", LEVEL=" + (_session.m_pi.level) + "] Canal[ID=" + ((ushort)m_ci.id) + "] tentou entrar na sala Grand Prix[TYPEID=" + (gp.ID) + ", LVL_MIN=" + (gp.MinLevel) + ", LVL_MAX=" + (gp.MaxLevel) + "] mas ele nao tem o level necessario para entrar na sala. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                         0x6700006, 0x6700006));
                 }
 
@@ -4538,24 +4819,26 @@ namespace Pangya_GameServer.Game
                     || (r = m_rm.findRoomGrandPrix(gp.ID)) == null)
                 {
                     // Sala Beginner, Sempre cria uma nova ela é instancia
-                    var ri = new RoomInfoEx
-                    {
-                        time_vs = 0,
-                        time_30s = 0,
-                        max_player = 30,
-                        tipo = (byte)RoomInfo.ROOM_INFO_TYPE.GRAND_PRIX,
-                        qntd_hole = gp.course_info.Qntd_hole,
-                        course = (RoomInfo.ROOM_INFO_COURSE)gp.course_info.Course,
-                        modo = (byte)gp.course_info.Modo
-                    };
-                    ri.special_flag_mod.natural = gp.flag.Natural_Mode;
-                    ri.special_flag_mod.short_game = gp.flag.Shot_Mode; 
-                    ri.typeid_artefatic = gp.rule; 
-                    ri.grand_prix.active = 1;
+                    var ri = new RoomInfoEx();
+
+                    ri.time_vs = 0;
+                    ri.time_30s = 0;
+                    ri.max_player = 30;
+                    ri.tipo = (byte)RoomInfo.TIPO.GRAND_PRIX;
+                    ri.qntd_hole = gp.course_info.Qntd_hole;
+                    ri.course = (RoomInfo.eCOURSE)gp.course_info.Course;
+                    ri.modo = (byte)gp.course_info.Modo;
+
+                    ri.natural.natural = gp.flag.Natural_Mode ? (uint)1 : (uint)0;
+                    ri.natural.short_game = gp.flag.Shot_Mode ? (uint)1 : (uint)0;
+
+                    ri.artefato = gp.rule;
+
+                    ri.grand_prix.active = 1u;
                     ri.grand_prix.dados_typeid = gp.ID;
                     ri.grand_prix.rank_typeid = gp.TypeID_Link;
                     ri.grand_prix.tempo = (uint)(gp.TimeHole * 1000);
-                    ri.name = gp.Name;
+                    ri.nome = gp.Name;
                     // Fim de init Grand Prix Room Dados
 
                     try
@@ -4572,7 +4855,7 @@ namespace Pangya_GameServer.Game
                         {
                             throw new exception("[Channel::requestEnterRoomGrandPrix][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] Canal[ID=" + ((ushort)m_ci.id) + "] tentou entrar na sala Grand Prix[TYPEID=" + (_typeid_gp) + "] mas nao conseguiu criar a sala. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                                 0x6700002, 0x6700002));
-                        }
+                        } 
 
                         // Att PlayerCanalInfo
                         updatePlayerInfo(_session);
@@ -4581,11 +4864,11 @@ namespace Pangya_GameServer.Game
 
                         r.sendMake(_session);
 
-                        r.sendPlayerInfo(_session, 0);
+                        r.sendCharacter(_session, 0);
 
                         sendUpdateRoomInfo(r.getInfo(), 1);
 
-                        if (r.getInfo().getTipo() != RoomInfo.ROOM_INFO_TYPE.PRACTICE && r.getInfo().getTipo() != RoomInfo.ROOM_INFO_TYPE.GRAND_ZODIAC_PRACTICE)
+                        if (r.getInfo().getTipo() != RoomInfo.TIPO.PRACTICE && r.getInfo().getTipo() != RoomInfo.TIPO.GRAND_ZODIAC_PRACTICE)
                         {
                             sendUpdatePlayerInfo(_session, 3);
                         }
@@ -4593,7 +4876,12 @@ namespace Pangya_GameServer.Game
 
                         // Libera a sala
                         if (r != null)
+                        {
                             m_rm.addRoom(r);
+
+                            m_rm.unlockRoom(r);
+                        }
+
 
                     }
                     catch
@@ -4617,7 +4905,8 @@ namespace Pangya_GameServer.Game
 
                         // Entra na sala
                         if (!r.isFull())
-                        { 
+                        {
+
                             // Verifica se o player foi convidado em outra sala
                             // e tira o convite dele
                             deleteInviteTimeResquestByInvited(_session);
@@ -4639,13 +4928,13 @@ namespace Pangya_GameServer.Game
 
                         r.sendMake(_session);
 
-                        r.sendPlayerInfo(_session, 0);
+                        r.sendCharacter(_session, 0);
 
-                        r.sendPlayerInfo(_session, 1);
+                        r.sendCharacter(_session, 1);
 
                         sendUpdateRoomInfo(r.getInfo(), 3);
 
-                        if (r.getInfo().getTipo() != RoomInfo.ROOM_INFO_TYPE.PRACTICE && r.getInfo().getTipo() != RoomInfo.ROOM_INFO_TYPE.GRAND_ZODIAC_PRACTICE)
+                        if (r.getInfo().getTipo() != RoomInfo.TIPO.PRACTICE && r.getInfo().getTipo() != RoomInfo.TIPO.GRAND_ZODIAC_PRACTICE)
                         {
                             sendUpdatePlayerInfo(_session, 3);
                         }
@@ -4653,10 +4942,18 @@ namespace Pangya_GameServer.Game
 
                         // Libera a sala
                         if (r != null)
+                        {
                             m_rm.addRoom(r);
+
+                            m_rm.unlockRoom(r);
+                        }
+
+
                     }
                     catch
                     {
+                        // UNREFERENCED_PARAMETER(e);
+
                         if (r != null)
                         {
                             m_rm.unlockRoom(r);
@@ -4680,19 +4977,6 @@ namespace Pangya_GameServer.Game
                     _session, 1);
             }
         }
-
-
-
-        public bool hasGrandZodiacRoomAtivo(RoomInfo.ROOM_INFO_TYPE tipoDesejado)
-        {
-            lock (m_rm)
-            {
-                var roms = m_rm.getAllRoomsGrandZodiacEvent(); 
-
-                return roms.Any(r=> r.getInfo().getTipo() == tipoDesejado);
-            }
-        }
-
         public void requestExitRoomGrandPrix(Player _session, packet _packet)
         {
             //
@@ -4700,7 +4984,7 @@ namespace Pangya_GameServer.Game
             PangyaBinaryWriter p = new PangyaBinaryWriter();
 
             try
-            {
+            { 
                 // 0 sai da sala sem está em jogo, 1 sai da sala em jogo
                 byte opt = _packet.ReadUInt8();
 
@@ -4725,7 +5009,7 @@ namespace Pangya_GameServer.Game
 
             try
             {
-
+                 
                 var r = m_rm.findRoom((short)_session.m_pi.mi.sala_numero);
 
                 if (r == null)
@@ -4735,7 +5019,7 @@ namespace Pangya_GameServer.Game
                 }
 
                 r.requestPlayerReportChatGame(_session, _packet);
-
+                 
             }
             catch (exception e)
             {
@@ -4748,7 +5032,6 @@ namespace Pangya_GameServer.Game
                 }
             }
         }
-
         public void requestExecCCGVisible(Player _session, packet _packet)
         {
             //
@@ -4765,9 +5048,7 @@ namespace Pangya_GameServer.Game
                     throw new exception("[Channel::requestExecCCGVisible][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] Channel[ID=" + ((ushort)m_ci.id) + "] tentou executar o comando visible, mas nao encontrou a sala[NUMERO=" + (_session.m_pi.mi.sala_numero) + "] que esta nos dados dele. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                            10, 0x5700100));
 
-                _session.m_gi.visible = _session.m_pi.mi.state_flag.visible = (byte)(visible & 1);
-
-                Debug.WriteLine(_session.m_pi.mi.state_flag.ToString());
+                _session.m_gi.visible = _session.m_pi.mi.state_flag.visible = ((visible & 1) == 1);
 
                 updatePlayerInfo(_session);
 
@@ -4782,7 +5063,7 @@ namespace Pangya_GameServer.Game
 
                 if (r != null)
                 {
-                    r.sendPlayerInfo(_session, 3);
+                    r.sendCharacter(_session, 3);
                 }
             }
             catch (exception e)
@@ -4793,7 +5074,6 @@ namespace Pangya_GameServer.Game
                 throw;
             }
         }
-
         public void requestExecCCGChangeWindVersus(Player _session, packet _packet)
         {
             //
@@ -4823,7 +5103,6 @@ namespace Pangya_GameServer.Game
                 throw;
             }
         }
-
         public void requestExecCCGChangeWeather(Player _session, packet _packet)
         {
             //
@@ -4853,7 +5132,6 @@ namespace Pangya_GameServer.Game
                 throw;
             }
         }
-
         public void requestExecCCGGoldenBell(Player _session, packet _packet)
         {
             //
@@ -4907,7 +5185,7 @@ namespace Pangya_GameServer.Game
 
                 if (_session.m_pi.m_cap.gm_normal == false && !_session.m_pi.m_cap.game_master)
                 {
-                    throw new exception("[Channel::requestExecCCGIdentity][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou executar o comando identity, mas ele nao é gm e nunca foi. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                    throw new exception("[Channel::requestExecCCGIdentity][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou executar o comando identity, mas ele nao eh gm e nunca foi. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                         13, 0x5700100));
                 }
 
@@ -4968,7 +5246,7 @@ namespace Pangya_GameServer.Game
 
                         if (r != null)
                         {
-                            r.sendPlayerInfo(_session, 3);
+                            r.sendCharacter(_session, 3);
                         }
                     }
 
@@ -5002,7 +5280,7 @@ namespace Pangya_GameServer.Game
 
                         if (r != null)
                         {
-                            r.sendPlayerInfo(_session, 3);
+                            r.sendCharacter(_session, 3);
                         }
                     }
                 }
@@ -5060,7 +5338,6 @@ namespace Pangya_GameServer.Game
                 throw;
             }
         }
-
         public void requestExecCCGDestroy(Player _session, packet _packet)
         {
             //
@@ -5068,8 +5345,8 @@ namespace Pangya_GameServer.Game
             try
             {
 
-
-
+                
+                
 
 
                 if (_session.m_pi.m_cap.game_master)
@@ -5109,6 +5386,8 @@ namespace Pangya_GameServer.Game
 
                     // Log
                     _smp.message_pool.getInstance().push(new message("[Channel::requestExecCCGDestroy][Sucess] PLAYER [UID=" + (_session.m_pi.uid) + "] Channel[ID=" + ((ushort)m_ci.id) + "] destruiu a sala[NUMERO=" + (sala_numero) + "] no canal[NOME=" + (m_ci.name) + "].", type_msg.CL_FILE_LOG_AND_CONSOLE));
+
+
 
                 }
                 else
@@ -5164,7 +5443,7 @@ namespace Pangya_GameServer.Game
 
                 // Só faz calculo de Quita rate depois que o player
                 // estiver no level Beginner E e jogado 50 games
-                if (_session.m_pi.mi.level >= 6 && _session.m_pi.ui.jogado >= 50)
+                if (_session.m_pi.level >= 6 && _session.m_pi.ui.jogado >= 50)
                 {
                     float rate = _session.m_pi.ui.getQuitRate();
 
@@ -5197,10 +5476,10 @@ namespace Pangya_GameServer.Game
                     pri.mascot_typeid = _session.m_pi.ei.mascot_info._typeid;
 
                 pri.flag_item_boost = _session.m_pi.checkEquipedItemBoost();
-                pri.channeling_flag = 0;
+                pri.ulUnknown_flg = 0;
                 //pri.id_NT não estou usando ainda
                 //pri.ucUnknown106
-                pri.convidado = 0;  // Flag Convidado, [Não sei bem por que os que entra na sala normal tem valor igual aqui, já que é type de convidado waiting], Valor constante da sala para os players(ACHO)
+                pri.convidado = 0;  // Flag Convidado, [Não sei bem por que os que entra na sala normal tem valor igual aqui, já que é flag de convidado waiting], Valor constante da sala para os players(ACHO)
                 pri.avg_score = _session.m_pi.ui.getMediaScore();
                 //pri.ucUnknown3 
 
@@ -5230,390 +5509,657 @@ namespace Pangya_GameServer.Game
             }
         }
 
-        public void requestChangePlayerItemMyRoom(Player session, packet packet)
+        public void requestChangePlayerItemMyRoom(Player _session, packet _packet)
         {
             byte type = 0;
+            int item_id;
             int error = 4;
+
+            PangyaBinaryWriter p = new PangyaBinaryWriter();
 
             try
             {
-                type = packet.ReadUInt8();
+                type = _packet.ReadUInt8();
 
                 switch (type)
                 {
-                    case 0:
-                        error = HandleUpdateCharacterParts(session, packet);
-                        break;
+                    case 0: // Character Equipado Parts Complete
+                        {
+                            CharacterInfo ci = new CharacterInfo().ToRead(_packet);
+                            CharacterInfo pCe = null;
+                            if (ci.id != 0
+                                && (pCe = _session.m_pi.findCharacterById(ci.id)) != null
+                                && (sIff.getInstance().getItemGroupIdentify(pCe._typeid) == sIff.getInstance().CHARACTER && sIff.getInstance().getItemGroupIdentify(ci._typeid) == sIff.getInstance().CHARACTER))
+                            {
 
-                    case 1:
-                        error = HandleUpdateCaddie(session, packet);
-                        break;
 
-                    case 2:
-                        error = HandleUpdateUseItems(session, packet);
-                        break;
 
-                    case 3:
-                        error = HandleUpdateClubAndBall(session, packet);
-                        break;
+                                // Checks Parts Equiped
+                                _session.checkCharacterEquipedPart(ci);
 
-                    case 4:
-                        error = HandleUpdateSkins(session, packet);
-                        break;
+                                // Check AuxPart Equiped
+                                _session.checkCharacterEquipedAuxPart(ci);
 
-                    case 5:
-                        error = HandleUpdateCharacter(session, packet);
-                        break;
 
-                    case 8:
-                        error = HandleUpdateMascot(session, packet);
-                        break;
+                                pCe = ci;
+                                _session.m_pi.ei.char_info = ci;
+                                _session.m_pi.mp_ce[ci.id] = ci;
+                                snmdb.NormalManagerDB.getInstance().add(0,
+                                    new CmdUpdateCharacterAllPartEquiped(_session.m_pi.uid, ci),
+                                    SQLDBResponse, this);
+                            }
+                            else
+                            {
 
-                    case 9:
-                        error = HandleUpdateCutin(session, packet);
-                        break;
+                                error = (ci.id == 0) ? 1 : (pCe == null ? 2 : 3);
 
-                    case 10:
-                        error = HandleUpdatePoster(session, packet);
-                        break;
+                                _smp.message_pool.getInstance().push(new message("[Channel::requestChangePlayerItemMyRoom][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou Atualizar os Parts do Character[ID=" + (ci.id) + "], mas deu Error[VALUE=" + (error) + "]. Hacker ou Bug", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                            }
 
-                    default:
-                        error = 1;
-                        break;
+
+                            var r = m_rm.findRoom((short)_session.m_pi.mi.sala_numero);
+
+                            if (r != null)
+                            {
+                                r.updatePlayerInfo(_session);
+
+                                PlayerRoomInfoEx pri = r.getPlayerInfo(_session);
+
+                                if (packet_func.pacote048(ref p, _session, new List<PlayerRoomInfoEx>() { pri ?? new PlayerRoomInfoEx() }, 0x103))
+                                    packet_func.room_broadcast(r, p, 0);
+
+                                packet_func.room_broadcast(r,
+                                     packet_func.pacote04B(_session, 4), 0);
+                            }
+
+
+
+                            packet_func.session_send(packet_func.pacote06B(_session.m_pi, type,
+                                error),
+                                _session, 1);
+                            break;
+                        }
+                    case 1: // Caddie
+                        {
+                            if ((item_id = _packet.ReadInt32()) != 0)
+                            {
+                                var pCi = _session.m_pi.findCaddieById(item_id);
+
+                                if (pCi != null && sIff.getInstance().getItemGroupIdentify(pCi._typeid) == sIff.getInstance().CADDIE)
+                                {
+
+                                    _session.m_pi.ei.cad_info = pCi;
+                                    _session.m_pi.ue.caddie_id = item_id;
+
+                                    // Verifica se o Caddie pode ser equipado
+                                    if (_session.checkCaddieEquiped(_session.m_pi.ue))
+                                    {
+                                        item_id = _session.m_pi.ue.caddie_id; // Desequipa caddie
+                                    }
+
+                                    // Update ON DB
+                                    snmdb.NormalManagerDB.getInstance().add(0,
+                                        new CmdUpdateCaddieEquiped(_session.m_pi.uid, (int)item_id),
+                                        SQLDBResponse, this);
+
+                                }
+                                else
+                                {
+
+                                    error = (pCi == null ? 2 : 3);
+
+                                    _smp.message_pool.getInstance().push(new message("[Channel::requestChangePlayerItemMyRoom][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou equipar Caddie[ID=" + (item_id) + "], mas deu Error[VALUE=" + (error) + "]. Hacker ou Bug", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                                }
+
+                            }
+                            else if (_session.m_pi.ue.caddie_id > 0 && _session.m_pi.ei.char_info != null)
+                            { // Desequipa Caddie
+
+                                _session.m_pi.ei.cad_info = null;
+                                _session.m_pi.ue.caddie_id = 0;
+
+                                // Update ON DB
+                                snmdb.NormalManagerDB.getInstance().add(0,
+                                    new CmdUpdateCaddieEquiped(_session.m_pi.uid, (int)item_id),
+                                    SQLDBResponse, this);
+
+                            } // else Não tem nenhum caddie equipado, para desequipar, então o cliente só quis atualizar o estado
+
+                            packet_func.session_send(packet_func.pacote06B(
+                                _session.m_pi, type,
+                                error),
+                                _session, 1);
+                            break;
+                        }
+                    case 2: // Itens Equipáveis
+                        {
+                            // Aqui tenho que copiar para uma struct temporaria antes,
+                            // para verificar os itens que ele está equipando.
+                            // Se está tudo certo, Salva na struct da session dele, e depois manda pra salvar no db por meio do Asyc query update
+                            // Se não da mensagem de erro
+                            // Error: 0 = "código 'errado(tenho que traduzir direito ainda)'", 1 = "DB Item Errado", 2, 3 = "Unknown ainda",
+                            // 4 = "Sucesso"
+
+                            UserEquip ue = new UserEquip();
+                            ue.item_slot = _packet.ReadUInt32(10);
+                              
+                            try
+                            {
+
+                                Dictionary<uint, uint> mp_same_item_count = new Dictionary<uint, uint>();
+                                uint c_it;
+
+                                for (var i = 0; i < ue.item_slot.Length; ++i)
+                                {
+
+                                    if (ue.item_slot[i] != 0)
+                                    {
+
+                                        if (!sIff.getInstance().ItemEquipavel(ue.item_slot[i]))
+                                        {
+                                            throw new exception("[Channel::requestChangePlayerItemMyRoom][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou atualizar item[TYPEID=" + (ue.item_slot[i]) + "] equipaveis, mas nao eh um item equipavel. Hacker ou Bug", STDA_ERROR_TYPE.CHANNEL);
+                                        }
+
+                                        // Verifica se esse item existe pela chave do map se não lança uma exception se nao existir
+                                        if (sIff.getInstance().findItem(ue.item_slot[i]) == null)
+                                        {
+                                            throw new IndexOutOfRangeException("[Channel::requestChangePlayerItemMyRoom][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou atualizar item[TYPEID=" + (ue.item_slot[i]) + "] equipaveis, mas nao tem o item no iff Item do IFF_STRUCT do Server. Hacker ou Bug");
+                                        }
+
+                                        // E se não tiver quantidade para equipar lança outra exception
+                                        var pWi = _session.m_pi.findWarehouseItemByTypeid(ue.item_slot[i]);
+
+                                        if (pWi == null)
+                                        {
+                                            throw new exception("[Channel::requestChangePlayerItemMyRoom][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou atualizar item[TYPEID=" + (ue.item_slot[i]) + "] equipaveis, mas ele nao tem esse item. Hacker ou Bug", 2);
+                                        }
+                                        else
+                                        {
+                                            c_it = (mp_same_item_count.FirstOrDefault(c => c.Key == ue.item_slot[i]).Value);
+                                            if (c_it > 0)
+                                            {
+                                                if (active_item_cant_have_2_inventory.Any(
+                                                   c => c == ue.item_slot[i]))
+                                                { 
+                                                    throw new exception("[Channel::requestChangePlayerItemMyRoom][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou equipar item[TYPEID=" + (ue.item_slot[i]) + "] mas ele ja tem 1 item desse equipado, so e permitido equipar 1, nao pode equipar mais do que 1. Hacker ou Bug", 2);
+                                                }
+                                                // 
+                                                else if ((pWi.STDA_C_ITEM_QNTD) < (int)(c_it + 1))
+                                                {
+                                                    throw new exception("[Channel::requestChangePlayerItemMyRoom][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou atualizar item[TYPEID=" + (ue.item_slot[i]) + "] equipaveis, mas ele nao tem quantidade dele. Hacker ou Bug", 2);
+                                                }
+                                                else // Increase Count Same Item
+                                                {
+                                                    // 
+                                                    mp_same_item_count[ue.item_slot[i]] = c_it++; // Count
+                                                }
+
+                                            }
+                                            else
+                                            {
+
+                                                if (pWi.STDA_C_ITEM_QNTD < 1)
+                                                {
+                                                    throw new exception("[Channel::requestChangePlayerItemMyRoom][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou atualizar item[TYPEID=" + (ue.item_slot[i]) + "] equipaveis, mas ele nao tem quantidade dele. Hacker ou Bug", 2);
+                                                }
+
+                                                // insert
+                                                mp_same_item_count.Add(ue.item_slot[i], 1);
+                                            }
+
+                                        }
+                                    }
+                                }
+                                _session.m_pi.ue.item_slot =
+                                ue.item_slot;
+
+                                // Update ON DB
+                                snmdb.NormalManagerDB.getInstance().add(25,
+                                    new CmdUpdateItemSlot(_session.m_pi.uid, ue.item_slot),
+                                    SQLDBResponse, this);
+
+                            }
+                            catch (exception e)
+                            {
+
+                                _smp.message_pool.getInstance().push(new message("[Channel::requestChangePlayerItemMyRoom][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
+
+                                if (e.getCodeError() == 0)
+                                {
+                                    error = 0;
+                                }
+                                else if (e.getCodeError() == 1)
+                                {
+                                    error = 1;
+                                }
+                                else // System Error
+                                {
+                                    error = 10;
+                                }
+
+                            }
+                            catch
+                            {
+
+                                _smp.message_pool.getInstance().push(new message("[Channel::requestChangePlayerItemMyRoom][ErrorSystem] Unknown Error", type_msg.CL_FILE_LOG_AND_CONSOLE));
+
+                                // System Error
+                                error = 10;
+                            }
+
+
+                            packet_func.session_send(packet_func.pacote06B(_session.m_pi, type,
+                                error),
+                                _session, 1);
+                            break;
+                        }
+                    case 3: // Bola e Taqueira
+                        {
+                            // Ball(COMET)
+                            WarehouseItemEx pWi = null;
+
+                            if ((item_id = _packet.ReadInt32()) != 0
+                                && (pWi = _session.m_pi.findWarehouseItemByTypeid((uint)item_id)) != null
+                                && sIff.getInstance().getItemGroupIdentify(pWi._typeid) == sIff.getInstance().BALL)
+                            {
+
+                                _session.m_pi.ei.comet = pWi;
+                                _session.m_pi.ue.ball_typeid = (uint)item_id; // Ball(Comet) é o typeid que o cliente passa
+
+                                // Verifica se a Bola pode ser equipada
+                                if (_session.checkBallEquiped(_session.m_pi.ue))
+                                {
+                                    item_id = (int)_session.m_pi.ue.ball_typeid;
+                                }
+
+                                // Update ON DB
+                                snmdb.NormalManagerDB.getInstance().add(0,
+                                    new CmdUpdateBallEquiped(_session.m_pi.uid, (uint)item_id),
+                                    SQLDBResponse, this);
+
+                            }
+                            else if (item_id == 0)
+                            { // Bola 0 coloca a bola padrão para ele, se for premium user coloca a bola de premium user
+
+                                // Zera para equipar a bola padrão
+                                _session.m_pi.ei.comet = null;
+                                _session.m_pi.ue.ball_typeid = 0;
+
+                                // Verifica se a Bola pode ser equipada (Coloca para equipar a bola padrão
+                                if (_session.checkBallEquiped(_session.m_pi.ue))
+                                {
+                                    item_id = (int)_session.m_pi.ue.ball_typeid;
+                                }
+
+                                // Update ON DB
+                                snmdb.NormalManagerDB.getInstance().add(0,
+                                    new CmdUpdateBallEquiped(_session.m_pi.uid, (uint)item_id),
+                                    SQLDBResponse, this);
+
+                            }
+                            else
+                            {
+
+                                error = (pWi == null ? 2 : 3);
+
+                                _smp.message_pool.getInstance().push(new message("[Channel::requestChangePlayerItemMyRoom][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou equipar Ball[TYPEID=" + (item_id) + "], mas deu Error[VALUE=" + (error) + "]. Hacker ou Bug", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                            }
+
+                            // ClubSet
+                            if ((item_id = _packet.ReadInt32()) != 0
+                                && (pWi = _session.m_pi.findWarehouseItemById(item_id)) != null
+                                && sIff.getInstance().getItemGroupIdentify(pWi._typeid) == sIff.getInstance().CLUBSET)
+                            {
+
+                                // Update ClubSet
+                                _session.m_pi.ei.clubset = pWi;
+
+                                // Esse C do WarehouseItem, que pega do DB, não é o ja updado inicial da taqueira é o que fica tabela enchant, 
+                                // que no original fica no warehouse msm, eu só confundi quando fiz
+                                _session.m_pi.ei.csi.setValues(pWi.id, pWi._typeid, pWi.c);
+
+                                var cs = sIff.getInstance().findClubSet(pWi._typeid);
+
+                                if (cs != null)
+                                {
+
+                                    for (var j = 0; j < 5; ++j)
+                                    {
+                                        _session.m_pi.ei.csi.enchant_c[j] = (short)(cs.SlotStats.getSlot[j] + pWi.clubset_workshop.c[j]);
+                                    }
+
+                                    _session.m_pi.ue.clubset_id = item_id;
+
+                                    // Verifica se o ClubSet pode ser equipado
+                                    if (_session.checkClubSetEquiped(_session.m_pi.ue))
+                                    {
+                                        item_id = _session.m_pi.ue.clubset_id;
+                                    }
+
+                                    // Update ON DB
+                                    snmdb.NormalManagerDB.getInstance().add(0,
+                                        new CmdUpdateClubsetEquiped(_session.m_pi.uid, (int)item_id),
+                                        SQLDBResponse, this);
+
+                                }
+                                else // O Cliente é que tem que saber do erro, não posso passa essa excessão para função anterior
+                                {
+                                    _smp.message_pool.getInstance().push(new message("[Channel::requestChangePlayerItemMyRoom][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou atualizar o ClubSet[TYPEID=" + (pWi._typeid) + ", ID=" + (pWi.id) + "] equipado, mas ClubSet Not exists on IFF_STRUCT do Server. Hacker ou Bug", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                                }
+
+                            }
+                            else
+                            {
+
+                                error = (item_id == 0) ? 1 : (pWi == null ? 2 : 3);
+
+                                _smp.message_pool.getInstance().push(new message("[Channel::requestChangePlayerItemMyRoom][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou equipar ClubSet[ID=" + (item_id) + "], mas deu Error[VALUE=" + (error) + "]. Hacker ou Bug", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                            }
+
+
+                            packet_func.session_send(packet_func.pacote06B(_session.m_pi, type,
+                                error),
+                                _session, 1);
+                            break;
+                        }
+                    case 4: // Skins
+                        {
+                            for (var i = 0; i < 6; ++i)
+                            {
+
+                                if ((item_id = _packet.ReadInt32()) != 0)
+                                {
+
+                                    var pWi = _session.m_pi.findWarehouseItemByTypeid((uint)item_id);
+
+                                    if (pWi != null && sIff.getInstance().getItemGroupIdentify(pWi._typeid) == sIff.getInstance().SKIN)
+                                    {
+
+                                        _session.m_pi.ue.skin_id[i] = (uint)pWi.id;
+                                        _session.m_pi.ue.skin_typeid[i] = pWi._typeid;
+
+                                        // Update ON DB
+                                        snmdb.NormalManagerDB.getInstance().add(0,
+                                            new CmdUpdateSkinEquiped(_session.m_pi.uid, _session.m_pi.ue),
+                                            SQLDBResponse, this);
+
+                                    }
+                                    else
+                                    {
+
+                                        error = (pWi == null ? 2 : 3);
+
+                                        _smp.message_pool.getInstance().push(new message("[Channel::requestChangePlayerItemMyRoom][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou equipar SKIN[TYPEID=" + (item_id) + ", SLOT=" + (i) + "], mas deu Error[VALUE=" + (error) + "]. Hacker ou Bug", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                                    }
+
+                                }
+                                else
+                                { // Zera o Skin equipado
+
+                                    _session.m_pi.ue.skin_id[i] = 0u;
+                                    _session.m_pi.ue.skin_typeid[i] = 0u;
+
+                                    // Update ON DB
+                                    snmdb.NormalManagerDB.getInstance().add(0,
+                                        new CmdUpdateSkinEquiped(_session.m_pi.uid, _session.m_pi.ue),
+                                        SQLDBResponse, this);
+                                }
+                            }
+
+                            // Verifica se a Skin pode ser equipada
+                            if (_session.checkSkinEquiped(_session.m_pi.ue))
+                            {
+                                // Update ON DB
+                                snmdb.NormalManagerDB.getInstance().add(0,
+                                    new CmdUpdateSkinEquiped(_session.m_pi.uid, _session.m_pi.ue),
+                                    SQLDBResponse, this);
+                            }
+                            var _p = packet_func.pacote06B(_session.m_pi, type,
+                                    error);
+                            packet_func.session_send(_p,
+                                _session, 1);
+                            break;
+                        }
+                    case 5: // only Character ID EQUIPADO
+                        {
+                            CharacterInfo pCe = null;
+
+                            if ((item_id = _packet.ReadInt32()) != 0
+                                && (pCe = _session.m_pi.findCharacterById(item_id)) != null
+                                && sIff.getInstance().getItemGroupIdentify(pCe._typeid) == sIff.getInstance().CHARACTER)
+                            {
+
+                                _session.m_pi.ei.char_info = pCe;
+                                _session.m_pi.ue.character_id = item_id;
+
+                                _session.m_pi.UpdateCharacter(item_id, pCe);
+
+                                updatePlayerInfo(_session);
+
+                                PlayerLobbyInfo pci = getPlayerInfo(_session);
+
+                                var _ps = packet_func.pacote06B(_session.m_pi, type,
+                                     error);
+                                packet_func.session_send(_ps,
+                                    _session, 1);
+
+                                // Update ON DB
+                                snmdb.NormalManagerDB.getInstance().add(0,
+                                    new CmdUpdateCharacterEquiped(_session.m_pi.uid, (int)item_id),
+                                    SQLDBResponse, this);
+
+                            }
+                            else
+                            {
+
+                                error = (item_id == 0) ? 1 : (pCe == null ? 2 : 3);
+
+                                _smp.message_pool.getInstance().push(new message("[Channel::requestChangePlayerItemMyRoom][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou equipar o Character[ID=" + (item_id) + "], mas deu Error[VALUE=" + (error) + "]. Hacker ou Bug", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                            }
+                            var _p = packet_func.pacote06B(_session.m_pi, type,
+                                    error);
+                            packet_func.session_send(_p,
+                                _session, 1);
+                            break;
+                        }
+                    case 8: // Mascot Equipado
+                        {
+                            if ((item_id = _packet.ReadInt32()) != 0)
+                            {
+
+                                var pMi = _session.m_pi.findMascotById(item_id);
+
+                                if (pMi != null && sIff.getInstance().getItemGroupIdentify(pMi._typeid) == sIff.getInstance().MASCOT)
+                                {
+
+                                    _session.m_pi.ei.mascot_info = pMi;
+                                    _session.m_pi.ue.mascot_id = item_id;
+
+                                    // Verifica se o Mascot pode ser equipado
+                                    if (_session.checkMascotEquiped(_session.m_pi.ue))
+                                    {
+                                        item_id = _session.m_pi.ue.mascot_id;
+                                    }
+
+                                    // Update ON DB
+                                    snmdb.NormalManagerDB.getInstance().add(0,
+                                        new CmdUpdateMascotEquiped(_session.m_pi.uid, (int)item_id),
+                                        SQLDBResponse, this);
+
+                                }
+                                else
+                                {
+
+                                    error = (pMi == null ? 2 : 3);
+
+                                    _smp.message_pool.getInstance().push(new message("[Channel::requestChangePlayerItemMyRoom][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou equipar Mascot[ID=" + (item_id) + "], mas deu Error[VALUE=" + (error) + "]. Hacker ou Bug", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                                }
+
+                            }
+                            else if (_session.m_pi.ue.mascot_id > 0 && _session.m_pi.ei.mascot_info != null)
+                            { // Desequipa Mascot
+
+                                _session.m_pi.ei.mascot_info = null;
+                                _session.m_pi.ue.mascot_id = 0;
+
+                                // Att No DB
+                                snmdb.NormalManagerDB.getInstance().add(0,
+                                    new CmdUpdateMascotEquiped(_session.m_pi.uid, (int)item_id),
+                                    SQLDBResponse, this);
+
+                            } // else Não tem nenhum mascot equipado, para desequipar, então o cliente só quis atualizar o estado
+                            var _p = packet_func.pacote06B(_session.m_pi, type,
+                                    error);
+                            packet_func.session_send(_p,
+                                _session, 1);
+                            break;
+                        }
+                    case 9: // Character Cutin
+                        {
+                            CharacterInfo pCe = null;
+
+                            // Só atualizar o cuttin se for o do character equipado, para não da conflito depois
+                            // O pangya deveria passa todos os cutin que foram alterado, mas ele só passa o do character equipado
+                            if ((item_id = _packet.ReadInt32()) != 0
+                                && (pCe = _session.m_pi.findCharacterById(item_id)) != null
+                                && (sIff.getInstance().getItemGroupIdentify(pCe._typeid) == sIff.getInstance().CHARACTER && _session.m_pi.ei.char_info != null && _session.m_pi.ei.char_info.id == pCe.id))
+                            {
+
+                                int[] cc = _packet.ReadInt32(4);
+
+                                for (var i = 0; i < 4; i++)
+                                {
+
+                                    if (cc[i] != 0)
+                                    {
+
+                                        var pWi = _session.m_pi.findWarehouseItemById(cc[i]);
+
+                                        if (pWi != null && sIff.getInstance().getItemGroupIdentify(pWi._typeid) == sIff.getInstance().SKIN)
+                                        {
+                                            pCe.cut_in[i] = (uint)pWi.id;
+                                        }
+                                        else
+                                        {
+
+                                            error = (pWi == null ? 2 : 3);
+
+                                            _smp.message_pool.getInstance().push(new message("[Channel::requestChangePlayerItemMyRoom][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou equipar Equipar Cutin do Character[ID=" + (item_id) + ", CUTTIN_TYPEID=" + (cc[i]) + ", SLOT=" + (i) + "], mas deu Error[VALUE=" + (error) + "]. Hacker ou Bug", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                                        }
+
+                                    }
+                                    else // Zera o Cutin que o valor que o cliente passou é 0, para desequipar o cutin
+                                    {
+                                        pCe.cut_in[i] = (uint)cc[i];
+                                    }
+                                }
+
+                                // Verifica se o Cutin pode ser equipado
+                                _session.checkCharacterEquipedCutin(pCe);
+
+                                // Update ON DB
+                                snmdb.NormalManagerDB.getInstance().add(0,
+                                    new CmdUpdateCharacterCutinEquiped(_session.m_pi.uid, pCe),
+                                    SQLDBResponse, this);
+
+                            }
+                            else
+                            {
+
+                                error = 1; // Invalid Item Id
+
+                                if (item_id == 0)
+                                {
+                                    error = 1; // Invalid Item Id
+                                }
+                                else if (pCe == null)
+                                {
+                                    error = 2; // Not Found Item
+                                }
+                                else if (_session.m_pi.ei.char_info == null)
+                                {
+                                    error = 4; // Não tem nenhum character
+                                }
+                                else if (_session.m_pi.ei.char_info.id != pCe.id)
+                                {
+                                    error = 5; // Não é o mesmo character que está equipado
+                                }
+                                else
+                                {
+                                    error = 3; // Item Typeid is Wrong
+                                }
+
+                                _smp.message_pool.getInstance().push(new message("[Channel::requestChangePlayerItemMyRoom][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou equipar Equipar Cutin do Character[ID=" + (item_id) + "], mas deu Error[VALUE=" + (error) + "]. Hacker ou Bug", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                            }
+
+                            var _p = packet_func.pacote06B(_session.m_pi, type,
+                                    error);
+                            packet_func.session_send(_p,
+                                _session, 1);
+                            break;
+                        }
+                    case 10: // Poster
+                        {
+                            for (var i = 0u; i < 2u; ++i)
+                            {
+
+                                if ((item_id = _packet.ReadInt32()) != 0)
+                                {
+
+                                    var pMri = _session.m_pi.findMyRoomItemByTypeid((uint)item_id);
+
+                                    if (pMri != null && sIff.getInstance().getItemGroupIdentify(pMri._typeid) == sIff.getInstance().FURNITURE)
+                                    {
+                                        _session.m_pi.ue.poster[i] = (uint)item_id;
+                                    }
+                                    else
+                                    {
+
+                                        error = (pMri == null ? 2 : 3);
+
+                                        _smp.message_pool.getInstance().push(new message("[Channel::requestChangePlayerItemMyRoom][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou equipar Poster[TYPEID=" + (item_id) + ", SLOT=" + (i) + "], mas deu Error[VALUE=" + (error) + "]. Hacker ou Bug", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                                    }
+                                }
+                                else
+                                {
+                                    _session.m_pi.ue.poster[i] = 0; // Zera o poster[i] = 0 (Desequipa)
+                                }
+                            }
+
+                            // Update ON DB, Verifica se o Poster pode ser equipado
+                            if (_session.checkPosterEquiped(_session.m_pi.ue) || error == 4)
+                            {
+                                snmdb.NormalManagerDB.getInstance().add(0,
+                                    new CmdUpdatePosterEquiped(_session.m_pi.uid, _session.m_pi.ue),
+                                    SQLDBResponse, this);
+                            }
+
+
+                            packet_func.session_send(packet_func.pacote06B(_session.m_pi, type,
+                                error),
+                                _session, 1);
+                            break;
+                        }
                 }
 
-                packet_func.session_send(
-                    packet_func.pacote06B(session.m_pi, type, error),
-                    session,
-                    1);
-
-                updatePlayerInfo(session);
+                updatePlayerInfo(_session);
             }
             catch (exception e)
             {
-                packet_func.session_send(
-                    packet_func.pacote06B(session.m_pi, type, 1),
-                    session,
-                    1);
+                packet_func.session_send(packet_func.pacote06B(_session.m_pi, type,
+                               1),
+                               _session, 1);
 
-                _smp.message_pool.getInstance().push(
-                    new message(
-                        "[Channel::requestChangePlayerItemMyRoom][ErrorSystem] " +
-                        e.getFullMessageError(),
-                        type_msg.CL_FILE_LOG_AND_CONSOLE));
+                _smp.message_pool.getInstance().push(new message("[Channel::requestChangePlayerItemMyRoom][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
-
-        #region Handle Update Item My Room
-        private int HandleUpdateCharacterParts(Player session, packet packet)
-        {
-            int error = 4;
-
-            CharacterInfo ci = new CharacterInfo();
-           
-            ci.ToRead(packet);
-
-            var pCe = session.m_pi.findCharacterById(ci.id);
-
-            if (ci.id == 0 || pCe == null)
-                return (ci.id == 0) ? 1 : 2;
-
-            // Checks Parts Equiped
-           session.checkCharacterEquipedPart(ci);
-
-            // Check AuxPart Equiped
-            session.checkCharacterEquipedAuxPart(ci);  
-
-            session.m_pi.ue.character_id = ci.id;
-            session.m_pi.ei.char_info = ci; 
-            snmdb.NormalManagerDB.getInstance().add(5, new CmdUpdateCharacterAllPartEquiped(session.getUID(), ci), SQLDBResponse, this);
-            //salvar por ultimo
-            session.m_pi.mp_ce[ci.id] = ci;
-            return error;
-        }
-
-        private int HandleUpdateCharacter(Player session, packet packet)
-        {
-            int error = 4;
-            int charId = packet.ReadInt32();
-
-            var pCe = session.m_pi.findCharacterById(charId);
-
-            if (charId == 0 || pCe == null)
-                return (charId == 0) ? 1 : 2;
-
-            session.m_pi.ei.char_info = pCe;
-            session.m_pi.ue.character_id = charId;
-
-            snmdb.NormalManagerDB.getInstance().add(
-                0,
-                new CmdUpdateCharacterEquiped(session.m_pi.uid, charId),
-                SQLDBResponse,
-                this);
-
-            return error;
-        }
-
-        private int HandleUpdateCaddie(Player session, packet packet)
-        {
-            int error = 4;
-            int itemId = packet.ReadInt32();
-
-            if (itemId != 0)
-            {
-                var caddie = session.m_pi.findCaddieById(itemId);
-
-                if (caddie == null)
-                    return 2;
-
-                session.m_pi.ei.cad_info = caddie;
-                session.m_pi.ue.caddie_id = itemId;
-
-                if (session.checkCaddieEquiped(session.m_pi.ue))
-                    itemId = session.m_pi.ue.caddie_id;
-            }
-            else
-            {
-                session.m_pi.ue.caddie_id = 0;
-            }
-
-            snmdb.NormalManagerDB.getInstance().add(
-                0,
-                new CmdUpdateCaddieEquiped(session.m_pi.uid, itemId),
-                SQLDBResponse,
-                this);
-
-            return error;
-        }
-
-        private int HandleUpdateClubAndBall(Player session, packet packet)
-        {
-            int error = 4;
-
-            // BALL
-            int ballTypeId = packet.ReadInt32();
-            var ball = session.m_pi.findWarehouseItemByTypeid((uint)ballTypeId);
-
-            if (ball != null)
-            {
-                session.m_pi.ei.comet = ball;
-                session.m_pi.ue.ball_typeid = (uint)ballTypeId;
-
-                if (session.checkBallEquiped(session.m_pi.ue))
-                    ballTypeId = (int)session.m_pi.ue.ball_typeid;
-            }
-            else
-            {
-                session.m_pi.ue.ball_typeid = 0;
-            }
-
-            snmdb.NormalManagerDB.getInstance().add(
-                0,
-                new CmdUpdateBallEquiped(session.m_pi.uid, (uint)ballTypeId),
-                SQLDBResponse,
-                this);
-
-            // CLUBSET
-            int clubId = packet.ReadInt32();
-            var club = session.m_pi.findWarehouseItemById(clubId);
-
-            if (club == null)
-                return 2;
-
-            session.m_pi.ei.clubset = club;
-            session.m_pi.ue.clubset_id = clubId;
-
-            if (session.checkClubSetEquiped(session.m_pi.ue))
-                clubId = session.m_pi.ue.clubset_id;
-
-            snmdb.NormalManagerDB.getInstance().add(
-                0,
-                new CmdUpdateClubsetEquiped(session.m_pi.uid, clubId),
-                SQLDBResponse,
-                this);
-
-            return error;
-        }
-
-        private int HandleUpdateUseItems(Player session, packet packet)
-        {
-            int error = 4;
-
-            UserEquip ue = new UserEquip();
-            ue.item_slot = packet.ReadUInt32((uint)session.m_pi.ue.item_slot.Length);
-
-            session.m_pi.ue.item_slot = ue.item_slot;
-
-            snmdb.NormalManagerDB.getInstance().add(
-                25,
-                new CmdUpdateItemSlot(session.m_pi.uid, ue.item_slot),
-                SQLDBResponse,
-                this);
-
-            return error;
-        }
-
-        private int HandleUpdateSkins(Player session, packet packet)
-        {
-            int error = 4;
-
-            for (int i = 0; i < session.m_pi.ue.skin_typeid.Length; i++)
-            {
-                int id = packet.ReadInt32();
-
-                if (id == 0)
-                {
-                    session.m_pi.ue.skin_id[i] = 0;
-                    session.m_pi.ue.skin_typeid[i] = 0;
-                    continue;
-                }
-
-                var skin = session.m_pi.findWarehouseItemByTypeid((uint)id);
-
-                if (skin == null)
-                    return 2;
-
-                session.m_pi.ue.skin_id[i] = (uint)skin.id;
-                session.m_pi.ue.skin_typeid[i] = skin._typeid;
-            }
-
-            snmdb.NormalManagerDB.getInstance().add(
-                0,
-                new CmdUpdateSkinEquiped(session.m_pi.uid, session.m_pi.ue),
-                SQLDBResponse,
-                this);
-
-            return error;
-        }
-
-        private int HandleUpdateMascot(Player session, packet packet)
-        {
-            int error = 4;
-            int id = packet.ReadInt32();
-
-            if (id != 0)
-            {
-                var mascot = session.m_pi.findMascotById(id);
-                if (mascot == null)
-                    return 2;
-
-                session.m_pi.ei.mascot_info = mascot;
-                session.m_pi.ue.mascot_id = id;
-            }
-            else
-            {
-                session.m_pi.ue.mascot_id = 0;
-            }
-
-            snmdb.NormalManagerDB.getInstance().add(
-                0,
-                new CmdUpdateMascotEquiped(session.m_pi.uid, id),
-                SQLDBResponse,
-                this);
-
-            return error;
-        }
-
-        private int HandleUpdateCutin(Player session, packet packet)
-        {
-            int error = 4;
-
-            int charId = packet.ReadInt32();
-            var pCe = session.m_pi.findCharacterById(charId);
-
-            if (charId == 0)
-                return 1; // Invalid Item Id
-
-            if (pCe == null)
-                return 2; // Not Found
-
-            if (session.m_pi.ei.char_info == null)
-                return 4; // No character equipped
-
-            if (session.m_pi.ei.char_info.id != pCe.id)
-                return 5; // Not the equipped character
-
-            int[] cutins = packet.ReadInt32(session.m_pi.ei.char_info.cut_in.Length);
-
-            for (int i = 0; i < cutins.Length; i++)
-            {
-                int cutinId = cutins[i];
-
-                if (cutinId == 0)
-                {
-                    pCe.cut_in[i] = 0;
-                    continue;
-                }
-
-                var pWi = session.m_pi.findWarehouseItemById(cutinId);
-
-                if (pWi == null ||
-                    sIff.getInstance().getItemGroupIdentify(pWi._typeid) != IFF_GROUP.SKIN)
-                    return 3; // Item Type Wrong
-
-                pCe.cut_in[i] = (uint)pWi.id;
-            }
-
-            // Validação final
-            session.checkCharacterEquipedCutin(pCe);
-
-
-            session.m_pi.ue.character_id = pCe.id;
-            session.m_pi.ei.char_info = pCe;
-            // Update DB
-            snmdb.NormalManagerDB.getInstance().add(
-                0,
-                new CmdUpdateCharacterCutinEquiped(session.m_pi.uid, pCe),
-                SQLDBResponse,
-                this);
-            //salvar por ultimo
-            session.m_pi.mp_ce[pCe.id] = pCe;
-            return error;
-        }
-
-        private int HandleUpdatePoster(Player session, packet packet)
-        {
-            int error = 4;
-
-            for (int i = 0; i < session.m_pi.ue.poster.Length; i++)
-            {
-                int posterTypeId = packet.ReadInt32();
-
-                if (posterTypeId == 0)
-                {
-                    session.m_pi.ue.poster[i] = 0;
-                    continue;
-                }
-
-                var pMri = session.m_pi.findMyRoomItemByTypeid((uint)posterTypeId);
-
-                if (pMri == null ||
-                    sIff.getInstance().getItemGroupIdentify(pMri._typeid) != IFF_GROUP.FURNITURE)
-                    return 2;
-
-                session.m_pi.ue.poster[i] = (uint)posterTypeId;
-            }
-
-            if (session.checkPosterEquiped(session.m_pi.ue) || error == 4)
-            {
-                snmdb.NormalManagerDB.getInstance().add(
-                    0,
-                    new CmdUpdatePosterEquiped(session.m_pi.uid, session.m_pi.ue),
-                    SQLDBResponse,
-                    this);
-            }
-
-            return error;
-        }
-
-        #endregion
-
         public void requestOpenTicketReportScroll(Player _session, packet _packet)
         {
             PangyaBinaryWriter p = new PangyaBinaryWriter();
 
             try
             {
+
                 int ticket_scroll_item_id = _packet.ReadInt32();
                 int ticket_scroll_id = _packet.ReadInt32();
 
@@ -5637,7 +6183,6 @@ namespace Pangya_GameServer.Game
                     _session, 1);
             }
         }
-
         public void requestChangeMascotMessage(Player _session, packet _packet)
         {
             PangyaBinaryWriter p = new PangyaBinaryWriter();
@@ -5647,6 +6192,7 @@ namespace Pangya_GameServer.Game
 
                 int mascot_id = _packet.ReadInt32();
                 string msg = _packet.ReadString();
+
 
                 if (msg.Length == 0)
                 {
@@ -5659,14 +6205,6 @@ namespace Pangya_GameServer.Game
                     throw new exception("[Channel::requestChangeMascotMessage][Error] PLAYER [UID=" + (_session.m_pi.uid) + "], tentou trocar a message[" + msg + "] do Mascot[ID=" + (mascot_id) + "], mas o comprimento da message ultrapassa os 30 caracteres permitido. Hacker ou Bug.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                         0x6200101, 0));
                 }
-
-                if (string.IsNullOrEmpty(msg))
-                    throw new exception("[Channel::requestChangeMascotMessage][Error] PLAYER[UID=" + (_session.m_pi.uid) + "] tentou contra o server[MESSAGE="
-                            + msg + "], vazio. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL, 1, 1/*UNKNOWN ERROR*/));
-
-                if (!Tools.Sanitize(msg))
-                    throw new exception("[Channel::requestChangeMascotMessage][Error] PLAYER[UID=" + (_session.m_pi.uid) + "] tentou contra o server[MESSAGE="
-                            + msg + "], tentativa de inject. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL, 1, 1/*UNKNOWN ERROR*/));
 
                 var pMi = _session.m_pi.findMascotById(mascot_id);
 
@@ -5755,7 +6293,6 @@ namespace Pangya_GameServer.Game
                     _session, 1);
             }
         }
-
         public void requestPayCaddieHolyDay(Player _session, packet _packet)
         {
             //
@@ -5767,13 +6304,13 @@ namespace Pangya_GameServer.Game
 
                 int caddie_id = _packet.ReadInt32();
 
-
-
+                
+                
 
 
                 if (caddie_id <= 0)
                 {
-                    throw new exception("[Channel::requestPayCaddieHolyDay][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou pagar as ferias do Caddie[ID=" + (caddie_id) + "], mas o caddie_id é invalido. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                    throw new exception("[Channel::requestPayCaddieHolyDay][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou pagar as ferias do Caddie[ID=" + (caddie_id) + "], mas o caddie_id eh invalido. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                         1, 0x6100101));
                 }
 
@@ -5795,7 +6332,7 @@ namespace Pangya_GameServer.Game
 
                 if ((!caddie.Shop.flag_shop.IsCash && caddie.valor_mensal <= 0) || pCi.rent_flag != 2)
                 {
-                    throw new exception("[Channel::requestPayCaddieHolyDay][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou pagar as ferias do Caddie[TYPEID=" + (pCi._typeid) + ", ID=" + (pCi.id) + "], mas nao é um caddie valido para pagar as verias. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                    throw new exception("[Channel::requestPayCaddieHolyDay][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou pagar as ferias do Caddie[TYPEID=" + (pCi._typeid) + ", ID=" + (pCi.id) + "], mas nao eh um caddie valido para pagar as verias. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                         4, 0x6100104));
                 }
 
@@ -5875,7 +6412,6 @@ namespace Pangya_GameServer.Game
                     _session, 1);
             }
         }
-
         public void requestSetNoticeBeginCaddieHolyDay(Player _session, packet _packet)
         {
             //
@@ -5911,6 +6447,7 @@ namespace Pangya_GameServer.Game
                 // Tem caddie que não precisa, checar o end, mas o cliente manda mesmo assim, ai aqui da erro se eu não ignorar
                 if ((!caddie.Shop.flag_shop.IsCash && caddie.valor_mensal <= 0) || pCi.rent_flag != 2)
                 {
+                    _smp.message_pool.getInstance().push(new message("[Channel::requestSetNoticeBeginCaddieHolyDay][Warning] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou setar ou desetar o Aviso de ferias do Caddie[TYPEID=" + (pCi._typeid) + ", ID=" + (pCi.id) + "], mas esse nao eh um caddie valido para setar aviso de ferias. Hacker ou Bug", type_msg.CL_FILE_LOG_AND_CONSOLE));
                 }
 
                 // UPDATE ON SERVER
@@ -5959,11 +6496,20 @@ namespace Pangya_GameServer.Game
             }
         }
 
+        [Obsolete]
         public void requestBuyItemShop(Player _session, packet _packet)
         {
+            //
             var p = new PangyaBinaryWriter();
+
+            _smp.message_pool.getInstance().push(new message($"[{this.GetType().Name}::{MethodBase.GetCurrentMethod().Name}][Debug] Packet 0x1D.\n\rHex Dump.\n\r" + _packet.Log(), type_msg.CL_FILE_LOG_AND_CONSOLE));
+
             try
             {
+
+                
+                
+
 
                 if (_session.m_pi.block_flag.m_flag.buy_and_gift_shop)
                 {
@@ -5992,12 +6538,12 @@ namespace Pangya_GameServer.Game
                     stItem item = new stItem();
                     List<stItem> v_item = new List<stItem>();
 
-                    for (var i = 0; i < qntd; ++i)
+                    for (var i = 0u; i < qntd; ++i)
                     {
 
                         bi = new BuyItem().ToRead(_packet);
 
-                        // BuyItem é a type de visivel no pangya shop
+                        // BuyItem é a flag de visivel no pangya shop
                         // Verifica se o item só pode ser presenteado e da error, por que esse pacote é de comprar e o item só pode ser presenteado
                         // Verifica se o item pode ser comprado
                         if (sIff.getInstance().IsBuyItem(bi._typeid) && !sIff.getInstance().IsOnlyGift(bi._typeid))
@@ -6014,7 +6560,7 @@ namespace Pangya_GameServer.Game
                                 cookie += bi.cookie;
                             }
 
-                            item = new stItem();
+                            item.clear();
 
                             ItemManager.initItemFromBuyItem(_session.m_pi,
                                 item, bi, true, option);
@@ -6034,8 +6580,9 @@ namespace Pangya_GameServer.Game
                                 return;
                             }
 
+                            //erroquando é quantidade
                             if (item.is_cash == 1 ? (option != 1/*Rental*/ && item.desconto != 0 ? bi.cookie != (item.desconto * item.qntd) : bi.cookie != (item.price * item.qntd)) :
-                              (option != 1/*Rental*/ && item.desconto != 0 ? bi.pang != (item.desconto * item.qntd) : bi.pang != (item.price * item.qntd)))
+                                                    (option != 1/*Rental*/ && item.desconto != 0 ? bi.pang != (item.desconto * item.qntd) : bi.pang != (item.price * item.qntd)))
                             {
 
                                 _smp.message_pool.getInstance().push(new message("[Channel::requestBuyItemShop][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou comprar um item com preco[server=" + ((item.desconto != 0 ? (item.desconto * item.qntd) : (item.price * item.qntd))) + ", cliente=" + ((item.is_cash.IsTrue() ? bi.cookie : bi.pang)) + "] diferente, item typeid: " + (bi._typeid) + ". Hacker ou bug.", type_msg.CL_FILE_LOG_AND_CONSOLE));
@@ -6054,7 +6601,7 @@ namespace Pangya_GameServer.Game
                             {
 
                                 // Verifica se já possui o item, o caddie item verifica se tem o caddie para depois verificar se tem o caddie item
-                                if ((sIff.getInstance().IsCanOverlapped(item._typeid) && sIff.getInstance().getItemGroupIdentify(item._typeid) != IFF_GROUP.CAD_ITEM) || !_session.m_pi.ownerItem(item._typeid))
+                                if ((sIff.getInstance().IsCanOverlapped(item._typeid) && sIff.getInstance().getItemGroupIdentify(item._typeid) != sIff.getInstance().CAD_ITEM) || !_session.m_pi.ownerItem(item._typeid))
                                 {
 
                                     if (ItemManager.isSetItem(item._typeid))
@@ -6067,7 +6614,7 @@ namespace Pangya_GameServer.Game
                                         if (item.is_cash.IsTrue() && bi.cookie > 0)
                                         {
                                             cp_log.putItem(item._typeid,
-                                                (item.STDA_C_ITEM_TIME > 0 ? item.STDA_C_ITEM_TIME : item.STDA_C_ITEM_QNTD),
+                                                (item.STDA_C_ITEM_TIME > 0 ? item.STDA_C_ITEM_TIME32 : item.STDA_C_ITEM_QNTD32),
                                                 bi.cookie);
                                         }
 
@@ -6078,14 +6625,14 @@ namespace Pangya_GameServer.Game
                                             // Verifica se pode ter mais de 1 item e se não ver se não tem o item
                                             foreach (var el in v_stItem)
                                             {
-                                                if ((sIff.getInstance().IsCanOverlapped(el._typeid) && sIff.getInstance().getItemGroupIdentify(el._typeid) != IFF_GROUP.CAD_ITEM) || !_session.m_pi.ownerItem(el._typeid))
+                                                if ((sIff.getInstance().IsCanOverlapped(el._typeid) && sIff.getInstance().getItemGroupIdentify(el._typeid) != sIff.getInstance().CAD_ITEM) || !_session.m_pi.ownerItem(el._typeid))
                                                 {
                                                     v_item.Add(new stItem(el));
                                                 }
                                             }
                                             //v_item.insert(v_item.end(), v_stItem.begin(), v_stItem.end());
 
-                                            //for (var ii = 0; ii < v_stItem.Count; ++ii) {
+                                            //for (var ii = 0u; ii < v_stItem.Count; ++ii) {
                                             //	var itt = VECTOR_FIND_ITEM(_session.m_pi.v_wi, _typeid, == , v_stItem[ii]._typeid);	// Aqui tem que ver mais tipo de item, aqui só está vendo Warehouse item. Ex:Character, Caddie, Skin e etc
 
                                             //	// verificar se tem character no set e se o player já tem o character para não colocar no List
@@ -6118,13 +6665,13 @@ namespace Pangya_GameServer.Game
                                         if (item.is_cash.IsTrue() && bi.cookie > 0)
                                         {
                                             cp_log.putItem(item._typeid,
-                                                (item.STDA_C_ITEM_TIME > 0 ? item.STDA_C_ITEM_TIME : item.STDA_C_ITEM_QNTD),
+                                                (item.STDA_C_ITEM_TIME > 0 ? item.STDA_C_ITEM_TIME32 : item.STDA_C_ITEM_QNTD32),
                                                 bi.cookie);
                                         }
                                     }
 
                                 }
-                                else if (sIff.getInstance().getItemGroupIdentify(item._typeid) == PangyaAPI.IFF.JP.Models.Flags.IFF_GROUP.CAD_ITEM)
+                                else if (sIff.getInstance().getItemGroupIdentify(item._typeid) == sIff.getInstance().CAD_ITEM)
                                 {
 
                                     _smp.message_pool.getInstance().push(new message("[Channel::requestBuyItemShop][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou comprar um CaddieItem que ele nao tem o caddie, item typeid: " + (bi._typeid) + ". Hacker ou bug.", type_msg.CL_FILE_LOG_AND_CONSOLE));
@@ -6307,7 +6854,7 @@ namespace Pangya_GameServer.Game
                         }
                     }
 
-
+                    
                     // Remove coupon se a compra foi feita com ele
                     if (coupon.id != 0 && coupon._typeid != 0u)
                     {
@@ -6341,10 +6888,10 @@ namespace Pangya_GameServer.Game
                         p.WriteByte(coupon.type);
                         p.WriteUInt32(coupon._typeid);
                         p.WriteInt32(coupon.id);
-                        p.WriteInt32(coupon.flag_time); // Time Tipo(ou type)
+                        p.WriteInt32(coupon.flag_time); // Time Tipo(ou flag)
                         p.WriteInt32(coupon.stat.qntd_ant); // qntd ant
                         p.WriteInt32(coupon.stat.qntd_dep); // qntd dep
-                        p.WriteInt32((coupon.STDA_C_ITEM_TIME > 0 ? coupon.STDA_C_ITEM_TIME : coupon.STDA_C_ITEM_QNTD)); // qntd
+                        p.WriteInt32((coupon.STDA_C_ITEM_TIME > 0 ? coupon.STDA_C_ITEM_TIME32 : coupon.STDA_C_ITEM_QNTD32)); // qntd
                         p.WriteZeroByte(25);
 
                         packet_func.session_send(p,
@@ -6352,7 +6899,7 @@ namespace Pangya_GameServer.Game
                     }
 
                     var rai = ItemManager.addItem(v_item,
-                        _session.getUID(), 0, 1);
+                        _session, 0, 1);
 
                     if (rai.fails.Count > 0 && rai.type != ItemManager.RetAddItem.T_SUCCESS_PANG_AND_EXP_AND_CP_POUCH)
                     {
@@ -6364,11 +6911,11 @@ namespace Pangya_GameServer.Game
 
                             if (i == 0)
                             {
-                                str += "[TYPEID=" + (rai.fails[i]._typeid) + ", ID=" + (rai.fails[i].id) + ", QNTD=" + ((rai.fails[i].qntd > 0xFFu) ? rai.fails[i].qntd : rai.fails[i].STDA_C_ITEM_QNTD) + (rai.fails[i].STDA_C_ITEM_TIME > 0 ? ", TEMPO=" + (rai.fails[i].STDA_C_ITEM_TIME) : "") + "]";
+                                str += "[TYPEID=" + (rai.fails[i]._typeid) + ", ID=" + (rai.fails[i].id) + ", QNTD=" + ((rai.fails[i].qntd > 0xFFu) ? rai.fails[i].qntd : rai.fails[i].STDA_C_ITEM_QNTD32) + (rai.fails[i].STDA_C_ITEM_TIME > 0 ? ", TEMPO=" + (rai.fails[i].STDA_C_ITEM_TIME) : "") + "]";
                             }
                             else
                             {
-                                str += ", [TYPEID=" + (rai.fails[i]._typeid) + ", ID=" + (rai.fails[i].id) + ", QNTD=" + ((rai.fails[i].qntd > 0xFFu) ? rai.fails[i].qntd : rai.fails[i].STDA_C_ITEM_QNTD) + (rai.fails[i].STDA_C_ITEM_TIME > 0 ? ", TEMPO=" + (rai.fails[i].STDA_C_ITEM_TIME) : "") + "]";
+                                str += ", [TYPEID=" + (rai.fails[i]._typeid) + ", ID=" + (rai.fails[i].id) + ", QNTD=" + ((rai.fails[i].qntd > 0xFFu) ? rai.fails[i].qntd : rai.fails[i].STDA_C_ITEM_QNTD32) + (rai.fails[i].STDA_C_ITEM_TIME > 0 ? ", TEMPO=" + (rai.fails[i].STDA_C_ITEM_TIME) : "") + "]";
                             }
                         }
 
@@ -6401,6 +6948,11 @@ namespace Pangya_GameServer.Game
                                          $"QNTD={(el.STDA_C_ITEM_TIME > 0 ? el.STDA_C_ITEM_TIME : el.STDA_C_ITEM_QNTD)}, " +
                                          $"QNTD_DEPOIS={el.stat.qntd_dep}]");
                     }
+
+                    var log_msg = $"[Channel::requestBuyItemShop][Sucess] PLAYER [UID={_session.m_pi.uid}] comprou {v_item.Count} item(ns), " +
+                                  $"Moedas(CP={cookie}, PANG={pang}), {coupon_msg} Shop({log_itens})";
+
+                    _smp.message_pool.getInstance().push(new message(log_msg, type_msg.CL_ONLY_FILE_LOG));
 
                     // Packet Send global of requestbuyitemshop
                     p = new PangyaBinaryWriter();
@@ -6446,8 +6998,8 @@ namespace Pangya_GameServer.Game
                     snmdb.NormalManagerDB.getInstance().add(0,
                         new CmdItemBuyShopLog(_session.m_pi.uid,
                             bi),
-                        SQLDBResponse, this);
-
+                        SQLDBResponse, this); 
+                    
 
 
                 }
@@ -6479,13 +7031,20 @@ namespace Pangya_GameServer.Game
             }
         }
 
+        [Obsolete]
         public void requestGiftItemShop(Player _session, packet _packet)
         {
+            //
 
             PangyaBinaryWriter p = new PangyaBinaryWriter();
 
             try
             {
+
+                
+                
+
+
                 // Dados Log gasto de CP
                 CPLog cp_log = new CPLog();
 
@@ -6509,9 +7068,9 @@ namespace Pangya_GameServer.Game
                 }
 
                 // Verifica o level do player e bloquea se não tiver level Beginner E
-                if (_session.m_pi.mi.level < (ushort)enLEVEL.BEGINNER_E)
+                if (_session.m_pi.level < (ushort)enLEVEL.BEGINNER_E)
                 {
-                    throw new exception("[Channel::requestGiftItemShop][Error] PLAYER [UID=" + (_session.m_pi.uid) + ", LEVEL=" + (_session.m_pi.mi.level) + "] tentou presentear o PLAYER [UID=" + (uid_to_send) + "], mas o level dele é menor que Beginner E.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                    throw new exception("[Channel::requestGiftItemShop][Error] PLAYER [UID=" + (_session.m_pi.uid) + ", LEVEL=" + (_session.m_pi.level) + "] tentou presentear o PLAYER [UID=" + (uid_to_send) + "], mas o level dele eh menor que Beginner E.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                         3500, 1));
                 }
 
@@ -6521,7 +7080,7 @@ namespace Pangya_GameServer.Game
                     stItem item = new stItem();
                     List<stItem> v_item = new List<stItem>();
 
-                    for (var i = 0; i < qntd; ++i)
+                    for (var i = 0u; i < qntd; ++i)
                     {
 
                         bi = new BuyItem().ToRead(_packet);
@@ -6541,7 +7100,7 @@ namespace Pangya_GameServer.Game
                                 cookie += bi.cookie;
                             }
 
-                            item = new stItem();
+                            item.clear();
 
                             ItemManager.initItemFromBuyItem(_session.m_pi,
                                 item, bi, true, option, 1);
@@ -6586,7 +7145,7 @@ namespace Pangya_GameServer.Game
                             {
 
                                 // para ele verificar se o player tem o caddie antes de enviar o part do caddie
-                                if ((sIff.getInstance().IsCanOverlapped(item._typeid) && sIff.getInstance().getItemGroupIdentify(item._typeid) != IFF_GROUP.CAD_ITEM) || !ItemManager.ownerItem(uid_to_send, item._typeid))
+                                if ((sIff.getInstance().IsCanOverlapped(item._typeid) && sIff.getInstance().getItemGroupIdentify(item._typeid) != sIff.getInstance().CAD_ITEM) || !ItemManager.ownerItem(uid_to_send, item._typeid))
                                 {
 
                                     if (ItemManager.isSetItem(item._typeid))
@@ -6596,7 +7155,7 @@ namespace Pangya_GameServer.Game
                                         if (item.is_cash.IsTrue() && bi.cookie > 0)
                                         {
                                             cp_log.putItem(item._typeid,
-                                                (item.STDA_C_ITEM_TIME > 0 ? item.STDA_C_ITEM_TIME : item.STDA_C_ITEM_QNTD),
+                                                (item.STDA_C_ITEM_TIME > 0 ? item.STDA_C_ITEM_TIME32 : item.STDA_C_ITEM_QNTD32),
                                                 bi.cookie);
                                         }
 
@@ -6638,13 +7197,13 @@ namespace Pangya_GameServer.Game
                                         if (item.is_cash.IsTrue() && bi.cookie > 0)
                                         {
                                             cp_log.putItem(item._typeid,
-                                                (item.STDA_C_ITEM_TIME > 0 ? item.STDA_C_ITEM_TIME : item.STDA_C_ITEM_QNTD),
+                                                (item.STDA_C_ITEM_TIME > 0 ? item.STDA_C_ITEM_TIME32 : item.STDA_C_ITEM_QNTD32),
                                                 bi.cookie);
                                         }
                                     }
 
                                 }
-                                else if (sIff.getInstance().getItemGroupIdentify(item._typeid) == PangyaAPI.IFF.JP.Models.Flags.IFF_GROUP.CAD_ITEM)
+                                else if (sIff.getInstance().getItemGroupIdentify(item._typeid) == sIff.getInstance().CAD_ITEM)
                                 {
 
                                     _smp.message_pool.getInstance().push(new message("[Channel::requestGiftItemShop][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou presentear um CaddieItem que o PLAYER [UID=" + (uid_to_send) + "] nao tem o caddie, item typeid: " + (bi._typeid), type_msg.CL_FILE_LOG_AND_CONSOLE));
@@ -6866,7 +7425,7 @@ namespace Pangya_GameServer.Game
 
                     packet_func.session_send(p,
                         _session, 0);
-
+                     
                     snmdb.NormalManagerDB.getInstance().add(0,
                         new CmdItemBuyShopLog(_session.m_pi.uid,
                             bi),
@@ -6906,7 +7465,6 @@ namespace Pangya_GameServer.Game
                     _session, 0);
             }
         }
-
         public void requestExtendRental(Player _session, packet _packet)
         {
             //
@@ -6918,8 +7476,8 @@ namespace Pangya_GameServer.Game
 
                 int item_id = _packet.ReadInt32();
 
-
-
+                
+                
 
 
                 if (item_id <= 0)
@@ -6936,9 +7494,9 @@ namespace Pangya_GameServer.Game
                         351, 5200352));
                 }
 
-                if (sIff.getInstance().getItemGroupIdentify(pWi._typeid) != IFF_GROUP.PART)
+                if (sIff.getInstance().getItemGroupIdentify(pWi._typeid) != sIff.getInstance().PART)
                 {
-                    throw new exception("[Channel::requestExtendRental][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou extend rental, mas o item[TYPEID=" + (pWi._typeid) + ", ID=" + (pWi.id) + "] nao é um Part. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                    throw new exception("[Channel::requestExtendRental][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou extend rental, mas o item[TYPEID=" + (pWi._typeid) + ", ID=" + (pWi.id) + "] nao eh um Part. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                         352, 5200353));
                 }
 
@@ -6952,7 +7510,7 @@ namespace Pangya_GameServer.Game
 
                 if (part.valor_rental <= 0)
                 {
-                    throw new exception("[Channel::requestExtendRental][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou extender um rental Item[TYPEID=" + (pWi._typeid) + ", ID=" + (pWi.id) + "] que nao é um rental no IFF_STRUCT do server. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                    throw new exception("[Channel::requestExtendRental][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou extender um rental Item[TYPEID=" + (pWi._typeid) + ", ID=" + (pWi.id) + "] que nao eh um rental no IFF_STRUCT do server. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                         354, 5200355));
                 }
 
@@ -7028,7 +7586,6 @@ namespace Pangya_GameServer.Game
                     _session, 1);
             }
         }
-
         public void requestDeleteRental(Player _session, packet _packet)
         {
             //
@@ -7040,8 +7597,8 @@ namespace Pangya_GameServer.Game
 
                 int item_id = _packet.ReadInt32();
 
-
-
+                
+                
 
 
                 if (item_id <= 0)
@@ -7058,9 +7615,9 @@ namespace Pangya_GameServer.Game
                         401, 5200402));
                 }
 
-                if (sIff.getInstance().getItemGroupIdentify(pWi._typeid) != IFF_GROUP.PART)
+                if (sIff.getInstance().getItemGroupIdentify(pWi._typeid) != sIff.getInstance().PART)
                 {
-                    throw new exception("[Channel::requestDeleteRental][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou deletar um Rental Item[TYPEID=" + (pWi._typeid) + ", ID=" + (pWi.id) + "] que nao é um Part. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                    throw new exception("[Channel::requestDeleteRental][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou deletar um Rental Item[TYPEID=" + (pWi._typeid) + ", ID=" + (pWi.id) + "] que nao eh um Part. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                         402, 5200403));
                 }
 
@@ -7074,7 +7631,7 @@ namespace Pangya_GameServer.Game
 
                 if (part.valor_rental <= 0)
                 {
-                    throw new exception("[Channel::requestDeleteRental][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou deletar um rental Item[TYPEID=" + (pWi._typeid) + ", ID=" + (pWi.id) + "] que nao é um rental no IFF_STRUCT do server. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                    throw new exception("[Channel::requestDeleteRental][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou deletar um rental Item[TYPEID=" + (pWi._typeid) + ", ID=" + (pWi.id) + "] que nao eh um rental no IFF_STRUCT do server. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                         404, 5200404));
                 }
 
@@ -7118,7 +7675,6 @@ namespace Pangya_GameServer.Game
                     _session, 1);
             }
         }
-
         public void requestCheckAttendanceReward(Player _session, packet _packet)
         {
             //
@@ -7126,8 +7682,8 @@ namespace Pangya_GameServer.Game
             try
             {
 
-
-
+                
+                
 
 
                 // Attendance Reward System
@@ -7145,7 +7701,6 @@ namespace Pangya_GameServer.Game
                 _smp.message_pool.getInstance().push(new message("[Channel::requestCheckAttendanceReward][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
-
         public void requestAttendanceRewardLoginCount(Player _session, packet _packet)
         {
             //
@@ -7155,8 +7710,8 @@ namespace Pangya_GameServer.Game
             try
             {
 
-
-
+                
+                
 
 
                 // Attendance Reward System
@@ -7181,8 +7736,8 @@ namespace Pangya_GameServer.Game
             try
             {
 
-
-
+                
+                
 
 
                 DailyQuestManager.requestCheckAndSendDailyQuest(_session, _packet);
@@ -7202,8 +7757,8 @@ namespace Pangya_GameServer.Game
             try
             {
 
-
-
+                
+                
 
 
                 DailyQuestManager.requestAcceptQuest(_session, _packet);
@@ -7215,7 +7770,6 @@ namespace Pangya_GameServer.Game
                 _smp.message_pool.getInstance().push(new message("[Channel::requestAcceptDailyQuest][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
-
         public void requestTakeRewardDailyQuest(Player _session, packet _packet)
         {
             //
@@ -7223,8 +7777,8 @@ namespace Pangya_GameServer.Game
             try
             {
 
-
-
+                
+                
 
 
                 DailyQuestManager.requestTakeRewardQuest(_session, _packet);
@@ -7236,7 +7790,6 @@ namespace Pangya_GameServer.Game
                 _smp.message_pool.getInstance().push(new message("[Channel::requestTakeRewardDailyQuest][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
-
         public void requestLeaveDailyQuest(Player _session, packet _packet)
         {
             //
@@ -7244,8 +7797,8 @@ namespace Pangya_GameServer.Game
             try
             {
 
-
-
+                
+                
 
 
                 DailyQuestManager.requestLeaveQuest(_session, _packet);
@@ -7258,7 +7811,7 @@ namespace Pangya_GameServer.Game
             }
         }
 
-
+        [Obsolete]
         public void requestCadieCauldronExchange(Player _session, packet _packet)
         {
             //
@@ -7267,57 +7820,92 @@ namespace Pangya_GameServer.Game
             try
             {
 
+                
+                
+
+
                 if (_session.m_pi.block_flag.m_flag.cadie_recycle)
-                    throw new exception(
-                        $"[[Channel::requestCadieCauldronExchange][BLOCK] UID={_session.m_pi.uid}",
-                        ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL, 8, 0x790001)
-                    );
-
-                ushort seq = _packet.ReadUInt16();
-                uint clientRequested = _packet.ReadUInt32();
-                byte count = _packet.ReadUInt8();
-
-                if (count == 0 || count > 4)
-                    throw new exception(
-                        $"[[Channel::requestCadieCauldronExchange][CHEAT] UID={_session.m_pi.uid} count={count}",
-                        ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL, 450, 5200451)
-                    );
-
-                if (_packet.BytesRemaining < count * 8)
-                    throw new exception(
-                        $"[[Channel::requestCadieCauldronExchange][CHEAT] pacote truncado UID={_session.m_pi.uid}",
-                        ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL, 450, 5200452)
-                    );
-
-                CadieExchangeItem[] cei = new CadieExchangeItem[count];
-                for (int i = 0; i < count; i++)
-                    cei[i] = new CadieExchangeItem().ToRead(_packet);
-
-                var cmb = sIff.getInstance().findCadieMagicBox((uint)(seq + 1));
-                if (cmb == null || cmb.seq != seq + 1 || !cmb.active.IsTrue())
-                    throw new exception(
-                        $"[[Channel::requestCadieCauldronExchange][CHEAT] Seq inválida UID={_session.m_pi.uid}",
-                        ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL, 451, 5200452)
-                    );
-
-                if (_session.m_pi.mi.level < cmb.level)
-                    throw new exception(
-                        $"[[Channel::requestCadieCauldronExchange][LEVEL] UID={_session.m_pi.uid}",
-                        ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL, 454, 5200455)
-                    );
-
-                // 🔒 Validação dos itens exigidos
-                for (int i = 0; i < count; i++)
                 {
-                    if (cmb.item_trade.ID[i] != 0 && cmb.item_trade.ID[i] != cei[i]._typeid)
-                        throw new exception(
-                            $"[[Channel::requestCadieCauldronExchange][CHEAT] item mismatch UID={_session.m_pi.uid}",
-                            ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL, 453, 5200454)
-                        );
-
-                    cei[i].QtyPerExchange = cmb.item_trade.Qty[i];
+                    throw new exception("[Channel::requestCaddieCauldronExchange][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou trocard item no Cadie Cauldron Exchange, mas ele nao pode. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                        8, 0x790001));
                 }
 
+
+                ushort seq = _packet.ReadUInt16(); // índice do item
+                uint item_exchange_qntd = _packet.ReadUInt32(); // quantidade declarada
+                byte count = _packet.ReadUInt8(); // qtd de itens diferentes na troca
+
+                // Validação básica
+                if (count == 0 || count > 4)
+                {
+                    throw new exception(
+                        "[Channel::requestCadieCauldronExchange][Error] PLAYER [UID=" + _session.m_pi.uid +
+                        "] tentou exchange com count inválido (" + count + "). Hacker ou bug",
+                        ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL, 450, 5200451)
+                    );
+                }
+
+                // Garante que o pacote tem dados suficientes pro número de itens informado
+                if (_packet.BytesRemaining < (8 * count))
+                {
+                    throw new exception(
+                        "[Channel::requestCadieCauldronExchange][Error] PLAYER [UID=" + _session.m_pi.uid +
+                        "] enviou pacote truncado. Esperado " + (4 * count) + " bytes, restam " +
+                        _packet.BytesRemaining,
+                        ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL, 450, 5200452)
+                    );
+                }
+                // Agora já é seguro alocar
+
+                CadieExchangeItem[] cei = new CadieExchangeItem[count];
+
+                for (int i = 0; i < count; i++)///verificar antes se o pacote é compativel
+                    cei[i] = new CadieExchangeItem() { _typeid = _packet.ReadUInt32(), id = _packet.ReadInt32() };
+                // Agora o CadieMagicBox é um List, e a seq que pesquisa é de 0 a 'N', não add + 1, por que não não procura pelo membro sequência
+                var cmb = sIff.getInstance().findCadieMagicBox((uint)(seq + 1));//no meu tem versao diferente
+
+                if (cmb == null)
+                {
+                    throw new exception("[Channel::requestCadieCauldronExchange][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou trocar item no CadieCauldron, mas o Item[Seq=" + (seq + 1) + "] que ele tentou trocar nao tem no IFF_STRUCT do server. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                        451, 5200452));
+                }
+
+                if (cmb.seq != (seq + 1))
+                {
+                    throw new exception("[Channel::requestCadieCauldronExchange][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou trocar item no CadieCauldron, mas o Item[Seq_Player=" + (seq + 1) + ", Seq_Srv=" + (cmb.seq) + "] que ele tentou trocar nao combina com a Seq do IFF_STRUCT do server. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                        462, 5200463));
+                }
+
+                if (!cmb.active.IsTrue())
+                {
+                    throw new exception("[Channel::requestCadieCauldronExchange][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou trocar item no CadieCauldron, mas o Item[Seq=" + (seq + 1) + "] esta inativo. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                        452, 5200453));
+                }
+
+                //if (cmb.ulUnknown != item_exchange_qntd)
+                //{
+                //    throw new exception(
+                //        "[Channel::requestCadieCauldronExchange][Error] PLAYER [UID=" + _session.m_pi.uid +
+                //        "] cheat. Esperado " + (cmb.ulUnknown) + " count, hacker " +
+                //        item_exchange_qntd,
+                //        ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL, 450, 5200452)
+                //    );
+                //}
+
+                for (var i = 0u; i < 4; ++i)
+                {
+                    if (cmb.item_trade.ID[i] != 0 && cmb.item_trade.ID[i] != cei[i]._typeid)
+                    {
+                        throw new exception("[Channel::requestCadieCauldronExchange][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou trocar item no CadieCauldron, mas o Item[Seq=" + (seq + 1) + "], item_trade[0-4] nao esta combinando. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                            453, 5200454));
+                    }
+                }
+
+                if (_session.m_pi.level < cmb.level)
+                {
+                    throw new exception("[Channel::requestCadieCauldronExchange][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou trocar item no CadieCauldron, mas ele nao tem level para o Item[Seq=" + (seq + 1) + "]. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                        454, 5200455));
+                }
 
                 if (ItemManager.isTimeItem(new stItem.stDate.stDateSys(cmb.date.Start, cmb.date.End)) && !ItemManager.betweenTimeSystem(new stItem.stDate.stDateSys(cmb.date.Start, cmb.date.End)))
                 {
@@ -7333,64 +7921,24 @@ namespace Pangya_GameServer.Game
                         458, 5200459));
                 }
 
-                // ============================
-                // 🔒 CALCULA LIMITE GLOBAL
-                // ============================
-                uint safeExchangeCount = clientRequested;
-
-                for (int i = 0; i < count; i++)
-                {
-                    uint itemLimit = ItemManager.CalculateSafeExchangeCount(
-                        _session,
-                        cei[i],
-                        safeExchangeCount,
-                        100
-                    );
-
-                    if (itemLimit < safeExchangeCount)
-                        safeExchangeCount = itemLimit;
-                }
-
-                if (safeExchangeCount == 0)
-                    throw new exception(
-                        $"[[Channel::requestCadieCauldronExchange][CHEAT] safeExchangeCount=0 UID={_session.m_pi.uid}",
-                        ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL, 902, 0xDEAD0003)
-                    );
-
-
                 var r = m_rm.findRoom((short)_session.m_pi.mi.sala_numero);
 
-                // ============================
-                // 🔒 EXECUTA TROCA (CHECKED)
-                // ============================
-                for (int i = 0; i < count; i++)
+                for (var i = 0u; i < count; ++i)
                 {
-                    ulong totalQty = (ulong)cmb.item_trade.Qty[i] * safeExchangeCount;
-                    if (totalQty > uint.MaxValue)
-                        throw new exception(
-                            $"[[Channel::requestCadieCauldronExchange][OVERFLOW] UID={_session.m_pi.uid}",
-                            ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL, 904, 0xDEAD0005)
-                        );
+                    if (ItemManager.exchangeCadieMagicBox(_session, cei[i]._typeid, cei[i].id, cmb.item_trade.Qty[i] * item_exchange_qntd) <= 0)
+                        throw new exception("[Channel::requestCadieCauldronExchange][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou trocar um item[Seq="
+                                + (seq + 1) + ", TYPEID=" + (cei[i]._typeid) + "] que nao pode ser trocado no CadieCauldron. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL, 457, 5200458));
 
-                    if (ItemManager.exchangeCadieMagicBox(
-                            _session,
-                            cei[i]._typeid,
-                            cei[i].id,
-                            (uint)totalQty
-                        ) <= 0)
-                    {
-                        throw new exception(
-                            $"[[Channel::requestCadieCauldronExchange][Error][CT] troca inválida UID={_session.m_pi.uid}",
-                            ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL, 457, 5200458)
-                        );
-                    }
 
+                    // Verifica se o player está com shop aberto e se está vendendo o item no shop 
                     if (r != null && r.checkPersonalShopItem(_session, cei[i].id))
-                        throw new exception(
-                            $"[[Channel::requestCadieCauldronExchange][Error] UID={_session.m_pi.uid}",
-                            ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL, 1010, 0x5201010)
-                        );
+                    {
+                        throw new exception("[Channel::requestCadieCauldronExchange][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou trocar o item[Seq=" + (seq + 1) + ", TYPEID=" + (cei[i]._typeid) + ", ID=" + (cei[i].id) + "] no CadieCauldron, mas o item esta sendo vendido no Personal shop dele. Hacker ou Bug.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                            1010, 0x5201010));
+                    }
                 }
+
+
 
                 List<stItem> v_remove = new List<stItem>();
                 List<stItem> v_item = new List<stItem>();
@@ -7400,14 +7948,14 @@ namespace Pangya_GameServer.Game
                 AchievementSystem sys_achieve = new AchievementSystem();
 
                 // Remove os itens
-                for (var i = 0; i < count; ++i)
+                for (var i = 0u; i < count; ++i)
                 {
-                    item = new stItem();
+                    item.clear();
 
                     item.type = 2;
                     item.id = cei[i].id;
                     item._typeid = cei[i]._typeid;
-                    item.qntd = (int)(cmb.item_trade.Qty[i] * safeExchangeCount);
+                    item.qntd = (int)(cmb.item_trade.Qty[i] * item_exchange_qntd);
                     item.STDA_C_ITEM_QNTD = (short)(item.qntd * -1); // Tira
 
                     v_remove.Add(new stItem(item));
@@ -7423,6 +7971,8 @@ namespace Pangya_GameServer.Game
                 // Random Item
                 if (cmb.Box_Random_ID > 0)
                 { // Random Item
+
+                    _smp.message_pool.getInstance().push(new message("[Channel::requestCadieCauldronExchange][Sucess] PLAYER [UID=" + (_session.m_pi.uid) + "] vai trocar um Item[Seq=" + (seq + 1) + "] Random[ID=" + (cmb.Box_Random_ID) + "] Box[LootBox]", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
                     var cmbr_iff = sIff.getInstance().findCadieMagicBoxRandom(cmb.Box_Random_ID);
 
@@ -7440,7 +7990,7 @@ namespace Pangya_GameServer.Game
                         lottery.Push(el.Value.item_random.Rate, el);
                     }
 
-                    var lc = lottery.spinRoleta();
+                    var lc = lottery.SpinRoleta();
 
                     if (lc == null)
                     {
@@ -7455,6 +8005,8 @@ namespace Pangya_GameServer.Game
                         throw new exception("[Channel::requestCadieCauldronExchange][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] valor retornado do sorteio is invalid(null)", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                             462, 5200463));
                     }
+
+                    _smp.message_pool.getInstance().push(new message("[Channel::requestCadieCauldronExchange][CadieMagicBoxRandom::Lotery][Sucess] Item[INDEX=" + (lc.Offset[0]) + ", TYPEID=" + (cmbr.item_random.ID) + ", QNTD=" + (cmbr.item_random.Qty) + "] dropped", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
                     // Procura o item sorteado no IFF_STRUCT para ver se não foi colocado algum typeid errado na hora da criação desse item random do CadieCauldronExchange
                     var item_random = sIff.getInstance().findCommomItem(cmbr.item_random.ID);
@@ -7479,7 +8031,7 @@ namespace Pangya_GameServer.Game
                         else
                         {
 
-                            // Verifica aqui por questão de segurança, mas tem que ter a type no IFF_STRUCT de tempo com a quantidade de dias
+                            // Verifica aqui por questão de segurança, mas tem que ter a flag no IFF_STRUCT de tempo com a quantidade de dias
                             bi.time = (short)((cmb.Box_Random_ID == cadie_cauldron_Hermes_random_id || cmb.Box_Random_ID == cadie_cauldron_Jester_random_id || cmb.Box_Random_ID == cadie_cauldron_Twilight_random_id) ? 10 : 0); // Dias
                         }
 
@@ -7487,7 +8039,7 @@ namespace Pangya_GameServer.Game
                     else
                     {
 
-                        // Verifica aqui por questão de segurança, mas tem que ter a type no IFF_STRUCT de tempo com a quantidade de dias
+                        // Verifica aqui por questão de segurança, mas tem que ter a flag no IFF_STRUCT de tempo com a quantidade de dias
                         bi.time = (short)((cmb.Box_Random_ID == cadie_cauldron_Hermes_random_id || cmb.Box_Random_ID == cadie_cauldron_Jester_random_id || cmb.Box_Random_ID == cadie_cauldron_Twilight_random_id) ? 10 : 0);
                     }
                     // Fim de Sortea Item
@@ -7498,7 +8050,7 @@ namespace Pangya_GameServer.Game
 
                     bi.id = -1;
                     bi._typeid = cmb.item_receive.ID;
-                    bi.qntd = cmb.item_receive.Qty * safeExchangeCount;
+                    bi.qntd = cmb.item_receive.Qty * item_exchange_qntd;
                 }
 
                 // Limpa o item, para inicializar ele
@@ -7520,7 +8072,7 @@ namespace Pangya_GameServer.Game
                         // Verifica se pode ter mais de 1 item e se não ver se não tem o item
                         foreach (var el in v_stItem)
                         {
-                            if ((sIff.getInstance().IsCanOverlapped(el._typeid) && sIff.getInstance().getItemGroupIdentify(el._typeid) != IFF_GROUP.CAD_ITEM) || !_session.m_pi.ownerItem(el._typeid))
+                            if ((sIff.getInstance().IsCanOverlapped(el._typeid) && sIff.getInstance().getItemGroupIdentify(el._typeid) != sIff.getInstance().CAD_ITEM) || !_session.m_pi.ownerItem(el._typeid))
                             {
                                 v_item.Add(new stItem(el));
                             }
@@ -7546,7 +8098,7 @@ namespace Pangya_GameServer.Game
                 }
 
                 var rai = ItemManager.addItem(v_item,
-                    _session.getUID(), 0, 0);//aqui pode ter falhas criticas, depois ver o motivo
+                    _session, 0, 0);//aqui pode ter falhas criticas, depois ver o motivo
 
                 if (rai.fails.Count > 0 && rai.type != ItemManager.RetAddItem.T_SUCCESS_PANG_AND_EXP_AND_CP_POUCH)
                 {
@@ -7557,7 +8109,7 @@ namespace Pangya_GameServer.Game
                 // Verifica se é o Gacha Ticket Sub(Partial) e atualiza ele no server
                 if (item._typeid == 0x1A000083)
                 {
-                    _session.m_pi.cg.partial_ticket += item.STDA_C_ITEM_QNTD;
+                    _session.m_pi.cg.partial_ticket += item.STDA_C_ITEM_QNTD32;
                 }
 
                 //pega o que foi adicionado primeiro
@@ -7567,6 +8119,9 @@ namespace Pangya_GameServer.Game
                 {
                     item._typeid = cmb.item_receive.ID;
                 }
+
+                // Log
+                _smp.message_pool.getInstance().push(new message("[Channel::requestCadieCauldronExchange][Sucess] PLAYER [UID=" + (_session.m_pi.uid) + "] trocou item[Seq=" + (seq + 1) + ", Aba=" + (cmb.setor) + ", TYPEID_RCV=" + (item._typeid) + ", ID=" + (item.id) + ", QNTD(exchange*item_qntd)=" + (item.qntd) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
                 // Add Item em Jogo
                 if (rai.type != ItemManager.RetAddItem.T_SUCCESS_PANG_AND_EXP_AND_CP_POUCH)
@@ -7585,9 +8140,9 @@ namespace Pangya_GameServer.Game
                     p.WriteByte(el.type);
                     p.WriteUInt32(el._typeid);
                     p.WriteInt32(el.id);
-                    p.WriteInt32(el.flag_time); // Time Tipo(ou type)
+                    p.WriteInt32(el.flag_time); // Time Tipo(ou flag)
                     p.WriteBytes(el.stat.ToArray());
-                    p.WriteInt32(el.STDA_C_ITEM_TIME > 0 ? el.STDA_C_ITEM_TIME : el.STDA_C_ITEM_QNTD); // qntd
+                    p.WriteInt32(el.STDA_C_ITEM_TIME > 0 ? el.STDA_C_ITEM_TIME32 : el.STDA_C_ITEM_QNTD32); // qntd
                     p.WriteZeroByte(25);
                 }
 
@@ -7605,7 +8160,7 @@ namespace Pangya_GameServer.Game
 
                 p.WriteUInt32(item._typeid);
                 p.WriteInt32(item.id);
-                p.WriteInt32(item.STDA_C_ITEM_QNTD);
+                p.WriteInt32(item.STDA_C_ITEM_QNTD32);
                 p.WriteInt32(item.stat.qntd_dep);
                 p.WriteUInt32(item.flag_time);
 
@@ -7641,7 +8196,7 @@ namespace Pangya_GameServer.Game
 
             try
             {
-
+                
                 if (_session.m_pi.block_flag.m_flag.char_mastery)
                 {
                     throw new exception("[Channel::requestCharacterStatsUp][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou upar Stats do character, mas ele nao pode. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
@@ -7650,9 +8205,7 @@ namespace Pangya_GameServer.Game
 
                 uint stat = _packet.ReadUInt32();
 
-                CharacterInfo ci = new CharacterInfo();
-
-                ci.ToRead(_packet);
+                CharacterInfo ci = new CharacterInfo().ToRead(_packet);
 
                 var pCi = _session.m_pi.findCharacterById(ci.id);
 
@@ -7672,10 +8225,10 @@ namespace Pangya_GameServer.Game
 
                 sbyte value = 0;
 
-                var value_part = ci.getSlotOfStatsFromCharEquipedPartItem((CharacterInfo.Stats)(stat));
-                var value_auxpart = ci.getSlotOfStatsFromCharEquipedAuxPart((CharacterInfo.Stats)(stat));
-                var value_set_effect_table = ci.getSlotOfStatsFromSetEffectTable((CharacterInfo.Stats)(stat));
-                var value_card = ci.getSlotOfStatsFromCharEquipedCard((CharacterInfo.Stats)(stat));
+                var value_part = pCi.getSlotOfStatsFromCharEquipedPartItem((CharacterInfo.Stats)(stat));
+                var value_auxpart = pCi.getSlotOfStatsFromCharEquipedAuxPart((CharacterInfo.Stats)(stat));
+                var value_set_effect_table = pCi.getSlotOfStatsFromSetEffectTable((CharacterInfo.Stats)(stat));
+                var value_card = pCi.getSlotOfStatsFromCharEquipedCard((CharacterInfo.Stats)(stat));
 
                 if (value_part == -1
                     || value_card == -1
@@ -7718,26 +8271,19 @@ namespace Pangya_GameServer.Game
                         506, 0x5200507));
                 }
 
-                // 1. Pegue o limite base do IFF para esse personagem (Quantos slots ele PODE ter no máximo)
-                // Geralmente está no IFFCharacter.txt
-                var bLimiteMaximoIFF = character.PCL[stat];
-
-                // 2. Calcule o bônus adicional vindo de Mastery (se houver slots extras por mastery)
-                sbyte slotsExtrasMastery = 0;
-                for (var i = 0; i < pCi.mastery; ++i)
+                // Character Mastery
+                for (var i = 0; i < (pCi.mastery == 0 ? 1 : (uint)pCi.mastery); ++i)
                 {
                     if ((mastery[i].stats - 1) == stat)
-                        slotsExtrasMastery++;
+                    {
+                        value++;
+                    }
                 }
 
-                // O limite real de UPGRADE é o Base do IFF + o que ele ganhou de Mastery
-                int limiteRealDeUpgrade = bLimiteMaximoIFF + slotsExtrasMastery + value;
-
-                // 3. A validação correta: 
-                if (pCi.pcl[stat] > limiteRealDeUpgrade)
+                if ((pCi.pcl[stat]) > value + 1)
                 {
-                    throw new exception("[Channel::requestCharacterStatsUp][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] atingiu o limite de slots para o stat " + stat,
-                        ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL, 502, 0x5200503));
+                    throw new exception("[Channel::requestCharacterStatsUp][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou upar stats[stat=" + (stat) + "] do Character[TYPEID=" + (pCi._typeid) + ", ID=" + (pCi.id) + "], mas nao tem mais slot para upar. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                        502, 0x5200503));
                 }
 
                 uint enchant_typeid = ((Convert.ToUInt32(sIff.getInstance().ENCHANT) << 26) | (stat << 20)) + pCi.pcl[stat];
@@ -7759,6 +8305,8 @@ namespace Pangya_GameServer.Game
                     new CmdUpdateCharacterPCL(_session.m_pi.uid, pCi),
                     SQLDBResponse, this);
 
+                // Log
+                _smp.message_pool.getInstance().push(new message("[CharacterStats::UPGRADE][Sucess] PLAYER [UID=" + (_session.m_pi.uid) + "] upou Character[TYPEID=" + (pCi._typeid) + ", ID=" + (pCi.id) + "] PCL[C0=" + ((ushort)pCi.pcl[(int)CharacterInfo.Stats.S_POWER]) + ", C1=" + ((ushort)pCi.pcl[(int)CharacterInfo.Stats.S_CONTROL]) + ", C2=" + ((ushort)pCi.pcl[(int)CharacterInfo.Stats.S_ACCURACY]) + ", C3=" + ((ushort)pCi.pcl[(int)CharacterInfo.Stats.S_SPIN]) + ", C4=" + ((ushort)pCi.pcl[(int)CharacterInfo.Stats.S_CURVE]) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
                 // Atualiza Pang(s) no Jogo
                 p.init_plain(0xC8);
@@ -7823,7 +8371,6 @@ namespace Pangya_GameServer.Game
                     _session, 1);
             }
         }
-
         public void requestCharacterStatsDown(Player _session, packet _packet)
         {
             //
@@ -7833,8 +8380,8 @@ namespace Pangya_GameServer.Game
             try
             {
 
-
-
+                
+                
 
 
                 if (_session.m_pi.block_flag.m_flag.char_mastery)
@@ -7845,9 +8392,7 @@ namespace Pangya_GameServer.Game
 
                 uint stat = _packet.ReadUInt32();
 
-                CharacterInfo ci = new CharacterInfo();
-
-                ci.ToRead(_packet);
+                CharacterInfo ci = new CharacterInfo().ToRead(_packet);
 
                 var pCi = _session.m_pi.findCharacterById(ci.id);
 
@@ -7883,6 +8428,9 @@ namespace Pangya_GameServer.Game
                 snmdb.NormalManagerDB.getInstance().add(7,
                     new CmdUpdateCharacterPCL(_session.m_pi.uid, pCi),
                     SQLDBResponse, this);
+
+                // Log
+                _smp.message_pool.getInstance().push(new message("[CharacterStats::DOWNGRADE][Sucess] PLAYER [UID=" + (_session.m_pi.uid) + "] desupou Character[TYPEID=" + (pCi._typeid) + ", ID=" + (pCi.id) + "] PCL[C0=" + ((ushort)pCi.pcl[(int)CharacterInfo.Stats.S_POWER]) + ", C1=" + ((ushort)pCi.pcl[(int)CharacterInfo.Stats.S_CONTROL]) + ", C2=" + ((ushort)pCi.pcl[(int)CharacterInfo.Stats.S_ACCURACY]) + ", C3=" + ((ushort)pCi.pcl[(int)CharacterInfo.Stats.S_SPIN]) + ", C4=" + ((ushort)pCi.pcl[(int)CharacterInfo.Stats.S_CURVE]) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
                 // Atualiza item no Jogo
                 p.init_plain(0x216);
@@ -7937,7 +8485,6 @@ namespace Pangya_GameServer.Game
                     _session, 1);
             }
         }
-
         public void requestCharacterMasteryExpand(Player _session, packet _packet)
         {
             //
@@ -7947,8 +8494,8 @@ namespace Pangya_GameServer.Game
             try
             {
 
-
-
+                
+                
 
 
                 if (_session.m_pi.block_flag.m_flag.char_mastery)
@@ -7978,13 +8525,13 @@ namespace Pangya_GameServer.Game
 
                 if ((uint)(pCi.mastery + 1) > mastery.Count)
                 {
-                    throw new exception("[Channel::requestCharacterMasteryExpand][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou expandir Character[TYPEID=" + (char_typeid) + ", ID=" + (char_id) + "] mastery, mas ele ja expandiu todos que é permitido. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                    throw new exception("[Channel::requestCharacterMasteryExpand][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou expandir Character[TYPEID=" + (char_typeid) + ", ID=" + (char_id) + "] mastery, mas ele ja expandiu todos que eh permitido. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                         652, 0x5200653));
                 }
 
                 if (mastery[(int)pCi.mastery].seq != (pCi.mastery + 1))
                 {
-                    throw new exception("[Channel::requestCharacterMasteryExpand][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou expandir Character[TYPEID=" + (char_typeid) + ", ID=" + (char_id) + "] mastery, mas a sequencia do mastery no IFF_STRUCT é diferente. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                    throw new exception("[Channel::requestCharacterMasteryExpand][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou expandir Character[TYPEID=" + (char_typeid) + ", ID=" + (char_id) + "] mastery, mas a sequencia do mastery no IFF_STRUCT eh diferente. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                         653, 0x5200654));
                 }
 
@@ -8006,7 +8553,7 @@ namespace Pangya_GameServer.Game
                     {
                         switch (sIff.getInstance().getItemGroupIdentify(condition.condition[i]))
                         {
-                            case IFF_GROUP.ITEM://case item
+                            case 6://case item
                                 {
                                     var pWi = _session.m_pi.findWarehouseItemByTypeid(condition.condition[i]);
 
@@ -8022,7 +8569,7 @@ namespace Pangya_GameServer.Game
                                             657, 0x5200658));
                                     }
 
-                                    item = new stItem();
+                                    item.clear();
 
                                     item.type = 2;
                                     item._typeid = condition.condition[i];
@@ -8034,7 +8581,7 @@ namespace Pangya_GameServer.Game
 
                                     break;
                                 }
-                            case IFF_GROUP.QUEST_STUFF://case_quest_stuff
+                            case 29://case_quest_stuff
                                 {
                                     var pQsi = _session.m_pi.mgr_achievement.findQuestStuffByTypeId(condition.condition[i]);
 
@@ -8075,7 +8622,7 @@ namespace Pangya_GameServer.Game
                 // Atualiza mastery, add +1
                 pCi.mastery++;
 
-                item = new stItem();
+                item.clear();
 
                 item._typeid = pCi._typeid;
                 item.id = (int)pCi.id;
@@ -8088,6 +8635,9 @@ namespace Pangya_GameServer.Game
                 snmdb.NormalManagerDB.getInstance().add(9,
                     new CmdUpdateCharacterMastery(_session.m_pi.uid, pCi),
                     SQLDBResponse, this);
+
+                // Log
+                _smp.message_pool.getInstance().push(new message("[CharacterMasteryExpand][Sucess] PLAYER [UID=" + (_session.m_pi.uid) + "] expandiu Character[TYPEID=" + (pCi._typeid) + ", ID=" + (pCi.id) + "] Mastery[value=" + (pCi.mastery) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
                 // Atualiza ON Jogo
                 p.init_plain(0x216);
@@ -8103,7 +8653,7 @@ namespace Pangya_GameServer.Game
                     p.WriteUInt32(el.flag_time);
                     p.WriteInt32(el.stat.qntd_ant);
                     p.WriteInt32(el.stat.qntd_dep);
-                    p.WriteInt32((el.STDA_C_ITEM_TIME > 0) ? el.STDA_C_ITEM_TIME : el.STDA_C_ITEM_QNTD);
+                    p.WriteInt32((el.STDA_C_ITEM_TIME > 0) ? el.STDA_C_ITEM_TIME32 : el.STDA_C_ITEM_QNTD32);
                     p.WriteZeroByte(25); // 10 PCL[C0~C4] 2 Bytes cada, 15 bytes desconhecido
                     if (el.type == 0xCD)
                     {
@@ -8143,7 +8693,6 @@ namespace Pangya_GameServer.Game
                     _session, 1);
             }
         }
-
         public void requestCharacterCardEquip(Player _session, packet _packet)
         {
             //
@@ -8152,6 +8701,10 @@ namespace Pangya_GameServer.Game
 
             try
             {
+
+                
+                
+
 
                 if (_session.m_pi.block_flag.m_flag.char_mastery)
                 {
@@ -8164,7 +8717,7 @@ namespace Pangya_GameServer.Game
                 stItem item = new stItem();
                 var card = sIff.getInstance().findCard(ce.card_typeid);
 
-                if (card == null && card.ID == 0)
+                if (card == null)
                 {
                     throw new exception("[Channel::requestCharacterCardEquip][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou equipar card[TYPEID=" + (ce.card_typeid) + ", ID=" + (ce.card_id) + "] no Character[TYPEID=" + (ce.char_typeid) + ", ID=" + (ce.char_id) + "], mas o card nao existe no IFF_STRUCT do server. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                         756, 0x5200757));
@@ -8198,10 +8751,10 @@ namespace Pangya_GameServer.Game
 
 
 
-                item = new stItem();
+                item.clear();
 
                 item.type = 2;
-                item.id = pCardInfo.id;
+                item.id = (int)pCardInfo.id;
                 item._typeid = pCardInfo._typeid;
                 item.qntd = 1;
                 item.STDA_C_ITEM_QNTD = (short)(item.qntd * -1);
@@ -8228,7 +8781,7 @@ namespace Pangya_GameServer.Game
                     case 4: // Character
                         if (sIff.getInstance().getItemSubGroupIdentify22(ce.card_typeid) != 0)
                         {
-                            throw new exception("[Channel::requestCharacterCardEquip][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou equipar card[TYPEID=" + (ce.card_typeid) + ", ID=" + (ce.card_id) + "] no Character[TYPEID=" + (ce.char_typeid) + ", ID=" + (ce.char_id) + "] no Slot do Character[tipo=0], mas o card é tipo[value=" + (sIff.getInstance().getItemSubGroupIdentify22(ce.card_typeid)) + "]", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                            throw new exception("[Channel::requestCharacterCardEquip][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou equipar card[TYPEID=" + (ce.card_typeid) + ", ID=" + (ce.card_id) + "] no Character[TYPEID=" + (ce.char_typeid) + ", ID=" + (ce.char_id) + "] no Slot do Character[tipo=0], mas o card eh tipo[value=" + (sIff.getInstance().getItemSubGroupIdentify22(ce.card_typeid)) + "]", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                                 755, 0x5200756));
                         }
 
@@ -8247,7 +8800,7 @@ namespace Pangya_GameServer.Game
                     case 8: // Caddie
                         if (sIff.getInstance().getItemSubGroupIdentify22(ce.card_typeid) != 1)
                         {
-                            throw new exception("[Channel::requestCharacterCardEquip][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou equipar card[TYPEID=" + (ce.card_typeid) + ", ID=" + (ce.card_id) + "] no Character[TYPEID=" + (ce.char_typeid) + ", ID=" + (ce.char_id) + "] no Slot do Caddie[tipo=1], mas o card é tipo[value=" + (sIff.getInstance().getItemSubGroupIdentify22(ce.card_typeid)) + "]", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                            throw new exception("[Channel::requestCharacterCardEquip][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou equipar card[TYPEID=" + (ce.card_typeid) + ", ID=" + (ce.card_id) + "] no Character[TYPEID=" + (ce.char_typeid) + ", ID=" + (ce.char_id) + "] no Slot do Caddie[tipo=1], mas o card eh tipo[value=" + (sIff.getInstance().getItemSubGroupIdentify22(ce.card_typeid)) + "]", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                                 755, 0x5200756));
                         }
 
@@ -8266,7 +8819,7 @@ namespace Pangya_GameServer.Game
                     case 12: // NPC
                         if (sIff.getInstance().getItemSubGroupIdentify22(ce.card_typeid) != 5)
                         {
-                            throw new exception("[Channel::requestCharacterCardEquip][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou equipar card[TYPEID=" + (ce.card_typeid) + ", ID=" + (ce.card_id) + "] no Character[TYPEID=" + (ce.char_typeid) + ", ID=" + (ce.char_id) + "] no Slot do NPC[tipo=5], mas o card é tipo[value=" + (sIff.getInstance().getItemSubGroupIdentify22(ce.card_typeid)) + "]", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                            throw new exception("[Channel::requestCharacterCardEquip][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou equipar card[TYPEID=" + (ce.card_typeid) + ", ID=" + (ce.card_id) + "] no Character[TYPEID=" + (ce.char_typeid) + ", ID=" + (ce.char_id) + "] no Slot do NPC[tipo=5], mas o card eh tipo[value=" + (sIff.getInstance().getItemSubGroupIdentify22(ce.card_typeid)) + "]", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                                 755, 0x5200756));
                         }
 
@@ -8306,7 +8859,7 @@ namespace Pangya_GameServer.Game
 
                 _session.m_pi.v_cei.Add(cei);
 
-                item = new stItem();
+                item.clear();
 
                 item.type = 0xCB;
                 item.id = (int)pCi.id;
@@ -8316,8 +8869,14 @@ namespace Pangya_GameServer.Game
 
                 v_item.Add(new stItem(item));
 
-                // Update ON DB  
-                snmdb.NormalManagerDB.getInstance().add(10, new CmdEquipCard(_session.m_pi.uid, cei, 0/*nao é card de tempo, é o normal*/), SQLDBResponse, this);
+                // Update ON DB
+                snmdb.NormalManagerDB.getInstance().add(10,
+                    new CmdEquipCard(_session.m_pi.uid,
+                        cei, 0),
+                    SQLDBResponse, this);
+
+                // Log
+                _smp.message_pool.getInstance().push(new message("[EquipCard][Sucess] PLAYER [UID=" + (_session.m_pi.uid) + "] equipou card[TYPEID=" + (ce.card_typeid) + "] no Character[TYPEID=" + (ce.char_typeid) + ", ID=" + (ce.char_id) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
                 _session.m_pi.UpdateCharacter(pCi.id, pCi);
                 // Update ON Jogo
@@ -8332,14 +8891,11 @@ namespace Pangya_GameServer.Game
                     p.WriteUInt32(el._typeid);
                     p.WriteInt32(el.id);
                     p.WriteUInt32(el.flag_time);
-                    p.WriteInt32(el.stat.qntd_ant);
-                    p.WriteInt32(el.stat.qntd_dep);
-                    p.WriteInt32((el.STDA_C_ITEM_TIME > 0) ? el.STDA_C_ITEM_TIME : el.STDA_C_ITEM_QNTD);
-                    p.WriteInt16(el.c);
-                    p.WriteZeroByte(10);  // UCC IDX e outras coisas
-                    p.WriteUInt32(el.price);      // Card typeid
-                    p.WriteByte(el.type_iff);	// Card Slot
-
+                    p.WriteBytes(el.stat.ToArray());
+                    p.WriteInt32(el.STDA_C_ITEM_TIME > 0 ? el.STDA_C_ITEM_TIME32 : el.STDA_C_ITEM_QNTD32);
+                    p.WriteZeroByte(25); // UCC IDX e outras coisas
+                    p.WriteUInt32(el.price); // Card typeid
+                    p.WriteByte(el.type_iff); // Card Slot
                 }
 
                 // Resposta para o Character Equip Card
@@ -8384,8 +8940,8 @@ namespace Pangya_GameServer.Game
             try
             {
 
-
-
+                
+                
 
 
                 if (_session.m_pi.block_flag.m_flag.char_mastery)
@@ -8412,7 +8968,7 @@ namespace Pangya_GameServer.Game
                         810, 0x5200811));
                 }
 
-                item = new stItem();
+                item.clear();
 
                 item.type = 2;
                 item.id = (int)pWi.id;
@@ -8458,7 +9014,7 @@ namespace Pangya_GameServer.Game
 
 
 
-                item = new stItem();
+                item.clear();
 
                 item.type = 2;
                 item.id = (int)pCardInfo.id;
@@ -8482,7 +9038,7 @@ namespace Pangya_GameServer.Game
                     case 4: // Character
                         if (sIff.getInstance().getItemSubGroupIdentify22(ce.card_typeid) != 0)
                         {
-                            throw new exception("[Channel::requestCharacterCardEquipWithPatcher][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou equipar card[TYPEID=" + (ce.card_typeid) + ", ID=" + (ce.card_id) + "] no Character[TYPEID=" + (ce.char_typeid) + ", ID=" + (ce.char_id) + "] no Slot do Character[tipo=0], mas o card é tipo[value=" + (sIff.getInstance().getItemSubGroupIdentify22(ce.card_typeid)) + "]", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                            throw new exception("[Channel::requestCharacterCardEquipWithPatcher][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou equipar card[TYPEID=" + (ce.card_typeid) + ", ID=" + (ce.card_id) + "] no Character[TYPEID=" + (ce.char_typeid) + ", ID=" + (ce.char_id) + "] no Slot do Character[tipo=0], mas o card eh tipo[value=" + (sIff.getInstance().getItemSubGroupIdentify22(ce.card_typeid)) + "]", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                                 805, 0x5200806));
                         }
 
@@ -8501,7 +9057,7 @@ namespace Pangya_GameServer.Game
                     case 8: // Caddie
                         if (sIff.getInstance().getItemSubGroupIdentify22(ce.card_typeid) != 1)
                         {
-                            throw new exception("[Channel::requestCharacterCardEquipWithPatcher][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou equipar card[TYPEID=" + (ce.card_typeid) + ", ID=" + (ce.card_id) + "] no Character[TYPEID=" + (ce.char_typeid) + ", ID=" + (ce.char_id) + "] no Slot do Caddie[tipo=1], mas o card é tipo[value=" + (sIff.getInstance().getItemSubGroupIdentify22(ce.card_typeid)) + "]", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                            throw new exception("[Channel::requestCharacterCardEquipWithPatcher][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou equipar card[TYPEID=" + (ce.card_typeid) + ", ID=" + (ce.card_id) + "] no Character[TYPEID=" + (ce.char_typeid) + ", ID=" + (ce.char_id) + "] no Slot do Caddie[tipo=1], mas o card eh tipo[value=" + (sIff.getInstance().getItemSubGroupIdentify22(ce.card_typeid)) + "]", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                                 805, 0x5200806));
                         }
 
@@ -8518,7 +9074,7 @@ namespace Pangya_GameServer.Game
                     case 10:
                     case 11:
                     case 12: // NPC
-                        throw new exception("[Channel::requestCharacterCardEquipWithPatcher][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou equipar card[TYPEID=" + (ce.card_typeid) + ", ID=" + (ce.card_id) + "] no Character[TYPEID=" + (ce.char_typeid) + ", ID=" + (ce.char_id) + "] em no Slot NPC, mas nao pode, o slot do Club Patcher é so Character e Caddie. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                        throw new exception("[Channel::requestCharacterCardEquipWithPatcher][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou equipar card[TYPEID=" + (ce.card_typeid) + ", ID=" + (ce.card_id) + "] no Character[TYPEID=" + (ce.char_typeid) + ", ID=" + (ce.char_id) + "] em no Slot NPC, mas nao pode, o slot do Club Patcher eh so Character e Caddie. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                             803, 0x5200804));
                     default:
                         throw new exception("[Channel::requestCharacterCardEquipWithPatcher][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou equipar card[TYPEID=" + (ce.card_typeid) + ", ID=" + (ce.card_id) + "] no Character[TYPEID=" + (ce.char_typeid) + ", ID=" + (ce.char_id) + "] em um Slot desconhecido. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
@@ -8548,7 +9104,7 @@ namespace Pangya_GameServer.Game
 
                 _session.m_pi.v_cei.Add(cei);
 
-                item = new stItem();
+                item.clear();
 
                 item.type = 0xCB;
                 item.id = (int)pCi.id;
@@ -8559,7 +9115,13 @@ namespace Pangya_GameServer.Game
                 v_item.Add(new stItem(item));
 
                 // Update ON DB
-                snmdb.NormalManagerDB.getInstance().add(10, new CmdEquipCard(_session.m_pi.uid, cei, 0), SQLDBResponse, this);
+                snmdb.NormalManagerDB.getInstance().add(10,
+                    new CmdEquipCard(_session.m_pi.uid,
+                        cei, 0),
+                    SQLDBResponse, this);
+
+                // Log
+                _smp.message_pool.getInstance().push(new message("[EquipCardWithPatcher][Sucess] PLAYER [UID=" + (_session.m_pi.uid) + "] equipou card[TYPEID=" + (ce.card_typeid) + "] no Character[TYPEID=" + (ce.char_typeid) + ", ID=" + (ce.char_id) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
                 _session.m_pi.UpdateCharacter(pCi.id, pCi);
 
@@ -8576,13 +9138,12 @@ namespace Pangya_GameServer.Game
                     p.WriteUInt32(el._typeid);
                     p.WriteInt32(el.id);
                     p.WriteUInt32(el.flag_time);
-                    p.WriteInt32(el.stat.qntd_ant);
-                    p.WriteInt32(el.stat.qntd_dep);
-                    p.WriteInt32((el.STDA_C_ITEM_TIME > 0) ? el.STDA_C_ITEM_TIME : el.STDA_C_ITEM_QNTD);
-                    p.WriteInt16(el.c);
-                    p.WriteZero(10);  // UCC IDX e outras coisas
-                    p.WriteUInt32(el.price);      // Card typeid
-                    p.WriteByte(el.type_iff);	// Card Slot
+                    p.WriteBytes(el.stat.ToArray());
+                    
+                    p.WriteInt32(el.STDA_C_ITEM_TIME > 0 ? el.STDA_C_ITEM_TIME32 : el.STDA_C_ITEM_QNTD32);
+                    p.WriteZeroByte(25); // UCC IDX e outras coisas
+                    p.WriteUInt32(el.price); // Card typeid
+                    p.WriteByte(el.type_iff); // Card Slot
                 }
 
                 // Resposta para o Character Equip Card With Club Patcher
@@ -8628,8 +9189,8 @@ namespace Pangya_GameServer.Game
             try
             {
 
-
-
+                
+                
 
 
                 if (_session.m_pi.block_flag.m_flag.char_mastery)
@@ -8688,7 +9249,7 @@ namespace Pangya_GameServer.Game
                     case 6:
                     case 7:
                     case 8: // Caddie
-                        if (pCi.Card_Caddie[(cr.card_slot - 1) % 4] == 0)
+                        if (pCi.Card_Character[(cr.card_slot - 1) % 4] == 0)
                         {
                             throw new exception("[Channel::requestCharacterRemoveCard][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou remover card[Slot=" + (cr.card_slot) + "] do Character[TYPEID=" + (cr.char_typeid) + ", ID=" + (cr.char_id) + "], mas nao tem nenhum card equipado nesse Slot. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                                 853, 0x5200854));
@@ -8719,7 +9280,7 @@ namespace Pangya_GameServer.Game
                         pCi.Card_NPC[(cr.card_slot - 1) % 4] = 0;
                         break;
                     default:
-                        throw new exception("[Channel::requestCharacterRemoveCard][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou remover card[Slot=" + (cr.card_slot) + "] do Character[TYPEID=" + (cr.char_typeid) + ", ID=" + (cr.char_id) + "], mas o slot é deconhecido. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                        throw new exception("[Channel::requestCharacterRemoveCard][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou remover card[Slot=" + (cr.card_slot) + "] do Character[TYPEID=" + (cr.char_typeid) + ", ID=" + (cr.char_id) + "], mas o slot eh deconhecido. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                             852, 0x5200853));
                 }
 
@@ -8733,7 +9294,7 @@ namespace Pangya_GameServer.Game
                         0x857, 0x5200858));
                 }
 
-                item = new stItem();
+                item.clear();
 
                 item.type = 2;
                 item._typeid = pWi._typeid;
@@ -8750,7 +9311,7 @@ namespace Pangya_GameServer.Game
 
                 v_item.Add(new stItem(item));
 
-                item = new stItem();
+                item.clear();
 
                 ItemManager.initItemFromBuyItem(_session.m_pi,
                     item, bi, false, 0, 0, 1);
@@ -8776,7 +9337,7 @@ namespace Pangya_GameServer.Game
                     v_item.Add(new stItem(item));
                 }
 
-                item = new stItem();
+                item.clear();
 
                 item.type = 0xCB;
                 item._typeid = pCi._typeid;
@@ -8803,6 +9364,8 @@ namespace Pangya_GameServer.Game
                     _session.m_pi.v_cei.Remove(it);
                 }
                 _session.m_pi.UpdateCharacter(pCi.id, pCi);
+                // Log
+                _smp.message_pool.getInstance().push(new message("[DesequipaCard][Sucess] PLAYER [UID=" + (_session.m_pi.uid) + "] desequipou Card[TYPEID=" + (bi._typeid) + "] do Character[TYPEID=" + (cr.char_typeid) + ", ID=" + (cr.char_id) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
                 // Update ON Jogo
                 p.init_plain(0x216);
@@ -8817,7 +9380,7 @@ namespace Pangya_GameServer.Game
                     p.WriteInt32(el.id);
                     p.WriteUInt32(el.flag_time);
                     p.WriteBytes(el.stat.ToArray());
-                    p.WriteInt32((el.STDA_C_ITEM_TIME > 0) ? el.STDA_C_ITEM_TIME : el.STDA_C_ITEM_QNTD);
+                    p.WriteInt32((el.STDA_C_ITEM_TIME > 0) ? el.STDA_C_ITEM_TIME32 : el.STDA_C_ITEM_QNTD32);
                     p.WriteInt16(el.c);
                     p.WriteZeroByte(10); // UCC IDX e outras coisas
                     p.WriteUInt32(el.price); // Card Typeid
@@ -8860,13 +9423,34 @@ namespace Pangya_GameServer.Game
 
 
         public void requestOpenClubWorkShopEvent(Player _session, packet _packet)
-        {            
+        {
+            var events = new club_work_shop_event_type();
+            var p = packet_func.pacote24E(events);
+
+
+            int fasesCompletas = events.totalHoles / events.holesPerPhase;
+            int progressoFaseAtual = events.totalHoles % events.holesPerPhase;
+
+            Debug.WriteLine($"[EventClubWorkshop] Holes={events.totalHoles}, Fases={fasesCompletas}, Barra={events.barraAtual}/{events.barraMax}");
+
+            Debug.WriteLine(p.HexDump());
+
+            packet_func.session_send(p, _session, 1);
+
         }
 
         public void requestClubWorkShopEventCount(Player _session, packet _packet)
-        { 
-        }
+        {
+            var p = new PangyaBinaryWriter();
+            p.init_plain(0x24B); // packet id
+            p.WriteInt32(0);//sub code!  
+            for (int i = 0; i < 16; i++)
+            {
+                p.WriteByte(i + 1);                // subcode (fixo) 
 
+            }
+            packet_func.session_send(p, _session, 1);
+        }
         public void requestClubSetStatsUpdate(Player _session, packet _packet)
         {
             //
@@ -8880,8 +9464,8 @@ namespace Pangya_GameServer.Game
                 byte stat = _packet.ReadUInt8();
                 int item_id = _packet.ReadInt32();
 
-
-
+                
+                
 
 
                 if (opt == 1 || opt == 3)
@@ -8993,6 +9577,9 @@ namespace Pangya_GameServer.Game
 
                     // Update Achievement ON SERVER, DB and GAME
                     sys_achieve.finish_and_update(_session);
+
+                    _smp.message_pool.getInstance().push(new message("[ClubSetUpdateStats::" + ((opt == 1) ? "UP" : "DOWN") + "GRADE][Sucess] PLAYER [UID=" + (_session.m_pi.uid) + "] " + ((opt == 1) ? "upou" : "desupou") + " ClubSet[TYPEID=" + (pWi._typeid) + ", ID=" + (pWi.id) + "] Stats[C0=" + (pWi.c[(int)CharacterInfo.Stats.S_POWER]) + ", C1=" + (pWi.c[(int)CharacterInfo.Stats.S_CONTROL]) + ", C2=" + (pWi.c[(int)CharacterInfo.Stats.S_ACCURACY]) + ", C3=" + (pWi.c[(int)CharacterInfo.Stats.S_SPIN]) + ", C4=" + (pWi.c[(int)CharacterInfo.Stats.S_CURVE]) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
+
                 } // OPT [0 OR 2] é Character Stats para season passada
 
             }
@@ -9009,23 +9596,44 @@ namespace Pangya_GameServer.Game
                     _session, 1);
             }
         }
-
         public void requestTikiShopExchangeItem(Player _session, packet _packet)
         {
+            //
 
             PangyaBinaryWriter p = new PangyaBinaryWriter();
+
+#if __linux__
+
+
+#endif
+
+
+#if __linux__
+
+
+#endif
+
             try
             {
 
+                
+                
+
+
+                // !@ Teste do bug(acho que é bug) que dá erro mais ainda troca, acho que o cliente envia o mesmo pacote 2x
+                _smp.message_pool.getInstance().push(new message("[Channel::requestTikiShopExchangeItem][Sucess][Teste] PLAYER [UID=" + (_session.m_pi.uid) + "] iniciou a troca de itens no Tiki Shop.", type_msg.CL_ONLY_FILE_LOG));
+
                 ulong pang = 0Ul;
-                uint milage = 0;
-                uint tiki_pts = 0;
-                uint bonus = 0;
-                uint bonus_prob = 0;
+                uint milage = 0u;
+                uint tiki_pts = 0u;
+                uint bonus = 0u;
+                uint bonus_prob = 0u;
                 uint[] bonus_minmax = new uint[2];
 
                 // Log String Item
                 string s_item = "";
+
+                TikiShopExchangeItem tsei = new TikiShopExchangeItem();
 
                 List<stItem> v_item = new List<stItem>();
                 stItem item = new stItem();
@@ -9035,51 +9643,40 @@ namespace Pangya_GameServer.Game
 
                 // Milage Pts
                 item.type = 2;
-                item.id = -1;
-                item._typeid = MILAGE_POINT_TYPEID;
+                item.id = (int)-1;
+                item._typeid = 0x1A0002A7;
                 item.qntd = 0;
                 item.STDA_C_ITEM_QNTD = 0;
 
                 var pWi = _session.m_pi.findWarehouseItemByTypeid(MILAGE_POINT_TYPEID); // Milage pts
 
-                if (pWi != null && pWi.id != int.MaxValue)
+                if (pWi != null)
                 {
-                    item.id = pWi.id;
+                    item.id = (int)pWi.id;
                     item.qntd = (item.STDA_C_ITEM_QNTD = pWi.STDA_C_ITEM_QNTD);
                 }
 
                 uint count = _packet.ReadUInt32();
 
-                if (count == 0 || count > 5)
-                    throw new exception(
-                        $"[[Channel::requestTikiShopExchangeItem][CHEAT] UID={_session.m_pi.uid} count={count}",
-                        ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL, 450, 5200451)
-                    );
-
-                if (_packet.BytesRemaining < count * 8)
-                    throw new exception(
-                        $"[[Channel::requestTikiShopExchangeItem][CHEAT] pacote truncado UID={_session.m_pi.uid}",
-                        ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL, 450, 5200452)
-                    );
-
                 var r = m_rm.findRoom((short)_session.m_pi.mi.sala_numero);
 
-                for (var i = 0; i < count; ++i)
+                for (var i = 0u; i < count; ++i)
                 {
 
-                    var tsei = new TikiShopExchangeItem().ToRead(_packet);
+                    tsei = new TikiShopExchangeItem().ToRead(_packet);
 
                     var _item = ItemManager.exchangeTikiShop(_session,
                           tsei._typeid, tsei.id,
                           tsei.qntd);
 
-                    if (_item.Count == 0)
+                    if (_item.empty())
                     {
                         throw new exception("[Channel::requestTikiShopExchangeItem][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou trocar item[TYPEID=" + (tsei._typeid) + ", ID=" + (tsei.id) + ", QNTD=" + (tsei.qntd) + "] no Tiki's Shop, mas nao conseguiu inicializar o item. Hacker ou Bug.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                             900, 0x52000901));
                     }
 
-                    // Verifica se o player está com shop aberto e se está vendendo o item no shop 
+                    // Verifica se o player está com shop aberto e se está vendendo o item no shop
+
                     if (r != null && r.checkPersonalShopItem(_session, tsei.id))
                     {
                         throw new exception("[Channel::requestTikiShopExchangeItem][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou trocar item[TYPEID=" + (tsei._typeid) + ", ID=" + (tsei.id) + ", QNTD=" + (tsei.qntd) + "] no Tiki's Shop, mas o item esta sendo vendido no Personal shop dele. Hacker ou Bug.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
@@ -9088,15 +9685,15 @@ namespace Pangya_GameServer.Game
 
                     var @base = sIff.getInstance().findCommomItem(tsei._typeid);
 
-                    if (@base == null || @base.ID == 0)
+                    if (@base == null)
                     {
                         throw new exception("[Channel::requestTikiShopExchangeItem][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou trocar item[TYPEID=" + (tsei._typeid) + ", ID=" + (tsei.id) + "] no Tiki's Shop, mas o item nao existe no IFF_STRUCT do Server. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                             901, 0x5200902));
                     }
 
-                    if (@base.ID != 0 && !@base.tiki.IsActived())
+                    if (!@base.tiki.IsActived())
                     {
-                        throw new exception("[Channel::requestTikiShopExchangeItem][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou trocar item[TYPEID=" + (tsei._typeid) + ", ID=" + (tsei.id) + "] no Tiki's Shop, mas o item nao é valido para ser trocado. Hacker ou Bug.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                        throw new exception("[Channel::requestTikiShopExchangeItem][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou trocar item[TYPEID=" + (tsei._typeid) + ", ID=" + (tsei.id) + "] no Tiki's Shop, mas o item nao eh valido para ser trocado. Hacker ou Bug.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                             904, 0x5200905));
                     }
 
@@ -9109,7 +9706,7 @@ namespace Pangya_GameServer.Game
                     bonus_minmax[1] += (uint)@base.tiki.Bonus[1];
                     bonus_prob = @base.tiki.Bonus_Prob;
 
-                    v_item.AddRange(_item);
+                    v_item.Add(new stItem(item));
 
                     // Achievement Add +1 ao contador de tipo de item que foi trocado no Tiki Shop Exchange
                     switch (@base.tiki.Type_TikiShop)
@@ -9124,16 +9721,10 @@ namespace Pangya_GameServer.Game
                             sys_achieve.incrementCounter(0x6C4000C0u);
                             break;
                     }
-                    // Zera IDs para a log string do novo item
-                    var s_ids = "";
 
-                    for (int ii = 0; ii < v_item.Count; ++ii)
-                    {
-                        s_ids += (ii == 0 ? "" : ", ") + v_item[ii].id;//ta vindo negativo...
-                    }
-
-                    s_item += (i == 0 ? "" : ", ") + "[TYPEID=" + tsei._typeid + ", ID(s)={" + s_ids + "}, QNTD=" + tsei.qntd + ", TIPO(Normal, CP, Rare)=" + @base.tiki.Type_TikiShop + "]";
                 }
+
+
 
                 // Bonus
                 uint index = (uint)new Random().Next() % (bonus_prob * 3 + 1);
@@ -9147,26 +9738,27 @@ namespace Pangya_GameServer.Game
                 }
                 // Fim Bonus
 
+                // Remove Item(ns)
                 if (ItemManager.removeItem(v_item, _session) <= 0)
                 {
                     throw new exception("[Channel::requestTikiShopExchangeItem][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou trocar item(ns)(" + s_item + "), mas nao conseguiu deletar ele(s).", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                         902, 0x5200903));
                 }
 
-
                 // Tiki Points
                 if ((milage + item.qntd + bonus) > 1000)
                 {
-                    tiki_pts = (milage + (uint)item.qntd + bonus) / 1000;
+                    tiki_pts = (uint)(milage + (uint)item.qntd + bonus) / 1000;
                 }
 
                 // Att Qntd Milage
                 item.STDA_C_ITEM_QNTD = (short)((int)((milage + item.qntd + bonus) % 1000) - (int)item.qntd);
-                item.qntd = Math.Abs(item.STDA_C_ITEM_QNTD);
+                item.qntd = Math.Abs(item.STDA_C_ITEM_QNTD32);
 
                 // Só atualiza o Milage Points se for diferente de 0 a quantidade
                 if (item.STDA_C_ITEM_QNTD != 0)
                 {
+
                     var rt = ItemManager.RetAddItem.T_INIT_VALUE;
 
                     if ((rt = ItemManager.addItem(item,
@@ -9178,29 +9770,32 @@ namespace Pangya_GameServer.Game
 
                     if (rt != ItemManager.RetAddItem.T_SUCCESS_PANG_AND_EXP_AND_CP_POUCH)
                     {
-                        v_item.Add(item);
+                        v_item.Add(new stItem(item));
                     }
+
                 }
 
                 // Tiki Points
                 if (tiki_pts > 0)
                 {
 
-                    item = new stItem();
+                    item.clear();
 
                     item.type = 2;
-                    item.id = -1;
-                    item._typeid = TIKI_POINT_TYPEID;
+                    item.id = (int)-1;
+                    item._typeid = 0x1A0002A6;
                     item.qntd = 0;
                     item.STDA_C_ITEM_QNTD = 0;
 
                     pWi = _session.m_pi.findWarehouseItemByTypeid(TIKI_POINT_TYPEID); // Tiki Pts
 
                     if (pWi != null)
+                    {
                         item.id = pWi.id;
+                    }
 
                     item.qntd += (int)tiki_pts;
-                    item.STDA_C_ITEM_QNTD = item.qntd;
+                    item.STDA_C_ITEM_QNTD = (short)item.qntd;
 
                     var rt = ItemManager.RetAddItem.T_INIT_VALUE;
 
@@ -9211,15 +9806,10 @@ namespace Pangya_GameServer.Game
                             903, 0x5200904));
                     }
 
-                    if (item.id == -1)
-                        _smp.message_pool.getInstance().push(new message("[TikiShopExchangeItem][Bug] PLAYER [UID=" + (_session.m_pi.uid) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
-
-
                     if (rt != ItemManager.RetAddItem.T_SUCCESS_PANG_AND_EXP_AND_CP_POUCH)
                     {
-                        v_item.Add(item);
+                        v_item.Add(new stItem(item));
                     }
-
 
                     // Achievement Add + valor de Tiki Points Ganhos ao contador
                     sys_achieve.incrementCounter(0x6C4000C2u, (int)tiki_pts);
@@ -9227,6 +9817,9 @@ namespace Pangya_GameServer.Game
 
                 // Consome os Pangs
                 _session.m_pi.consomePang(pang);
+
+                // Log
+                _smp.message_pool.getInstance().push(new message("[TikiShopExchangeItem][Sucess] PLAYER [UID=" + (_session.m_pi.uid) + "] player trocou item(ns)(" + s_item + ") por Milage[value=" + (milage) + ", bonus=" + (bonus) + "] Tiki Pts[value=" + (tiki_pts) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
                 p.init_plain(0xC8);
 
@@ -9246,12 +9839,11 @@ namespace Pangya_GameServer.Game
                 {
                     p.WriteByte(el.type);
                     p.WriteUInt32(el._typeid);
-                    p.WriteInt32(el.id);//talvez por que o id esta negativo!
+                    p.WriteInt32(el.id);
                     p.WriteUInt32(el.flag_time);
-                    p.WriteInt32(el.stat.qntd_ant);
-                    p.WriteInt32(el.stat.qntd_dep);
-                    p.WriteInt32((el.STDA_C_ITEM_TIME > 0) ? el.STDA_C_ITEM_TIME : el.STDA_C_ITEM_QNTD);
-                    p.WriteZeroByte(25);	// 10 PCL[C0~C4] 2 Bytes cada, 15 bytes desconhecido
+                    p.WriteBytes(el.stat.ToArray());
+                    p.WriteInt32((el.STDA_C_ITEM_TIME > 0) ? el.STDA_C_ITEM_TIME32 : el.STDA_C_ITEM_QNTD32);
+                    p.WriteZeroByte(25); // 10 PCL[C0~C4] 2 Bytes cada, 15 bytes desconhecido
                 }
 
                 packet_func.session_send(p,
@@ -9286,12 +9878,20 @@ namespace Pangya_GameServer.Game
 
         public void requestChangePlayerItemChannel(Player _session, packet _packet)
         {
+            //
+            _smp.message_pool.getInstance().push(new message($"[{this.GetType().Name}::{MethodBase.GetCurrentMethod().Name}][Debug] Packet 0x0B.\n\rHex Dump.\n\r" + _packet.Log(), type_msg.CL_FILE_LOG_AND_CONSOLE));
+
             byte type = 255;
 
             PangyaBinaryWriter p = new PangyaBinaryWriter();
 
             try
             {
+
+                
+                
+
+
                 type = _packet.ReadUInt8();
                 int item_id;
 
@@ -9306,7 +9906,7 @@ namespace Pangya_GameServer.Game
                             // Caddie
                             if ((item_id = _packet.ReadInt32()) != 0
                                 && (pCi = _session.m_pi.findCaddieById(item_id)) != null
-                                && sIff.getInstance().getItemGroupIdentify(pCi._typeid) == IFF_GROUP.CADDIE)
+                                && sIff.getInstance().getItemGroupIdentify(pCi._typeid) == sIff.getInstance().CADDIE)
                             {
 
                                 // Check if item is in map of update item
@@ -9332,7 +9932,7 @@ namespace Pangya_GameServer.Game
                                         {
 
                                             // Limpa o caddie Parts
-                                            pCi.parts_typeid = 0;
+                                            pCi.parts_typeid = 0u;
                                             pCi.parts_end_date_unix = 0;
                                             pCi.end_parts_date = new SYSTEMTIME();
 
@@ -9390,7 +9990,7 @@ namespace Pangya_GameServer.Game
                                         {
 
                                             // Limpa o caddie Parts
-                                            _session.m_pi.ei.cad_info.parts_typeid = 0;
+                                            _session.m_pi.ei.cad_info.parts_typeid = 0u;
                                             _session.m_pi.ei.cad_info.parts_end_date_unix = 0;
                                             _session.m_pi.ei.cad_info.end_parts_date = new SYSTEMTIME();
                                         }
@@ -9424,7 +10024,7 @@ namespace Pangya_GameServer.Game
 
                             if ((item_id = _packet.ReadInt32()) != 0
                                 && (pWi = _session.m_pi.findWarehouseItemByTypeid((uint)item_id)) != null
-                                && sIff.getInstance().getItemGroupIdentify(pWi._typeid) == PangyaAPI.IFF.JP.Models.Flags.IFF_GROUP.BALL)
+                                && sIff.getInstance().getItemGroupIdentify(pWi._typeid) == sIff.getInstance().BALL)
                             {
 
                                 _session.m_pi.ei.comet = pWi;
@@ -9538,7 +10138,7 @@ namespace Pangya_GameServer.Game
                                                 p.WriteInt32(item.id);
                                                 p.WriteUInt32(item.flag_time);
                                                 p.WriteBytes(item.stat.ToArray());
-                                                p.WriteInt32((item.STDA_C_ITEM_TIME > 0) ? item.STDA_C_ITEM_TIME : item.STDA_C_ITEM_QNTD);
+                                                p.WriteInt32((item.STDA_C_ITEM_TIME > 0) ? item.STDA_C_ITEM_TIME32 : item.STDA_C_ITEM_QNTD32);
                                                 p.WriteZeroByte(25);
 
                                                 packet_func.session_send(p,
@@ -9573,12 +10173,12 @@ namespace Pangya_GameServer.Game
                             // ClubSet
                             if ((item_id = _packet.ReadInt32()) != 0
                                 && (pWi = _session.m_pi.findWarehouseItemById(item_id)) != null
-                                && sIff.getInstance().getItemGroupIdentify(pWi._typeid) == PangyaAPI.IFF.JP.Models.Flags.IFF_GROUP.CLUBSET)
+                                && sIff.getInstance().getItemGroupIdentify(pWi._typeid) == sIff.getInstance().CLUBSET)
                             {
 
                                 var c_it = _session.m_pi.findUpdateItemByTypeidAndType((uint)item_id, UpdateItem.UI_TYPE.WAREHOUSE);
 
-                                if (c_it.Count == 0 || c_it.Count > 0)
+                                if (c_it.Count > 0 && c_it.First().Key == _session.m_pi.mp_ui.end().Key)
                                 {
 
                                     _session.m_pi.ei.clubset = pWi;
@@ -9592,7 +10192,7 @@ namespace Pangya_GameServer.Game
                                     if (cs != null)
                                     {
 
-                                        for (var i = 0; i < (_session.m_pi.ei.csi.enchant_c.Length); ++i)
+                                        for (var i = 0u; i < (_session.m_pi.ei.csi.enchant_c.Length); ++i)
                                         {
                                             _session.m_pi.ei.csi.enchant_c[i] = (short)(cs.SlotStats.getSlot[i] + pWi.clubset_workshop.c[i]);
                                         }
@@ -9715,7 +10315,7 @@ namespace Pangya_GameServer.Game
                                                         p.WriteInt32(item.id);
                                                         p.WriteUInt32(item.flag_time);
                                                         p.WriteBytes(item.stat.ToArray());
-                                                        p.WriteInt32((item.STDA_C_ITEM_TIME > 0) ? item.STDA_C_ITEM_TIME : item.STDA_C_ITEM_QNTD);
+                                                        p.WriteInt32((item.STDA_C_ITEM_TIME > 0) ? item.STDA_C_ITEM_TIME32 : item.STDA_C_ITEM_QNTD32);
                                                         p.WriteZeroByte(25);
 
                                                         packet_func.session_send(p,
@@ -9743,8 +10343,7 @@ namespace Pangya_GameServer.Game
 
                                 }
                                 else
-                                {
-                                    // ClubSet Acabou o tempo
+                                { // ClubSet Acabou o tempo
 
                                     error = 6; // Acabou o tempo do item
 
@@ -9754,7 +10353,7 @@ namespace Pangya_GameServer.Game
                                     if (pWi != null)
                                     {
 
-                                        _smp.message_pool.getInstance().push(new message("[Channel::requestChangePlayerItemChannel][Sucess][Warning] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou trocar o ClubSet[ID=" + (item_id) + "], mas acabou o tempo do ClubSet[ID=" + (item_id) + @"], colocando o ClubSet Padrao ""CV1"" do player. Hacker ou Bug", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                                        _smp.message_pool.getInstance().push(new message("[Channel::requestChangePlayerItemChannel][Sucess][Warning] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou trocar o ClubSet[ID=" + (item_id) + "], mas acabou o tempo do ClubSet[ID=" + (item_id) + @"], colocando o ClubSet Padrao""CV1"" do player. Hacker ou Bug", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
                                         _session.m_pi.ei.clubset = pWi;
                                         item_id = _session.m_pi.ue.clubset_id = pWi.id;
@@ -9768,7 +10367,7 @@ namespace Pangya_GameServer.Game
                                         {
 
 
-                                            for (var i = 0; i < (_session.m_pi.ei.csi.enchant_c.Length); ++i)
+                                            for (var i = 0u; i < (_session.m_pi.ei.csi.enchant_c.Length); ++i)
                                             {
                                                 _session.m_pi.ei.csi.enchant_c[i] = (short)(cs.SlotStats.getSlot[i] + pWi.clubset_workshop.c[i]);
                                             }
@@ -9824,7 +10423,7 @@ namespace Pangya_GameServer.Game
                                                     {
 
 
-                                                        for (var i = 0; i < (_session.m_pi.ei.csi.enchant_c.Length); ++i)
+                                                        for (var i = 0u; i < (_session.m_pi.ei.csi.enchant_c.Length); ++i)
                                                         {
                                                             _session.m_pi.ei.csi.enchant_c[i] = (short)(cs.SlotStats.getSlot[i] + pWi.clubset_workshop.c[i]);
                                                         }
@@ -9849,7 +10448,7 @@ namespace Pangya_GameServer.Game
                                                     p.WriteInt32(item.id);
                                                     p.WriteUInt32(item.flag_time);
                                                     p.WriteBytes(item.stat.ToArray());
-                                                    p.WriteInt32((item.STDA_C_ITEM_TIME > 0) ? item.STDA_C_ITEM_TIME : item.STDA_C_ITEM_QNTD);
+                                                    p.WriteInt32((item.STDA_C_ITEM_TIME > 0) ? item.STDA_C_ITEM_TIME32 : item.STDA_C_ITEM_QNTD32);
                                                     p.WriteZeroByte(25);
 
                                                     packet_func.session_send(p,
@@ -9898,7 +10497,7 @@ namespace Pangya_GameServer.Game
 
                                     if (cs != null)
                                     {
-                                        for (var i = 0; i < (_session.m_pi.ei.csi.enchant_c.Length); ++i)
+                                        for (var i = 0u; i < (_session.m_pi.ei.csi.enchant_c.Length); ++i)
                                         {
                                             _session.m_pi.ei.csi.enchant_c[i] = (short)(cs.SlotStats.getSlot[i] + pWi.clubset_workshop.c[i]);
                                         }
@@ -9954,7 +10553,7 @@ namespace Pangya_GameServer.Game
                                                 {
 
 
-                                                    for (var i = 0; i < (_session.m_pi.ei.csi.enchant_c.Length); ++i)
+                                                    for (var i = 0u; i < (_session.m_pi.ei.csi.enchant_c.Length); ++i)
                                                     {
                                                         _session.m_pi.ei.csi.enchant_c[i] = (short)(cs.SlotStats.getSlot[i] + pWi.clubset_workshop.c[i]);
                                                     }
@@ -9979,7 +10578,7 @@ namespace Pangya_GameServer.Game
                                                 p.WriteInt32(item.id);
                                                 p.WriteUInt32(item.flag_time);
                                                 p.WriteBytes(item.stat.ToArray());
-                                                p.WriteInt32((item.STDA_C_ITEM_TIME > 0) ? item.STDA_C_ITEM_TIME : item.STDA_C_ITEM_QNTD);
+                                                p.WriteInt32((item.STDA_C_ITEM_TIME > 0) ? item.STDA_C_ITEM_TIME32 : item.STDA_C_ITEM_QNTD32);
                                                 p.WriteZeroByte(25);
 
                                                 packet_func.session_send(p,
@@ -10013,14 +10612,15 @@ namespace Pangya_GameServer.Game
 
                             if ((item_id = _packet.ReadInt32()) != 0
                                 && (pCe = _session.m_pi.findCharacterById(item_id)) != null
-                                && sIff.getInstance().getItemGroupIdentify(pCe._typeid) == IFF_GROUP.CHARACTER)
+                                && sIff.getInstance().getItemGroupIdentify(pCe._typeid) == sIff.getInstance().CHARACTER)
                             {
-                                //atualiza nos 3, sicronizacao na memoria leak
+
                                 _session.m_pi.ei.char_info = pCe;
-                                _session.m_pi.ue.character_id = item_id; 
+                                _session.m_pi.ue.character_id = item_id;
+
                                 // Update ON DB
                                 snmdb.NormalManagerDB.getInstance().add(0,
-                                    new CmdUpdateCharacterEquiped(_session.m_pi.uid, item_id),
+                                    new CmdUpdateCharacterEquiped(_session.m_pi.uid, (int)item_id),
                                     SQLDBResponse, this);
 
                                 // Update Player Info Channel and Room
@@ -10037,23 +10637,19 @@ namespace Pangya_GameServer.Game
 
                                     _smp.message_pool.getInstance().push(new message("[Channel::requestChangePlayerItemChannel][Sucess][Warning] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou trocar o Character[ID=" + (item_id) + "], mas deu Error[VALUE=" + (error) + "], colocando o primeiro character do player. Hacker ou Bug", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
-                                    var _char = _session.m_pi.mp_ce.FirstOrDefault();
-                                    if (_char.Key != 0 && _char.Value != null)
-                                    {
-                                        _session.m_pi.ei.char_info = _char.Value;
-                                        item_id = _session.m_pi.ue.character_id = _session.m_pi.ei.char_info.id;
+                                    _session.m_pi.ei.char_info = _session.m_pi.mp_ce[0];
+                                    item_id = _session.m_pi.ue.character_id = _session.m_pi.ei.char_info.id;
 
-                                        // Zera o Error para o cliente equipar o Primeiro Character do map de character do player, que o server equipou
-                                        error = 0;
+                                    // Zera o Error para o cliente equipar o Primeiro Character do map de character do player, que o server equipou
+                                    error = 0;
 
-                                        // Update ON DB
-                                        snmdb.NormalManagerDB.getInstance().add(0,
-                                            new CmdUpdateCharacterEquiped(_session.m_pi.uid, (int)item_id),
-                                            SQLDBResponse, this);
+                                    // Update ON DB
+                                    snmdb.NormalManagerDB.getInstance().add(0,
+                                        new CmdUpdateCharacterEquiped(_session.m_pi.uid, (int)item_id),
+                                        SQLDBResponse, this);
 
-                                        // Update Player Info Channel and Room
-                                        updatePlayerInfo(_session);
-                                    }
+                                    // Update Player Info Channel and Room
+                                    updatePlayerInfo(_session);
 
                                 }
                                 else
@@ -10095,7 +10691,7 @@ namespace Pangya_GameServer.Game
                                             p.WriteInt32(item.id);
                                             p.WriteUInt32(item.flag_time);
                                             p.WriteBytes(item.stat.ToArray());
-                                            p.WriteInt32((item.STDA_C_ITEM_TIME > 0) ? item.STDA_C_ITEM_TIME : item.STDA_C_ITEM_QNTD);
+                                            p.WriteInt32((item.STDA_C_ITEM_TIME > 0) ? item.STDA_C_ITEM_TIME32 : item.STDA_C_ITEM_QNTD32);
                                             p.WriteZeroByte(25);
 
                                             packet_func.session_send(p,
@@ -10127,7 +10723,7 @@ namespace Pangya_GameServer.Game
                             if ((item_id = _packet.ReadInt32()) != 0)
                             {
 
-                                if ((pMi = _session.m_pi.findMascotById(item_id)) != null && sIff.getInstance().getItemGroupIdentify(pMi._typeid) == PangyaAPI.IFF.JP.Models.Flags.IFF_GROUP.MASCOT)
+                                if ((pMi = _session.m_pi.findMascotById(item_id)) != null && sIff.getInstance().getItemGroupIdentify(pMi._typeid) == sIff.getInstance().MASCOT)
                                 {
 
                                     var m_it = _session.m_pi.findUpdateItemByTypeidAndType((uint)_session.m_pi.ue.mascot_id, UpdateItem.UI_TYPE.MASCOT);
@@ -10279,6 +10875,9 @@ namespace Pangya_GameServer.Game
 
                 // Change Player Item Room
                 r.requestChangePlayerItemRoom(_session, cpir);
+
+
+
             }
             catch (exception e)
             {
@@ -10291,7 +10890,6 @@ namespace Pangya_GameServer.Game
                     _session, 0);
             }
         }
-
         public void requestDeleteActiveItem(Player _session, packet _packet)
         {
             PangyaBinaryWriter p = new PangyaBinaryWriter();
@@ -10301,7 +10899,7 @@ namespace Pangya_GameServer.Game
                 uint _typeid = _packet.ReadUInt32();
                 uint qntd = _packet.ReadUInt32();
 
-                if (sIff.getInstance().getItemGroupIdentify(_typeid) != IFF_GROUP.ITEM)
+                if (sIff.getInstance().getItemGroupIdentify(_typeid) != sIff.getInstance().ITEM)
                 {
                     throw new exception("[Channel::requestDeleteActiveItem][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou excluir um item[TYPEID=" + (_typeid) + "] que nao pode ser excluido. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                         703, 0x5200704));
@@ -10317,13 +10915,13 @@ namespace Pangya_GameServer.Game
 
                 if (sIff.getInstance().IsItemEquipable(_typeid) && iff_item.Shop.flag_shop.IsCash)
                 {
-                    throw new exception("[Channel::requestDeleteActiveItem][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou excluir um item[TYPEID=" + (_typeid) + "] que nao pode ser excluido, por que ele é um item equipavel de cash(cookie). Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                    throw new exception("[Channel::requestDeleteActiveItem][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou excluir um item[TYPEID=" + (_typeid) + "] que nao pode ser excluido, por que ele eh um item equipavel de cash(cookie). Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                         705, 0x5200706));
                 }
 
                 if (!sIff.getInstance().IsItemEquipable(_typeid) && !(iff_item.Shop.flag_shop.IsGift && iff_item.Stats.getSlot[0] > 0))
                 {
-                    throw new exception("[Channel::requestDeleteActiveItem][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou excluir um item[TYPEID=" + (_typeid) + "] que nao pode ser excluido, por que ele é um passive item que nao tem a condicao(giftable) e a quantidade no C[0] para deletar esse item. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                    throw new exception("[Channel::requestDeleteActiveItem][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou excluir um item[TYPEID=" + (_typeid) + "] que nao pode ser excluido, por que ele eh um passive item que nao tem a condicao(giftable) e a quantidade no C[0] para deletar esse item. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                         706, 0x5200707));
                 }
 
@@ -10400,8 +10998,8 @@ namespace Pangya_GameServer.Game
                 List<stItemEx> v_item = new List<stItemEx>();
                 stItemEx item = new stItemEx();
 
-
-
+                
+                
 
 
                 var pUCIM_chip = _session.m_pi.findWarehouseItemByTypeid(tmp.UCIM_chip_typeid);
@@ -10456,7 +11054,7 @@ namespace Pangya_GameServer.Game
 
                 if (pClub_dst.clubset_workshop.calcRank(clubset.SlotStats.getSlot) == 5)
                 {
-                    throw new exception("[Channel::requestClubSetWorkShopTransferMasteryPts][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou transferir mastery pts para o ClubSet[TYPEID=" + (pClub_dst._typeid) + ", ID=" + (pClub_dst.id) + "] mas o ClubSet é Rank S nao pode transferir Mastery Pts mais para ele. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                    throw new exception("[Channel::requestClubSetWorkShopTransferMasteryPts][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou transferir mastery pts para o ClubSet[TYPEID=" + (pClub_dst._typeid) + ", ID=" + (pClub_dst.id) + "] mas o ClubSet eh Rank S nao pode transferir Mastery Pts mais para ele. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                         107, 0x5300108));
                 }
 
@@ -10524,7 +11122,13 @@ namespace Pangya_GameServer.Game
                     new CmdUpdateClubSetWorkshop(_session.m_pi.uid,
                         pClub_src,
                         CmdUpdateClubSetWorkshop.FLAG.F_TRANSFER_MASTERY_PTS),
-                    SQLDBResponse, this); 
+                    SQLDBResponse, this);
+                snmdb.NormalManagerDB.getInstance().add(12,
+                    new CmdUpdateClubSetWorkshop(_session.m_pi.uid,
+                        pClub_dst,
+                        CmdUpdateClubSetWorkshop.FLAG.F_TRANSFER_MASTERY_PTS),
+                    SQLDBResponse, this);
+
                 // Log
                 _smp.message_pool.getInstance().push(new message("[ClubSet Workshop::TransferMasteryPts][Sucess] PLAYER [UID=" + (_session.m_pi.uid) + "] transferiu mastery pts[value=" + (mastery) + "] do ClubSet[TYPEID=" + (pClub_src._typeid) + ", ID=" + (pClub_src.id) + "] para o ClubSet[TYPEID=" + (pClub_dst._typeid) + ", ID=" + (pClub_dst.id) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
@@ -10541,7 +11145,7 @@ namespace Pangya_GameServer.Game
                     p.WriteInt32(el.id);
                     p.WriteUInt32(el.flag_time);
                     p.WriteBytes(el.stat.ToArray());
-                    p.WriteInt32((el.STDA_C_ITEM_TIME > 0) ? el.STDA_C_ITEM_TIME : el.STDA_C_ITEM_QNTD);
+                    p.WriteInt32((el.STDA_C_ITEM_TIME > 0) ? el.STDA_C_ITEM_TIME32 : el.STDA_C_ITEM_QNTD32);
                     p.WriteZeroByte(25); // 10 PCL[C0~C4] 2 Bytes cada, 15 bytes desconhecido
                     if (el.type == 0xCC)
                     {
@@ -10594,8 +11198,8 @@ namespace Pangya_GameServer.Game
                 uint item_typeid = _packet.ReadUInt32();
                 int clubset_id = _packet.ReadInt32();
 
-
-
+                
+                
 
 
                 List<stItemEx> v_item = new List<stItemEx>();
@@ -10644,7 +11248,7 @@ namespace Pangya_GameServer.Game
                 }
 
                 // Corneta de recuperar recovery pts do ClubSet
-                item = new stItemEx();
+                item.clear();
 
                 item.type = 2;
                 item.id = (int)pWi.id;
@@ -10663,7 +11267,7 @@ namespace Pangya_GameServer.Game
                 pClub.clubset_workshop.recovery_pts = 0;
 
                 // ClubSet
-                item = new stItemEx();
+                item.clear();
 
                 item.type = 0xCC;
                 item.id = (int)pClub.id;
@@ -10682,7 +11286,10 @@ namespace Pangya_GameServer.Game
                         pClub,
                         CmdUpdateClubSetWorkshop.FLAG.F_R_RECOVERY_PTS),
                     SQLDBResponse, this);
-                 
+
+                // Log
+                _smp.message_pool.getInstance().push(new message("[ClubSet WorkShop::RecoveryPts][Sucess] PLAYER [UID=" + (_session.m_pi.uid) + "] recuperou os pontos do ClubSet[TYPEID=" + (pClub._typeid) + ", ID=" + (pClub.id) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
+
                 // UPDATE ON Jogo
                 p.init_plain(0x216);
 
@@ -10696,7 +11303,7 @@ namespace Pangya_GameServer.Game
                     p.WriteInt32(el.id);
                     p.WriteUInt32(el.flag_time);
                     p.WriteBytes(el.stat.ToArray());
-                    p.WriteInt32((el.STDA_C_ITEM_TIME > 0) ? el.STDA_C_ITEM_TIME : el.STDA_C_ITEM_QNTD);
+                    p.WriteInt32((el.STDA_C_ITEM_TIME > 0) ? el.STDA_C_ITEM_TIME32 : el.STDA_C_ITEM_QNTD32);
                     p.WriteZeroByte(25);
                     if (el.type == 0xCC)
                     {
@@ -10753,13 +11360,13 @@ namespace Pangya_GameServer.Game
 
                 uint stat = 0; // Stat que vai ser updado no ClubSet, Ex: PWR, CTRL, ACCY, SPIN, CURV
 
-
-
+                
+                
 
 
                 switch (sIff.getInstance().getItemGroupIdentify(cwul.item_typeid))
                 {
-                    case IFF_GROUP.ITEM:
+                    case 2:
                         {
                             var pWi = _session.m_pi.findWarehouseItemByTypeid(cwul.item_typeid);
 
@@ -10781,7 +11388,7 @@ namespace Pangya_GameServer.Game
                                     203, 0x5300204));
                             }
 
-                            item = new stItem();
+                            item.clear();
 
                             item.type = 2;
                             item.id = (int)pWi.id;
@@ -10791,7 +11398,7 @@ namespace Pangya_GameServer.Game
 
                             break;
                         }
-                    case IFF_GROUP.CARD:
+                    case 31:
                         {
                             var pCi = _session.m_pi.findCardByTypeid(cwul.item_typeid);
 
@@ -10813,7 +11420,7 @@ namespace Pangya_GameServer.Game
                                     203, 0x5300204));
                             }
 
-                            item = new stItem();
+                            item.clear();
 
                             item.type = 2;
                             item.id = (int)pCi.id;
@@ -10831,7 +11438,7 @@ namespace Pangya_GameServer.Game
                             break;
                         }
                     default:
-                        throw new exception("[Channel::requestClubSetWorkShopUpLevel][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou upar ClubSet[ID=" + (cwul.clubset_id) + "] Level, mas o item[TYPEID=" + (cwul.item_typeid) + "], usado para upar é desconhecido. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                        throw new exception("[Channel::requestClubSetWorkShopUpLevel][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou upar ClubSet[ID=" + (cwul.clubset_id) + "] Level, mas o item[TYPEID=" + (cwul.item_typeid) + "], usado para upar eh desconhecido. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                             200, 0x5300201));
                 }
 
@@ -10895,11 +11502,11 @@ namespace Pangya_GameServer.Game
                     }
                 }
 
-                var lc = lottery.spinRoleta();
+                var lc = lottery.SpinRoleta();
 
                 if (lc != null)
                 {
-                    stat = Convert.ToUInt32(lc.Value);
+                    stat = (uint)lc.Value;
                 }
 
                 if (ItemManager.removeItem(item, _session) <= 0)
@@ -10919,7 +11526,10 @@ namespace Pangya_GameServer.Game
                         pClub,
                         CmdUpdateClubSetWorkshop.FLAG.F_UP_LEVEL),
                     SQLDBResponse, this);
-                 
+
+                // Log
+                _smp.message_pool.getInstance().push(new message("[ClubSetWorkshop::UpLevel][Sucess] PLAYER [UID=" + (_session.m_pi.uid) + "] upou Level[stat=" + (stat) + "] do ClubSet[TYPEID=" + (pClub._typeid) + ", ID=" + (pClub.id) + "] agora aguardando resposta do cliente, se quer ou nao esse stat.", type_msg.CL_FILE_LOG_AND_CONSOLE));
+
                 // UPDATE ON JOGO
                 p.init_plain(0x216);
 
@@ -10931,7 +11541,7 @@ namespace Pangya_GameServer.Game
                 p.WriteInt32(item.id);
                 p.WriteUInt32(item.flag_time);
                 p.WriteBytes(item.stat.ToArray());
-                p.WriteInt32((item.STDA_C_ITEM_TIME > 0) ? item.STDA_C_ITEM_TIME : item.STDA_C_ITEM_QNTD);
+                p.WriteInt32((item.STDA_C_ITEM_TIME > 0) ? item.STDA_C_ITEM_TIME32 : item.STDA_C_ITEM_QNTD32);
                 p.WriteZeroByte(25);
 
                 packet_func.session_send(p,
@@ -10970,8 +11580,8 @@ namespace Pangya_GameServer.Game
             try
             {
 
-
-
+                
+                
 
 
                 stItemEx item = new stItemEx();
@@ -10986,7 +11596,7 @@ namespace Pangya_GameServer.Game
 
                 if (_session.m_pi.cwlul.stat > 4)
                 {
-                    throw new exception("[Channel::requestClubSetWorkShopUpLevelConfirm][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou confirma o Up Level[stat=" + (_session.m_pi.cwlul.stat) + "] do ClubSet[ID=" + (_session.m_pi.cwlul.clubset_id) + "], mas o stat é desconhecido. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                    throw new exception("[Channel::requestClubSetWorkShopUpLevelConfirm][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou confirma o Up Level[stat=" + (_session.m_pi.cwlul.stat) + "] do ClubSet[ID=" + (_session.m_pi.cwlul.clubset_id) + "], mas o stat eh desconhecido. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                         302, 0x5300303));
                 }
 
@@ -11011,7 +11621,10 @@ namespace Pangya_GameServer.Game
                 item.clubset_workshop.mastery = pClub.clubset_workshop.mastery;
                 item.clubset_workshop.rank = (uint)pClub.clubset_workshop.rank;
                 item.clubset_workshop.recovery = pClub.clubset_workshop.recovery_pts;
-                 
+
+                // Log
+                _smp.message_pool.getInstance().push(new message("[ClubSetWorkshop::UpLevelConfirm][Sucess] PLAYER [UID=" + (_session.m_pi.uid) + "] confirmou o Up Level[stat=" + (_session.m_pi.cwlul.stat) + "] do ClubSet[TYPEID=" + (pClub._typeid) + ", ID=" + (pClub.id) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
+
                 // UPDATE ON JOGO
                 p.init_plain(0x216);
 
@@ -11023,7 +11636,7 @@ namespace Pangya_GameServer.Game
                 p.WriteInt32(item.id);
                 p.WriteUInt32(item.flag_time);
                 p.WriteBytes(item.stat.ToArray());
-                p.WriteInt32((item.STDA_C_ITEM_TIME > 0) ? item.STDA_C_ITEM_TIME : item.STDA_C_ITEM_QNTD);
+                p.WriteInt32((item.STDA_C_ITEM_TIME > 0) ? item.STDA_C_ITEM_TIME32 : item.STDA_C_ITEM_QNTD32);
                 p.WriteZeroByte(25);
                 if (item.type == 0xCC)
                 {
@@ -11084,7 +11697,7 @@ namespace Pangya_GameServer.Game
 
                 if (_session.m_pi.cwlul.stat > 4)
                 {
-                    throw new exception("[Channel::requestClubSetWorkShopUpLevelCancel][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou cancelar o up level[stat=" + (_session.m_pi.cwlul.stat) + "] do ClubSet[ID=" + (_session.m_pi.cwlul.clubset_id) + "], mas o stat é desconhecido. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                    throw new exception("[Channel::requestClubSetWorkShopUpLevelCancel][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou cancelar o up level[stat=" + (_session.m_pi.cwlul.stat) + "] do ClubSet[ID=" + (_session.m_pi.cwlul.clubset_id) + "], mas o stat eh desconhecido. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                         251, 0x5300252));
                 }
 
@@ -11125,7 +11738,9 @@ namespace Pangya_GameServer.Game
                         CmdUpdateClubSetWorkshop.FLAG.F_UP_LEVEL_CANCEL),
                     SQLDBResponse, this);
 
-                 
+                // Log
+                _smp.message_pool.getInstance().push(new message("[ClubSetWorkshop::UpLevelCancel][Sucess] PLAYER [UID=" + (_session.m_pi.uid) + "] cancelou o Up Level[stat=" + (_session.m_pi.cwlul.stat) + "] do ClubSet[TYPEID=" + (pClub._typeid) + ", ID=" + (pClub.id) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
+
                 // UPDATE ON JOGO
                 p.init_plain(0x216);
 
@@ -11137,7 +11752,7 @@ namespace Pangya_GameServer.Game
                 p.WriteInt32(item.id);
                 p.WriteUInt32(item.flag_time);
                 p.WriteBytes(item.stat.ToArray());
-                p.WriteInt32((item.STDA_C_ITEM_TIME > 0) ? item.STDA_C_ITEM_TIME : item.STDA_C_ITEM_QNTD);
+                p.WriteInt32((item.STDA_C_ITEM_TIME > 0) ? item.STDA_C_ITEM_TIME32 : item.STDA_C_ITEM_QNTD32);
                 p.WriteZeroByte(25);
                 if (item.type == 0xCC)
                 {
@@ -11186,8 +11801,8 @@ namespace Pangya_GameServer.Game
 
                 uint stat = 2; // PWR, CTRL, ACCRY, SPIN e CURVE
 
-
-
+                
+                
 
 
                 if (cwup.qntd > 0)
@@ -11207,7 +11822,7 @@ namespace Pangya_GameServer.Game
                     }
 
                     // Card
-                    item = new stItemEx();
+                    item.clear();
 
                     item.type = 2;
                     item.id = (int)pCi.id;
@@ -11234,7 +11849,7 @@ namespace Pangya_GameServer.Game
 
                 if (clubset.work_shop.tipo == -1)
                 {
-                    throw new exception("[Channel::requestClubSetWorkShopUpRank][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou upar rank do ClubSet[TYPEID=" + (pClub._typeid) + ", ID=" + (pClub.id) + "], mas esse ClubSet nao é permitido upar de rank. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                    throw new exception("[Channel::requestClubSetWorkShopUpRank][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou upar rank do ClubSet[TYPEID=" + (pClub._typeid) + ", ID=" + (pClub.id) + "], mas esse ClubSet nao eh permitido upar de rank. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                         354, 0x5300355));
                 }
 
@@ -11261,7 +11876,7 @@ namespace Pangya_GameServer.Game
 
                 if (cwup.qntd > 4)
                 {
-                    throw new exception("[Channel::requestClubSetWorkShopUpRank][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou upar rank do ClubSet[TYPEID=" + (pClub._typeid) + ", ID=" + (pClub.id) + "], mas a quantidade de card[TYPEID=" + (cwup.item_typeid) + ", QNTD=" + (cwup.qntd) + "] é desconhecida", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                    throw new exception("[Channel::requestClubSetWorkShopUpRank][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou upar rank do ClubSet[TYPEID=" + (pClub._typeid) + ", ID=" + (pClub.id) + "], mas a quantidade de card[TYPEID=" + (cwup.item_typeid) + ", QNTD=" + (cwup.qntd) + "] eh desconhecida", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                         355, 0x5300356));
                 }
 
@@ -11316,7 +11931,7 @@ namespace Pangya_GameServer.Game
                 {
                     if (clubset.work_shop.rank_s_stat > 4)
                     {
-                        throw new exception("[Channel::requestClubSetWorkShopUpRank][Error] PLAYER [UID = " + (_session.m_pi.uid) + "] tentou upar rank do ClubSet[TYPEID = " + (pClub._typeid) + ", ID = " + (pClub.id) + "], mas o ClubSet Stat[value=" + (clubset.work_shop.rank_s_stat) + "] Rank S do IFF_STRUCT do Server é invalido. System Error", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                        throw new exception("[Channel::requestClubSetWorkShopUpRank][Error] PLAYER [UID = " + (_session.m_pi.uid) + "] tentou upar rank do ClubSet[TYPEID = " + (pClub._typeid) + ", ID = " + (pClub.id) + "], mas o ClubSet Stat[value=" + (clubset.work_shop.rank_s_stat) + "] Rank S do IFF_STRUCT do Server eh invalido. System Error", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                             361, 0x5300362));
                     }
 
@@ -11365,7 +11980,7 @@ namespace Pangya_GameServer.Game
                     p.WriteInt32(el.id);
                     p.WriteUInt32(el.flag_time);
                     p.WriteBytes(el.stat.ToArray());
-                    p.WriteInt32((el.STDA_C_ITEM_TIME > 0) ? el.STDA_C_ITEM_TIME : el.STDA_C_ITEM_QNTD);
+                    p.WriteInt32((el.STDA_C_ITEM_TIME > 0) ? el.STDA_C_ITEM_TIME32 : el.STDA_C_ITEM_QNTD32);
                     p.WriteZeroByte(25);
                     if (el.type == 0xCC)
                     {
@@ -11386,7 +12001,7 @@ namespace Pangya_GameServer.Game
                     lottery.Push(250, 0x1000005F); // Duostar Manapikal Club Set
                     lottery.Push(750 * 14, 0); // Não Transforma nada
 
-                    var lc = lottery.spinRoleta();
+                    var lc = lottery.SpinRoleta();
 
                     if (lc != null && Convert.ToInt32(lc.Value) != 0)
                     { // Transformou
@@ -11490,8 +12105,8 @@ namespace Pangya_GameServer.Game
             try
             {
 
-
-
+                
+                
 
 
                 List<stItem> v_item = new List<stItem>();
@@ -11522,7 +12137,7 @@ namespace Pangya_GameServer.Game
                 }
 
                 // ClubSet que se Transformou
-                item = new stItem();
+                item.clear();
 
                 item.type = 2;
                 item.id = (int)pClub.id;
@@ -11588,7 +12203,7 @@ namespace Pangya_GameServer.Game
                     p.WriteInt32(el.id);
                     p.WriteUInt32(el.flag_time);
                     p.WriteBytes(el.stat.ToArray());
-                    p.WriteInt32((el.STDA_C_ITEM_TIME > 0) ? el.STDA_C_ITEM_TIME : el.STDA_C_ITEM_QNTD);
+                    p.WriteInt32((el.STDA_C_ITEM_TIME > 0) ? el.STDA_C_ITEM_TIME32 : el.STDA_C_ITEM_QNTD32);
                     p.WriteZeroByte(25);
                 }
 
@@ -11637,8 +12252,8 @@ namespace Pangya_GameServer.Game
             try
             {
 
-
-
+                
+                
 
 
                 var pClub = _session.m_pi.findWarehouseItemById(_session.m_pi.cwtc.clubset_id);
@@ -11659,7 +12274,7 @@ namespace Pangya_GameServer.Game
 
                 if (_session.m_pi.cwtc.stat > 4)
                 {
-                    throw new exception("[Channel::requestClubSetWorkShopUpRankTransformCancel][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou cancelar o transformacao do ClubSet[ID=" + (_session.m_pi.cwtc.clubset_id) + "] no ClubSet[TYPEID=" + (_session.m_pi.cwtc.transform_typeid) + "] Special, mas o Stat[value=" + (_session.m_pi.cwtc.stat) + "] é invalido. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                    throw new exception("[Channel::requestClubSetWorkShopUpRankTransformCancel][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou cancelar o transformacao do ClubSet[ID=" + (_session.m_pi.cwtc.clubset_id) + "] no ClubSet[TYPEID=" + (_session.m_pi.cwtc.transform_typeid) + "] Special, mas o Stat[value=" + (_session.m_pi.cwtc.stat) + "] eh invalido. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                         402, 0x5300403));
                 }
 
@@ -11697,7 +12312,6 @@ namespace Pangya_GameServer.Game
                     _session, 1);
             }
         }
-
         public void requestClubSetReset(Player _session, packet _packet)
         {
             //
@@ -11713,13 +12327,13 @@ namespace Pangya_GameServer.Game
                 uint item_typeid = _packet.ReadUInt32();
                 int clubset_id = _packet.ReadInt32();
 
-
-
+                
+                
 
 
                 if (item_typeid != 0x1A00024B && item_typeid != 0x1A000247)
                 {
-                    throw new exception("[Channel::requestClubSetReset][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou resetar ClubSet[ID=" + (clubset_id) + "], mas o item[TYPEID=" + (item_typeid) + "] é desconhecido. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                    throw new exception("[Channel::requestClubSetReset][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou resetar ClubSet[ID=" + (clubset_id) + "], mas o item[TYPEID=" + (item_typeid) + "] eh desconhecido. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                         505, 0x5300506));
                 }
 
@@ -11771,7 +12385,7 @@ namespace Pangya_GameServer.Game
                 }
 
                 // Item reset ClubSet
-                item = new stItemEx();
+                item.clear();
 
                 item.type = 2;
                 item.id = (int)pWi.id;
@@ -11787,7 +12401,7 @@ namespace Pangya_GameServer.Game
 
                 v_item.Add(new stItemEx(item));
 
-                uint mastery = 0;
+                uint mastery = 0u;
                 long pang = 0;
 
                 if (item_typeid == 0x1A00024B)
@@ -11837,14 +12451,17 @@ namespace Pangya_GameServer.Game
 
                 // UPDATE ON SERVER
 
-                // Reseta ClubSet Workshop Stats 
-                pClub.clubset_workshop.c = new short[5];
+                // Reseta ClubSet Workshop Stats
+                // 
+                pClub.clubset_workshop.c.ClearArray();
 
                 pClub.clubset_workshop.level = 0;
                 pClub.clubset_workshop.rank = 0;
                 pClub.clubset_workshop.recovery_pts = 0;
-                // Reseta ClubSet Stats 
-                pClub.c = new short[5];
+
+                // Reseta ClubSet Stats
+                // 
+                pClub.c.ClearArray();
 
                 // Atualiza o stats do ClubSet Workshop
                 item = new stItemEx();
@@ -11897,7 +12514,7 @@ namespace Pangya_GameServer.Game
                     p.WriteInt32(el.id);
                     p.WriteUInt32(el.flag_time);
                     p.WriteBytes(el.stat.ToArray());
-                    p.WriteInt32((el.STDA_C_ITEM_TIME > 0) ? el.STDA_C_ITEM_TIME : el.STDA_C_ITEM_QNTD);
+                    p.WriteInt32((el.STDA_C_ITEM_TIME > 0) ? el.STDA_C_ITEM_TIME32 : el.STDA_C_ITEM_QNTD32);
                     p.WriteInt16(el.c);
                     p.WriteZeroByte(15);
                     if (el.type == 0xCC)
@@ -11934,7 +12551,6 @@ namespace Pangya_GameServer.Game
                     _session, 1);
             }
         }
-
         public void requestMakeTutorial(Player _session, packet _packet)
         {
             //
@@ -11957,8 +12573,8 @@ namespace Pangya_GameServer.Game
 
 
 
-
-
+                
+                
 
 
                 switch (rmt.uTipo.stTipo.tipo)
@@ -12048,7 +12664,7 @@ namespace Pangya_GameServer.Game
                                     break;
                                 case 0:
                                 default:
-                                    throw new exception("[Channel::requestMakeTutorial][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou fazer tutorial[tipo=" + (rmt.uTipo.stTipo.tipo) + ", value=" + (rmt.uValor.ulValor) + "], o valor do tutorial é desconhecido. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                                    throw new exception("[Channel::requestMakeTutorial][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou fazer tutorial[tipo=" + (rmt.uTipo.stTipo.tipo) + ", value=" + (rmt.uValor.ulValor) + "], o valor do tutorial eh desconhecido. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                                         555, 0x5300556));
                             }
 
@@ -12066,7 +12682,7 @@ namespace Pangya_GameServer.Game
 
                                 List<stItem> v_item = new List<stItem>();
 
-                                item = new stItem();
+                                item.clear();
 
                                 item.type = 2;
                                 item.id = (int)-1;
@@ -12075,7 +12691,7 @@ namespace Pangya_GameServer.Game
 
                                 v_item.Add(new stItem(item));
 
-                                item = new stItem();
+                                item.clear();
 
                                 item.type = 2;
                                 item.id = (int)-1;
@@ -12171,7 +12787,7 @@ namespace Pangya_GameServer.Game
                                 case 8:
                                 case 0:
                                 default:
-                                    throw new exception("[Channel::requestMakeTutorial][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou fazer tutorial[tipo=" + (rmt.uTipo.stTipo.tipo) + ", value=" + (rmt.uValor.ulValor) + "], o valor do tutorial é desconhecido. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                                    throw new exception("[Channel::requestMakeTutorial][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou fazer tutorial[tipo=" + (rmt.uTipo.stTipo.tipo) + ", value=" + (rmt.uValor.ulValor) + "], o valor do tutorial eh desconhecido. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                                         555, 0x5300556));
                             }
 
@@ -12189,7 +12805,7 @@ namespace Pangya_GameServer.Game
 
                                 List<stItem> v_item = new List<stItem>();
 
-                                item = new stItem();
+                                item.clear();
 
                                 item.type = 2;
                                 item.id = (int)-1;
@@ -12198,7 +12814,7 @@ namespace Pangya_GameServer.Game
 
                                 v_item.Add(new stItem(item));
 
-                                item = new stItem();
+                                item.clear();
 
                                 item.type = 2;
                                 item.id = (int)-1;
@@ -12253,7 +12869,7 @@ namespace Pangya_GameServer.Game
                             }
 
                             _session.m_pi.TutoInfo.advancer |= rmt.uValor.ulValor;
-
+                              
                             msg = "NICE TUTORIAL ADVANCER CLEAR";
 
                             // Send Item para mailbox do player que concluiu o Tutorial
@@ -12269,7 +12885,7 @@ namespace Pangya_GameServer.Game
                                 // Esse não tem estou deixando por questão de quando eu implementar ou só para ter mesmo
                                 List<stItem> v_item = new List<stItem>();
 
-                                item = new stItem();
+                                item.clear();
 
                                 item.type = 2;
                                 item.id = (int)-1;
@@ -12278,7 +12894,7 @@ namespace Pangya_GameServer.Game
 
                                 v_item.Add(new stItem(item));
 
-                                item = new stItem();
+                                item.clear();
 
                                 item.type = 2;
                                 item.id = (int)-1;
@@ -12351,13 +12967,16 @@ namespace Pangya_GameServer.Game
                     _session, 1);
             }
         }
-
         public void requestEnterWebLinkState(Player _session, packet _packet)
         {
             //
 
             try
             {
+
+                
+                
+
 
                 // Att Lugar que o player está, ele está vendo weblink
                 _session.m_pi.place = _packet.ReadSByte();
@@ -12369,7 +12988,6 @@ namespace Pangya_GameServer.Game
                 _smp.message_pool.getInstance().push(new message("[Channel::requestEnterWebLinkState][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
-
         public void requestCookie(Player _session, packet _packet)
         {
             //
@@ -12378,6 +12996,11 @@ namespace Pangya_GameServer.Game
 
             try
             {
+
+                
+                
+
+
                 // Sempre atualiza o Cookie do server com o valor que está no banco de dados
 
                 // Update cookie do server com o que está no banco de dados
@@ -12413,7 +13036,6 @@ namespace Pangya_GameServer.Game
                 _smp.message_pool.getInstance().push(new message("[Channel::requestCookie][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
-
         public void requestUpdateGachaCoupon(Player _session, packet _packet)
         {
             //
@@ -12423,8 +13045,8 @@ namespace Pangya_GameServer.Game
             try
             {
 
-
-
+                
+                
 
 
                 CmdCouponGacha cmd_cg = new CmdCouponGacha(_session.m_pi.uid); // Waiter
@@ -12485,7 +13107,6 @@ namespace Pangya_GameServer.Game
             }
 
         }
-
         public void requestOpenBoxMail(Player _session, packet _packet)
         {
             //
@@ -12502,13 +13123,13 @@ namespace Pangya_GameServer.Game
 
                 uint box_typeid = _packet.ReadUInt32();
 
-
-
+                
+                
 
 
                 if (box_typeid == 0)
                 {
-                    throw new exception("[Channel::requestOpenBoxMail][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou abrir Box[TYPEID=" + (box_typeid) + "], mas o typeid é invalido(zero). Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                    throw new exception("[Channel::requestOpenBoxMail][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou abrir Box[TYPEID=" + (box_typeid) + "], mas o typeid eh invalido(zero). Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                         1, 0x6300101));
                 }
 
@@ -12526,9 +13147,9 @@ namespace Pangya_GameServer.Game
                         3, 0x6300103));
                 }
 
-                if (sIff.getInstance().getItemGroupIdentify(pWi._typeid) != IFF_GROUP.ITEM)
+                if (sIff.getInstance().getItemGroupIdentify(pWi._typeid) != sIff.getInstance().ITEM)
                 {
-                    throw new exception("[Channel::requestOpenBoxMail][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou abrir Box[TYPEID=" + (pWi._typeid) + ", ID=" + (pWi.id) + "], mas nao é uma Box valida. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                    throw new exception("[Channel::requestOpenBoxMail][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou abrir Box[TYPEID=" + (pWi._typeid) + ", ID=" + (pWi.id) + "], mas nao eh uma Box valida. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                         4, 0x6300104));
                 }
 
@@ -12587,7 +13208,7 @@ namespace Pangya_GameServer.Game
                             }
 
                             // Deleta Spinning Cube
-                            item = new stItem();
+                            item.clear();
 
                             item.type = 2;
                             item.id = (int)pWi.id;
@@ -12604,7 +13225,7 @@ namespace Pangya_GameServer.Game
                             v_item.Add(new stItem(item));
 
                             // [Key] tira uma chave
-                            item = new stItem();
+                            item.clear();
 
                             item.type = 2;
                             item.id = (int)key.id;
@@ -12624,7 +13245,7 @@ namespace Pangya_GameServer.Game
                             if (box.opened_typeid > 0)
                             {
 
-                                item = new stItem();
+                                item.clear();
 
                                 item.type = 2;
                                 item._typeid = box.opened_typeid; //OPENNED_SPINNING_CUBE_TYPEID;
@@ -12654,7 +13275,7 @@ namespace Pangya_GameServer.Game
                                     p.WriteInt32(item.id);
                                     p.WriteUInt32(item.flag_time);
                                     p.WriteBytes(item.stat.ToArray());
-                                    p.WriteInt32((item.STDA_C_ITEM_TIME > 0) ? item.STDA_C_ITEM_TIME : item.STDA_C_ITEM_QNTD);
+                                    p.WriteInt32((item.STDA_C_ITEM_TIME > 0) ? item.STDA_C_ITEM_TIME32 : item.STDA_C_ITEM_QNTD32);
                                     p.WriteZeroByte(25);
 
                                     packet_func.session_send(p,
@@ -12664,14 +13285,14 @@ namespace Pangya_GameServer.Game
                             }
 
                             // Init Item Ganho
-                            item = new stItem();
+                            item.clear();
 
                             item.type = 2;
                             item.id = (int)-1;
                             item._typeid = ctx_bi._typeid;
 
                             // Check se é Mascot, para colocar por dia o tempo que é a quantidade
-                            if (sIff.getInstance().getItemGroupIdentify(ctx_bi._typeid) == PangyaAPI.IFF.JP.Models.Flags.IFF_GROUP.MASCOT
+                            if (sIff.getInstance().getItemGroupIdentify(ctx_bi._typeid) == sIff.getInstance().MASCOT
                                 && (mascot = sIff.getInstance().findMascot(ctx_bi._typeid)) != null
                                 && mascot.Shop.flag_shop.time_shop.dia > 0
                                 && mascot.Shop.flag_shop.time_shop.active)
@@ -12775,7 +13396,7 @@ namespace Pangya_GameServer.Game
                             }
 
                             // Delete Papel Box
-                            item = new stItem();
+                            item.clear();
 
                             item.type = 2;
                             item.id = (int)pWi.id;
@@ -12815,7 +13436,7 @@ namespace Pangya_GameServer.Game
                             if (box.opened_typeid > 0)
                             {
 
-                                item = new stItem();
+                                item.clear();
 
                                 item.type = 2;
                                 item._typeid = box.opened_typeid;
@@ -12845,7 +13466,7 @@ namespace Pangya_GameServer.Game
                                     p.WriteInt32(item.id);
                                     p.WriteUInt32(item.flag_time);
                                     p.WriteBytes(item.stat.ToArray());
-                                    p.WriteInt32((item.STDA_C_ITEM_TIME > 0) ? item.STDA_C_ITEM_TIME : item.STDA_C_ITEM_QNTD);
+                                    p.WriteInt32((item.STDA_C_ITEM_TIME > 0) ? item.STDA_C_ITEM_TIME32 : item.STDA_C_ITEM_QNTD32);
                                     p.WriteZeroByte(25);
 
                                     packet_func.session_send(p,
@@ -12855,14 +13476,14 @@ namespace Pangya_GameServer.Game
                             }
 
                             // Init Item Ganho
-                            item = new stItem();
+                            item.clear();
 
                             item.type = 2;
                             item.id = (int)-1;
                             item._typeid = ctx_bi._typeid;
 
                             // Check se é Mascot, para colocar por dia o tempo que é a quantidade
-                            if (sIff.getInstance().getItemGroupIdentify(ctx_bi._typeid) == PangyaAPI.IFF.JP.Models.Flags.IFF_GROUP.MASCOT
+                            if (sIff.getInstance().getItemGroupIdentify(ctx_bi._typeid) == sIff.getInstance().MASCOT
                                 && (mascot = sIff.getInstance().findMascot(ctx_bi._typeid)) != null
                                 && mascot.Shop.flag_shop.time_shop.dia > 0
                                 && mascot.Shop.flag_shop.time_shop.active)
@@ -12952,7 +13573,7 @@ namespace Pangya_GameServer.Game
                             }
 
                             // Delete Box
-                            item = new stItem();
+                            item.clear();
 
                             item.type = 2;
                             item.id = (int)pWi.id;
@@ -12971,7 +13592,7 @@ namespace Pangya_GameServer.Game
                             if (box.opened_typeid > 0)
                             {
 
-                                item = new stItem();
+                                item.clear();
 
                                 item.type = 2;
                                 item._typeid = box.opened_typeid;
@@ -13001,7 +13622,7 @@ namespace Pangya_GameServer.Game
                                     p.WriteInt32(item.id);
                                     p.WriteUInt32(item.flag_time);
                                     p.WriteBytes(item.stat.ToArray());
-                                    p.WriteInt32((item.STDA_C_ITEM_TIME > 0) ? item.STDA_C_ITEM_TIME : item.STDA_C_ITEM_QNTD);
+                                    p.WriteInt32((item.STDA_C_ITEM_TIME > 0) ? item.STDA_C_ITEM_TIME32 : item.STDA_C_ITEM_QNTD32);
                                     p.WriteZeroByte(25);
 
                                     packet_func.session_send(p,
@@ -13011,14 +13632,14 @@ namespace Pangya_GameServer.Game
                             }
 
                             // Init Item Ganho
-                            item = new stItem();
+                            item.clear();
 
                             item.type = 2;
                             item.id = (int)-1;
                             item._typeid = ctx_bi._typeid;
 
                             // Check se é Mascot, para colocar por dia o tempo que é a quantidade
-                            if (sIff.getInstance().getItemGroupIdentify(ctx_bi._typeid) == PangyaAPI.IFF.JP.Models.Flags.IFF_GROUP.MASCOT
+                            if (sIff.getInstance().getItemGroupIdentify(ctx_bi._typeid) == sIff.getInstance().MASCOT
                                 && (mascot = sIff.getInstance().findMascot(ctx_bi._typeid)) != null
                                 && mascot.Shop.flag_shop.time_shop.dia > 0
                                 && mascot.Shop.flag_shop.time_shop.active)
@@ -13120,8 +13741,8 @@ namespace Pangya_GameServer.Game
             try
             {
 
-
-
+                
+                
 
 
                 if (!sBoxSystem.getInstance().isLoad())
@@ -13133,7 +13754,7 @@ namespace Pangya_GameServer.Game
 
                 if (box_typeid == 0)
                 {
-                    throw new exception("[Channel::requestOpenBoxMyRoom][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou abrir Box[TYPEID=" + (box_typeid) + "], mas o typeid é invalido(zero). Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                    throw new exception("[Channel::requestOpenBoxMyRoom][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou abrir Box[TYPEID=" + (box_typeid) + "], mas o typeid eh invalido(zero). Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                         1, 0x6300201));
                 }
 
@@ -13151,9 +13772,9 @@ namespace Pangya_GameServer.Game
                         3, 0x6300203));
                 }
 
-                if (sIff.getInstance().getItemGroupIdentify(pWi._typeid) != IFF_GROUP.ITEM)
+                if (sIff.getInstance().getItemGroupIdentify(pWi._typeid) != sIff.getInstance().ITEM)
                 {
-                    throw new exception("[Channel::requestOpenBoxMyRoom][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou abrir Box[TYPEID=" + (pWi._typeid) + ", ID=" + (pWi.id) + "], mas nao é uma Box valida. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                    throw new exception("[Channel::requestOpenBoxMyRoom][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou abrir Box[TYPEID=" + (pWi._typeid) + ", ID=" + (pWi.id) + "], mas nao eh uma Box valida. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                         4, 0x6300204));
                 }
 
@@ -13192,13 +13813,13 @@ namespace Pangya_GameServer.Game
                 BuyItem bi = new BuyItem();
                 Mascot mascot = null;
 
-                item = new stItem();
+                item.clear();
 
                 bi.id = -1;
                 bi._typeid = ctx_bi._typeid;
 
                 // Check se é Mascot, para colocar por dia o tempo que é a quantidade
-                if (sIff.getInstance().getItemGroupIdentify(ctx_bi._typeid) == PangyaAPI.IFF.JP.Models.Flags.IFF_GROUP.MASCOT
+                if (sIff.getInstance().getItemGroupIdentify(ctx_bi._typeid) == sIff.getInstance().MASCOT
                     && (mascot = sIff.getInstance().findMascot(ctx_bi._typeid)) != null
                     && mascot.Shop.flag_shop.time_shop.dia > 0
                     && mascot.Shop.flag_shop.time_shop.active)
@@ -13221,7 +13842,7 @@ namespace Pangya_GameServer.Game
                 }
 
                 // Verifica se já possui o item, o caddie item verifica se tem o caddie para depois verificar se tem o caddie item
-                if ((sIff.getInstance().IsCanOverlapped(item._typeid) && sIff.getInstance().getItemGroupIdentify(item._typeid) != IFF_GROUP.CAD_ITEM) || !_session.m_pi.ownerItem(item._typeid))
+                if ((sIff.getInstance().IsCanOverlapped(item._typeid) && sIff.getInstance().getItemGroupIdentify(item._typeid) != sIff.getInstance().CAD_ITEM) || !_session.m_pi.ownerItem(item._typeid))
                 {
                     if (ItemManager.isSetItem(item._typeid))
                     {
@@ -13235,7 +13856,7 @@ namespace Pangya_GameServer.Game
                             // Verifica se pode ter mais de 1 item e se não ver se não tem o item
                             foreach (var el in v_stItem)
                             {
-                                if ((sIff.getInstance().IsCanOverlapped(el._typeid) && sIff.getInstance().getItemGroupIdentify(el._typeid) != IFF_GROUP.CAD_ITEM) || !_session.m_pi.ownerItem(el._typeid))
+                                if ((sIff.getInstance().IsCanOverlapped(el._typeid) && sIff.getInstance().getItemGroupIdentify(el._typeid) != sIff.getInstance().CAD_ITEM) || !_session.m_pi.ownerItem(el._typeid))
                                 {
                                     v_item.Add(new stItem(el));
                                 }
@@ -13253,7 +13874,7 @@ namespace Pangya_GameServer.Game
                     }
 
                 }
-                else if (sIff.getInstance().getItemGroupIdentify(item._typeid) == PangyaAPI.IFF.JP.Models.Flags.IFF_GROUP.CAD_ITEM)
+                else if (sIff.getInstance().getItemGroupIdentify(item._typeid) == sIff.getInstance().CAD_ITEM)
                 {
                     throw new exception("[Channel::requestOpenBoxMail][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou abrir Box[TYPEID=" + (pWi._typeid) + ", ID=" + (pWi.id) + "], mas o CaddieItem que ele ganhou, nao tem o caddie, Item[TYPEID=" + (bi._typeid) + "]. Bug.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                         13, 0x6300213));
@@ -13285,7 +13906,7 @@ namespace Pangya_GameServer.Game
 
                 // Coloca Item ganho no My Room do player
                 var rai = ItemManager.addItem(v_item,
-                    _session.getUID(), 0, 0);
+                    _session, 0, 0);
 
                 if (rai.fails.Count > 0 && rai.type != ItemManager.RetAddItem.T_SUCCESS_PANG_AND_EXP_AND_CP_POUCH)
                 {
@@ -13294,11 +13915,11 @@ namespace Pangya_GameServer.Game
                     {
                         if (i == 0)
                         {
-                            str += "[TYPEID=" + (v_item[i]._typeid) + ", ID=" + (v_item[i].id) + ", QNTD=" + ((v_item[i].qntd > 0xFFu) ? v_item[i].qntd : v_item[i].STDA_C_ITEM_QNTD) + (v_item[i].STDA_C_ITEM_TIME > 0 ? ", TEMPO=" + (v_item[i].STDA_C_ITEM_TIME) : "") + "]";
+                            str += "[TYPEID=" + (v_item[i]._typeid) + ", ID=" + (v_item[i].id) + ", QNTD=" + ((v_item[i].qntd > 0xFFu) ? v_item[i].qntd : v_item[i].STDA_C_ITEM_QNTD32) + (v_item[i].STDA_C_ITEM_TIME > 0 ? ", TEMPO=" + (v_item[i].STDA_C_ITEM_TIME) : "") + "]";
                         }
                         else
                         {
-                            str += ", [TYPEID=" + (v_item[i]._typeid) + ", ID=" + (v_item[i].id) + ", QNTD=" + ((v_item[i].qntd > 0xFFu) ? v_item[i].qntd : v_item[i].STDA_C_ITEM_QNTD) + (v_item[i].STDA_C_ITEM_TIME > 0 ? ", TEMPO=" + (v_item[i].STDA_C_ITEM_TIME) : "") + "]";
+                            str += ", [TYPEID=" + (v_item[i]._typeid) + ", ID=" + (v_item[i].id) + ", QNTD=" + ((v_item[i].qntd > 0xFFu) ? v_item[i].qntd : v_item[i].STDA_C_ITEM_QNTD32) + (v_item[i].STDA_C_ITEM_TIME > 0 ? ", TEMPO=" + (v_item[i].STDA_C_ITEM_TIME) : "") + "]";
                         }
                     }
 
@@ -13312,11 +13933,11 @@ namespace Pangya_GameServer.Game
                     {
                         if (i == 0)
                         {
-                            str += "[TYPEID=" + (v_item[i]._typeid) + ", ID=" + (v_item[i].id) + ", QNTD=" + ((v_item[i].qntd > 0xFFu) ? v_item[i].qntd : v_item[i].STDA_C_ITEM_QNTD) + (v_item[i].STDA_C_ITEM_TIME > 0 ? ", TEMPO=" + (v_item[i].STDA_C_ITEM_TIME) : "") + "]";
+                            str += "[TYPEID=" + (v_item[i]._typeid) + ", ID=" + (v_item[i].id) + ", QNTD=" + ((v_item[i].qntd > 0xFFu) ? v_item[i].qntd : v_item[i].STDA_C_ITEM_QNTD32) + (v_item[i].STDA_C_ITEM_TIME > 0 ? ", TEMPO=" + (v_item[i].STDA_C_ITEM_TIME) : "") + "]";
                         }
                         else
                         {
-                            str += ", [TYPEID=" + (v_item[i]._typeid) + ", ID=" + (v_item[i].id) + ", QNTD=" + ((v_item[i].qntd > 0xFFu) ? v_item[i].qntd : v_item[i].STDA_C_ITEM_QNTD) + (v_item[i].STDA_C_ITEM_TIME > 0 ? ", TEMPO=" + (v_item[i].STDA_C_ITEM_TIME) : "") + "]";
+                            str += ", [TYPEID=" + (v_item[i]._typeid) + ", ID=" + (v_item[i].id) + ", QNTD=" + ((v_item[i].qntd > 0xFFu) ? v_item[i].qntd : v_item[i].STDA_C_ITEM_QNTD32) + (v_item[i].STDA_C_ITEM_TIME > 0 ? ", TEMPO=" + (v_item[i].STDA_C_ITEM_TIME) : "") + "]";
                         }
                     }
                 }
@@ -13329,6 +13950,9 @@ namespace Pangya_GameServer.Game
                             box._typeid, ctx_bi),
                         SQLDBResponse, this);
                 }
+
+                // Log
+                _smp.message_pool.getInstance().push(new message("[BoxSystem::BoxMyRoom][Sucess] PLAYER [UID=" + (_session.m_pi.uid) + "] abriu Box e ganhou o Item(ns){" + str + "} [TYPEID=" + (ctx_bi._typeid) + ", QNTD=" + (ctx_bi.qntd) + ", RARIDADE=" + ((short)ctx_bi.raridade) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
                 // UPDATE ON GAME
 
@@ -13371,7 +13995,7 @@ namespace Pangya_GameServer.Game
                 {
                     p.WriteUInt32(el._typeid);
                     p.WriteInt32(el.id);
-                    p.WriteInt32((el.STDA_C_ITEM_TIME > 0) ? el.STDA_C_ITEM_TIME : el.STDA_C_ITEM_QNTD);
+                    p.WriteInt32((el.STDA_C_ITEM_TIME > 0) ? el.STDA_C_ITEM_TIME32 : el.STDA_C_ITEM_QNTD32);
                     p.WriteZeroByte(8); // Não sei o que é esses 8 Bytes ainda
                 }
 
@@ -13403,6 +14027,11 @@ namespace Pangya_GameServer.Game
 
             try
             {
+
+                
+                
+
+
                 if (_session.m_pi.block_flag.m_flag.memorial_shop)
                 {
                     throw new exception("[Channel::requestPlayerMemorial][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou jogar no Memorial Shop, mas ele nao pode. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
@@ -13422,7 +14051,7 @@ namespace Pangya_GameServer.Game
                         1, 0x6300301));
                 }
 
-                if (sIff.getInstance().getItemGroupIdentify(coin_typeid) != IFF_GROUP.ITEM)
+                if (sIff.getInstance().getItemGroupIdentify(coin_typeid) != sIff.getInstance().ITEM)
                 {
                     throw new exception("[Channel::requestPlayMemorial][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou jogar Memorial com a coin[TYPEID=" + (coin_typeid) + "], mas a coin is not Item Valid. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                         2, 0x6300302));
@@ -13468,10 +14097,10 @@ namespace Pangya_GameServer.Game
 
                 var win_item = sMemorialSystem.getInstance().drawCoin(_session, c);
 
-                if (win_item == null || win_item.Count == 0)
+                if (win_item.empty())
                 {
-                    throw new exception("[Channel::requestPlayMemorial][Error] win_item is null or empty. UID: " + _session.m_pi.uid,
-                        ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL, 6, 0x6300306));
+                    throw new exception("[Channel::requestPlayMemorial][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou jogar Memorial com a coin[TYPEID=" + (coin_typeid) + "], mas não conseguiu sortear um item do memorial shop. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                        6, 0x6300306));
                 }
 
                 List<stItem> v_item = new List<stItem>();
@@ -13490,7 +14119,7 @@ namespace Pangya_GameServer.Game
                     bi._typeid = el._typeid;
 
                     // Check se é Mascot, para colocar por dia o tempo que é a quantidade
-                    if (sIff.getInstance().getItemGroupIdentify(el._typeid) == PangyaAPI.IFF.JP.Models.Flags.IFF_GROUP.MASCOT
+                    if (sIff.getInstance().getItemGroupIdentify(el._typeid) == sIff.getInstance().MASCOT
                         && (mascot = sIff.getInstance().findMascot(el._typeid)) != null
                         && mascot.Shop.flag_shop.time_shop.dia > 0
                         && mascot.Shop.flag_shop.time_shop.active)
@@ -13513,7 +14142,7 @@ namespace Pangya_GameServer.Game
                     }
 
                     // Verifica se já possui o item, o caddie item verifica se tem o caddie para depois verificar se tem o caddie item
-                    if ((sIff.getInstance().IsCanOverlapped(item._typeid) && sIff.getInstance().getItemGroupIdentify(item._typeid) != IFF_GROUP.CAD_ITEM) || !_session.m_pi.ownerItem(item._typeid))
+                    if ((sIff.getInstance().IsCanOverlapped(item._typeid) && sIff.getInstance().getItemGroupIdentify(item._typeid) != sIff.getInstance().CAD_ITEM) || !_session.m_pi.ownerItem(item._typeid))
                     {
                         if (ItemManager.isSetItem(item._typeid))
                         {
@@ -13527,7 +14156,7 @@ namespace Pangya_GameServer.Game
                                 // Verifica se pode ter mais de 1 item e se não ver se não tem o item
                                 foreach (var _el in v_stItem)
                                 {
-                                    if ((sIff.getInstance().IsCanOverlapped(_el._typeid) && sIff.getInstance().getItemGroupIdentify(_el._typeid) != IFF_GROUP.CAD_ITEM) || !_session.m_pi.ownerItem(_el._typeid))
+                                    if ((sIff.getInstance().IsCanOverlapped(_el._typeid) && sIff.getInstance().getItemGroupIdentify(_el._typeid) != sIff.getInstance().CAD_ITEM) || !_session.m_pi.ownerItem(_el._typeid))
                                     {
                                         v_item.Add(new stItem(_el));
                                     }
@@ -13545,7 +14174,7 @@ namespace Pangya_GameServer.Game
                         }
 
                     }
-                    else if (sIff.getInstance().getItemGroupIdentify(item._typeid) == PangyaAPI.IFF.JP.Models.Flags.IFF_GROUP.CAD_ITEM)
+                    else if (sIff.getInstance().getItemGroupIdentify(item._typeid) == sIff.getInstance().CAD_ITEM)
                     {
                         throw new exception("[Channel::requestPlayMemorial][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou jogar Memorial com a coin[TYPEID=" + (coin_typeid) + "], mas o CaddieItem que ele ganhou, nao tem o caddie, Item[TYPEID=" + (bi._typeid) + "]. Bug.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                             9, 0x6300309));
@@ -13570,7 +14199,7 @@ namespace Pangya_GameServer.Game
                 // UPDATE ON SERVER AND DB
 
                 // Delete Coin
-                item = new stItem();
+                item.clear();
 
                 item.type = 2;
                 item.id = (int)pWi.id;
@@ -13590,7 +14219,7 @@ namespace Pangya_GameServer.Game
 
                 // Coloca Item ganho no My Room do player
                 var rai = ItemManager.addItem(v_item,
-                    _session.getUID(), 0, 0);
+                    _session, 0, 0);
 
                 if (rai.fails.Count > 0 && rai.type != ItemManager.RetAddItem.T_SUCCESS_PANG_AND_EXP_AND_CP_POUCH)
                 {
@@ -13599,11 +14228,11 @@ namespace Pangya_GameServer.Game
                     {
                         if (i == 0)
                         {
-                            str += "[TYPEID=" + (v_item[i]._typeid) + ", ID=" + (v_item[i].id) + ", QNTD=" + ((v_item[i].qntd > 0xFFu) ? v_item[i].qntd : v_item[i].STDA_C_ITEM_QNTD) + (v_item[i].STDA_C_ITEM_TIME > 0 ? ", TEMPO=" + (v_item[i].STDA_C_ITEM_TIME) : "") + "]";
+                            str += "[TYPEID=" + (v_item[i]._typeid) + ", ID=" + (v_item[i].id) + ", QNTD=" + ((v_item[i].qntd > 0xFFu) ? v_item[i].qntd : v_item[i].STDA_C_ITEM_QNTD32) + (v_item[i].STDA_C_ITEM_TIME > 0 ? ", TEMPO=" + (v_item[i].STDA_C_ITEM_TIME) : "") + "]";
                         }
                         else
                         {
-                            str += ", [TYPEID=" + (v_item[i]._typeid) + ", ID=" + (v_item[i].id) + ", QNTD=" + ((v_item[i].qntd > 0xFFu) ? v_item[i].qntd : v_item[i].STDA_C_ITEM_QNTD) + (v_item[i].STDA_C_ITEM_TIME > 0 ? ", TEMPO=" + (v_item[i].STDA_C_ITEM_TIME) : "") + "]";
+                            str += ", [TYPEID=" + (v_item[i]._typeid) + ", ID=" + (v_item[i].id) + ", QNTD=" + ((v_item[i].qntd > 0xFFu) ? v_item[i].qntd : v_item[i].STDA_C_ITEM_QNTD32) + (v_item[i].STDA_C_ITEM_TIME > 0 ? ", TEMPO=" + (v_item[i].STDA_C_ITEM_TIME) : "") + "]";
                         }
                     }
 
@@ -13617,11 +14246,11 @@ namespace Pangya_GameServer.Game
                     {
                         if (i == 0)
                         {
-                            str += "[TYPEID=" + (v_item[i]._typeid) + ", ID=" + (v_item[i].id) + ", QNTD=" + ((v_item[i].qntd > 0xFFu) ? v_item[i].qntd : v_item[i].STDA_C_ITEM_QNTD) + (v_item[i].STDA_C_ITEM_TIME > 0 ? ", TEMPO=" + (v_item[i].STDA_C_ITEM_TIME) : "") + "]";
+                            str += "[TYPEID=" + (v_item[i]._typeid) + ", ID=" + (v_item[i].id) + ", QNTD=" + ((v_item[i].qntd > 0xFFu) ? v_item[i].qntd : v_item[i].STDA_C_ITEM_QNTD32) + (v_item[i].STDA_C_ITEM_TIME > 0 ? ", TEMPO=" + (v_item[i].STDA_C_ITEM_TIME) : "") + "]";
                         }
                         else
                         {
-                            str += $", [TYPEID=" + (v_item[i]._typeid) + ", ID=" + (v_item[i].id) + ", QNTD=" + ((v_item[i].qntd > 0xFFu) ? v_item[i].qntd : v_item[i].STDA_C_ITEM_QNTD) + (v_item[i].STDA_C_ITEM_TIME > 0 ? ", TEMPO=" + (v_item[i].STDA_C_ITEM_TIME) : "") + "]";
+                            str += $", [TYPEID=" + (v_item[i]._typeid) + ", ID=" + (v_item[i].id) + ", QNTD=" + ((v_item[i].qntd > 0xFFu) ? v_item[i].qntd : v_item[i].STDA_C_ITEM_QNTD32) + (v_item[i].STDA_C_ITEM_TIME > 0 ? ", TEMPO=" + (v_item[i].STDA_C_ITEM_TIME) : "") + "]";
                         }
                     }
                 }
@@ -13640,6 +14269,9 @@ namespace Pangya_GameServer.Game
                         SQLDBResponse, this);
                 }
 
+                // Log
+                _smp.message_pool.getInstance().push(new message("[MemorialSystem::Play][Sucess] PLAYER [UID=" + (_session.m_pi.uid) + "] jogou Coin[TYPEID=" + (c._typeid) + "] no Memorial Shop e ganhou o Item(ns){" + str + "}", type_msg.CL_FILE_LOG_AND_CONSOLE));
+
                 // UPDATE ON GAME
                 p.init_plain(0x216);
 
@@ -13653,7 +14285,7 @@ namespace Pangya_GameServer.Game
                     p.WriteInt32(el.id);
                     p.WriteUInt32(el.flag_time);
                     p.WriteBytes(el.stat.ToArray());
-                    p.WriteInt32((el.STDA_C_ITEM_TIME > 0) ? el.STDA_C_ITEM_TIME : el.STDA_C_ITEM_QNTD);
+                    p.WriteInt32((el.STDA_C_ITEM_TIME > 0) ? el.STDA_C_ITEM_TIME32 : el.STDA_C_ITEM_QNTD32);
                     p.WriteZeroByte(25);
                 }
 
@@ -13713,6 +14345,12 @@ namespace Pangya_GameServer.Game
                 int id = _packet.ReadInt32();
                 var ids = "";
 
+                _smp.message_pool.getInstance().push(new message("[CardSystem::requestOpenCardPack][Sucess] PLAYER [UID=" + (_session.m_pi.uid) + "] pedindo para abrir Card Pack[TYPEID=" + (_typeid) + ", ID=" + (id) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
+
+                
+                
+
+
                 if (!sCardSystem.getInstance().isLoad())
                     sCardSystem.getInstance().load();
 
@@ -13742,7 +14380,7 @@ namespace Pangya_GameServer.Game
 
                 var cards = sCardSystem.getInstance().draws(cp);
 
-                if (cards == null || cards.empty())
+                if (cards.empty())
                 {
                     throw new exception("[Channel::requestOpenCardPack][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou abrir Card Pack[TYPEID=" + (_typeid) + ", ID=" + (id) + "], mas nao conseguiu sortear os cards. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                         101, 0x5400102));
@@ -13835,7 +14473,7 @@ namespace Pangya_GameServer.Game
                 v_item_add.RemoveAll(x => x._typeid == 0);
 
                 var rai = ItemManager.addItem(v_item_add,
-                    _session.getUID(), 0, 0);
+                    _session, 0, 0);
 
                 if (rai.fails.Count > 0 && rai.type != ItemManager.RetAddItem.T_SUCCESS_PANG_AND_EXP_AND_CP_POUCH)
                 {
@@ -13899,6 +14537,9 @@ namespace Pangya_GameServer.Game
                 {
                     ids += ((i == 0) ? "TYPEID=" : ", TYPEID=") + (cards[i]._typeid);
                 }
+
+                _smp.message_pool.getInstance().push(new message("[CardSystem::requestOpenCardPack][Sucess] PLAYER [UID=" + (_session.m_pi.uid) + "] abriu Card Pack[TYPEID=" + (_typeid) + ", ID=" + (id) + "] e ganhou Card(s)[" + ids + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
+
             }
             catch (exception e)
             {
@@ -13925,8 +14566,8 @@ namespace Pangya_GameServer.Game
             try
             {
 
-
-
+                
+                
 
 
                 if (_session.m_pi.block_flag.m_flag.lolo_copound_card)
@@ -13947,10 +14588,10 @@ namespace Pangya_GameServer.Game
 
                 var r = m_rm.findRoom((short)_session.m_pi.mi.sala_numero);
 
-                for (var i = 0; i < (lcc._typeid.Length); ++i)
+                for (var i = 0u; i < (lcc._typeid.Length); ++i)
                 {
 
-                    item = new stItem();
+                    item.clear();
 
                     item.type = 2;
                     item._typeid = lcc._typeid[i];
@@ -14015,13 +14656,13 @@ namespace Pangya_GameServer.Game
 
                 if (pang != lcc.pang)
                 {
-                    throw new exception("[Channel::requestLoloCardCompose][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou fundir card(s)[TYPEID=" + (lcc._typeid[0]) + ", TYPEID=" + (lcc._typeid[1]) + ", TYPEID=" + (lcc._typeid[2]) + "] no Lolo Card Compose, mas os pang[value=" + (pang) + ", request=" + (lcc.pang) + "] é diferente. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                    throw new exception("[Channel::requestLoloCardCompose][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou fundir card(s)[TYPEID=" + (lcc._typeid[0]) + ", TYPEID=" + (lcc._typeid[1]) + ", TYPEID=" + (lcc._typeid[2]) + "] no Lolo Card Compose, mas os pang[value=" + (pang) + ", request=" + (lcc.pang) + "] eh diferente. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                         154, 0x5400155));
                 }
 
                 var card = sCardSystem.getInstance().drawsLoloCardCompose(lcc);
 
-                if (card == null || card._typeid == 0)
+                if (card._typeid == 0)
                 {
                     throw new exception("[Channel::requestLoloCardCompose][ErrorSystem] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou fundir card(s)[TYPEID=" + (lcc._typeid[0]) + ", TYPEID=" + (lcc._typeid[1]) + ", TYPEID=" + (lcc._typeid[2]) + "] no Lolo Card Compose, mas nao conseguiu sortear um card. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                         155, 0x5400156));
@@ -14041,7 +14682,7 @@ namespace Pangya_GameServer.Game
                 bi._typeid = card._typeid;
                 bi.qntd = 1;
 
-                item = new stItem();
+                item.clear();
 
                 ItemManager.initItemFromBuyItem(_session.m_pi,
                     item, bi, false, 0, 0, 1);
@@ -14077,6 +14718,9 @@ namespace Pangya_GameServer.Game
                 // Add +1 ao contador de vezes que o player compose card no Lolo Card Compose
                 sys_achieve.incrementCounter(0x6C400089u);
 
+                // Log
+                _smp.message_pool.getInstance().push(new message("[CardSystem::LoloCardCompose][Sucess] PLAYER [UID=" + (_session.m_pi.uid) + "] fundiu os cards[TYPEID=" + (lcc._typeid[0]) + ", TYPEID=" + (lcc._typeid[1]) + ", TYPEID=" + (lcc._typeid[2]) + "] e ganhou o card[TYPEID=" + (item._typeid) + ", ID=" + (item.id) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
+
                 // UPDATE pang ON GAME
                 p.init_plain(0xC8);
 
@@ -14099,7 +14743,7 @@ namespace Pangya_GameServer.Game
                     p.WriteInt32(el.id);
                     p.WriteUInt32(el.flag_time);
                     p.WriteBytes(el.stat.ToArray());
-                    p.WriteInt32((el.STDA_C_ITEM_TIME > 0) ? el.STDA_C_ITEM_TIME : el.STDA_C_ITEM_QNTD);
+                    p.WriteInt32((el.STDA_C_ITEM_TIME > 0) ? el.STDA_C_ITEM_TIME32 : el.STDA_C_ITEM_QNTD32);
                     p.WriteZeroByte(25);
                 }
 
@@ -14152,8 +14796,8 @@ namespace Pangya_GameServer.Game
 
                 uint card_typeid = _packet.ReadUInt32();
 
-
-
+                
+                
 
 
                 AchievementSystem sys_achieve = new AchievementSystem();
@@ -14163,7 +14807,7 @@ namespace Pangya_GameServer.Game
 
                 if (card_typeid == 0)
                 {
-                    throw new exception("[Channel::requestUseCardSpecial][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou usar card special[TYPEID=" + (card_typeid) + "], mas o typeid é invalid.(zero). Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                    throw new exception("[Channel::requestUseCardSpecial][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou usar card special[TYPEID=" + (card_typeid) + "], mas o typeid eh invalid.(zero). Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                         350, 0x5500351));
                 }
 
@@ -14183,7 +14827,7 @@ namespace Pangya_GameServer.Game
 
                 var card = sIff.getInstance().findCard(pCi._typeid);
 
-                if (card == null || card.ID == 0)
+                if (card == null)
                 {
                     throw new exception("[Channel::requestUseCardSpecial][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou usar card special[TYPEID=" + (card_typeid) + "], mas o card nao existe no IFF_STRUCT do Server. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                         352, 0x5500353));
@@ -14191,7 +14835,7 @@ namespace Pangya_GameServer.Game
 
                 if (sIff.getInstance().getItemSubGroupIdentify22(card.ID) != (uint)CARD_SUB_TYPE.T_SPECIAL)
                 {
-                    throw new exception("[Channel::requestUseCardSpecial][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou usar card special[TYPEID=" + (card_typeid) + "], tentou usar um card que nao é espacial. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                    throw new exception("[Channel::requestUseCardSpecial][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou usar card special[TYPEID=" + (card_typeid) + "], tentou usar um card que nao eh espacial. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                         353, 0x5500354));
                 }
 
@@ -14207,7 +14851,7 @@ namespace Pangya_GameServer.Game
 
 
 
-                item = new stItem();
+                item.clear();
 
                 item.type = 2;
                 item.id = (int)pCi.id;
@@ -14234,7 +14878,7 @@ namespace Pangya_GameServer.Game
                         {
                             if ((int)card.EffectValue <= 0)
                             {
-                                throw new exception("[Channel::requestUseCardSpecial][ErrorSystem] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou usar card special[TYPEID=" + (pCi._typeid) + ", ID=" + (pCi.id) + "], mas a quantidade do efeito[TYPE=" + (card.Effect) + ", QNTD=" + (card.EffectValue) + "] é invalida. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                                throw new exception("[Channel::requestUseCardSpecial][ErrorSystem] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou usar card special[TYPEID=" + (pCi._typeid) + ", ID=" + (pCi.id) + "], mas a quantidade do efeito[TYPE=" + (card.Effect) + ", QNTD=" + (card.EffectValue) + "] eh invalida. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                                     356, 0x5500357));
                             }
 
@@ -14246,13 +14890,15 @@ namespace Pangya_GameServer.Game
                             }
 
                             _session.addExp(card.EffectValue);
+
+                            _smp.message_pool.getInstance().push(new message("[UseCardSpecial][Sucess] PLAYER [UID=" + (_session.m_pi.uid) + "] usou card special[TYPEID=" + (cei._typeid) + ", ID=" + (cei.id) + "] com efeito[TYPE=" + (card.Effect) + ", QNTD=" + (card.EffectValue) + ", TEMPO=" + (card.EffectTime) + "min]", type_msg.CL_FILE_LOG_AND_CONSOLE));
                             break;
                         }
                     case 4: // Pang Value
                         {
                             if ((int)card.EffectValue <= 0)
                             {
-                                throw new exception("[Channel::requestUseCardSpecial][ErrorSystem] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou usar card special[TYPEID=" + (pCi._typeid) + ", ID=" + (pCi.id) + "], mas a quantidade do efeito[TYPE=" + (card.Effect) + ", QNTD=" + (card.EffectValue) + "] é invalida. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                                throw new exception("[Channel::requestUseCardSpecial][ErrorSystem] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou usar card special[TYPEID=" + (pCi._typeid) + ", ID=" + (pCi.id) + "], mas a quantidade do efeito[TYPE=" + (card.Effect) + ", QNTD=" + (card.EffectValue) + "] eh invalida. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                                     356, 0x5500357));
                             }
 
@@ -14264,13 +14910,15 @@ namespace Pangya_GameServer.Game
                             }
 
                             _session.addPang(card.EffectValue);
+
+                            _smp.message_pool.getInstance().push(new message("[UseCardSpecial][Sucess] PLAYER [UID=" + (_session.m_pi.uid) + "] usou card special[TYPEID=" + (cei._typeid) + ", ID=" + (cei.id) + "] com efeito[TYPE=" + (card.Effect) + ", QNTD=" + (card.EffectValue) + ", TEMPO=" + (card.EffectTime) + "min]", type_msg.CL_FILE_LOG_AND_CONSOLE));
                             break;
                         }
                     case 17: // Pang Value Sorteio
                         {
                             if ((int)card.EffectValue <= 0)
                             {
-                                throw new exception("[Channel::requestUseCardSpecial][ErrorSystem] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou usar card special[TYPEID=" + (pCi._typeid) + ", ID=" + (pCi.id) + "], mas a quantidade do efeito[TYPE=" + (card.Effect) + ", QNTD=" + (card.EffectValue) + "] é invalida. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                                throw new exception("[Channel::requestUseCardSpecial][ErrorSystem] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou usar card special[TYPEID=" + (pCi._typeid) + ", ID=" + (pCi.id) + "], mas a quantidade do efeito[TYPE=" + (card.Effect) + ", QNTD=" + (card.EffectValue) + "] eh invalida. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                                     356, 0x5500357));
                             }
 
@@ -14284,6 +14932,8 @@ namespace Pangya_GameServer.Game
                             ulong pang = (ulong)(100 + ((new Random().Next() % Convert.ToInt32(card.EffectValue - 100)) + 1));
 
                             _session.addPang(pang);
+
+                            _smp.message_pool.getInstance().push(new message("[UseCardSpecial][Sucess] PLAYER [UID=" + (_session.m_pi.uid) + "] usou card special[TYPEID=" + (cei._typeid) + ", ID=" + (cei.id) + "] com efeito[TYPE=" + (card.Effect) + ", QNTD=" + (card.EffectValue) + ", TEMPO=" + (card.EffectTime) + "min]", type_msg.CL_FILE_LOG_AND_CONSOLE));
                             break;
                         }
                     // Use Card Special Effect get in Game or End Game, AND PER TIME
@@ -14326,7 +14976,10 @@ namespace Pangya_GameServer.Game
                                     355, 0x5500356));
                             }
 
-                            var pCei = _session.m_pi.findCardEquipedByTypeid(cei._typeid, 0, 0, (int)sIff.getInstance().getItemSubGroupIdentify22(cei._typeid), card.Effect);
+                            var pCei = _session.m_pi.findCardEquipedByTypeid(cei._typeid,
+                                0, 0,
+                                (int)sIff.getInstance().getItemSubGroupIdentify22(cei._typeid),
+                                card.Effect);
 
                             if (pCei != null)
                             { // já tem um card equipado, aumenta o tempo dele
@@ -14339,32 +14992,38 @@ namespace Pangya_GameServer.Game
                                     pCei.efeito = card.Effect;
                                     pCei.efeito_qntd = card.EffectValue;
                                     pCei.tipo = sIff.getInstance().getItemSubGroupIdentify22(cei._typeid);
-                                    pCei.use_date = new SYSTEMTIME(DateTime.Now); 
-                                    pCei.end_date = UtilTime.UnixToSystemTime(UtilTime.SystemTimeToUnix(pCei.use_date) + (card.EffectTime * 60));
+
+                                    pCei.use_date.CreateTime();
+                                    pCei.end_date = (UtilTime.UnixToSystemTime(UtilTime.SystemTimeToUnix(pCei.use_date.ConvertTime()) + (card.EffectTime * 60)));
                                 }
                                 else
-                                { 
-                                    // É o mesmo só aumenta o tempo
-                                    var new_end_date = (UtilTime.GetLocalTimeAsUnix() > UtilTime.SystemTimeToUnix(pCei.end_date)) ? UtilTime.GetLocalTimeAsUnix() : UtilTime.SystemTimeToUnix(pCei.end_date);
+                                { // É o mesmo só aumenta o tempo
+                                    var new_end_date = (UtilTime.GetLocalTimeAsUnix() > UtilTime.SystemTimeToUnix(pCei.use_date.ConvertTime())) ? UtilTime.GetLocalTimeAsUnix() : UtilTime.SystemTimeToUnix(pCei.end_date.ConvertTime());
 
-                                    pCei.end_date = UtilTime.UnixToSystemTime(new_end_date + (card.EffectTime * 60));
-                                     
+                                    pCei.end_date = (UtilTime.UnixToSystemTime((long)(new_end_date + (card.EffectTime * 60))));
                                 }
 
                                 // UPDATE ON DB
-                                snmdb.NormalManagerDB.getInstance().add(17, new CmdUpdateCardSpecialTime(_session.m_pi.uid, pCei), SQLDBResponse, this);
+                                snmdb.NormalManagerDB.getInstance().add(17,
+                                    new CmdUpdateCardSpecialTime(_session.m_pi.uid, pCei),
+                                    SQLDBResponse, this);
 
-                                cei = pCei; 
+                                cei = pCei;
+
                             }
                             else
-                            { 
-                                cei.use_date = new SYSTEMTIME(DateTime.Now);
-                                cei.end_date = (UtilTime.UnixToSystemTime(UtilTime.SystemTimeToUnix(cei.use_date) + (card.EffectTime * 60)));
+                            { // Não tem cria um novo e equipa
+                              // Date of Card Special
+                                cei.use_date.CreateTime();
+
+                                cei.end_date = (UtilTime.UnixToSystemTime(UtilTime.SystemTimeToUnix(cei.use_date.ConvertTime()) + (card.EffectTime * 60)));
 
                                 // UPDATE ON DB
-                                CmdEquipCard cmd_ec = new CmdEquipCard(_session.m_pi.uid, cei, card.EffectTime);
+                                CmdEquipCard cmd_ec = new CmdEquipCard(_session.m_pi.uid,
+                                    cei, card.EffectTime, true);
 
-                                snmdb.NormalManagerDB.getInstance().add(10,  cmd_ec, null, null);
+                                snmdb.NormalManagerDB.getInstance().add(10,
+                                    cmd_ec, null, null);
 
                                 if (cmd_ec.getException().getCodeError() != 0)
                                 {
@@ -14376,11 +15035,14 @@ namespace Pangya_GameServer.Game
                                 _session.m_pi.v_cei.Add(cei);
 
                                 pCei = cei;
-                            } 
+                            }
+
+                            // Use Card Special Effect in Game or End Game
+                            _smp.message_pool.getInstance().push(new message("[UseCardSpecial][Sucess] PLAYER [UID=" + (_session.m_pi.uid) + "] usou card special[TYPEID=" + (cei._typeid) + ", ID=" + (cei.id) + "] com efeito[TYPE=" + (card.Effect) + ", QNTD=" + (card.EffectValue) + ", TEMPO=" + (card.EffectTime) + "min]", type_msg.CL_FILE_LOG_AND_CONSOLE));
                             break;
                         }
                     default:
-                        throw new exception("[Channel::requestUseCardSpecial][ErrorSystem] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou usar card special[TYPEID=" + (cei._typeid) + ", ID=" + (cei.id) + "], mas card efeito[TYPE=" + (card.Effect) + ", QNTD=" + (card.EffectValue) + ", TEMPO=" + (card.EffectTime) + "min] no IFF_STRUCT do Server é desconhecido. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                        throw new exception("[Channel::requestUseCardSpecial][ErrorSystem] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou usar card special[TYPEID=" + (cei._typeid) + ", ID=" + (cei.id) + "], mas card efeito[TYPE=" + (card.Effect) + ", QNTD=" + (card.EffectValue) + ", TEMPO=" + (card.EffectTime) + "min] no IFF_STRUCT do Server eh desconhecido. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                             354, 0x5500355));
                 }
 
@@ -14388,18 +15050,13 @@ namespace Pangya_GameServer.Game
                 sys_achieve.incrementCounter(0x6C40009E);
 
                 // Resposta do Use Card Special
-                p.init_plain(0x160); 
-                p.WriteUInt32(0); // OK  
-                p.WriteUInt32(cei.id);
-                p.WriteUInt32(cei._typeid);
-                p.WriteUInt32(cei.parts_typeid);
-                p.WriteUInt32(cei.parts_id);
-                p.WriteUInt32(cei.slot);
-                p.WriteUInt32(1);       // Acho que seja o active date, como estava no meu antigo
-                p.WriteTime(cei.use_date);
-                p.WriteTime(cei.end_date);
-                p.WriteUInt16(0);		// Não sei o que é ainda
-                packet_func.session_send(p, _session, 1); 
+                p.init_plain(0x160);
+
+                p.WriteUInt32(0); // OK 
+                p.WriteBytes(cei.ToArray(false));//no opacket viee estava zerado
+                packet_func.session_send(p,
+                   _session, 1);
+
                 // UPDATE Achievement ON SERVER, DB and GAME
                 sys_achieve.finish_and_update(_session);
 
@@ -14429,8 +15086,8 @@ namespace Pangya_GameServer.Game
 
                 uint item_typeid = _packet.ReadUInt32(); // Item To Use
 
-
-
+                
+                
 
 
                 stItem item = new stItem();
@@ -14438,7 +15095,7 @@ namespace Pangya_GameServer.Game
 
                 if (item_typeid == 0)
                 {
-                    throw new exception("[Channel::requestUseItemBuff][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou usar o item[TYPEID=" + (item_typeid) + "], mas typeid é invalido(zero). Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                    throw new exception("[Channel::requestUseItemBuff][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou usar o item[TYPEID=" + (item_typeid) + "], mas typeid eh invalido(zero). Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                         400, 0x5500401));
                 }
 
@@ -14473,7 +15130,7 @@ namespace Pangya_GameServer.Game
                 }
 
                 // UPDATE ON SERVER
-                item = new stItem();
+                item.clear();
 
                 item.type = 2;
                 item.id = (int)pWi.id;
@@ -14534,6 +15191,8 @@ namespace Pangya_GameServer.Game
                     ib = pIb;
 
                     // Log
+                    _smp.message_pool.getInstance().push(new message("[UseItemBuff][Sucess] PLAYER [UID=" + (_session.m_pi.uid) + "] Atualizou o tempo do Item Buff[TYPEID=" + (ib._typeid) + ", TIPO=" + (ib.tipo) + ", PERCENT=" + (ib.percent) + "] por " + (ib.tempo.getTime() / 60) + "min", type_msg.CL_FILE_LOG_AND_CONSOLE));
+
                 }
                 else
                 { // não tem equipado cria um novo
@@ -14564,6 +15223,7 @@ namespace Pangya_GameServer.Game
                     pIb = it;
 
                     // Log
+                    _smp.message_pool.getInstance().push(new message("[UseItemBuff][Sucess] PLAYER [UID=" + (_session.m_pi.uid) + "] usou o Item Buff[TYPEID=" + (ib._typeid) + ", TIPO=" + (ib.tipo) + ", PERCENT=" + (ib.percent) + "] por " + (tli.time) + "min", type_msg.CL_FILE_LOG_AND_CONSOLE));
                 }
 
                 // UPDATE ON GAME
@@ -14608,8 +15268,8 @@ namespace Pangya_GameServer.Game
                 uint item_typeid = _packet.ReadUInt32();
                 uint ball_typeid = _packet.ReadUInt32();
 
-
-
+                
+                
 
 
                 // Carrega Comet Refill System se ele não estiver carregado
@@ -14665,11 +15325,7 @@ namespace Pangya_GameServer.Game
 
                 // Sorteia a quantidade do comet refill
                 var qntd = sCometRefillSystem.getInstance().drawsCometRefill(ctx_cr);
-                if (qntd == 0)
-                {
-                    throw new exception("[Channel::requestCometRefill][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou repreencher a Ball[TYPEID=" + (ball_typeid) + ", ID=" + (pBall.id) + "] com o Item[TYPEID=" + (item_typeid) + ", ID=" + (pItem.id) + "], zero na quantidade, mas nao tem o Comet Refill no sistema. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
-                       8, 0x5600100));
-                }
+
                 // UPDATE ON SERVER
 
                 stItem item = new stItem();
@@ -14703,6 +15359,8 @@ namespace Pangya_GameServer.Game
                     throw new exception("[Channel::requestCometRefill][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou repreencher a Ball[TYPEID=" + (ball_typeid) + ", ID=" + (pBall.id) + "] com o Item[TYPEID=" + (item_typeid) + ", ID=" + (pItem.id) + "], mas nao conseguiu atualizar quantidade da ball. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                         7, 0x5600107));
                 }
+
+                _smp.message_pool.getInstance().push(new message("[CometRefill][Sucess] PLAYER [UID=" + (_session.m_pi.uid) + "] Repreencheu a Ball[TYPEID=" + (pBall._typeid) + ", ID=" + (pBall.id) + ", QNTD={ant: " + (item.stat.qntd_ant) + ", dep: " + (item.stat.qntd_dep) + ", qntd: " + (qntd) + "}] com o Item[TYPEID=" + (pItem._typeid) + ", ID=" + (pItem.id) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
                 // UPDATE ON GAME
 
@@ -14754,14 +15412,26 @@ namespace Pangya_GameServer.Game
 
                 if (pagina <= 0)
                 {
-                    throw new exception("[Channel::requestOpenMailBox][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou abrir Mail Box[Pagina=" + (pagina) + "], mas a pagina é invalida.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                    throw new exception("[Channel::requestOpenMailBox][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou abrir Mail Box[Pagina=" + (pagina) + "], mas a pagina eh invalida.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                         6, 0x790002));
                 }
+
+#if RELEASE
+        			_smp.message_pool.getInstance().push(new message("[Channel::requestOpenMailBox][Sucess] PLAYER [UID=" + (_session.m_pi.uid) + "]\tRequest Pagina: " + (pagina) + " MailBox", type_msg.CL_FILE_LOG_AND_CONSOLE));
+#endif
+
+                
+                
+
 
                 var mails = _session.m_pi.m_mail_box.GetPage((uint)pagina);
 
                 if (mails.Any())
                 {
+
+                    //Log
+                    _smp.message_pool.getInstance().push(new message("[Channel::requestOpenMailBox][Sucess] PLAYER [UID=" + (_session.m_pi.uid)
+                                              + "] abriu o MailBox[Pagina=" + (pagina) + "] com sucesso.", type_msg.CL_FILE_LOG_AND_CONSOLE));
                     // pagina existe, envia ela
                     packet_func.session_send(packet_func.pacote211(mails, pagina, (int)_session.m_pi.m_mail_box.getTotalPages()/*cmd_mbi.getTotalPage()*/), _session);
 
@@ -14796,7 +15466,17 @@ namespace Pangya_GameServer.Game
 
                 int email_id = _packet.ReadInt32();
 
+#if RELEASE
+        			_smp.message_pool.getInstance().push(new message("[Channel::requestInfoMail][Sucess] PLAYER [UID=" + (_session.m_pi.uid) + "]\tRequest Email Info: " + (email_id), type_msg.CL_FILE_LOG_AND_CONSOLE));
+#endif
+
+                
+                
+
+
                 var email = _session.m_pi.m_mail_box.getEmailInfo(email_id);
+
+
 
                 if (email.id == 0)
                 {
@@ -14818,6 +15498,15 @@ namespace Pangya_GameServer.Game
                         throw;
                     }
                 }
+
+                // Log
+#if RELEASE
+        			_smp.message_pool.getInstance().push(new message("[Channel::requestInfoMail][Sucess] PLAYER [UID=" + (_session.m_pi.uid) + "] pediu info do Mail[ID=" + (email.id) + "] com sucesso.", type_msg.CL_FILE_LOG_AND_CONSOLE));
+#else
+                _smp.message_pool.getInstance().push(new message("[Channel::requestInfoMail][Sucess] PLAYER [UID=" + (_session.m_pi.uid) + "] pediu info do Mail[ID=" + (email.id) + "] com sucesso.", type_msg.CL_ONLY_FILE_LOG));
+#endif // RELEASE
+
+
                 packet_func.session_send(packet_func.pacote212(email),
                     _session, 1);
 
@@ -14853,28 +15542,22 @@ namespace Pangya_GameServer.Game
                 ulong pang_price = _packet.ReadUInt64();
                 byte count_item = _packet.ReadUInt8();
 
-                if (string.IsNullOrEmpty(to_nick))
-                    throw new exception("[Channel::requestSendMail][Error] PLAYER[UID=" + (_session.m_pi.uid) + "] tentou contra o server[MESSAGE="
-                            + to_nick + "], vazio. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL, 1, 1/*UNKNOWN ERROR*/));
+                
+                
 
-                if (!Tools.Sanitize(to_nick))
-                    throw new exception("[Channel::requestSendMail][Error] PLAYER[UID=" + (_session.m_pi.uid) + "] tentou contra o server[MESSAGE="
-                            + to_nick + "], tentativa de inject. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL, 1, 1/*UNKNOWN ERROR*/));
 
-                if (string.IsNullOrEmpty(to_msg))
-                    throw new exception("[Channel::requestSendMail][Error] PLAYER[UID=" + (_session.m_pi.uid) + "] tentou contra o server[MESSAGE="
-                            + to_msg + "], vazio. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL, 1, 1/*UNKNOWN ERROR*/));
-
-                if (!Tools.Sanitize(to_msg))
-                    throw new exception("[Channel::requestSendMail][Error] PLAYER[UID=" + (_session.m_pi.uid) + "] tentou contra o server[MESSAGE="
-                            + to_msg + "], tentativa de inject. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL, 1, 1/*UNKNOWN ERROR*/));
+                if (to_msg.Length == 0)
+                {
+                    throw new exception("[Channel::requestSendMail][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou enviar email para o PLAYER [UID=" + (to_uid) + "] sem nenhum recardo, a msg nao pode ser vazia", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PACKET_FUNC_SV,
+                        160, 5100091));
+                }
 
                 if (count_item > 0)
                 {
 
                     if (count_item > 4)
                     {
-                        throw new exception("[Channel::requestSendMail][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou enviar um numero[value=" + (count_item) + "] de itens é maior que o permitido. Bug ou Hacker", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PACKET_FUNC_SV,
+                        throw new exception("[Channel::requestSendMail][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou enviar um numero[value=" + (count_item) + "] de itens eh maior que o permitido. Bug ou Hacker", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PACKET_FUNC_SV,
                             150, 5100081));
                     }
 
@@ -14897,15 +15580,15 @@ namespace Pangya_GameServer.Game
 
                     var r = m_rm.findRoom((short)_session.m_pi.mi.sala_numero);
 
-                    for (var i = 0; i < count_item; ++i)
+                    for (var i = 0u; i < count_item; ++i)
                     {
 
                         var group = sIff.getInstance().getItemGroupIdentify(aItem[i]._typeid);
 
-                        if (group != IFF_GROUP.BALL
-                            && group != IFF_GROUP.CLUBSET
-                            && group != IFF_GROUP.ITEM
-                            && group != IFF_GROUP.PART)
+                        if (group != sIff.getInstance().BALL
+                            && group != sIff.getInstance().CLUBSET
+                            && group != sIff.getInstance().ITEM
+                            && group != sIff.getInstance().PART)
                         {
                             throw new exception("[Channel::requestSendMail][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou enviar um item[TYPEID=" + (aItem[i]._typeid) + ", ID=" + (aItem[i].id) + "] para o PLAYER [UID=" + (to_uid) + "], mas esse item nao pode ser enviado. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PACKET_FUNC_SV,
                                 154, 5100085));
@@ -14921,7 +15604,7 @@ namespace Pangya_GameServer.Game
 
                         if (!pBase.Shop.flag_shop.can_send_mail_and_personal_shop)
                         {
-                            throw new exception("[Channel::requestSendMail][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou enviar um item[TYPEID=" + (aItem[i]._typeid) + ", ID=" + (aItem[i].id) + "] para o PLAYER [UID=" + (to_uid) + "], mas esse item nao é permitido ser enviado por mail. Bug ou Hacker", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PACKET_FUNC_SV,
+                            throw new exception("[Channel::requestSendMail][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou enviar um item[TYPEID=" + (aItem[i]._typeid) + ", ID=" + (aItem[i].id) + "] para o PLAYER [UID=" + (to_uid) + "], mas esse item nao eh permitido ser enviado por mail. Bug ou Hacker", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PACKET_FUNC_SV,
                                 152, 5100083));
                         }
 
@@ -14931,7 +15614,7 @@ namespace Pangya_GameServer.Game
                                 156, 5100087));
                         }
 
-                        item = new stItem();
+                        item.clear();
 
                         var pWi = _session.m_pi.findWarehouseItemByTypeid(aItem[i]._typeid);
 
@@ -14950,7 +15633,7 @@ namespace Pangya_GameServer.Game
                                 1010, 0x5201010));
                         }
 
-                        if (group == PangyaAPI.IFF.JP.Models.Flags.IFF_GROUP.ITEM)
+                        if (group == sIff.getInstance().ITEM)
                         {
 
                             if (aItem[i].qntd > 99)
@@ -15045,6 +15728,13 @@ namespace Pangya_GameServer.Game
 
                     _session.m_pi.consomePang(pang_price);
 
+                    // Log
+#if RELEASE
+        				_smp.message_pool.getInstance().push(new message("[Channel::requestSendMail][Sucess] PLAYER [UID=" + (_session.m_pi.uid) + "] enviou presente para o PLAYER [UID=" + (to_uid) + "] MailBox[Email_ID=" + (msg_id) + ", Message=" + to_msg + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
+#else
+                    _smp.message_pool.getInstance().push(new message("[Channel::requestSendMail][Sucess] PLAYER [UID=" + (_session.m_pi.uid) + "] enviou presente para o PLAYER [UID=" + (to_uid) + "] MailBox[Email_ID=" + (msg_id) + ", Message=" + to_msg + "]", type_msg.CL_ONLY_FILE_LOG));
+#endif // RELEASE
+
                     // Update Pang
                     p.init_plain(0xC8);
 
@@ -15088,9 +15778,18 @@ namespace Pangya_GameServer.Game
             {
 
                 int email_id = _packet.ReadInt32();
+
+#if RELEASE
+        			_smp.message_pool.getInstance().push(new message("[Channel::requestTakeItemFrom][Sucess] PLAYER [UID=" + (_session.m_pi.uid) + "]\tMove Item from Email to armario: " + (email_id), type_msg.CL_FILE_LOG_AND_CONSOLE));
+#endif
+
+                
+                
+
+
                 // Level temporário do player para quando o player pegar Exp Pouch e 
                 // subir de level atualizar o info dele e se ele estiver na lobby atualizar para todos da lobby o level dele
-                ushort tmp_level = (ushort)_session.m_pi.mi.level;
+                ushort tmp_level = (ushort)_session.m_pi.level;
 
                 var ei = _session.m_pi.m_mail_box.getEmailInfo(email_id, false); // Não ler o email
 
@@ -15106,7 +15805,7 @@ namespace Pangya_GameServer.Game
                     for (var i = 0; i < ei.itens.Count; ++i)
                     {
 
-                        item = new stItem();
+                        item.clear();
 
                         ItemManager.initItemFromEmailItem(_session.m_pi,
                            item, ei.itens[i]);
@@ -15125,7 +15824,7 @@ namespace Pangya_GameServer.Game
                         }
 
                         // Verifica se já possui o item, o caddie item verifica se tem o caddie para depois verificar se tem o caddie item
-                        if ((sIff.getInstance().IsCanOverlapped(ei.itens[i]._typeid) && sIff.getInstance().getItemGroupIdentify(ei.itens[i]._typeid) != IFF_GROUP.CAD_ITEM) || !_session.m_pi.ownerItem(ei.itens[i]._typeid, 1))
+                        if ((sIff.getInstance().IsCanOverlapped(ei.itens[i]._typeid) && sIff.getInstance().getItemGroupIdentify(ei.itens[i]._typeid) != sIff.getInstance().CAD_ITEM) || !_session.m_pi.ownerItem(ei.itens[i]._typeid, 1))
                         {
 
                             // Verifica se o item é um SetItem
@@ -15144,7 +15843,7 @@ namespace Pangya_GameServer.Game
 
                                     foreach (var el in v_stItem)
                                     {
-                                        if ((sIff.getInstance().IsCanOverlapped(el._typeid) && sIff.getInstance().getItemGroupIdentify(el._typeid) != IFF_GROUP.CAD_ITEM) || !_session.m_pi.ownerItem(el._typeid, 1))
+                                        if ((sIff.getInstance().IsCanOverlapped(el._typeid) && sIff.getInstance().getItemGroupIdentify(el._typeid) != sIff.getInstance().CAD_ITEM) || !_session.m_pi.ownerItem(el._typeid, 1))
                                         {
                                             v_item.Add(new stItem(el));
                                         }
@@ -15161,7 +15860,7 @@ namespace Pangya_GameServer.Game
                             }
 
                         }
-                        else if (sIff.getInstance().getItemGroupIdentify(ei.itens[i]._typeid) == PangyaAPI.IFF.JP.Models.Flags.IFF_GROUP.CAD_ITEM)
+                        else if (sIff.getInstance().getItemGroupIdentify(ei.itens[i]._typeid) == sIff.getInstance().CAD_ITEM)
                         {
                             throw new exception("[Channel::requestTakeItemFrom][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou pegar um CaddieItem[TYPEID=" + (ei.itens[i]._typeid) + "] do Mail[ID=" + (email_id) + "] de um caddie que ele nao possui", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PACKET_FUNC_SV,
                                 201, 5100072));
@@ -15178,7 +15877,7 @@ namespace Pangya_GameServer.Game
 
                     // Add Item
                     var rai = ItemManager.addItem(v_item,
-                        _session.getUID(), 1, 0);
+                        _session, 1, 0);
 
                     if (rai.fails.Count > 0 && rai.type != ItemManager.RetAddItem.T_SUCCESS_PANG_AND_EXP_AND_CP_POUCH)
                     {
@@ -15209,6 +15908,12 @@ namespace Pangya_GameServer.Game
                         log_itens += "[TYPEID=" + (el._typeid) + ", ID=" + (el.id) + ", FLAG_TIME=" + ((ushort)el.flag_time) + ", QNTD=" + ((el.STDA_C_ITEM_TIME > 0 ? el.STDA_C_ITEM_TIME : el.STDA_C_ITEM_QNTD)) + ", QNTD_DEPOIS=" + (el.stat.qntd_dep) + "]";
                     }
 
+                    //#if RELEASE
+                    //        				_smp.message_pool.getInstance().push(new message("[Channel::requestTakeItemFromMail][Sucess] PLAYER [UID=" + (_session.m_pi.uid) + "] pegou item(ns)[QNTD=" + (v_item.Count) + "] do MailBox[Email_ID=" + (email_id) + "] Item(ns){" + log_itens + "}", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                    //#else
+                    //                    _smp.message_pool.getInstance().push(new message("[Channel::requestTakeItemFromMail][Sucess] PLAYER [UID=" + (_session.m_pi.uid) + "] pegou item(ns)[QNTD=" + (v_item.Count) + "] do MailBox[Email_ID=" + (email_id) + "] Item(ns){" + log_itens + "}", type_msg.CL_ONLY_FILE_LOG));
+                    //#endif // RELEASE
+
                     // UPDATE ON GAME
                     packet_func.session_send(packet_func.pacote216(v_item),
                        _session, 1);
@@ -15217,7 +15922,7 @@ namespace Pangya_GameServer.Game
                        _session, 1);
 
                     // att level no canal
-                    if (tmp_level != _session.m_pi.mi.level)
+                    if (tmp_level != _session.m_pi.level)
                     {
 
                         updatePlayerInfo(_session);
@@ -15268,8 +15973,8 @@ namespace Pangya_GameServer.Game
             try
             {
 
-
-
+                
+                
 
 
                 uint num_email = _packet.ReadUInt32();
@@ -15283,10 +15988,16 @@ namespace Pangya_GameServer.Game
 
                 if ((int)pagina <= 0)
                 {
-                    throw new exception("[Channel::requestDeleteMail][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] pedeiu para deletar email(s)[COUNT=" + (num_email) + "] da pagina(" + ((int)pagina) + "), mas a pagina é invalida.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                    throw new exception("[Channel::requestDeleteMail][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] pedeiu para deletar email(s)[COUNT=" + (num_email) + "] da pagina(" + ((int)pagina) + "), mas a pagina eh invalida.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                         6, 0x791002));
                 }
 
+                string ids = string.Join(",", a_email_id.Take((int)num_email));
+
+                _smp.message_pool.getInstance().push(new message(
+                    $"[Channel::requestDeleteMail][Sucess] Player: {_session.m_pi.uid}\tRequest delete email(s) Pagina: {pagina} Email Count: {num_email} Email(s): {ids}",
+                    type_msg.CL_ONLY_FILE_LOG
+                ));
 
                 // UPDATE ON DB
 
@@ -15343,14 +16054,8 @@ namespace Pangya_GameServer.Game
 
                 string pass = _packet.ReadString();
 
-                if (string.IsNullOrEmpty(pass))
-                    throw new exception("[Channel::requestMakePassDolfiniLocker][Error] PLAYER[UID=" + (_session.m_pi.uid) + "] tentou contra o server[MESSAGE="
-                            + pass + "], vazio. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL, 1, 1/*UNKNOWN ERROR*/));
-
-                if (!Tools.Sanitize(pass))
-                    throw new exception("[Channel::requestMakePassDolfiniLocker][Error] PLAYER[UID=" + (_session.m_pi.uid) + "] tentou contra o server[MESSAGE="
-                            + pass + "], tentativa de inject. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL, 1, 1/*UNKNOWN ERROR*/));
-
+                
+                
 
 
                 if (pass.Length == 0)
@@ -15367,6 +16072,8 @@ namespace Pangya_GameServer.Game
 
                 _session.m_pi.df.pass =
                         pass;
+
+                _smp.message_pool.getInstance().push(new message("[Dolfini Locker::MakePass][Sucess] PLAYER [UID=" + (_session.m_pi.uid) + "] Criou a senha[value=" + pass + "] do Dolfini Locker com sucesso.", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
                 p.init_plain(0x176);
 
@@ -15394,7 +16101,6 @@ namespace Pangya_GameServer.Game
             }
 
         }
-
         public void requestCheckDolfiniLockerPass(Player _session, packet _packet)
         {
             //
@@ -15406,14 +16112,8 @@ namespace Pangya_GameServer.Game
 
                 string pass = _packet.ReadString();
 
-                if (string.IsNullOrEmpty(pass))
-                    throw new exception("[Channel::requestCheckDolfiniLockerPass][Error] PLAYER[UID=" + (_session.m_pi.uid) + "] tentou contra o server[MESSAGE="
-                            + pass + "], vazio. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL, 1, 1/*UNKNOWN ERROR*/));
-
-                if (!Tools.Sanitize(pass))
-                    throw new exception("[Channel::requestCheckDolfiniLockerPass][Error] PLAYER[UID=" + (_session.m_pi.uid) + "] tentou contra o server[MESSAGE="
-                            + pass + "], tentativa de inject. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL, 1, 1/*UNKNOWN ERROR*/));
-
+                
+                
 
 
                 if (pass.Length == 0)
@@ -15462,7 +16162,6 @@ namespace Pangya_GameServer.Game
                     _session, 1);
             }
         }
-
         public void requestChangeDolfiniLockerPass(Player _session, packet _packet)
         {
             //
@@ -15475,23 +16174,15 @@ namespace Pangya_GameServer.Game
                 string old_pass = _packet.ReadString();
                 string new_pass = _packet.ReadString();
 
+                
+                
 
-                if (string.IsNullOrEmpty(old_pass))
-                    throw new exception("[Channel::requestChangeDolfiniLocker][Error] PLAYER[UID=" + (_session.m_pi.uid) + "] tentou contra o server[MESSAGE="
-                            + old_pass + "], vazio. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL, 1, 1/*UNKNOWN ERROR*/));
 
-                if (!Tools.Sanitize(old_pass))
-                    throw new exception("[Channel::requestChangeDolfiniLocker][Error] PLAYER[UID=" + (_session.m_pi.uid) + "] tentou contra o server[MESSAGE="
-                            + old_pass + "], tentativa de inject. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL, 1, 1/*UNKNOWN ERROR*/));
-
-                if (string.IsNullOrEmpty(new_pass))
-                    throw new exception("[Channel::requestChangeDolfiniLocker][Error] PLAYER[UID=" + (_session.m_pi.uid) + "] tentou contra o server[MESSAGE="
-                            + new_pass + "], vazio. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL, 1, 1/*UNKNOWN ERROR*/));
-
-                if (!Tools.Sanitize(new_pass))
-                    throw new exception("[Channel::requestChangeDolfiniLocker][Error] PLAYER[UID=" + (_session.m_pi.uid) + "] tentou contra o server[MESSAGE="
-                            + new_pass + "], tentativa de inject. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL, 1, 1/*UNKNOWN ERROR*/));
-
+                if (old_pass.Length == 0 || new_pass.Length == 0)
+                {
+                    throw new exception("[Channel::requestChangeDolfiniLocker][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou trocar a senha, mas old_pass[value=" + old_pass + "] or new_pass[value=" + new_pass + "] is empty. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                        300, 5100201));
+                }
 
                 if (old_pass.Length > 4 || new_pass.Length > 4)
                 {
@@ -15539,7 +16230,6 @@ namespace Pangya_GameServer.Game
                     _session, 1);
             }
         }
-
         public void requestChangeDolfiniLockerModeEnter(Player _session, packet _packet)
         {
             //
@@ -15552,8 +16242,8 @@ namespace Pangya_GameServer.Game
                 byte locker = _packet.ReadUInt8();
                 string pass = _packet.ReadString();
 
-
-
+                
+                
 
 
                 if (pass.Length == 0)
@@ -15564,7 +16254,7 @@ namespace Pangya_GameServer.Game
 
                 if (pass.Length > 4)
                 {
-                    throw new exception("[Channel::requestChangeDolfiniLockerModeEnter][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou trocar o modo de entrar no dolfini locker, mas o tamanho da senha é maior que o permitido. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                    throw new exception("[Channel::requestChangeDolfiniLockerModeEnter][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou trocar o modo de entrar no dolfini locker, mas o tamanho da senha eh maior que o permitido. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                         351, 5100252));
                 }
 
@@ -15608,7 +16298,6 @@ namespace Pangya_GameServer.Game
                     _session, 1);
             }
         }
-
         public void requestDolfiniLockerItem(Player _session, packet _packet)
         {
             //
@@ -15623,8 +16312,8 @@ namespace Pangya_GameServer.Game
                 uint opt = _packet.ReadUInt32();
                 ushort pagina = _packet.ReadUInt16();
 
-
-
+                
+                
 
 
                 ushort paginas = 0;
@@ -15676,7 +16365,6 @@ namespace Pangya_GameServer.Game
                     _session, 1);
             }
         }
-
         public void requestDolfiniLockerPang(Player _session, packet _packet)
         {
             //
@@ -15686,8 +16374,8 @@ namespace Pangya_GameServer.Game
             try
             {
 
-
-
+                
+                
 
 
                 p.init_plain(0x172);
@@ -15711,7 +16399,6 @@ namespace Pangya_GameServer.Game
                     _session, 1);
             }
         }
-
         public void requestUpdateDolfiniLockerPang(Player _session, packet _packet)
         {
             //
@@ -15724,8 +16411,8 @@ namespace Pangya_GameServer.Game
                 byte opt = _packet.ReadUInt8();
                 ulong pang = _packet.ReadUInt64();
 
-
-
+                
+                
 
 
                 if (opt == 1)
@@ -15805,7 +16492,6 @@ namespace Pangya_GameServer.Game
                     _session, 1);
             }
         }
-
         public void requestAddDolfiniLockerItem(Player _session, packet _packet)
         {
             //
@@ -15828,16 +16514,16 @@ namespace Pangya_GameServer.Game
                     aTI[index] = new DolfiniLockerItem().ToRead(_packet);
 
 
+                
+                
 
 
-
-
-                uint char_typeid = 0;
-                uint i = 0;
+                uint char_typeid = 0u;
+                uint i = 0u;
 
                 var r = m_rm.findRoom((short)_session.m_pi.mi.sala_numero);
 
-                for (i = 0; i < count; ++i)
+                for (i = 0u; i < count; ++i)
                 {
 
                     // Verifica se o player está com shop aberto e se está vendendo o item no shop
@@ -15849,9 +16535,9 @@ namespace Pangya_GameServer.Game
                             1010, 0x5201010));
                     }
 
-                    if (sIff.getInstance().getItemGroupIdentify(aTI[i].item._typeid) != IFF_GROUP.PART)
+                    if (sIff.getInstance().getItemGroupIdentify(aTI[i].item._typeid) != sIff.getInstance().PART)
                     {
-                        throw new exception("[Channel::requestAddDolfiniLockerItem][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou colocar um item[TYPEID=" + (aTI[i].item._typeid) + "] no Dolfini Locker que nao é um IFF::PART.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                        throw new exception("[Channel::requestAddDolfiniLockerItem][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou colocar um item[TYPEID=" + (aTI[i].item._typeid) + "] no Dolfini Locker que nao eh um IFF::PART.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                             500, 109));
                     }
 
@@ -15865,7 +16551,7 @@ namespace Pangya_GameServer.Game
 
                     if (part.type_item == PART_TYPE.UCC_DRAW_ONLY || part.type_item == PART_TYPE.UCC_COPY_ONLY) // Não pode colocar o part original[value=8] e nem cópia[value=9]
                     {
-                        throw new exception("[Channel::requestAddDolfiniLockerItem][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou colocar um Self Design Original/Copy item[TYPEID=" + (aTI[i].item._typeid) + ", ID=" + (aTI[i].item.id) + "] no Dolfini Locker, mas nao é permitido", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                        throw new exception("[Channel::requestAddDolfiniLockerItem][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou colocar um Self Design Original/Copy item[TYPEID=" + (aTI[i].item._typeid) + ", ID=" + (aTI[i].item.id) + "] no Dolfini Locker, mas nao eh permitido", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                             505, 5100406));
                     }
 
@@ -15967,7 +16653,7 @@ namespace Pangya_GameServer.Game
 
                 p.WriteUInt32(0); // Unknown, ainda não sei que membro é esse da estrutura
 
-                for (i = 0; i < count; ++i)
+                for (i = 0u; i < count; ++i)
                 {
                     p.WriteBytes(aTI[i].item.ToArray());
                 }
@@ -15975,7 +16661,7 @@ namespace Pangya_GameServer.Game
                 packet_func.session_send(p,
                     _session, 1);
 
-                for (i = 0; i < count; ++i)
+                for (i = 0u; i < count; ++i)
                 {
                     p.init_plain(0x16E);
 
@@ -16013,7 +16699,6 @@ namespace Pangya_GameServer.Game
                 }
             }
         }
-
         public void requestRemoveDolfiniLockerItem(Player _session, packet _packet)
         {
             //
@@ -16037,9 +16722,9 @@ namespace Pangya_GameServer.Game
                 for (int index = 0; index < count; index++)
                     aTI[index] = new DolfiniLockerItem().ToRead(_packet);
 
-                uint i = 0;
+                uint i = 0u;
 
-                for (i = 0; i < count; ++i)
+                for (i = 0u; i < count; ++i)
                 {
 
                     // Encontra o índice do item com ID correspondente
@@ -16097,7 +16782,7 @@ namespace Pangya_GameServer.Game
 
                 p.WriteUInt32(0); // Unknown, ainda não sei o que é esse membro na estrutura
 
-                for (i = 0; i < count; ++i)
+                for (i = 0u; i < count; ++i)
                 {
 
                     p.WriteBytes(aTI[i].item.ToArray());//é 168 bytes
@@ -16110,7 +16795,7 @@ namespace Pangya_GameServer.Game
                 packet_func.session_send(p,
                     _session, 1);
 
-                for (i = 0; i < count; ++i)
+                for (i = 0u; i < count; ++i)
                 {
                     p.init_plain(0x16F);
 
@@ -16157,7 +16842,6 @@ namespace Pangya_GameServer.Game
                 }
             }
         }
-
         public void requestOpenLegacyTikiShop(Player _session, packet _packet)
         {
             //
@@ -16174,8 +16858,8 @@ namespace Pangya_GameServer.Game
         			_smp.message_pool.getInstance().push(new message("[Channel::requestOpenLegacyTikiShop][Sucess] PLAYER [UID=" + (_session.m_pi.uid) + "]. Packet raw: " + _packet.Log(), type_msg.CL_FILE_LOG_AND_CONSOLE));
 #endif // RELEASE
 
-
-
+                
+                
 
 
                 if (_session.m_pi.block_flag.m_flag.legacy_tiki_shop)
@@ -16205,7 +16889,6 @@ namespace Pangya_GameServer.Game
                     _session, 1);
             }
         }
-
         public void requestPointLegacyTikiShop(Player _session, packet _packet)
         {
             //
@@ -16222,8 +16905,8 @@ namespace Pangya_GameServer.Game
         			_smp.message_pool.getInstance().push(new message("[Channel::requestPointLegacyTikiShop][Sucess] PLAYER [UID=" + (_session.m_pi.uid) + "]. Packet raw: " + _packet.Log(), type_msg.CL_FILE_LOG_AND_CONSOLE));
 #endif // RELEASE
 
-
-
+                
+                
 
 
                 if (_session.m_pi.block_flag.m_flag.legacy_tiki_shop)
@@ -16255,7 +16938,6 @@ namespace Pangya_GameServer.Game
                     _session, 1);
             }
         }
-
         public void requestExchangeTPByItemLegacyTikiShop(Player _session, packet _packet)
         {
             //
@@ -16273,8 +16955,8 @@ namespace Pangya_GameServer.Game
         			_smp.message_pool.getInstance().push(new message("[Channel::requestExchangeTPByItemLegacyTikiShop][Sucess] PLAYER [UID=" + (_session.m_pi.uid) + "]. Packet raw: " + _packet.Log(), type_msg.CL_FILE_LOG_AND_CONSOLE));
 #endif // RELEASE
 
-
-
+                
+                
 
 
                 if (_session.m_pi.block_flag.m_flag.legacy_tiki_shop)
@@ -16292,7 +16974,7 @@ namespace Pangya_GameServer.Game
                 };
 
 
-                uint tiki_pts = 0;
+                uint tiki_pts = 0u;
 
                 // Log String Item
                 string s_item = "";
@@ -16309,7 +16991,7 @@ namespace Pangya_GameServer.Game
 
                 var r = m_rm.findRoom((short)_session.m_pi.mi.sala_numero);
 
-                for (var i = 0; i < count; ++i)
+                for (var i = 0u; i < count; ++i)
                 {
                     tsei = new stLegacyTikiShopExchangeItem().ToRead(_packet);
 
@@ -16323,7 +17005,7 @@ namespace Pangya_GameServer.Game
 
                     if (!@base.tiki.IsActived())
                     {
-                        throw new exception("[Channel::ExchangeTPByItemLegacyTikiShop][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou trocar item[TYPEID=" + (tsei._typeid) + ", ID=" + (tsei.id) + "] no Tiki's Shop, mas o item nao é valido para ser trocado. Hacker ou Bug.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                        throw new exception("[Channel::ExchangeTPByItemLegacyTikiShop][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou trocar item[TYPEID=" + (tsei._typeid) + ", ID=" + (tsei.id) + "] no Tiki's Shop, mas o item nao eh valido para ser trocado. Hacker ou Bug.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                             904, 0x5200905));
                     }
 
@@ -16348,7 +17030,7 @@ namespace Pangya_GameServer.Game
                     // Soma dados de tiki dos itens
                     tiki_pts += (uint)(dados_tiki.Item2 * tsei.qntd);
 
-                    v_item.AddRange(_item);
+                    v_item.AddRange(_item); 
                 }
 
 
@@ -16391,8 +17073,8 @@ namespace Pangya_GameServer.Game
                     p.WriteUInt32(el._typeid);
                     p.WriteInt32(el.id);
                     p.WriteUInt32(el.flag_time);
-                    p.WriteBytes(el.stat.ToArray());
-                    p.WriteInt32((el.STDA_C_ITEM_TIME > 0) ? el.STDA_C_ITEM_TIME : el.STDA_C_ITEM_QNTD);
+                    p.WriteBytes(el.stat.ToArray()); 
+                    p.WriteInt32((el.STDA_C_ITEM_TIME > 0) ? el.STDA_C_ITEM_TIME32 : el.STDA_C_ITEM_QNTD32);
                     p.WriteZeroByte(25); // 10 PCL[C0~C4] 2 Bytes cada, 15 bytes desconhecido
                 }
 
@@ -16425,7 +17107,6 @@ namespace Pangya_GameServer.Game
                     _session, 1);
             }
         }
-
         public void requestExchangeItemByTPLegacyTikiShop(Player _session, packet _packet)
         {
             //
@@ -16443,8 +17124,8 @@ namespace Pangya_GameServer.Game
         			_smp.message_pool.getInstance().push(new message("[Channel::requestExchangeItemByTPLegacyTikiShop][Sucess] PLAYER [UID=" + (_session.m_pi.uid) + "]. Packet raw: " + _packet.Log(), type_msg.CL_FILE_LOG_AND_CONSOLE));
 #endif // RELEASE
 
-
-
+                
+                
 
 
                 if (_session.m_pi.block_flag.m_flag.legacy_tiki_shop)
@@ -16453,7 +17134,7 @@ namespace Pangya_GameServer.Game
                         4000, 1));
                 }
 
-                uint tiki_pts = 0;
+                uint tiki_pts = 0u;
 
                 // Log String Item
                 string s_item = "";
@@ -16469,7 +17150,7 @@ namespace Pangya_GameServer.Game
 
                 uint count = _packet.ReadUInt8();
 
-                for (var i = 0; i < count; ++i)
+                for (var i = 0u; i < count; ++i)
                 {
 
                     tsetp = new stLegacyTikiShopExchangeTP().ToRead(_packet);
@@ -16534,7 +17215,7 @@ namespace Pangya_GameServer.Game
 
                 // Add os itens
                 var rai = ItemManager.addItem(v_item,
-                    _session.getUID(), 0, 0);
+                    _session, 0, 0);
 
                 if (rai.fails.Count > 0 && rai.type != ItemManager.RetAddItem.T_SUCCESS_PANG_AND_EXP_AND_CP_POUCH)
                 {
@@ -16554,7 +17235,7 @@ namespace Pangya_GameServer.Game
                            .Append(", ID=")
                            .Append(fail.id)
                            .Append(", QNTD=")
-                           .Append((fail.qntd > 0xFFu) ? fail.qntd : fail.STDA_C_ITEM_QNTD);
+                           .Append((fail.qntd > 0xFFu) ? fail.qntd : fail.STDA_C_ITEM_QNTD32);
 
                         if (fail.STDA_C_ITEM_TIME > 0)
                             str.Append(", TEMPO=").Append(fail.STDA_C_ITEM_TIME);
@@ -16586,7 +17267,7 @@ namespace Pangya_GameServer.Game
                     p.WriteInt32(el.id);
                     p.WriteUInt32(el.flag_time);
                     p.WriteBytes(el.stat.ToArray());
-                    p.WriteInt32((el.STDA_C_ITEM_TIME > 0) ? el.STDA_C_ITEM_TIME : el.STDA_C_ITEM_QNTD);
+                    p.WriteInt32((el.STDA_C_ITEM_TIME > 0) ? el.STDA_C_ITEM_TIME32 : el.STDA_C_ITEM_QNTD32);
                     p.WriteZeroByte(25); // 10 PCL[C0~C4] 2 Bytes cada, 15 bytes desconhecido
                 }
 
@@ -16619,7 +17300,6 @@ namespace Pangya_GameServer.Game
                     _session, 1);
             }
         }
-
         public void requestOpenEditSaleShop(Player _session, packet _packet)
         {
             //
@@ -16627,8 +17307,8 @@ namespace Pangya_GameServer.Game
             try
             {
 
-
-
+                
+                
 
 
 
@@ -16662,7 +17342,6 @@ namespace Pangya_GameServer.Game
                 }
             }
         }
-
         public void requestCloseSaleShop(Player _session, packet _packet)
         {
             //
@@ -16670,8 +17349,8 @@ namespace Pangya_GameServer.Game
             try
             {
 
-
-
+                
+                
 
 
 
@@ -16702,7 +17381,6 @@ namespace Pangya_GameServer.Game
                 }
             }
         }
-
         public void requestChangeNameSaleShop(Player _session, packet _packet)
         {
             //
@@ -16710,8 +17388,8 @@ namespace Pangya_GameServer.Game
             try
             {
 
-
-
+                
+                
 
 
 
@@ -16742,7 +17420,6 @@ namespace Pangya_GameServer.Game
                 }
             }
         }
-
         public void requestOpenSaleShop(Player _session, packet _packet)
         {
             //
@@ -16750,8 +17427,8 @@ namespace Pangya_GameServer.Game
             try
             {
 
-
-
+                
+                
 
 
 
@@ -16782,7 +17459,6 @@ namespace Pangya_GameServer.Game
                 }
             }
         }
-
         public void requestVisitCountSaleShop(Player _session, packet _packet)
         {
             //
@@ -16790,8 +17466,8 @@ namespace Pangya_GameServer.Game
             try
             {
 
-
-
+                
+                
 
 
 
@@ -16822,7 +17498,6 @@ namespace Pangya_GameServer.Game
                 }
             }
         }
-
         public void requestPangSaleShop(Player _session, packet _packet)
         {
             //
@@ -16830,8 +17505,8 @@ namespace Pangya_GameServer.Game
             try
             {
 
-
-
+                
+                
 
 
 
@@ -16862,7 +17537,6 @@ namespace Pangya_GameServer.Game
                 }
             }
         }
-
         public void requestCancelEditSaleShop(Player _session, packet _packet)
         {
             //
@@ -16870,8 +17544,8 @@ namespace Pangya_GameServer.Game
             try
             {
 
-
-
+                
+                
 
 
 
@@ -16910,8 +17584,8 @@ namespace Pangya_GameServer.Game
             try
             {
 
-
-
+                
+                
 
 
 
@@ -16950,8 +17624,8 @@ namespace Pangya_GameServer.Game
             try
             {
 
-
-
+                
+                
 
 
 
@@ -16982,7 +17656,6 @@ namespace Pangya_GameServer.Game
                 }
             }
         }
-
         public void requestBuyItemSaleShop(Player _session, packet _packet)
         {
             //
@@ -16990,8 +17663,8 @@ namespace Pangya_GameServer.Game
             try
             {
 
-
-
+                
+                
 
 
 
@@ -17022,7 +17695,6 @@ namespace Pangya_GameServer.Game
                 }
             }
         }
-
         public void requestOpenPapelShop(Player _session, packet _packet)
         {
             //
@@ -17032,8 +17704,8 @@ namespace Pangya_GameServer.Game
             try
             {
 
-
-
+                
+                
 
 
                 // Verifica se ele pode entrar no papel shop
@@ -17066,7 +17738,6 @@ namespace Pangya_GameServer.Game
                     _session, 1);
             }
         }
-
         public void requestPlayPapelShop(Player _session, packet _packet)
         {
             PangyaBinaryWriter p = new PangyaBinaryWriter();
@@ -17079,9 +17750,9 @@ namespace Pangya_GameServer.Game
                     throw new exception("[Channel::requestPlayPapelShop][Error] PLAYER [UID=" + (_session.m_pi.uid)
                             + "] tentou jogar no Papel Shop, mas ele nao pode. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL, 3, 0x790001));
 
-                if (_session.m_pi.mi.level < 1)
+                if (_session.m_pi.level < 1)
                     throw new exception("[Channel::requestPlayPapelShop][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou jogar o Papel Shop Normal, mas nao tem o level necessario[level="
-                            + (_session.m_pi.mi.level) + ", request=1]", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL, 8, 0x5900108));
+                            + (_session.m_pi.level) + ", request=1]", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL, 8, 0x5900108));
 
                 if (!sPapelShopSystem.getInstance().isLoad())
                     sPapelShopSystem.getInstance().load();
@@ -17151,7 +17822,7 @@ namespace Pangya_GameServer.Game
                     ids += ((i == 0) ? ("") : (", ")) + "TYPEID=" + (v_item[i]._typeid) + ", ID=" + (v_item[i].id) + ", QNTD=" + (v_item[i].qntd);
 
                 // Add ao Server e DB
-                var rai = ItemManager.addItem(v_item, _session.getUID(), 0, 0);
+                var rai = ItemManager.addItem(v_item, _session, 0, 0);
 
                 if (rai.fails.Count() > 0 && rai.type != ItemManager.RetAddItem.T_SUCCESS_PANG_AND_EXP_AND_CP_POUCH)
                     throw new exception("[Channel::requestPlayPapelShop][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou jogar o Papel Shop Normal, mas nao conseguiu adicionar o(s) Item(ns){"
@@ -17160,7 +17831,7 @@ namespace Pangya_GameServer.Game
                 // Delete Coupon e coloca no List de att item, se tiver coupon
                 if (coupon != null)
                 {
-                    item = new stItem();
+                    item.clear();
 
                     item.type = 2;
                     item.id = coupon.id;
@@ -17187,7 +17858,9 @@ namespace Pangya_GameServer.Game
                 {
                     if (el.ctx_psi.tipo == PAPEL_SHOP_TYPE.PST_RARE)
                     {
-
+                        _smp.message_pool.getInstance().push(new message("[PapelShopSystem::PlayNormal][Sucess] PLAYER [UID=" + (_session.m_pi.uid) + "] ganhou Item Raro[TYPEID="
+                                + (el.ctx_psi._typeid) + ", QNTD=" + (el.qntd) + ", BALL_COLOR=" + (el.color) + ", PROBABILIDADE=" + (el.ctx_psi.probabilidade) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                        // Adiciona +1 ao contador de item Rare Win no Papel Shop
                         sys_achieve.incrementCounter(0x6C400081u/*Rare Win*/);
 
                         snmdb.NormalManagerDB.getInstance().add(19, new CmdInsertPapelShopRareWinLog(_session.m_pi.uid, el), SQLDBResponse, this);
@@ -17198,6 +17871,9 @@ namespace Pangya_GameServer.Game
 
                 // Add +1 ao contador de jogo ao play Palpel Shop
                 sys_achieve.incrementCounter(0x6C40004Au/*Play Papel Shop*/);
+
+                // Log
+                _smp.message_pool.getInstance().push(new message("[PapelShopSystem::PlayNormal][Sucess] PLAYER [UID=" + (_session.m_pi.uid) + "] jogou Papel Shop Normal e ganhou Item(ns){" + ids + "}", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
                 // UPDATE ON GAME
                 p.init_plain(0x216);
@@ -17212,7 +17888,7 @@ namespace Pangya_GameServer.Game
                     p.WriteInt32(el.id);
                     p.WriteUInt32(el.flag_time);
                     p.WriteBytes(el.stat.ToArray());
-                    p.WriteInt32((el.STDA_C_ITEM_TIME > 0) ? el.STDA_C_ITEM_TIME : el.STDA_C_ITEM_QNTD);
+                    p.WriteInt32((el.STDA_C_ITEM_TIME > 0) ? el.STDA_C_ITEM_TIME32 : el.STDA_C_ITEM_QNTD32);
                     p.WriteZero(25);  // C[0~4] 10 Bytes e mais outras coisas, que tem na struct stItem216 explicando
                 }
                 packet_func.session_send(p, _session);
@@ -17281,17 +17957,17 @@ namespace Pangya_GameServer.Game
             try
             {
 
-
-
+                
+                
 
 
                 if (_session.m_pi.block_flag.m_flag.papel_shop)
                     throw new exception("[Channel::requestPlayBigPapelShop][Error] PLAYER [UID=" + (_session.m_pi.uid)
                             + "] tentou jogar no Papel Shop, mas ele nao pode. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL, 3, 0x790001));
 
-                if (_session.m_pi.mi.level < 1)
+                if (_session.m_pi.level < 1)
                     throw new exception("[Channel::requestPlayBigPapelShop][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou jogar o Papel Shop Big, mas nao tem o level necessario[level="
-                            + (_session.m_pi.mi.level) + ", request=1]", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL, 8, 0x5900108));
+                            + (_session.m_pi.level) + ", request=1]", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL, 8, 0x5900108));
 
                 if (!sPapelShopSystem.getInstance().isLoad())
                     sPapelShopSystem.getInstance().load();
@@ -17357,10 +18033,10 @@ namespace Pangya_GameServer.Game
                 string ids = "";
 
                 for (var i = 0; i < v_item.Count(); ++i)
-                    ids += ((i == 0) ? "" : ", " + "TYPEID=" + (v_item[i]._typeid) + ", ID=" + (v_item[i].id) + ", QNTD=" + (v_item[i].STDA_C_ITEM_QNTD));
+                    ids += ((i == 0) ? "" : ", " + "TYPEID=" + (v_item[i]._typeid) + ", ID=" + (v_item[i].id) + ", QNTD=" + (v_item[i].STDA_C_ITEM_QNTD32));
 
                 // Add ao Server e DB
-                var rai = ItemManager.addItem(v_item, _session.getUID(), 0, 0);
+                var rai = ItemManager.addItem(v_item, _session, 0, 0);
 
                 if (rai.fails.Count() > 0 && rai.type != ItemManager.RetAddItem.T_SUCCESS_PANG_AND_EXP_AND_CP_POUCH)
                     throw new exception("[Channel::requestPlayBigPapelShop][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou jogar o Papel Shop Big, mas nao conseguiu adicionar o(s) Item(ns){"
@@ -17377,6 +18053,9 @@ namespace Pangya_GameServer.Game
                 {
                     if (el.ctx_psi.tipo == PAPEL_SHOP_TYPE.PST_RARE)
                     {
+                        _smp.message_pool.getInstance().push(new message("[PapelShopSystem::PlayBig][Sucess] PLAYER [UID=" + (_session.m_pi.uid) + "] ganhou Item Raro[TYPEID="
+                                + (el.ctx_psi._typeid) + ", QNTD=" + (el.qntd) + ", BALL_COLOR=" + (el.color) + ", PROBABILIDADE=" + (el.ctx_psi.probabilidade) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
+
                         // Add +1 ao contador de item Rare Win no Papel Shop
                         sys_achieve.incrementCounter(0x6C400081u /*Rare Win*/);
 
@@ -17389,6 +18068,9 @@ namespace Pangya_GameServer.Game
 
                 // Add +1 ao contador de jogo ao play Palpel Shop
                 sys_achieve.incrementCounter(0x6C40004Au/*Play Papel Shop*/);
+
+                // Log
+                _smp.message_pool.getInstance().push(new message("[PapelShopSystem::PlayBig][Sucess] PLAYER [UID=" + (_session.m_pi.uid) + "] jogou Papel Shop Big e ganhou Item(ns){" + ids + "}", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
                 // UPDATE ON GAME
 
@@ -17415,7 +18097,7 @@ namespace Pangya_GameServer.Game
                     p.WriteInt32(el.id);
                     p.WriteUInt32(el.flag_time);
                     p.WriteBytes(el.stat.ToArray());
-                    p.WriteInt32((el.STDA_C_ITEM_TIME > 0) ? el.STDA_C_ITEM_TIME : el.STDA_C_ITEM_QNTD);
+                    p.WriteInt32((el.STDA_C_ITEM_TIME > 0) ? el.STDA_C_ITEM_TIME32 : el.STDA_C_ITEM_QNTD32);
                     p.WriteZeroByte(25);  // C[0~4] 10 Bytes e mais outras coisas, que tem na struct stItem216 explicando
                 }
 
@@ -17491,6 +18173,8 @@ namespace Pangya_GameServer.Game
 
             try
             {
+
+
                 var r = m_rm.findRoom((short)_session.m_pi.mi.sala_numero);
 
                 if (r == null)
@@ -17499,7 +18183,14 @@ namespace Pangya_GameServer.Game
                         18, 0));
                 }
 
-                packet_func.room_broadcast(r, packet_func.pacote040(_session.m_pi.nickname, _msg, ((_session.m_pi.m_cap.game_master) ? eChatMsg.CHAT_GM : 0)), 0);
+
+
+                packet_func.room_broadcast(r,
+                     packet_func.pacote040(_session.m_pi.nickname, _msg,
+                    ((_session.m_pi.m_cap.game_master) ? eChatMsg.CHAT_GM : 0)), 0);
+
+
+
             }
             catch (exception e)
             {
@@ -17510,11 +18201,10 @@ namespace Pangya_GameServer.Game
                 throw;
             }
         }
-
         public void sendUpdateRoomInfo(RoomInfoEx _ri, int _option)
         {
 
-            if (_ri.getTipo() != RoomInfo.ROOM_INFO_TYPE.PRACTICE && _ri.getTipo() != RoomInfo.ROOM_INFO_TYPE.GRAND_ZODIAC_PRACTICE)
+            if (_ri.getTipo() != RoomInfo.TIPO.PRACTICE && _ri.getTipo() != RoomInfo.TIPO.GRAND_ZODIAC_PRACTICE)
             { // No modo practice não envia o pacote47, que é a criação de sala visual na lobby
 
                 packet_func.channel_broadcast(this,
@@ -17549,7 +18239,7 @@ namespace Pangya_GameServer.Game
                 // Kick All of Room And Automatic Room Destroyed
                 var v_sessions = r.getSessions();
 
-                if (v_sessions.Count == 0)
+                if (v_sessions.empty())
                 {
 
                     RoomInfoEx ri = r.getInfo();
@@ -17623,10 +18313,15 @@ namespace Pangya_GameServer.Game
                         packet_func.pacote047(
                     new List<RoomInfoEx>() { r.getInfo() },
                         3), 1);
-                 
+
+                // Log
+                _smp.message_pool.getInstance().push(new message("[Channel::_enter_left_time_is_over][Sucess] Channel[ID=" + ((ushort)c.getId()) + "] Tempo para entrar na sala[NUMERO=" + (numero) + "] depois de ter comecado Acabou.", type_msg.CL_FILE_LOG_AND_CONSOLE));
+
+
             }
             catch (exception e)
             {
+
                 _smp.message_pool.getInstance().push(new message("[Channel::_enter_left_time_is_over][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
@@ -17636,7 +18331,7 @@ namespace Pangya_GameServer.Game
 
             if (_ici.room_number < 0)
             {
-                throw new exception("[Channel::addInviteTimeRequest][Error] Channel[ID=" + ((ushort)m_ci.id) + "] tentou adicionar Invite Time Request[INVITE=" + (_ici.invite_uid) + ", INVITED=" + (_ici.invited_uid) + "] para sala[NUMERO=" + (_ici.room_number) + "], mas o numero da sala é invalido. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
+                throw new exception("[Channel::addInviteTimeRequest][Error] Channel[ID=" + ((ushort)m_ci.id) + "] tentou adicionar Invite Time Request[INVITE=" + (_ici.invite_uid) + ", INVITED=" + (_ici.invited_uid) + "] para sala[NUMERO=" + (_ici.room_number) + "], mas o numero da sala eh invalido. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL,
                     3010, 0));
             }
 
@@ -17652,12 +18347,12 @@ namespace Pangya_GameServer.Game
                     3010, 2));
             }
 
-
+            Monitor.Enter(m_cs_invite);
 
 
             v_invite.Add(_ici);
 
-
+            Monitor.Exit(m_cs_invite);
 
         }
 
@@ -17667,7 +18362,7 @@ namespace Pangya_GameServer.Game
             {
                 throw new exception("[Channel::deleteInviteTimeRequest][Error] Channel[ID=" + ((ushort)m_ci.id) +
                     "] tentou deletar Invite Time Request[INVITE=" + _ici.invite_uid + ", INVITED=" + _ici.invited_uid +
-                    "] para sala[NUMERO=" + _ici.room_number + "], mas o numero da sala é invalido. Hacker ou Bug",
+                    "] para sala[NUMERO=" + _ici.room_number + "], mas o numero da sala eh invalido. Hacker ou Bug",
                     ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL, 3011, 0));
             }
 
@@ -17687,7 +18382,7 @@ namespace Pangya_GameServer.Game
                     ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL, 3011, 2));
             }
 
-
+            Monitor.Enter(m_cs_invite);
 
             try
             {
@@ -17711,7 +18406,7 @@ namespace Pangya_GameServer.Game
             }
             finally
             {
-
+                Monitor.Exit(m_cs_invite);
             }
         }
 
@@ -17721,7 +18416,7 @@ namespace Pangya_GameServer.Game
             try
             {
 
-
+                Monitor.Enter(m_cs_invite);
 
                 for (var i = 0; i < v_invite.Count; ++i)
                 {
@@ -17745,14 +18440,14 @@ namespace Pangya_GameServer.Game
                     }
                 }
 
-
+                Monitor.Exit(m_cs_invite);
 
 
             }
             catch (exception e)
             {
 
-
+                Monitor.Exit(m_cs_invite);
 
 
                 _smp.message_pool.getInstance().push(new message("[Channel::deleteInviteTimeRequestByInvited][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
@@ -17764,11 +18459,11 @@ namespace Pangya_GameServer.Game
 
             // Libera o Critical Section do invite, e bloqueia assim que pegar a sala
 
-
+            Monitor.Exit(m_cs_invite);
 
             var r = m_rm.findRoom((short)_ici.room_number);
 
-
+            Monitor.Enter(m_cs_invite);
 
             // InviteChannelInfo não é mais um invite válido, ele já foi excluido
             if (!v_invite.Contains(_ici))
@@ -17844,11 +18539,11 @@ namespace Pangya_GameServer.Game
 
             int index = -1;
 
-            //Monitor.Exit(m_cs);
+            Monitor.Enter(m_cs);
 
             if ((index = findIndexSession(_session)) == -1)
             {
-                //Monitor.Exit(m_cs);
+                Monitor.Exit(m_cs);
                 return;
             }
 
@@ -17863,7 +18558,7 @@ namespace Pangya_GameServer.Game
 
             deletePlayerInfo(_session);
 
-            //Monitor.Exit(m_cs);
+            Monitor.Exit(m_cs);
         }
 
         public void addSession(Player _session)
@@ -17875,7 +18570,7 @@ namespace Pangya_GameServer.Game
                     3, 1));
             }
 
-            //Monitor.Exit(m_cs);
+            Monitor.Enter(m_cs);
 
             v_sessions.Add(_session);
 
@@ -17888,37 +18583,37 @@ namespace Pangya_GameServer.Game
             // Calcula a condição do player e o sexo
             // Só faz calculo de Quita rate depois que o player
             // estiver no level Beginner E e jogado 50 games
-            if (_session.m_pi.mi.level >= 6 && _session.m_pi.ui.jogado >= 50)
+            if (_session.m_pi.level >= 6 && _session.m_pi.ui.jogado >= 50)
             {
                 float rate = _session.m_pi.ui.getQuitRate();
 
                 if (rate < GOOD_PLAYER_ICON)
                 {
-                    _session.m_pi.mi.state_flag.azinha = 1;
+                    _session.m_pi.mi.state_flag.azinha = true;
                 }
                 else if (rate >= QUITER_ICON_1 && rate < QUITER_ICON_2)
                 {
-                    _session.m_pi.mi.state_flag.quiter_1 = 1;
+                    _session.m_pi.mi.state_flag.quiter_1 = true;
                 }
                 else if (rate >= QUITER_ICON_2)
                 {
-                    _session.m_pi.mi.state_flag.quiter_2 = 1;
+                    _session.m_pi.mi.state_flag.quiter_2 = true;
                 }
             }
 
             if (_session.m_pi.ei.char_info != null && _session.m_pi.ui.getQuitRate() < GOOD_PLAYER_ICON)
             {
-                _session.m_pi.mi.state_flag.icon_angel = _session.m_pi.ei.char_info.AngelEquiped();
+                _session.m_pi.mi.state_flag.icon_angel = _session.m_pi.ei.char_info.AngelEquiped() == 1;
             }
             else
             {
-                _session.m_pi.mi.state_flag.icon_angel = 0;
+                _session.m_pi.mi.state_flag.icon_angel = false;
             }
-            _session.m_pi.mi.sexo = (byte)(_session.m_pi.mi.state_flag.sexo);
+            _session.m_pi.mi.sexo = (byte)(_session.m_pi.mi.state_flag.sexo == true ? 1 : 0);
 
             makePlayerInfo(_session);
 
-            //Monitor.Exit(m_cs);
+            Monitor.Exit(m_cs);
         }
 
         public Player findSessionByOID(uint _oid)
@@ -17962,12 +18657,12 @@ namespace Pangya_GameServer.Game
                 uid = _session.m_pi.uid,
                 oid = _session.m_oid,
                 sala_numero = _session.m_pi.mi.sala_numero,
-                level = (byte)_session.m_pi.mi.level,
-                capability = _session.m_pi.m_cap,
+                level = (byte)_session.m_pi.level,
+                capability =  _session.m_pi.m_cap,
                 nickname = _session.m_pi.nickname,
                 sDisplayID = "@NT_" + _session.m_pi.nickname,
                 title = _session.m_pi.ue.m_title,
-                ladder_point = 1000,
+                team_point = 1000,
                 guild_index_mark = _session.m_pi.gi.index_mark_emblem,
                 guild_uid = _session.m_pi.gi.uid,
                 guild_mark_img = _session.m_pi.gi.mark_emblem,
@@ -17975,7 +18670,7 @@ namespace Pangya_GameServer.Game
             };
             // Só faz calculo de Quita rate depois que o player
             // estiver no level Beginner E e jogado 50 games
-            if (_session.m_pi.mi.level >= 6 && _session.m_pi.ui.jogado >= 50)
+            if (_session.m_pi.level >= 6 && _session.m_pi.ui.jogado >= 50)
             {
                 float rate = _session.m_pi.ui.getQuitRate();
 
@@ -18018,8 +18713,8 @@ namespace Pangya_GameServer.Game
             pci.uid = _session.m_pi.uid;
             pci.oid = _session.m_oid;
             pci.sala_numero = _session.m_pi.mi.sala_numero;
-            pci.level = (byte)_session.m_pi.mi.level;
-            pci.ladder_point = 1000;
+            pci.level = (byte)_session.m_pi.level;
+            pci.team_point = 1000;
             pci.flag_visible_gm = Convert.ToInt16(_session.m_pi.mi.state_flag.visible);
             pci.capability = _session.m_pi.m_cap;
             pci.title = _session.m_pi.ue.m_title;
@@ -18028,7 +18723,7 @@ namespace Pangya_GameServer.Game
             pci.guild_mark_img = _session.m_pi.gi.mark_emblem;
             // Só faz calculo de Quita rate depois que o player
             // estiver no level Beginner E e jogado 50 games
-            if (_session.m_pi.mi.level >= 6 && _session.m_pi.ui.jogado >= 50)
+            if (_session.m_pi.level >= 6 && _session.m_pi.ui.jogado >= 50)
             {
                 float rate = _session.m_pi.ui.getQuitRate();
 
@@ -18078,10 +18773,6 @@ namespace Pangya_GameServer.Game
                     {
                         if (r != null) //comandos em sala
                         {
-                            if (cmd == "@add")
-                            {
-
-                            }
                             if (cmd == ("@notice") || cmd == ("@noticia"))
                             {
                                 string msg = "notice";
@@ -18104,12 +18795,12 @@ namespace Pangya_GameServer.Game
 
                             if (cmd == ("@bot") && r.getNumPlayers() == 1 && !r.IsStarted())
                             {
-                                if (!r.IsWithBot() && !r.IsRoomGM() && r.getInfo().getTipo() == RoomInfo.ROOM_INFO_TYPE.STROKE || r.getInfo().getTipo() == RoomInfo.ROOM_INFO_TYPE.TOURNEY || r.getInfo().getTipo() == RoomInfo.ROOM_INFO_TYPE.SPECIAL_SHUFFLE_COURSE)
+                                if (!r.IsWithBot() && r.getInfo().getTipo() == RoomInfo.TIPO.TOURNEY || r.getInfo().getTipo() == RoomInfo.TIPO.SPECIAL_SHUFFLE_COURSE)
                                 {
 
                                     try
                                     {
-                                        r.setSenha("bot");
+                                        r.setSenha("by_luismk");
                                         r.makeBot(_session);
                                         if (r.IsWithBot())
                                         {
@@ -18133,7 +18824,7 @@ namespace Pangya_GameServer.Game
                                 }
                                 return false;
                             }
-                            if (cmd == ("@play") && r.getNumPlayers() > 1 && !r.isGaming() && (r.getInfo().getTipo() == RoomInfo.ROOM_INFO_TYPE.STROKE || r.getInfo().getTipo() == RoomInfo.ROOM_INFO_TYPE.MATCH || r.getInfo().getTipo() == RoomInfo.ROOM_INFO_TYPE.TOURNEY || r.getInfo().getTipo() == RoomInfo.ROOM_INFO_TYPE.SPECIAL_SHUFFLE_COURSE))
+                            if (cmd == ("@play") && r.getNumPlayers() > 1 && !r.isGaming() && (r.getInfo().getTipo() == RoomInfo.TIPO.STROKE || r.getInfo().getTipo() == RoomInfo.TIPO.MATCH || r.getInfo().getTipo() == RoomInfo.TIPO.TOURNEY || r.getInfo().getTipo() == RoomInfo.TIPO.SPECIAL_SHUFFLE_COURSE))
                             {
                                 r.SetAllReady();//inicia tudo mundo aqui
                                                 // Send Message
@@ -18148,7 +18839,7 @@ namespace Pangya_GameServer.Game
 
                                 return true;
                             }
-                            if (cmd == ("@big_char") && r.getInfo().getTipo() == RoomInfo.ROOM_INFO_TYPE.LOUNGE)
+                            if (cmd == ("@big_char") && r.getInfo().getTipo() == RoomInfo.TIPO.LOUNGE)
                             {
                                 var it = (_session.m_pi.ei.char_info == null) ? _session.m_pi.mp_scl.Last() : _session.m_pi.mp_scl.find(_session.m_pi.ei.char_info.id);
                                 if (it.Value.scale_head > 0)
@@ -18173,7 +18864,7 @@ namespace Pangya_GameServer.Game
 
                                 }
                             }
-                            if (cmd == ("@speed_char") && r.getInfo().getTipo() == RoomInfo.ROOM_INFO_TYPE.LOUNGE)
+                            if (cmd == ("@speed_char") && r.getInfo().getTipo() == RoomInfo.TIPO.LOUNGE)
                             {
                                 var it = (_session.m_pi.ei.char_info == null) ? _session.m_pi.mp_scl.Last() : _session.m_pi.mp_scl.find(_session.m_pi.ei.char_info.id);
                                 if (it.Value.scale_head > 0)
@@ -18198,7 +18889,7 @@ namespace Pangya_GameServer.Game
 
                                 }
                             }
-                            if (cmd == ("@un_char") && r.getInfo().getTipo() == RoomInfo.ROOM_INFO_TYPE.LOUNGE)
+                            if (cmd == ("@un_char") && r.getInfo().getTipo() == RoomInfo.TIPO.LOUNGE)
                             {
                                 var it = (_session.m_pi.ei.char_info == null) ? _session.m_pi.mp_scl.Last() : _session.m_pi.mp_scl.find(_session.m_pi.ei.char_info.id);
                                 if (it.Value.scale_head > 0)
@@ -18223,7 +18914,7 @@ namespace Pangya_GameServer.Game
 
                                 }
                             }
-                            if (cmd == ("@cam_char") && r.getInfo().getTipo() == RoomInfo.ROOM_INFO_TYPE.LOUNGE)
+                            if (cmd == ("@cam_char") && r.getInfo().getTipo() == RoomInfo.TIPO.LOUNGE)
                             {
                                 var it = (_session.m_pi.ei.char_info == null) ? _session.m_pi.mp_scl.Last() : _session.m_pi.mp_scl.find(_session.m_pi.ei.char_info.id);
                                 if (it.Value.scale_head > 0)
@@ -18247,7 +18938,7 @@ namespace Pangya_GameServer.Game
 
                                 }
                             }
-                            if (cmd == ("@wind") && (r.getInfo().getTipo() == RoomInfo.ROOM_INFO_TYPE.GRAND_PRIX || r.getInfo().getTipo() == RoomInfo.ROOM_INFO_TYPE.MATCH || r.getInfo().getTipo() == RoomInfo.ROOM_INFO_TYPE.STROKE || r.getInfo().getTipo() == RoomInfo.ROOM_INFO_TYPE.TOURNEY || r.getInfo().getTipo() == RoomInfo.ROOM_INFO_TYPE.LOUNGE) || r.getInfo().getTipo() == RoomInfo.ROOM_INFO_TYPE.SPECIAL_SHUFFLE_COURSE || r.getInfo().getTipo() == RoomInfo.ROOM_INFO_TYPE.PRACTICE || r.getInfo().getTipo() == RoomInfo.ROOM_INFO_TYPE.GRAND_ZODIAC_PRACTICE)
+                            if (cmd == ("@wind") && (r.getInfo().getTipo() == RoomInfo.TIPO.GRAND_PRIX || r.getInfo().getTipo() == RoomInfo.TIPO.MATCH || r.getInfo().getTipo() == RoomInfo.TIPO.STROKE || r.getInfo().getTipo() == RoomInfo.TIPO.TOURNEY || r.getInfo().getTipo() == RoomInfo.TIPO.LOUNGE) || r.getInfo().getTipo() == RoomInfo.TIPO.SPECIAL_SHUFFLE_COURSE || r.getInfo().getTipo() == RoomInfo.TIPO.PRACTICE || r.getInfo().getTipo() == RoomInfo.TIPO.GRAND_ZODIAC_PRACTICE)
                             {
                                 if (_command.Count < 2)
                                     return false; // não tem argumentos suficientes
@@ -18280,7 +18971,7 @@ namespace Pangya_GameServer.Game
 
                                 return true;
                             }
-                            if (cmd == ("@weather") && (r.getInfo().getTipo() == RoomInfo.ROOM_INFO_TYPE.MATCH || r.getInfo().getTipo() == RoomInfo.ROOM_INFO_TYPE.STROKE || r.getInfo().getTipo() == RoomInfo.ROOM_INFO_TYPE.TOURNEY || r.getInfo().getTipo() == RoomInfo.ROOM_INFO_TYPE.LOUNGE) || r.getInfo().getTipo() == RoomInfo.ROOM_INFO_TYPE.SPECIAL_SHUFFLE_COURSE || r.getInfo().getTipo() == RoomInfo.ROOM_INFO_TYPE.PRACTICE || r.getInfo().getTipo() == RoomInfo.ROOM_INFO_TYPE.GRAND_ZODIAC_PRACTICE)
+                            if (cmd == ("@weather") && (r.getInfo().getTipo() == RoomInfo.TIPO.MATCH || r.getInfo().getTipo() == RoomInfo.TIPO.STROKE || r.getInfo().getTipo() == RoomInfo.TIPO.TOURNEY || r.getInfo().getTipo() == RoomInfo.TIPO.LOUNGE) || r.getInfo().getTipo() == RoomInfo.TIPO.SPECIAL_SHUFFLE_COURSE || r.getInfo().getTipo() == RoomInfo.TIPO.PRACTICE || r.getInfo().getTipo() == RoomInfo.TIPO.GRAND_ZODIAC_PRACTICE)
                             {
                                 ushort m_weather_lounge = 0;
 
@@ -18315,7 +19006,7 @@ namespace Pangya_GameServer.Game
                                 p.init_plain(0x9E);
 
                                 p.WriteUInt16(m_weather_lounge);
-                                p.WriteByte(1);  // type ou indicação de GM
+                                p.WriteByte(1);  // flag ou indicação de GM
 
                                 packet_func.room_broadcast(r, p, 1);
 
@@ -18367,7 +19058,7 @@ namespace Pangya_GameServer.Game
                                     if (el.m_pi.lobby != 255)
                                     {
                                         // Limpa item
-                                        item = new stItem();
+                                        item.clear();
 
                                         ItemManager.initItemFromBuyItem(el.m_pi, item, bi, false, 0, 0, 1);
 
@@ -18452,7 +19143,7 @@ namespace Pangya_GameServer.Game
                                     if (el.m_pi.lobby != 255)
                                     {
                                         // Limpa item
-                                        item = new stItem();
+                                        item.clear();
 
                                         ItemManager.initItemFromBuyItem(el.m_pi, item, bi, false, 0, 0, 1);
 
@@ -18490,9 +19181,38 @@ namespace Pangya_GameServer.Game
                     {
                         if (r != null)
                         {
+                            if (cmd == ("@bot_vip") && r.getNumPlayers() == 1 && !r.IsStarted())
+                            {
+                                if (!r.IsWithBot() && r.getInfo().getTipo() == RoomInfo.TIPO.TOURNEY || r.getInfo().getTipo() == RoomInfo.TIPO.SPECIAL_SHUFFLE_COURSE)
+                                {
+
+                                    try
+                                    {
+                                        r.sendUpdate();
+                                        r.makeBot(_session);
+                                        if (r.IsWithBot())
+                                        {
+                                            // Send Message
+                                            p.init_plain(0x40); // Msg to Chat of player
+
+                                            p.WriteByte(7); // Notice
+
+                                            p.WriteString("@INI3");
+                                            p.WriteString("\\c0xff00ff00\\cCall bot by chat.");
+                                            packet_func.session_send(p, _session, 1);
+                                        }
+                                        return true;
+                                    }
+                                    catch (exception)
+                                    {
+                                        return false;
+                                    }
+                                }
+                                return false;
+                            }
                             if (cmd == ("@bot") && r.getNumPlayers() == 1 && !r.IsStarted())
                             {
-                                if (!r.IsWithBot() && r.getInfo().getTipo() == RoomInfo.ROOM_INFO_TYPE.STROKE || r.getInfo().getTipo() == RoomInfo.ROOM_INFO_TYPE.TOURNEY || r.getInfo().getTipo() == RoomInfo.ROOM_INFO_TYPE.SPECIAL_SHUFFLE_COURSE)
+                                if (!r.IsWithBot() && r.getInfo().getTipo() == RoomInfo.TIPO.TOURNEY || r.getInfo().getTipo() == RoomInfo.TIPO.SPECIAL_SHUFFLE_COURSE)
                                 {
 
                                     try
@@ -18520,6 +19240,68 @@ namespace Pangya_GameServer.Game
                                     }
                                 }
                                 return false;
+                            }
+                            if (cmd == ("@gift") || cmd == ("@presente"))
+                            {
+                                uint item_typeid = 0;
+                                uint item_qntd = 0;
+                                item_typeid = uint.Parse(_command.Dequeue());
+                                item_qntd = uint.Parse(_command.Dequeue());
+
+                                if (item_typeid == 0)
+                                    throw new exception("[Channel::CommandByChat][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou enviar presente para todos o Item[TYPEID=" + (item_typeid) + "QNTD = "
+                                        + (item_qntd) + "], mas item is invalid. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 3, 0x5700100));
+
+                                if (item_qntd > 20000u)
+                                    throw new exception("[Channel::CommandByChat][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou enviar presente para todos o Item[TYPEID=" + (item_typeid) + "QNTD = "
+                                        + (item_qntd) + "], mas a quantidade passa de 20mil. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 4, 0x5700100));
+
+                                var @base = sIff.getInstance().findCommomItem(item_typeid);
+
+                                if (@base == null)
+                                    throw new exception("[Channel::CommandByChat][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou enviar presente para todos o Item[TYPEID=" + (item_typeid) + "QNTD = "
+                                        + (item_qntd) + "], mas o item nao existe no IFF_STRUCT do Server. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 6, 0));
+
+                                stItem item = new stItem();
+                                BuyItem bi = new BuyItem();
+
+                                bi.id = -1;
+                                bi._typeid = item_typeid;
+                                bi.qntd = item_qntd;
+
+                                var msg = ("GM Command Chat");
+
+                                foreach (var el in v_sessions)
+                                {
+                                    if (el.m_pi.lobby != 255)
+                                    {
+                                        // Limpa item
+                                        item.clear();
+
+                                        ItemManager.initItemFromBuyItem(el.m_pi, item, bi, false, 0, 0, 1);
+
+                                        if (item._typeid == 0)
+                                            throw new exception("[Channel::CommandByChat][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou enviar presente para todos o Item[TYPEID=" + (item_typeid) + "QNTD = "
+                                                + (item_qntd) + "], mas nao conseguiu inicializar o item. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 5, 0));
+
+                                        if (MailBoxManager.sendMessageWithItem(0, el.m_pi.uid, msg, item) <= 0)
+                                            throw new exception("[Channel::CommandByChat][Error] PLAYER [UID=" + (_session.m_pi.uid) + "] tentou enviar presente para o PLAYER [UID="
+                                                + (el.m_pi.uid) + "] o Item[TYPEID=" + (item_typeid) + ", QNTD="
+                                                + (item_qntd) + "], mas nao conseguiu colocar o item no mail box dele. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 7, 0));
+                                    }
+                                }
+
+                                // Send Message
+                                p.init_plain(0x40); // Msg to Chat of player
+
+                                p.WriteByte(7); // Notice
+
+                                p.WriteString("@INI3");
+                                p.WriteString("\\c0xff00ff00\\cGM Send Gift");
+
+                                packet_func.session_send(p, _session, 1);
+
+                                return true;
                             }
                         }
                     }
@@ -18589,10 +19371,9 @@ namespace Pangya_GameServer.Game
                     _session, 1);
             }
         }
-
         public void SQLDBResponse(int _msg_id,
-                Pangya_DB _pangya_db,
-                    object _arg)
+        Pangya_DB _pangya_db,
+            object _arg)
         {
 
             if (_arg == null)
@@ -18615,7 +19396,7 @@ namespace Pangya_GameServer.Game
                     {
                         var cmd_udlp = Tools.reinterpret_cast<CmdUpdateDolfiniLockerPass>(_pangya_db);
 
-                        // _smp.message_pool.getInstance().push(new message("[Channel::SQLDBResponse][Sucess] Atualizou a senha[value=" + cmd_udlp.getPass() + "] do Dolfini Locker do PLAYER [UID=" + (cmd_udlp.getUID()) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                        _smp.message_pool.getInstance().push(new message("[Channel::SQLDBResponse][Sucess] Atualizou a senha[value=" + cmd_udlp.getPass() + "] do Dolfini Locker do PLAYER [UID=" + (cmd_udlp.getUID()) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
                         break;
                     }
@@ -18623,7 +19404,7 @@ namespace Pangya_GameServer.Game
                     {
                         var cmd_udlm = Tools.reinterpret_cast<CmdUpdateDolfiniLockerMode>(_pangya_db);
 
-                        // _smp.message_pool.getInstance().push(new message("[Channel::SQLDBResponse][Sucess] Atualizou o Modo[locker=" + ((ushort)cmd_udlm.getLocker()) + "] do Dolfini Locker do PLAYER [UID=" + (cmd_udlm.getUID()) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                        _smp.message_pool.getInstance().push(new message("[Channel::SQLDBResponse][Sucess] Atualizou o Modo[locker=" + ((ushort)cmd_udlm.getLocker()) + "] do Dolfini Locker do PLAYER [UID=" + (cmd_udlm.getUID()) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
                         break;
                     }
@@ -18631,7 +19412,7 @@ namespace Pangya_GameServer.Game
                     {
                         var cmd_udlp = Tools.reinterpret_cast<CmdUpdateDolfiniLockerPang>(_pangya_db);
 
-                        // _smp.message_pool.getInstance().push(new message("[Channel::SQLDBResponse][Sucess] Atualizou o Pang[value=" + (cmd_udlp.getPang()) + "] do Dolfini Locker do PLAYER [UID=" + (cmd_udlp.getUID()) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                        _smp.message_pool.getInstance().push(new message("[Channel::SQLDBResponse][Sucess] Atualizou o Pang[value=" + (cmd_udlp.getPang()) + "] do Dolfini Locker do PLAYER [UID=" + (cmd_udlp.getUID()) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
                         break;
                     }
@@ -18639,7 +19420,7 @@ namespace Pangya_GameServer.Game
                     {
                         var cmd_ddli = Tools.reinterpret_cast<CmdDeleteDolfiniLockerItem>(_pangya_db);
 
-                        // _smp.message_pool.getInstance().push(new message("[Channel::SQLDBResponse][Sucess] Deletou o Dolfini Locker Item[index=" + (cmd_ddli.getIndex()) + "] do PLAYER [UID=" + (cmd_ddli.getUID()) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                        _smp.message_pool.getInstance().push(new message("[Channel::SQLDBResponse][Sucess] Deletou o Dolfini Locker Item[index=" + (cmd_ddli.getIndex()) + "] do PLAYER [UID=" + (cmd_ddli.getUID()) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
                         break;
                     }
@@ -18647,62 +19428,70 @@ namespace Pangya_GameServer.Game
                     {
                         var cmd_er = Tools.reinterpret_cast<CmdExtendRental>(_pangya_db);
 
-                        // _smp.message_pool.getInstance().push(new message("[Channel::SQLDBResponse][Sucess] Extendeu Part Rental[ID=" + (cmd_er.getItemID()) + "] ate o a date[value=" + cmd_er.getDate() + "] para o PLAYER [UID=" + (cmd_er.getUID()) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                        _smp.message_pool.getInstance().push(new message("[Channel::SQLDBResponse][Sucess] Extendeu Part Rental[ID=" + (cmd_er.getItemID()) + "] ate o a date[value=" + cmd_er.getDate() + "] para o PLAYER [UID=" + (cmd_er.getUID()) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
                         break;
                     }
                 case 6: // Delete Part Rental
                     {
                         var cmd_dr = Tools.reinterpret_cast<CmdDeleteRental>(_pangya_db);
 
-                        // _smp.message_pool.getInstance().push(new message("[Channel::SQLDBResponse][Sucess] Deletou Part Rental[ID=" + (cmd_dr.getItemID()) + "] do PLAYER [UID=" + (cmd_dr.getUID()) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                        _smp.message_pool.getInstance().push(new message("[Channel::SQLDBResponse][Sucess] Deletou Part Rental[ID=" + (cmd_dr.getItemID()) + "] do PLAYER [UID=" + (cmd_dr.getUID()) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
                         break;
                     }
                 case 7: // Update Character PCL
                     {
                         var cmd_ucp = Tools.reinterpret_cast<CmdUpdateCharacterPCL>(_pangya_db);
 
-                        // _smp.message_pool.getInstance().push(new message("[Channel::SQLDBResponse][Sucess] Atualizou Character[TYPEID=" + (cmd_ucp.getInfo()._typeid) + ", ID=" + (cmd_ucp.getInfo().id) + "] PCL[C0=" + ((ushort)cmd_ucp.getInfo().pcl[(int)CharacterInfo.Stats.S_POWER]) + ", C1=" + ((ushort)cmd_ucp.getInfo().pcl[(int)CharacterInfo.Stats.S_CONTROL]) + ", C2=" + ((ushort)cmd_ucp.getInfo().pcl[(int)CharacterInfo.Stats.S_ACCURACY]) + ", C3=" + ((ushort)cmd_ucp.getInfo().pcl[(int)CharacterInfo.Stats.S_SPIN]) + ", C4=" + ((ushort)cmd_ucp.getInfo().pcl[(int)CharacterInfo.Stats.S_CURVE]) + "] do PLAYER [UID=" + (cmd_ucp.getUID()) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                        _smp.message_pool.getInstance().push(new message("[Channel::SQLDBResponse][Sucess] Atualizou Character[TYPEID=" + (cmd_ucp.getInfo()._typeid) + ", ID=" + (cmd_ucp.getInfo().id) + "] PCL[C0=" + ((ushort)cmd_ucp.getInfo().pcl[(int)CharacterInfo.Stats.S_POWER]) + ", C1=" + ((ushort)cmd_ucp.getInfo().pcl[(int)CharacterInfo.Stats.S_CONTROL]) + ", C2=" + ((ushort)cmd_ucp.getInfo().pcl[(int)CharacterInfo.Stats.S_ACCURACY]) + ", C3=" + ((ushort)cmd_ucp.getInfo().pcl[(int)CharacterInfo.Stats.S_SPIN]) + ", C4=" + ((ushort)cmd_ucp.getInfo().pcl[(int)CharacterInfo.Stats.S_CURVE]) + "] do PLAYER [UID=" + (cmd_ucp.getUID()) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
                         break;
                     }
                 case 8: // Update ClubSet Stats
                     {
                         var cmd_ucss = Tools.reinterpret_cast<CmdUpdateClubSetStats>(_pangya_db);
 
-                        // _smp.message_pool.getInstance().push(new message("[Channel::SQLDBResponse][Sucess] Atualizou ClubSet[TYPEID=" + (cmd_ucss.getInfo()._typeid) + ", ID=" + (cmd_ucss.getInfo().id) + "] Stats[C0=" + ((ushort)cmd_ucss.getInfo().c[(int)CharacterInfo.Stats.S_POWER]) + ", C1=" + ((ushort)cmd_ucss.getInfo().c[(int)CharacterInfo.Stats.S_CONTROL]) + ", C2=" + ((ushort)cmd_ucss.getInfo().c[(int)CharacterInfo.Stats.S_ACCURACY]) + ", C3=" + ((ushort)cmd_ucss.getInfo().c[(int)CharacterInfo.Stats.S_SPIN]) + ", C4=" + ((ushort)cmd_ucss.getInfo().c[(int)CharacterInfo.Stats.S_CURVE]) + "] do PLAYER [UID=" + (cmd_ucss.getUID()) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                        _smp.message_pool.getInstance().push(new message("[Channel::SQLDBResponse][Sucess] Atualizou ClubSet[TYPEID=" + (cmd_ucss.getInfo()._typeid) + ", ID=" + (cmd_ucss.getInfo().id) + "] Stats[C0=" + ((ushort)cmd_ucss.getInfo().c[(int)CharacterInfo.Stats.S_POWER]) + ", C1=" + ((ushort)cmd_ucss.getInfo().c[(int)CharacterInfo.Stats.S_CONTROL]) + ", C2=" + ((ushort)cmd_ucss.getInfo().c[(int)CharacterInfo.Stats.S_ACCURACY]) + ", C3=" + ((ushort)cmd_ucss.getInfo().c[(int)CharacterInfo.Stats.S_SPIN]) + ", C4=" + ((ushort)cmd_ucss.getInfo().c[(int)CharacterInfo.Stats.S_CURVE]) + "] do PLAYER [UID=" + (cmd_ucss.getUID()) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
                         break;
                     }
                 case 9: // Update Character Mastery
                     {
                         var cmd_ucm = Tools.reinterpret_cast<CmdUpdateCharacterMastery>(_pangya_db);
 
-                        // _smp.message_pool.getInstance().push(new message("[Channel::SQLDBResponse][Sucess] Atualizou Character[TYPEID=" + (cmd_ucm.getInfo()._typeid) + ", ID=" + (cmd_ucm.getInfo().id) + "] Mastery[value=" + (cmd_ucm.getInfo().mastery) + "] do PLAYER [UID=" + (cmd_ucm.getUID()) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                        _smp.message_pool.getInstance().push(new message("[Channel::SQLDBResponse][Sucess] Atualizou Character[TYPEID=" + (cmd_ucm.getInfo()._typeid) + ", ID=" + (cmd_ucm.getInfo().id) + "] Mastery[value=" + (cmd_ucm.getInfo().mastery) + "] do PLAYER [UID=" + (cmd_ucm.getUID()) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
                         break;
                     }
                 case 10: // Equipa Card
                     {
                         var cmd_ec = Tools.reinterpret_cast<CmdEquipCard>(_pangya_db);
 
-                        // _smp.message_pool.getInstance().push(new message("[Channel::SQLDBResponse][Sucess] Equipou Card[TYPEID=" + (cmd_ec.getInfo()._typeid) + "] no Character[TYPEID=" + (cmd_ec.getInfo().parts_typeid) + ", ID=" + (cmd_ec.getInfo().parts_id) + "] do PLAYER [UID=" + (cmd_ec.getUID()) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                        _smp.message_pool.getInstance().push(new message("[Channel::SQLDBResponse][Sucess] Equipou Card[TYPEID=" + (cmd_ec.getInfo()._typeid) + "] no Character[TYPEID=" + (cmd_ec.getInfo().parts_typeid) + ", ID=" + (cmd_ec.getInfo().parts_id) + "] do PLAYER [UID=" + (cmd_ec.getUID()) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
                         break;
                     }
                 case 11: // Desequipa Card
                     {
                         var cmd_rec = Tools.reinterpret_cast<CmdRemoveEquipedCard>(_pangya_db);
+
+                        _smp.message_pool.getInstance().push(new message("[Channel::SQLDBResponse][Sucess] Desequipou Card[TYPEID=" + (cmd_rec.getInfo()._typeid) + "] do Character[TYPEID=" + (cmd_rec.getInfo().parts_typeid) + ", ID=" + (cmd_rec.getInfo().parts_id) + "] do PLAYER [UID=" + (cmd_rec.getUID()) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
                         break;
                     }
                 case 12: // Update ClubSet Workshop
                     {
                         var cmd_ucw = Tools.reinterpret_cast<CmdUpdateClubSetWorkshop>(_pangya_db);
+
+                        _smp.message_pool.getInstance().push(new message("[Channel::SQLDBResponse][Sucess] PLAYER [UID=" + (cmd_ucw.getUID()) + "] Atualizou ClubSet[TYPEID=" + (cmd_ucw.getInfo()._typeid) + ", ID=" + (cmd_ucw.getInfo().id) + "] Workshop[C0=" + (cmd_ucw.getInfo().clubset_workshop.c[0]) + ", C1=" + (cmd_ucw.getInfo().clubset_workshop.c[1]) + ", C2=" + (cmd_ucw.getInfo().clubset_workshop.c[2]) + ", C3=" + (cmd_ucw.getInfo().clubset_workshop.c[3]) + ", C4=" + (cmd_ucw.getInfo().clubset_workshop.c[4]) + ", Level=" + (cmd_ucw.getInfo().clubset_workshop.level) + ", Mastery=" + (cmd_ucw.getInfo().clubset_workshop.mastery) + ", Rank=" + (cmd_ucw.getInfo().clubset_workshop.rank) + ", Recovery=" + (cmd_ucw.getInfo().clubset_workshop.recovery_pts) + "] Flag=" + (cmd_ucw.getFlag()) + "", type_msg.CL_FILE_LOG_AND_CONSOLE));
                         break;
                     }
                 case 13: // Update Tutorial
                     {
                         var cmd_ut = Tools.reinterpret_cast<CmdUpdateTutorial>(_pangya_db);
+
+                        _smp.message_pool.getInstance().push(new message("[Channel::SQLDBResponse][Sucess] PLAYER [UID=" + (cmd_ut.getUID()) + "] Atualizou Tutorial[Rookie=" + (cmd_ut.getInfo().rookie) + ", Beginner=" + (cmd_ut.getInfo().beginner) + ", Advancer=" + (cmd_ut.getInfo().advancer) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
                         break;
                     }
                 case 14: // Tutorial Event Clear
                     {
                         var cmd_tec = Tools.reinterpret_cast<CmdTutoEventClear>(_pangya_db);
+
+                        _smp.message_pool.getInstance().push(new message("[Channel::SQLDBResponse][Sucess] PLAYER [UID=" + (cmd_tec.getUID()) + "] Concluiu Tutorial Event[Type=" + (cmd_tec.getType()) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
                         break;
                     }
                 case 15: // Use Item Buff
@@ -18714,35 +19503,35 @@ namespace Pangya_GameServer.Game
                     {
                         var cmd_uib = Tools.reinterpret_cast<CmdUpdateItemBuff>(_pangya_db);
 
-                        //// _smp.message_pool.getInstance().push(new message("[Channel::SQLDBResponse][Sucess] PLAYER [UID=" + (cmd_uib.getUID()) + "] Atualizou o tempo do Item Buff[INDEX=" + (cmd_uib.getInfo().index) + ", TYPEID=" + (cmd_uib.getInfo()._typeid) + ", TIPO=" + (cmd_uib.getInfo().tipo) + ", DATE{REG_DT: " + _formatDate(cmd_uib.getInfo().use_date) + ", END_DT: " + _formatDate(cmd_uib.getInfo().end_date) + "}]", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                        // _smp.message_pool.getInstance().push(new message("[Channel::SQLDBResponse][Sucess] PLAYER [UID=" + (cmd_uib.getUID()) + "] Atualizou o tempo do Item Buff[INDEX=" + (cmd_uib.getInfo().index) + ", TYPEID=" + (cmd_uib.getInfo()._typeid) + ", TIPO=" + (cmd_uib.getInfo().tipo) + ", DATE{REG_DT: " + _formatDate(cmd_uib.getInfo().use_date) + ", END_DT: " + _formatDate(cmd_uib.getInfo().end_date) + "}]", type_msg.CL_FILE_LOG_AND_CONSOLE));
                         break;
                     }
                 case 17: // Update Card Special Time
                     {
                         var cmd_ucst = Tools.reinterpret_cast<CmdUpdateCardSpecialTime>(_pangya_db);
 
-                        // // _smp.message_pool.getInstance().push(new message("[Channel::SQLDBResponse][Sucess] PLAYER [UID=" + (cmd_ucst.getUID()) + "] Atualizou o tempo do Card Special[index=" + (cmd_ucst.getInfo().index) + ", TYPEID=" + (cmd_ucst.getInfo()._typeid) + ", EFEITO{TYPE: " + (cmd_ucst.getInfo().efeito) + ", QNTD: " + (cmd_ucst.getInfo().efeito_qntd) + "}, TIPO=" + (cmd_ucst.getInfo().tipo) + ", DATE{REG_DT: " + _formatDate(cmd_ucst.getInfo().use_date) + ", END_DT: " + _formatDate(cmd_ucst.getInfo().end_date) + "}]", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                        //  _smp.message_pool.getInstance().push(new message("[Channel::SQLDBResponse][Sucess] PLAYER [UID=" + (cmd_ucst.getUID()) + "] Atualizou o tempo do Card Special[index=" + (cmd_ucst.getInfo().index) + ", TYPEID=" + (cmd_ucst.getInfo()._typeid) + ", EFEITO{TYPE: " + (cmd_ucst.getInfo().efeito) + ", QNTD: " + (cmd_ucst.getInfo().efeito_qntd) + "}, TIPO=" + (cmd_ucst.getInfo().tipo) + ", DATE{REG_DT: " + _formatDate(cmd_ucst.getInfo().use_date) + ", END_DT: " + _formatDate(cmd_ucst.getInfo().end_date) + "}]", type_msg.CL_FILE_LOG_AND_CONSOLE));
                         break;
                     }
                 case 18: // Update Player Papel Shop Limit
                     {
                         var cmd_upsl = Tools.reinterpret_cast<CmdUpdatePapelShopInfo>(_pangya_db);
 
-                        // _smp.message_pool.getInstance().push(new message("[Channel::SQLDBResponse][Sucess] PLAYER [UID=" + (cmd_upsl.getUID()) + "] Atualizou o Papel Shop Limit[current_cnt=" + (cmd_upsl.getInfo().current_count) + ", remain_cnt=" + (cmd_upsl.getInfo().remain_count) + ", limit_cnt=" + (cmd_upsl.getInfo().limit_count) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                        _smp.message_pool.getInstance().push(new message("[Channel::SQLDBResponse][Sucess] PLAYER [UID=" + (cmd_upsl.getUID()) + "] Atualizou o Papel Shop Limit[current_cnt=" + (cmd_upsl.getInfo().current_count) + ", remain_cnt=" + (cmd_upsl.getInfo().remain_count) + ", limit_cnt=" + (cmd_upsl.getInfo().limit_count) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
                         break;
                     }
                 case 19: // Insert Papel Shop Rare Win Log
                     {
                         var cmd_ipsrwl = Tools.reinterpret_cast<CmdInsertPapelShopRareWinLog>(_pangya_db);
 
-                        // _smp.message_pool.getInstance().push(new message("[Channel::SQLDBResponse][Sucess] PLAYER [UID=" + (cmd_ipsrwl.getUID()) + "] Adicionou Papel Shop Rare Win Log[TYPEID=" + (cmd_ipsrwl.getInfo().ctx_psi._typeid) + ", QNTD=" + (cmd_ipsrwl.getInfo().qntd) + ", COLOR=" + (cmd_ipsrwl.getInfo().color) + ", PROBABILIDADE=" + (cmd_ipsrwl.getInfo().ctx_psi.probabilidade) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                        _smp.message_pool.getInstance().push(new message("[Channel::SQLDBResponse][Sucess] PLAYER [UID=" + (cmd_ipsrwl.getUID()) + "] Adicionou Papel Shop Rare Win Log[TYPEID=" + (cmd_ipsrwl.getInfo().ctx_psi._typeid) + ", QNTD=" + (cmd_ipsrwl.getInfo().qntd) + ", COLOR=" + (cmd_ipsrwl.getInfo().color) + ", PROBABILIDADE=" + (cmd_ipsrwl.getInfo().ctx_psi.probabilidade) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
                         break;
                     }
                 case 20: // Pay Caddie Holy Day (Paga as ferias do Caddie)
                     {
                         var cmd_pchd = Tools.reinterpret_cast<CmdPayCaddieHolyDay>(_pangya_db);
 
-                        // _smp.message_pool.getInstance().push(new message("[Channel::SQLDBResponse][Sucess] PLAYER [UID=" + (cmd_pchd.getUID()) + "] Pagou as ferias do Caddie[ID=" + (cmd_pchd.getId()) + "] ate " + cmd_pchd.getEndDate(), type_msg.CL_FILE_LOG_AND_CONSOLE));
+                        _smp.message_pool.getInstance().push(new message("[Channel::SQLDBResponse][Sucess] PLAYER [UID=" + (cmd_pchd.getUID()) + "] Pagou as ferias do Caddie[ID=" + (cmd_pchd.getId()) + "] ate " + cmd_pchd.getEndDate(), type_msg.CL_FILE_LOG_AND_CONSOLE));
                         break;
                     }
                 case 21: // Set Notice Caddie Holy Day (Seta Aviso de ferias do Caddie)
@@ -18756,21 +19545,21 @@ namespace Pangya_GameServer.Game
                     {
                         var cmd_ibrwl = Tools.reinterpret_cast<CmdInsertBoxRareWinLog>(_pangya_db);
 
-                        // _smp.message_pool.getInstance().push(new message("[Channel::SQLDBResponse][Sucess] PLAYER [UID=" + (cmd_ibrwl.getUID()) + "] Inseriu Box[TYPEID=" + (cmd_ibrwl.getBoxTypeid()) + "] Rare[TYPEID=" + (cmd_ibrwl.getInfo()._typeid) + ", QNTD=" + (cmd_ibrwl.getInfo().qntd) + ", RARIDADE=" + ((ushort)cmd_ibrwl.getInfo().raridade) + "] Win Log", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                        _smp.message_pool.getInstance().push(new message("[Channel::SQLDBResponse][Sucess] PLAYER [UID=" + (cmd_ibrwl.getUID()) + "] Inseriu Box[TYPEID=" + (cmd_ibrwl.getBoxTypeid()) + "] Rare[TYPEID=" + (cmd_ibrwl.getInfo()._typeid) + ", QNTD=" + (cmd_ibrwl.getInfo().qntd) + ", RARIDADE=" + ((ushort)cmd_ibrwl.getInfo().raridade) + "] Win Log", type_msg.CL_FILE_LOG_AND_CONSOLE));
                         break;
                     }
                 case 23: // Insert Spinning Cube Super Rare Win Broadcast
                     {
                         var cmd_ispcsrwb = Tools.reinterpret_cast<CmdInsertSpinningCubeSuperRareWinBroadcast>(_pangya_db);
 
-                        // _smp.message_pool.getInstance().push(new message("[Channel::SQLDBResponse][Sucess] Inseriu Spinning Cube Super Rare Win Broadcast[MSG=" + cmd_ispcsrwb.getMessage() + ", OPT=" + ((ushort)cmd_ispcsrwb.getOpt()) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                        _smp.message_pool.getInstance().push(new message("[Channel::SQLDBResponse][Sucess] Inseriu Spinning Cube Super Rare Win Broadcast[MSG=" + cmd_ispcsrwb.getMessage() + ", OPT=" + ((ushort)cmd_ispcsrwb.getOpt()) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
                         break;
                     }
                 case 24: // Insert Memorial Shop Rare Win Log
                     {
                         var cmd_imrwl = Tools.reinterpret_cast<CmdInsertMemorialRareWinLog>(_pangya_db);
 
-                        // _smp.message_pool.getInstance().push(new message("[Channel::SQLDBResponse][Sucess] PLAYER [UID=" + (cmd_imrwl.getUID()) + "] Inseriu Memorial Shop[COIN=" + (cmd_imrwl.getCoinTypeid()) + "] Rare[TYPEID=" + (cmd_imrwl.getInfo()._typeid) + ", QNTD=" + (cmd_imrwl.getInfo().qntd) + ", RARIDADE=" + (cmd_imrwl.getInfo().tipo) + "] Win Log", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                        _smp.message_pool.getInstance().push(new message("[Channel::SQLDBResponse][Sucess] PLAYER [UID=" + (cmd_imrwl.getUID()) + "] Inseriu Memorial Shop[COIN=" + (cmd_imrwl.getCoinTypeid()) + "] Rare[TYPEID=" + (cmd_imrwl.getInfo()._typeid) + ", QNTD=" + (cmd_imrwl.getInfo().qntd) + ", RARIDADE=" + (cmd_imrwl.getInfo().tipo) + "] Win Log", type_msg.CL_FILE_LOG_AND_CONSOLE));
                         break;
                     }
                 case 26: // Update Mascot Info
@@ -18778,7 +19567,7 @@ namespace Pangya_GameServer.Game
 
                         var cmd_umi = Tools.reinterpret_cast<CmdUpdateMascotInfo>(_pangya_db);
 
-                        //// _smp.message_pool.getInstance().push(new message("[Channel::SQLDBResponse][Sucess] PLAYER [UID=" + (cmd_umi.getUID()) + "] Atualizar Mascot Info[TYPEID=" + (cmd_umi.getInfo()._typeid) + ", ID=" + (cmd_umi.getInfo().id) + ", LEVEL=" + ((ushort)cmd_umi.getInfo().level) + ", EXP=" + (cmd_umi.getInfo().exp) + ", FLAG=" + ((ushort)cmd_umi.getInfo().type) + ", TIPO=" + (cmd_umi.getInfo().tipo) + ", IS_CASH=" + ((ushort)cmd_umi.getInfo().is_cash) + ", PRICE=" + (cmd_umi.getInfo().price) + ", MESSAGE=" + (cmd_umi.getInfo().message) + ", END_DT=" + _formatDate(cmd_umi.getInfo().data) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                        // _smp.message_pool.getInstance().push(new message("[Channel::SQLDBResponse][Sucess] PLAYER [UID=" + (cmd_umi.getUID()) + "] Atualizar Mascot Info[TYPEID=" + (cmd_umi.getInfo()._typeid) + ", ID=" + (cmd_umi.getInfo().id) + ", LEVEL=" + ((ushort)cmd_umi.getInfo().level) + ", EXP=" + (cmd_umi.getInfo().exp) + ", FLAG=" + ((ushort)cmd_umi.getInfo().flag) + ", TIPO=" + (cmd_umi.getInfo().tipo) + ", IS_CASH=" + ((ushort)cmd_umi.getInfo().is_cash) + ", PRICE=" + (cmd_umi.getInfo().price) + ", MESSAGE=" + (cmd_umi.getInfo().message) + ", END_DT=" + _formatDate(cmd_umi.getInfo().data) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
                         break;
                     }
@@ -18794,7 +19583,7 @@ namespace Pangya_GameServer.Game
                     {
                         var cmd_ultp = Tools.reinterpret_cast<CmdUpdateLegacyTikiShopPoint>(_pangya_db);
 
-                        // _smp.message_pool.getInstance().push(new message("[Channel::SQLDBResponse][Sucess] PLAYER [UID=" + (cmd_ultp.getUID()) + "] atualizou Legacy Tiki Shop Point(" + (cmd_ultp.getTikiShopPoint()) + ")", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                        _smp.message_pool.getInstance().push(new message("[Channel::SQLDBResponse][Sucess] PLAYER [UID=" + (cmd_ultp.getUID()) + "] atualizou Legacy Tiki Shop Point(" + (cmd_ultp.getTikiShopPoint()) + ")", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
                         break;
                     }
@@ -18807,14 +19596,8 @@ namespace Pangya_GameServer.Game
 
         public void FilterRoom(Player _session, RoomInfoEx ri)
         {
-            try
-            {
-                new FilterRoom(_session, ri, m_ci);
-            }
-            catch (exception e)
-            {
-                _smp.message_pool.getInstance().push(new message("[Channel::FilterRoom][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
-            }
+            m_rm.FilterHackRoom(_session, ri, m_ci);
         }
+
     }
 }

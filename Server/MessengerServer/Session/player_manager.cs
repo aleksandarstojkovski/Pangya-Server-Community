@@ -1,64 +1,30 @@
 ﻿using System.Collections.Generic;
 using PangyaAPI.Network.PangyaSession;
-using Pangya_MessengerServer.Models;
+using MessengerServer.Models;
 using PangyaAPI.Network.PangyaPacket;
 
-namespace Pangya_MessengerServer.Session
+namespace MessengerServer.Session
 {
     public class player_manager : SessionManager
-    {
+    {          
         public player_manager()
         {
-            for (int i = 0; i < m_max_session; i++)
+            if (m_max_session != 0)
             {
-                var s = new Player
-                {
-                    m_oid = -1 
-                };
-                s.setState(false); // livre
-                m_sessions.Add(s);
+                for (var i = 0; i < m_max_session; ++i)
+                    m_sessions.Add(i, new Player());
             }
         }
 
-
-        public override bool DeleteSession(PangyaAPI.Network.PangyaSession.Session _session)
+        public new void Clear()
         {
-            if (_session == null) return false;
-
-            lock (_lock) // Importante: Use um lock aqui também!
-            {
-                int tmp_oid = _session.m_oid;
-
-                // Só processa se o OID for válido (maior que 0 no Pangya)
-                if (tmp_oid != -1)
-                {
-                    if (_session.clear())
-                    {
-
-                        // 3. Reseta o OID da sessão para evitar reuso acidental
-                        _session.m_oid = -1;
-
-                        // 1. Fecha o Socket e limpa buffers de rede
-                        _session.ClearConnection();
-
-                        // 2. Reseta flags de estado
-                        _session.setConnected(false);
-                        _session.setState(false);
-                        // 3. deleta da memoria
-                        m_sessions[tmp_oid] = _session;
-                        if (m_count > 0) m_count--;
-
-                        return true;
-                    }
-                }
-            }
-            return false;
+            base.Clear();
         }
 
         public Player findPlayer(uint? _uid, bool _oid = true)
         {
 
-            foreach (var el in m_sessions)
+            foreach (var el in m_sessions.Values)
             {
                 if ((_oid ? el.getUID() : (uint)el.m_oid) == _uid)
                 {
@@ -73,9 +39,9 @@ namespace Pangya_MessengerServer.Session
         public Player FindPlayer(uint uid, bool oid)
         {
             Player p = null;
-            foreach (var el in m_sessions)
+            foreach (var el in m_sessions.Values)
             {
-                if (el.m_client != null && ((!oid) ? el.getUID() : (uint)el.m_oid) == uid)
+                if (el.m_sock != null && ((!oid) ? el.getUID() : (uint)el.m_oid) == uid)
                 {
                     p = (Player)el;
                     break;
@@ -89,9 +55,9 @@ namespace Pangya_MessengerServer.Session
         {
             var gmList = new List<Player>();
 
-            foreach (var el in m_sessions)
+            foreach (var el in m_sessions.Values)
             {
-                if (el.m_client != null && ((el.getCapability() & 4) != 0 || (el.getCapability() & 128) != 0))
+                if (el.m_sock != null && ((el.getCapability() & 4) != 0 || (el.getCapability() & 128) != 0))
                 {
                     gmList.Add((Player)el);
                 }
@@ -121,7 +87,7 @@ namespace Pangya_MessengerServer.Session
         {
             var guildMap = new Dictionary<uint, Player>();
 
-            foreach (var el in m_sessions)
+            foreach (var el in m_sessions.Values)
             {
                 var player = el as Player;
 

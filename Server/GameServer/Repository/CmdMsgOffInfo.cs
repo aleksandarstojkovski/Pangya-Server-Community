@@ -8,7 +8,7 @@ namespace Pangya_GameServer.Repository
     {
         public CmdMsgOffInfo()
         {
-            this.m_uid = 0;
+            this.m_uid = 0u;
             this.v_moi = new List<MsgOffInfo>();
         }
 

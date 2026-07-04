@@ -1,7 +1,6 @@
 ﻿//Convertion By LuisMK
 using System;
 using System.Data;
-using System.Globalization;
 using Pangya_GameServer.Models;
 using PangyaAPI.SQL;
 using PangyaAPI.Utilities;
@@ -12,7 +11,7 @@ namespace Pangya_GameServer.Repository
     {
         public CmdAddFurniture()
         {
-            this.m_uid = 0;
+            this.m_uid = 0u;
             this.m_mri = new MyRoomItem();
         }
 
@@ -67,15 +66,14 @@ namespace Pangya_GameServer.Repository
             }
 
             m_mri.id = -1;
-             string parametros = string.Format(CultureInfo.InvariantCulture, 
-    "{0}, {1}, {2}, {3}, {4}, {5}", 
-    m_uid, 
-    m_mri._typeid, 
-    m_mri.location.x, 
-    m_mri.location.y, 
-    m_mri.location.z, 
-    m_mri.location.r);
-            var r = procedure(m_szConsulta,  parametros);
+
+            var tipos = 
+                new SqlDbType[] { SqlDbType.Int, SqlDbType.Int, SqlDbType.Float, SqlDbType.Float, SqlDbType.Float, SqlDbType.Float };
+            var valores = 
+                new object[] { m_uid, m_mri._typeid, m_mri.location.x, m_mri.location.y, m_mri.location.z, m_mri.location.r };
+
+            var r = procedureWithParams(m_szConsulta, 
+                new string[] { "@IDUSER", "@ITEMTYPEID", "@X", "@Y", "@Z", "@R" }, tipos, valores);
                 
             checkResponse(r, "nao conseguiu adicionar o Furniture[TYPEID=" + m_mri._typeid + "] para o PLAYER[UID=" + m_uid +"]");
 

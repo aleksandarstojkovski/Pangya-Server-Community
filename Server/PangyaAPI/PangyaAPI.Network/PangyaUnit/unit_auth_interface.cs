@@ -1,6 +1,6 @@
 ﻿using PangyaAPI.Network.Models;
 using PangyaAPI.Network.PangyaPacket;
-using PangyaAPI.Utilities.Models;
+using PangyaAPI.Utilities.BinaryModels;
 
 namespace PangyaAPI.Network.PangyaUnit
 {

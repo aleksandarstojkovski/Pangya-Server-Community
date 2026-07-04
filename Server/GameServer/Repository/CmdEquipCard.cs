@@ -6,12 +6,22 @@ using PangyaAPI.Utilities;
 namespace Pangya_GameServer.Repository
 {
     public class CmdEquipCard : Pangya_DB
-    { 
-        public CmdEquipCard(uint _uid, CardEquipInfoEx _cei, uint _tempo)
+    {
+        public CmdEquipCard(bool _waiter = false) : base(_waiter)
+        {
+            this.m_uid = 0u;
+            this.m_tempo = 0u;
+            this.m_cei = new CardEquipInfoEx();
+        }
+
+        public CmdEquipCard(uint _uid,
+            CardEquipInfoEx _cei,
+            uint _tempo,
+            bool _waiter = false) : base(_waiter)
         {
             this.m_uid = _uid;
             this.m_tempo = _tempo;
-            this.m_cei = _cei;
+            this.m_cei = (_cei);
         }
 
         public uint getUID()
@@ -26,7 +36,7 @@ namespace Pangya_GameServer.Repository
 
         public uint getTempo()
         {
-            return m_tempo;
+            return (m_tempo);
         }
 
         public void setTempo(uint _tempo)
@@ -77,7 +87,8 @@ namespace Pangya_GameServer.Repository
 
             m_cei.index = -1;
 
-            var r = procedure(m_szConsulta, Convert.ToString(m_uid) + ", " + Convert.ToString(m_cei._typeid) + ", " + Convert.ToString(m_cei.parts_id) + ", " + Convert.ToString(m_cei.parts_typeid) + ", " + Convert.ToString(m_cei.efeito) + ", " + Convert.ToString(m_cei.efeito_qntd) + ", " + Convert.ToString(m_cei.slot) + ", " + Convert.ToString(m_cei.tipo) + ", " + Convert.ToString(m_tempo));
+            var r = procedure(m_szConsulta,
+                Convert.ToString(m_uid) + ", " + Convert.ToString(m_cei._typeid) + ", " + Convert.ToString(m_cei.parts_id) + ", " + Convert.ToString(m_cei.parts_typeid) + ", " + Convert.ToString(m_cei.efeito) + ", " + Convert.ToString(m_cei.efeito_qntd) + ", " + Convert.ToString(m_cei.slot) + ", " + Convert.ToString(m_cei.tipo) + ", " + Convert.ToString(m_tempo));
 
             checkResponse(r, "nao conseguiu equipar o Card[TYPEID=" + Convert.ToString(m_cei._typeid) + "] no Character[TYPEID=" + Convert.ToString(m_cei.parts_typeid) + ", ID=" + Convert.ToString(m_cei.parts_id) + "] para o PLAYER[UID=" + Convert.ToString(m_uid) + "]");
 

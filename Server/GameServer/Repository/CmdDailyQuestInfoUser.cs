@@ -88,14 +88,16 @@ namespace Pangya_GameServer.Repository
             switch (m_type)
             {
                 case TYPE.GET:
-                    response = procedure(m_szConsulta[0],
+                    response = procedure(
+                        m_szConsulta[0],
                         Convert.ToString(m_uid));
 
                     checkResponse(response, $"Não conseguiu pegar o daily quest info do player: {m_uid}");
                     break;
 
                 case TYPE.CHECK:
-                    response = procedure(m_szConsulta[1],
+                    response = procedure(
+                        m_szConsulta[1],
                         Convert.ToString(m_uid));
 
                     checkResponse(response, $"Não conseguiu verificar o daily quest info do player: {m_uid}");

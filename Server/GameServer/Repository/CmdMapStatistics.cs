@@ -75,23 +75,16 @@ namespace Pangya_GameServer.Repository
 
         protected override Response prepareConsulta()
         {
-            // 1. Calculate the specific season/mode identifier
-            uint seasonValue = (m_season == TYPE_SEASON.ALL)
-                ? 9 + (uint)m_modo
-                : (m_modo == TYPE_MODO.M_NORMAL ? (uint)m_season : (uint)m_season * 10 + (uint)m_modo);
 
-            // 2. Pick the procedure name
-            string procName = (m_type == TYPE.NORMAL)
-                ? "pangya.ProcGetMapStatistics"
-                : "pangya.ProcGetMapStatisticsAssist";
+            uint season = (m_season == TYPE_SEASON.ALL) ? 9 + ((uint)m_modo) : (m_modo == TYPE_MODO.M_NORMAL ? ((uint)m_season) : Convert.ToUInt32(m_season) * 10 + ((uint)m_modo));
 
-            // 3. Execute with the calculated seasonValue 
-            var r = procedure(procName, $"{m_uid}, {seasonValue}");
+            var m_szConsulta = new string[] { "pangya.ProcGetMapStatistics ", "pangya.ProcGetMapStatisticsAssist " };
 
-            checkResponse(r, $"Não conseguiu pegar as estatísticas do mapa para o player: {m_uid}");
-
+            var r = procedure(m_type == TYPE.NORMAL ? m_szConsulta[0] + m_uid.ToString() + ", " + ((byte)m_season).ToString() : m_szConsulta[1] + m_uid.ToString() + ", " + ((byte)m_season).ToString());
+            checkResponse(r, "nao conseguiu pegar o member info do player: " + (m_uid));
             return r;
         }
+
 
         public List<MapStatisticsEx> getMapStatistics()
         {

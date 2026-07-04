@@ -1,11 +1,10 @@
-﻿using Pangya_GameServer.Models;
-using PangyaAPI.Network.PangyaSession;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using Pangya_GameServer.Models;
 using PangyaAPI.SQL;
 using PangyaAPI.Utilities;
 using PangyaAPI.Utilities.Log;
-using System;
-using System.Collections.Generic;
-using System.Linq;
 
 namespace Pangya_GameServer.Repository
 {
@@ -18,7 +17,7 @@ namespace Pangya_GameServer.Repository
 
         public CmdMailBoxInfo2()
         {
-            this.m_uid = 0;
+            this.m_uid = 0u;
         }
 
 
@@ -63,7 +62,7 @@ namespace Pangya_GameServer.Repository
                         item.tempo_qntd = IFNULL(_result.data[10]);
                         item.pang = IFNULL(_result.data[11]);
                         item.cookie = IFNULL(_result.data[12]);
-                        item.gm_id = IFNULL<int>(_result.data[13]);
+                        item.gm_id = IFNULL(_result.data[13]);
                         item.flag_gift = IFNULL(_result.data[14]);
 
                         if (is_valid_c_string(_result.data[15]))
@@ -126,7 +125,7 @@ namespace Pangya_GameServer.Repository
                         item.tempo_qntd = IFNULL(_result.data[10]);
                         item.pang = IFNULL(_result.data[11]);
                         item.cookie = IFNULL(_result.data[12]);
-                        item.gm_id = IFNULL<int>(_result.data[13]);
+                        item.gm_id = IFNULL(_result.data[13]);
                         item.flag_gift = IFNULL(_result.data[14]);
 
                         if (is_valid_c_string(_result.data[15]))
@@ -146,7 +145,8 @@ namespace Pangya_GameServer.Repository
             }
             catch (Exception e)
             {
-                _smp.message_pool.getInstance().push(new message("[channel::pacote04B][Error]: " + e.Message, type_msg.CL_FILE_LOG_AND_CONSOLE));
+
+                throw e;
             }
         }
 

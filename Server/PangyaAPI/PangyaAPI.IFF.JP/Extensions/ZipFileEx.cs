@@ -25,18 +25,16 @@ namespace PangyaAPI.IFF.JP.Extensions
             _archive = new ZipArchive(_stream, ZipArchiveMode.Update, leaveOpen: true);
         }
 
-        public ZipFileEx(string filePath, ZipArchiveMode mode = ZipArchiveMode.Read)
+        public ZipFileEx(string filePath)
         {
             CheckFile(filePath);
             _stream = new MemoryStream();
-            using (var fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read))
+            using (var fileStream = new FileStream(filePath, FileMode.Open))
             {
                 fileStream.CopyTo(_stream);
             }
-            _stream.Seek(0, SeekOrigin.Begin); // Garante o ponteiro no início
 
-            // MODO READ resolve o problema de múltiplas aberturas
-            _archive = new ZipArchive(_stream, mode, leaveOpen: true);
+            _archive = new ZipArchive(_stream, ZipArchiveMode.Update, leaveOpen: true);
         }
 
         public bool CheckFile(string filePath)

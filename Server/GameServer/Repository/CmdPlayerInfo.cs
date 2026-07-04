@@ -43,7 +43,7 @@ namespace Pangya_GameServer.Repository
 
         protected override Response prepareConsulta()
         {
-            var r = procedure("pangya.ProcGetPlayerInfoGame", m_uid.ToString());
+            var r = procedure("pangya.ProcGetPlayerInfoGame " + m_uid.ToString());
             checkResponse(r, "nao conseguiu pegar o info do player: " + (m_uid));
             return r;
         }

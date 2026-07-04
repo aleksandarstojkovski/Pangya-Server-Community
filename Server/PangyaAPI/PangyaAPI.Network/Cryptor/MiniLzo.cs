@@ -676,8 +676,7 @@ namespace PangyaAPI.Network.Cryptor
                 uint @_size_compress)
         {
             Lzo1X1Compress(@_uncompress,
-                       _size_uncompress, 
-                       @_compress,
+                       _size_uncompress, @_compress,
                       out @_size_compress,
                        new ushort[32768]);
             Array.Resize(ref @_uncompress, (int)@_size_compress);

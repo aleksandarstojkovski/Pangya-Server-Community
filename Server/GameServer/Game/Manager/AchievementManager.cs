@@ -1,18 +1,15 @@
-﻿using Pangya_GameServer.Models;
+﻿using Pangya_GameServer.Repository;
+using Pangya_GameServer.Models;
 using Pangya_GameServer.PacketFunc;
-using Pangya_GameServer.Repository;
 using PangyaAPI.IFF.JP.Extensions;
 using PangyaAPI.IFF.JP.Models.Data;
-using PangyaAPI.IFF.JP.Models.Flags;
 using PangyaAPI.SQL;
 using PangyaAPI.Utilities;
-using PangyaAPI.Utilities.Models;
+using PangyaAPI.Utilities.BinaryModels;
 using PangyaAPI.Utilities.Log;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
-using System.Linq;
-using static Pangya_GameServer.Models.AchievementInfo;
+using System.Linq; 
 using static Pangya_GameServer.Models.DefineConstants;
 namespace Pangya_GameServer.Game.Manager
 {
@@ -25,13 +22,13 @@ namespace Pangya_GameServer.Game.Manager
 
         protected uint m_pontos = new uint(); // Todos os pontos do achievement
 
-        protected bool m_state; 
+        protected bool m_state;
         public AchievementManager()
         {
-            this.m_uid = 0;
+            this.m_uid = 0u;
             this.map_ai = new Dictionary<uint, AchievementInfoEx>();
             this.m_state = false;
-            this.m_pontos = 0; 
+            this.m_pontos = 0u;
         }
 
         public void clear()
@@ -43,7 +40,7 @@ namespace Pangya_GameServer.Game.Manager
             }
 
             m_state = false;
-            m_pontos = 0;
+            m_pontos = 0u;
         }
 
         public void initAchievement(uint _uid, bool _create = false)
@@ -133,8 +130,7 @@ namespace Pangya_GameServer.Game.Manager
                     throw new exception("[AchievementManager::resetAchievement][Error] Manager Achievement state is invalid, please call method initAchievement first.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.MGR_ACHIEVEMENT,
                         1000, 0));
                 }
-            }
-            ;
+            };
 
             if (_id <= 0)
             {
@@ -153,8 +149,7 @@ namespace Pangya_GameServer.Game.Manager
                     throw new exception("[AchievementManager::resetAchievement][Error] Manager Achievement state is invalid, please call method initAchievement first.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.MGR_ACHIEVEMENT,
                         1000, 0));
                 }
-            }
-            ;
+            };
 
             if (_it.Current.Value == null)
             {
@@ -172,7 +167,8 @@ namespace Pangya_GameServer.Game.Manager
 
                     el.Value.value = 0;
 
-                    snmdb.NormalManagerDB.getInstance().add(4,  new CmdUpdateCounterItem(m_uid, el.Value),
+                    snmdb.NormalManagerDB.getInstance().add(4,
+                        new CmdUpdateCounterItem(m_uid, el.Value),
                         SQLDBResponse,
                         this);
                 }
@@ -185,7 +181,7 @@ namespace Pangya_GameServer.Game.Manager
                 foreach (var el in _it.Current.Value.v_qsi)
                 {
 
-                    el.clear_date_unix = 0;
+                    el.clear_date_unix = 0u;
 
                     snmdb.NormalManagerDB.getInstance().add(5,
                         new CmdUpdateQuestUser(m_uid, el),
@@ -195,7 +191,7 @@ namespace Pangya_GameServer.Game.Manager
             }
 
             // Atualiza o Achievement
-            _it.Current.Value.status = (int)ACHIEVEMENT_STATUS.ACTIVED;
+            _it.Current.Value.status = (uint)AchievementInfo.AchievementStatus.Active;
 
             snmdb.NormalManagerDB.getInstance().add(6,
                 new CmdUpdateAchievementUser(m_uid, _it.Current.Value),
@@ -288,15 +284,15 @@ namespace Pangya_GameServer.Game.Manager
             // Processa pontos ou rewards
             QuestStuff qsi = null;
 
-            if (sIff.getInstance().getItemGroupIdentify(_ai._typeid) == IFF_GROUP.ACHIEVEMENT
-                && (_ai.status == (byte)AchievementInfo.ACHIEVEMENT_STATUS.ACTIVED
-                    || _ai.status == (byte)AchievementInfo.ACHIEVEMENT_STATUS.CONCLUEDED))
+            if (sIff.getInstance().getItemGroupIdentify(_ai._typeid) == sIff.getInstance().ACHIEVEMENT
+                && (_ai.status == (byte)AchievementInfo.AchievementStatus.Active
+                    || _ai.status == (byte)AchievementInfo.AchievementStatus.Concluded))
             {
                 foreach (var el in _ai.v_qsi)
                 {
                     if (el.clear_date_unix != 0 && (qsi = sIff.getInstance().findQuestStuff(el._typeid)) != null)
                     {
-                        for (var i = 0; i < qsi.reward_item._typeid.Length; ++i)
+                        for (var i = 0u; i < qsi.reward_item._typeid.Length; ++i)
                         {
                             if (qsi.reward_item._typeid[i] != 0 && qsi.reward_item._typeid[i] == 0x6C000001)
                                 m_pontos += qsi.reward_item._typeid[i];
@@ -323,7 +319,10 @@ namespace Pangya_GameServer.Game.Manager
                 throw new exception("[AchievementManager::sendAchievementGuiToPlayer][Error] session is invalid", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.MGR_ACHIEVEMENT,
                     1, 0));
             }
-             
+
+            _smp.message_pool.getInstance().push(new message("[AchievementManager::sendAchievementGuiToPlayer][Sucess] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
+
+
             // Tem que passar o 22D com os dados, e 22C para mostrar o GUI 
             packet_func.session_send(Build(map_ai.Values.ToList(), 20, 2), _session);
 
@@ -431,8 +430,7 @@ namespace Pangya_GameServer.Game.Manager
                     throw new exception("[AchievementManager::findCounterItemById][Error] Manager Achievement state is invalid, please call method initAchievement first.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.MGR_ACHIEVEMENT,
                         1000, 0));
                 }
-            }
-            ;
+            };
 
             if (_id <= 0)
             {
@@ -444,7 +442,7 @@ namespace Pangya_GameServer.Game.Manager
 
             foreach (var el in map_ai)
             {
-                if ((cii = el.Value.findCounterItemById(_id)) != null)
+                if ((cii = el.Value.FindCounterItemById((uint)_id)) != null)
                 {
                     return cii;
                 }
@@ -461,8 +459,7 @@ namespace Pangya_GameServer.Game.Manager
                     throw new exception("[AchievementManager::findCounterItemByTypeid][Error] Manager Achievement state is invalid, please call method initAchievement first.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.MGR_ACHIEVEMENT,
                         1000, 0));
                 }
-            }
-            ;
+            };
 
             if (_typeid == 0)
             {
@@ -474,7 +471,7 @@ namespace Pangya_GameServer.Game.Manager
 
             foreach (var el in map_ai)
             {
-                if ((cii = el.Value.findCounterItemByTypeId(_typeid)) != null)
+                if ((cii = el.Value.FindCounterItemByTypeId(_typeid)) != null)
                 {
                     return cii;
                 }
@@ -491,8 +488,7 @@ namespace Pangya_GameServer.Game.Manager
                     throw new exception("[AchievementManager::findQuestStuffById][Error] Manager Achievement state is invalid, please call method initAchievement first.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.MGR_ACHIEVEMENT,
                         1000, 0));
                 }
-            }
-            ;
+            };
 
             if (_id <= 0)
             {
@@ -504,7 +500,7 @@ namespace Pangya_GameServer.Game.Manager
 
             foreach (var el in map_ai)
             {
-                if ((qsi = el.Value.findQuestStuffById(_id)) != null)
+                if ((qsi = el.Value.FindQuestStuffById((uint)_id)) != null)
                 {
                     return qsi;
                 }
@@ -521,8 +517,7 @@ namespace Pangya_GameServer.Game.Manager
                     throw new exception("[AchievementManager::findQuestStuffByTypeid][Error] Manager Achievement state is invalid, please call method initAchievement first.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.MGR_ACHIEVEMENT,
                         1000, 0));
                 }
-            }
-            ;
+            };
 
             if (_typeid == 0)
             {
@@ -534,7 +529,7 @@ namespace Pangya_GameServer.Game.Manager
 
             foreach (var el in map_ai)
             {
-                if ((qsi = el.Value.findQuestStuffByTypeId(_typeid)) != null)
+                if ((qsi = el.Value.FindQuestStuffByTypeId(_typeid)) != null)
                 {
                     return qsi;
                 }
@@ -568,7 +563,7 @@ namespace Pangya_GameServer.Game.Manager
         // Static Method
         public static AchievementInfoEx createAchievement(uint _uid,
             Achievement _achievement,
-            ACHIEVEMENT_STATUS _status)
+            AchievementInfo.AchievementStatus _status)
         {
 
             if (_achievement.ID <= 0)
@@ -585,7 +580,7 @@ namespace Pangya_GameServer.Game.Manager
             AchievementInfoEx ai = new AchievementInfoEx
             {
                 active = 1,
-                status = (int)_status,
+                status = (uint)_status,
                 _typeid = _achievement.ID,
                 quest_base_typeid = _achievement.TypeID_Quest_Index
             };
@@ -606,7 +601,7 @@ namespace Pangya_GameServer.Game.Manager
                 snmdb.NormalManagerDB.getInstance().add(0,
                     cmd_ca, null, null);
 
-                var i = 0;
+                var i = 0u;
                 if (cmd_ca.getException().getCodeError() == 0 && (ai.id = cmd_ca.getID()) != -1)
                 {
 
@@ -651,7 +646,7 @@ namespace Pangya_GameServer.Game.Manager
 
                             if (cii.id > 0)
                             {
-                                ai.map_counter_item[cii.id] = cii;
+                                ai.map_counter_item[(uint)cii.id] = cii;
                             }
                         }
                     } while (++i < (_achievement.Quest_TypeID.Length));
@@ -659,15 +654,16 @@ namespace Pangya_GameServer.Game.Manager
                     // Atualiza os counter item id nas quest stuff se o achievement esta com o quest base
                     var it = ai.getQuestBase();
 
-                    if (it != null)
+                    if (it.Current != ai.v_qsi.Last())
                     {
 
                         foreach (var el in ai.v_qsi)
-                        { 
+                        {
+
                             // Update
                             if (el.counter_item_id == 0)
                             {
-                                el.counter_item_id = it.counter_item_id;
+                                el.counter_item_id = it.Current.counter_item_id;
                             }
                         }
                     }
@@ -690,7 +686,7 @@ namespace Pangya_GameServer.Game.Manager
 
 
         // Static Method
-        public static AchievementInfoEx createAchievement(uint _uid, QuestItem _qi, ACHIEVEMENT_STATUS _status)
+        public static AchievementInfoEx createAchievement(uint _uid, QuestItem _qi, AchievementInfo.AchievementStatus _status)
         {
 
             if (_qi.ID == 0)
@@ -707,7 +703,7 @@ namespace Pangya_GameServer.Game.Manager
             AchievementInfoEx ai = new AchievementInfoEx
             {
                 active = 1,
-                status = (int)_status,
+                status = (uint)_status,
                 _typeid = _qi.ID
             };
 
@@ -730,7 +726,7 @@ namespace Pangya_GameServer.Game.Manager
                 if (cmd_ca.getException().getCodeError() == 0 && (ai.id = cmd_ca.getID()) != -1)
                 {
 
-                    var i = 0;
+                    var i = 0u;
 
                     cmd_cq.setAchievementID((uint)(ai.id));
 
@@ -744,7 +740,7 @@ namespace Pangya_GameServer.Game.Manager
                             qsi._typeid = _qi.quest._typeid[i];
                             cii._typeid = qs.counter_item._typeid[0];
 
-                            cmd_cq.setQuest(qs, (_status != ACHIEVEMENT_STATUS.PENDENTING) ? true : false);
+                            cmd_cq.setQuest(qs, (_status != AchievementInfo.AchievementStatus.Pending) ? true : false);
 
                             snmdb.NormalManagerDB.getInstance().add(0,
                                 cmd_cq, null, null);
@@ -774,7 +770,7 @@ namespace Pangya_GameServer.Game.Manager
                             if (cii.id > 0)
                             {
 
-                                ai.map_counter_item[cii.id] = cii;
+                                ai.map_counter_item[(uint)cii.id] = cii;
                             }
                         }
                     } while (++i < _qi.quest.qntd);
@@ -783,15 +779,16 @@ namespace Pangya_GameServer.Game.Manager
                     var it = ai.getQuestBase();
 
 
-                    if (it != null)
+                    if (it.Current != ai.v_qsi.ToList().GetEnumerator().Current)
                     {
 
                         foreach (var el in ai.v_qsi)
-                        { 
+                        {
+
                             // Update
                             if (el.counter_item_id == 0)
                             {
-                                el.counter_item_id = it.counter_item_id;
+                                el.counter_item_id = it.Current.counter_item_id;
                             }
                         }
                     }
@@ -811,95 +808,97 @@ namespace Pangya_GameServer.Game.Manager
             return ai;
         }
 
-
-        protected void initAchievement(bool create)
+        protected void initAchievement(bool _create)
         {
-            var swTotal = Stopwatch.StartNew();
 
-            try
-            {
-                if (!create)
+            if (!_create)
+            { // Verifica se o player tem Achievement, antes de criar
+
+                CmdCheckAchievement cmd_cAchieve = new CmdCheckAchievement(m_uid); // waitable
+
+                snmdb.NormalManagerDB.getInstance().add(0,
+                    cmd_cAchieve, null, null);
+
+                if (cmd_cAchieve.getException().getCodeError() != 0)
                 {
-                    var swCheck = Stopwatch.StartNew();
-                    bool hasAchievement = HasAchievementInDB();
-                    swCheck.Stop(); 
+                    m_state = false;
+                    throw cmd_cAchieve.getException();
+                }
 
-                    if (!hasAchievement)
-                        CreateAllAchievements();
-                    else
-                        LoadAchievementsFromDB();
+                // Cria Achievements do player
+                if (!cmd_cAchieve.getLastState())
+                {
+
+                    var qi = sIff.getInstance().findQuestItem(CLEAR_10_DAILY_QUEST_TYPEID); // Daily Quest 10 dias Clear
+
+                    AchievementInfoEx ai = new AchievementInfoEx();
+
+                    if (qi != null)
+                    {
+                        addAchievement((ai = AchievementManager.createAchievement(m_uid,
+                            qi, AchievementInfo.AchievementStatus.Active)));
+                    }
+
+                    var achievement = sIff.getInstance().getAchievement();
+                    foreach (var it in achievement)
+                    {
+                        addAchievement((ai = AchievementManager.createAchievement(m_uid,
+                            it,
+                            AchievementInfo.AchievementStatus.Active)));
+                    }
+
+                    _smp.message_pool.getInstance().push(new message("[AchievementManager::initAchievement][Log] PLAYER[UID=" + Convert.ToString(m_uid) + "] Criou Achievement.", type_msg.CL_FILE_LOG_AND_CONSOLE));
+
                 }
                 else
                 {
-                    CreateAllAchievements();
+
+                    CmdAchievementInfo cmd_ai = new CmdAchievementInfo(m_uid); // waitable
+
+                    snmdb.NormalManagerDB.getInstance().add(0,
+                        cmd_ai, null, null);
+
+                    if (cmd_ai.getException().getCodeError() != 0)
+                    {
+                        m_state = false;
+                        throw cmd_ai.getException();
+                    }
+
+                    foreach (var values in cmd_ai.GetInfo().Values)
+                        foreach (var el in values)
+                            addAchievement(el); // Add Achievement
                 }
 
-                m_state = true;
             }
-            catch
-            {
-                m_state = false;
-                throw;
-            }
-            finally
-            {
-                swTotal.Stop(); 
-            }
-        }
+            else
+            { // Create Achievement
 
-        private bool HasAchievementInDB()
-        {
-            var cmd = new CmdCheckAchievement(m_uid);
-            snmdb.NormalManagerDB.getInstance().add(0, cmd, null, null);
+                // Cria Achievements do player
+                var qi = sIff.getInstance().findQuestItem(CLEAR_10_DAILY_QUEST_TYPEID); // Daily Quest 10 dias Clear
 
-            if (cmd.getException().getCodeError() != 0)
-                throw cmd.getException();
+                AchievementInfoEx ai = new AchievementInfoEx();
 
-            return cmd.getLastState();
-        }
+                if (qi != null)
+                {
+                    addAchievement((ai = AchievementManager.createAchievement(m_uid,
+                        qi, AchievementInfo.AchievementStatus.Active)));
+                }
 
-        private void CreateAllAchievements()
-        {
-            var iff = sIff.getInstance();
-            var list = new List<AchievementInfoEx>(128);
+                var achievement = sIff.getInstance().getAchievement();
 
-            // Daily Quest 10 dias
-            var qi = iff.findQuestItem(CLEAR_10_DAILY_QUEST_TYPEID);
-            if (qi != null)
-            {
-                list.Add(AchievementManager.createAchievement(
-                    m_uid, qi, ACHIEVEMENT_STATUS.ACTIVED));
+                foreach (var it in achievement)
+                {
+                    addAchievement((ai = AchievementManager.createAchievement(m_uid,
+                        it,
+                        AchievementInfo.AchievementStatus.Active)));
+                }
+
+                _smp.message_pool.getInstance().push(new message("[AchievementManager::initAchievement][Log] PLAYER[UID=" + Convert.ToString(m_uid) + "] Criou Achievement.", type_msg.CL_FILE_LOG_AND_CONSOLE));
+
             }
 
-            // Todos os achievements
-            foreach (var it in iff.getAchievement())
-            {
-                list.Add(AchievementManager.createAchievement(
-                    m_uid, it, ACHIEVEMENT_STATUS.ACTIVED));
-            }
-
-            addAchievementRange(list); 
+            m_state = true;
         }
-
-        private void LoadAchievementsFromDB()
-        {
-            var cmd = new CmdAchievementInfo(m_uid);
-            snmdb.NormalManagerDB.getInstance().add(0, cmd, null, null);
-
-            if (cmd.getException().getCodeError() != 0)
-                throw cmd.getException();
-
-            foreach (var values in cmd.GetInfo().Values)
-                foreach (var ach in values)
-                    addAchievement(ach);
-        }
-
-        private void addAchievementRange(IEnumerable<AchievementInfoEx> list)
-        {
-            foreach (var ai in list)
-                addAchievement(ai);
-        }
-
 
         protected static void SQLDBResponse(int _msg_id,
             Pangya_DB _pangya_db,
@@ -943,16 +942,27 @@ namespace Pangya_GameServer.Game.Manager
                 case 4: // Update Counter Item
                     {
                         var cmd_uci = (CmdUpdateCounterItem)(_pangya_db);
+
+
+                        _smp.message_pool.getInstance().push(new message("[AchievementManager::SQLDBResponse][Debug] PLAYER[UID=" + Convert.ToString(cmd_uci.getUID()) + "] Atualizou Counter Item[TYPEID=" + Convert.ToString(cmd_uci.getInfo()._typeid) + ", ID=" + Convert.ToString(cmd_uci.getInfo().id) + "] com sucesso.", type_msg.CL_FILE_LOG_AND_CONSOLE));
+
                         break;
                     }
                 case 5: // Update Quest User
                     {
                         var cmd_uqu = (CmdUpdateQuestUser)(_pangya_db);
+
+
+                        _smp.message_pool.getInstance().push(new message("[AchievementManager::SQLDBResponse][Debug] PLAYER[UID=" + Convert.ToString(cmd_uqu.getUID()) + "] Atualizou Quest[TYPEID=" + Convert.ToString(cmd_uqu.getInfo()._typeid) + ", ID=" + Convert.ToString(cmd_uqu.getInfo().id) + "] com sucesso.", type_msg.CL_FILE_LOG_AND_CONSOLE));
+
                         break;
                     }
                 case 6: // Update Achievement User
                     {
                         var cmd_uau = (CmdUpdateAchievementUser)(_pangya_db);
+
+
+                        _smp.message_pool.getInstance().push(new message("[AchievementManager::SQLDBResponse][Debug] PLAYER[UID=" + Convert.ToString(cmd_uau.getUID()) + "] Atualizou Achievement[TYPEID=" + Convert.ToString(cmd_uau.getInfo()._typeid) + ", ID=" + Convert.ToString(cmd_uau.getInfo().id) + "] com sucesso.", type_msg.CL_FILE_LOG_AND_CONSOLE));
                         break;
                     }
                 case 0:

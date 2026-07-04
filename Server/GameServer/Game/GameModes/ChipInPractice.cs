@@ -5,11 +5,11 @@ using Pangya_GameServer.Game.Base;
 using Pangya_GameServer.Models;
 using Pangya_GameServer.PacketFunc;
 using PangyaAPI.Utilities;
-using PangyaAPI.Utilities.Models;
+using PangyaAPI.Utilities.BinaryModels;
 using PangyaAPI.Utilities.Log;
 namespace Pangya_GameServer.Game.GameModes
 {
-    public class ChipInPractice : GrandZodiacBase
+    public class ChipInPractice : GrandZodiacBase, IDisposable
     {
         private bool m_chip_in_practice_state;
 
@@ -32,15 +32,8 @@ namespace Pangya_GameServer.Game.GameModes
             m_state = init_game();
         }
 
-        ~ChipInPractice()
+        protected override void Dispose(bool disposing)
         {
-            Dispose(false);
-        }
-
-        public override void Dispose(bool disposing)
-        {
-            if (disposedValue) return;
-
             if (disposing)
             {
                 m_chip_in_practice_state = false;
@@ -56,9 +49,12 @@ namespace Pangya_GameServer.Game.GameModes
                 }
 
                 deleteAllPlayer();
-                LogDestruction();
+
+                base.Dispose(disposing);
+#if _DEBUG
+		_smp.message_pool.getInstance().push(new message("[ChipInPractice::~ChipInPractice][Log] ChipInPractice destroyed on Room[Number=" + Convert.ToString(m_ri.numero) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
+#endif // _DEBUG
             }
-            base.Dispose(true);
         }
         public override void changeHole(Player _session)
         {
@@ -75,13 +71,11 @@ namespace Pangya_GameServer.Game.GameModes
                 _smp.message_pool.getInstance().push(new message("[ChipInPractice::changeHole][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
-        
-		public override void finishHole(Player _session)
+        public override void finishHole(Player _session)
         {
 
             requestFinishHole(_session, 0);
         }
-		
         public void finish_chip_in_practice(Player _session, int _option)
         {
 
@@ -98,7 +92,7 @@ namespace Pangya_GameServer.Game.GameModes
                 {
 
                     // Calcula os pangs que o player ganhou
-                    //requestCalculePang(_session);//removido by LUIS
+                    requestCalculePang(_session);
 
                     // Atualizar os pang do player se ele estiver com assist ligado, e for maior que beginner E
                     updatePlayerAssist(_session);
@@ -133,7 +127,6 @@ namespace Pangya_GameServer.Game.GameModes
                 }
             }
         }
-		
         public override void timeIsOver()
         {
 
@@ -157,11 +150,16 @@ namespace Pangya_GameServer.Game.GameModes
                         packet_func.session_send(p,
                             _session, 1);
                     }
-                } 
+                }
+
+#if _DEBUG
+			_smp.message_pool.getInstance().push(new message("[ChipInPractice::timeIsOver][Log] Tempo Acabou no Chip-in Practice. na sala[NUMERO=" + Convert.ToString(m_ri.numero) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
+#endif // _DEBUG
+
             }
         }
 
-        public override bool init_game()
+        protected override bool init_game()
         {
 
             if (m_players.Count > 0)
@@ -177,7 +175,6 @@ namespace Pangya_GameServer.Game.GameModes
 
             return true;
         }
-
         public void requestFinishExpGame()
         {
 
@@ -196,12 +193,12 @@ namespace Pangya_GameServer.Game.GameModes
                         if ((_session = findSessionByUID(el.Value.uid)) != null)
                         {
 
-                            exp = 15;
+                            exp = 45;
                             exp = (int)(exp * TRANSF_SERVER_RATE_VALUE(el.Value.used_item.rate.exp) * TRANSF_SERVER_RATE_VALUE(m_rv.exp));
 
                             if (el.Value.level < 70 /*/ *Ultimo level n o ganha exp * /*/)
                             {
-                                el.Value.data.exp = 0;
+                                el.Value.data.exp = (uint)exp;
                             }
                         }
 
@@ -214,7 +211,7 @@ namespace Pangya_GameServer.Game.GameModes
 
                         if (el.Value.level < 70)
                         {
-                                el.Value.data.exp = 0;
+                            el.Value.data.exp = (uint)exp;
                         }
                     }
                 }

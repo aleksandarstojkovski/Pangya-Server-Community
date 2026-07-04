@@ -177,7 +177,7 @@ namespace PangyaAPI.IFF.JP.Extensions
                 m_grand_prix_data = load_grand_prix_data();
                 m_grand_prix_ai_optinal_data = load_grand_prix_ai_optional_data();
                 m_grand_prix_condition_equip = load_grand_prix_condition_equip();
-                m_grand_prix_rank_reward = load_grand_prix_rank_reward();  
+                m_grand_prix_rank_reward = load_grand_prix_rank_reward();
                 m_grand_prix_special_hole = load_grand_prix_special_hole();
                 m_memorial_shop_coin_item = load_memorial_shop_coin_item();
                 m_memorial_shop_rare_item = load_memorial_shop_rare_item();
@@ -192,7 +192,6 @@ namespace PangyaAPI.IFF.JP.Extensions
                 Quest_stuff = load_quest_stuff();
                 Set_item = load_set_item();
                 m_time_limit_item = load_time_limit_item();
-               // m_twins_item_table = load_twins_item_table();
                 Part = load_part();
                 m_loaded = true;
             }
@@ -205,79 +204,54 @@ namespace PangyaAPI.IFF.JP.Extensions
 
         private void reset()
         {
-            // Lojas e Infos de Sistema
-            m_point_shop.Clear();
-            m_addon_part.Clear();
-            m_error_code_info.Clear();
-
-            // Workshop e Club Sets
-            m_club_set_work_shop_level_up_limit.Clear();
-            m_club_set_work_shop_level_up_prob.Clear();
-            m_club_set_work_shop_rank_exp.Clear();
-
-            // Itens Base e Conquistas
-            Achievement.Clear();
-            Item.Clear();
-            Mascot.Clear();
-            Aux_part.Clear();
-            Ball.Clear();
-
-            // Caddie e Magic Box
-            Caddie.Clear();
-            Caddie_item.Clear();
-            m_cadie_magic_box.Clear();
-            m_cadie_magic_box_random.Clear();
-
-            // Customização e Personagem
-            Card.Clear();
-            Character.Clear();
-            m_character_mastery.Clear();
-            m_club.Clear();
-            m_club_set.Clear();
-            m_course.Clear();
-            m_cutin_infomation.Clear();
-            m_enchant.Clear();
-            m_furniture.Clear();
-            m_hair_style.Clear();
-
-            // Mecânicas de Jogo e Atributos
-            m_match.Clear();
-            m_skin.Clear();
-            m_ability.Clear();
-            m_desc.Clear();
-
-            // Grand Prix
-            m_grand_prix_data.Clear();
-            m_grand_prix_ai_optinal_data.Clear();
-            m_grand_prix_condition_equip.Clear();
-            m_grand_prix_rank_reward.Clear();
-            m_grand_prix_special_hole.Clear();
-
-            // Memorial Shop e Recompensas
-            m_memorial_shop_coin_item.Clear();
-            m_memorial_shop_rare_item.Clear();
-            m_furniture_ability.Clear();
-            m_level_up_prize_item.Clear();
-
-            // Tiki Shop e Quests
-            Counter_item.Clear();
-            m_set_effect_table.Clear();
-            m_tiki_point_table.Clear();
-            m_tiki_recipe.Clear();
-            m_tiki_special_table.Clear();
-            Quest_item.Clear();
-            Quest_stuff.Clear();
-            Set_item.Clear();
             m_time_limit_item.Clear();
-            Part.Clear();
-            Zip.Dispose();//anula
-            Zip = null;
-            m_loaded = false;
+            m_addon_part.Clear();//_addon_part();
+            m_error_code_info.Clear();//_error_code_info();
+            m_club_set_work_shop_level_up_limit.Clear();//_club_set_work_shop_level_up_limit();
+            m_club_set_work_shop_level_up_prob.Clear();//_club_set_work_shop_level_up_prob();
+            m_club_set_work_shop_rank_exp.Clear();//_club_set_work_shop_rank_up_exp();
+            Achievement.Clear();//_achievement();
+            Item.Clear();//_item();
+            Mascot.Clear();//_mascot();
+            Aux_part.Clear();//_aux_part();
+            Ball.Clear();//_ball();
+            Caddie.Clear();//_caddie();
+            Caddie_item.Clear();//_caddie_item();     
+            m_cadie_magic_box.Clear();//_cadie_magic_box(); 
+            m_cadie_magic_box_random.Clear();//_cadie_magic_box_random();  
+            Card.Clear();//_card();      
+            Character.Clear();//_character();
+            m_club.Clear();//_club();
+            m_club_set.Clear();//_club_set();
+            m_course.Clear();//_course();
+            m_enchant.Clear();//_enchant();
+            m_furniture.Clear();//_furniture();
+            m_hair_style.Clear();//_hair_style();
+            m_match.Clear();//_match();
+            m_skin.Clear();//_skin();
+            m_ability.Clear();//_ability();     
+            m_desc.Clear();//_desc();      
+            m_grand_prix_data.Clear();//_grand_prix_data();    
+            m_grand_prix_rank_reward.Clear();//_grand_prix_rank_reward();
+            m_grand_prix_special_hole.Clear();//_grand_prix_special_hole();
+            m_memorial_shop_coin_item.Clear();//_memorial_shop_coin_item();
+            m_memorial_shop_rare_item.Clear();//_memorial_shop_rare_item();    
+            m_furniture_ability.Clear();//_furniture_ability();
+            m_level_up_prize_item.Clear();//_level_up_prize_item();
+            Counter_item.Clear();//_counter_item();
+            m_set_effect_table.Clear();//_set_effect_table();
+            m_tiki_point_table.Clear();//_tiki_point_table();
+            m_tiki_recipe.Clear();//_tiki_recipe();
+            m_tiki_special_table.Clear();//_tiki_special_table();       
+            Quest_item.Clear();//_quest_item();            
+            Quest_stuff.Clear();//_quest_stuff();        
+            Set_item.Clear();//_set_item(); 
+            Part.Clear();//_part();   
         }
-
         public void reload()
         {
             reset();
+            m_loaded = false;
             initilation();
         }
 
@@ -568,29 +542,51 @@ namespace PangyaAPI.IFF.JP.Extensions
         {
             return MakeUnzipLoad<Mascot>("Mascot.iff");
         }
-         
+
+        private T MAKE_FIND_MAP_IFF<T>(IFFFile<T> _iff, uint ID)
+        {
+            if (!m_loaded)
+            {
+                _smp.message_pool.getInstance().push(new message("[IFF::Find][Error] IFF not loaded", type_msg.CL_FILE_LOG_AND_CONSOLE));
+
+                return default(T); // se for struct = valor default (0), se for class = null
+            }
+
+            try
+            {
+                return _iff.GetItem(ID);
+            }
+            catch (Exception e)
+            {
+                _smp.message_pool.getInstance().push(new message("[IFF::Find][ErrorSystem] " + e.Message, type_msg.CL_FILE_LOG_AND_CONSOLE));
+            }
+
+            return default(T); // se for struct = valor default (0), se for class = null
+        }
+
+
         public PointShop findPointShop(uint _typeid)
         {
-            return m_point_shop.FirstOrDefault(c => c.ID == _typeid);
+            return MAKE_FIND_MAP_IFF(m_point_shop, _typeid);
         }
         public AuxPart findAuxPart(uint _typeid)
         {
-            return Aux_part.FirstOrDefault(c => c.ID == _typeid);
+            return MAKE_FIND_MAP_IFF(Aux_part, _typeid);
         }
 
         public Ball findBall(uint _typeid)
         {
-            return Ball.FirstOrDefault(c => c.ID == _typeid);
+            return MAKE_FIND_MAP_IFF(Ball, _typeid);
         }
 
         public Caddie findCaddie(uint _typeid)
         {
-            return Caddie.FirstOrDefault(c => c.ID == _typeid);
+            return MAKE_FIND_MAP_IFF(Caddie, _typeid);
         }
 
         public CaddieItem findCaddieItem(uint _typeid)
         {
-            return Caddie_item.FirstOrDefault(c => c.ID == _typeid);
+            return MAKE_FIND_MAP_IFF(Caddie_item, _typeid);
         }
 
         public CadieMagicBox findCadieMagicBox(uint _seq)
@@ -600,12 +596,12 @@ namespace PangyaAPI.IFF.JP.Extensions
 
         public Card findCard(uint _typeid)
         {
-            return Card.FirstOrDefault(c => c.ID == _typeid);
+            return MAKE_FIND_MAP_IFF(Card, _typeid);
         }
 
         public Character findCharacter(uint _typeid)
         {
-            return Character.FirstOrDefault(c => c.ID == _typeid);
+            return MAKE_FIND_MAP_IFF(Character, _typeid);
         }
 
         public List<CharacterMastery> findCharacterMastery(uint _typeid)
@@ -615,7 +611,7 @@ namespace PangyaAPI.IFF.JP.Extensions
 
         public ClubSetWorkShopLevelUpProb findClubSetWorkShopLevelUpProb(int _tipo)
         {
-            return m_club_set_work_shop_level_up_prob.FirstOrDefault(c => c.tipo == _tipo);
+            return m_club_set_work_shop_level_up_prob.Where(c => c.tipo == _tipo).FirstOrDefault();
         }
 
         public List<ClubSetWorkShopLevelUpLimit> findClubSetWorkShopLevelUpLimit(int _tipo)
@@ -625,66 +621,65 @@ namespace PangyaAPI.IFF.JP.Extensions
 
         public ClubSetWorkShopRankUpExp findClubSetWorkShopRankExp(uint _tipo)
         {
-            return m_club_set_work_shop_rank_exp.FirstOrDefault(c => c.tipo == _tipo);
+            return m_club_set_work_shop_rank_exp.Where(c => c.tipo == _tipo).FirstOrDefault();
         }
 
         public Club findClub(uint _typeid)
         {
-            return m_club.FirstOrDefault(c => c.ID == _typeid);
+            return MAKE_FIND_MAP_IFF(m_club, _typeid);
         }
 
         public ClubSet findClubSet(uint _typeid)
         {
-            return m_club_set.FirstOrDefault(c => c.ID == _typeid);
-
+            return MAKE_FIND_MAP_IFF(m_club_set, _typeid);
         }
 
         public Achievement findAchievement(uint _typeid)
         {
-            return Achievement.FirstOrDefault(c => c.ID == _typeid);
+            return MAKE_FIND_MAP_IFF(Achievement, _typeid);
         }
 
 
         // Find
         public Part findPart(uint _typeid)
         {
-            return Part.FirstOrDefault(c => c.ID == _typeid);
+            return MAKE_FIND_MAP_IFF(Part, _typeid);
         }
 
         public Item findItem(uint _typeid)
         {
-            return Item.FirstOrDefault(c => c.ID == _typeid);
+            return MAKE_FIND_MAP_IFF(Item, _typeid);
         }
 
         public Mascot findMascot(uint _typeid)
         {
-            return Mascot.FirstOrDefault(c => c.ID == _typeid);
+            return MAKE_FIND_MAP_IFF(Mascot, _typeid);
         }
 
         public QuestItem findQuestItem(uint _typeid)
         {
-            return Quest_item.FirstOrDefault(c => c.ID == _typeid);
+            return MAKE_FIND_MAP_IFF(Quest_item, _typeid);
         }
 
         public QuestStuff findQuestStuff(uint _typeid)
         {
-            return Quest_stuff.FirstOrDefault(c => c.ID == _typeid);
+            return MAKE_FIND_MAP_IFF(Quest_stuff, _typeid);
         }
 
         public SetItem findSetItem(uint _typeid)
         {
-            return Set_item.FirstOrDefault(c => c.ID == _typeid);
+            return MAKE_FIND_MAP_IFF(Set_item, _typeid);
         }
 
 
         public Course findCourse(uint _typeid)
         {
-            return m_course.FirstOrDefault(c => c.ID == _typeid);
+            return MAKE_FIND_MAP_IFF(m_course, _typeid);
         }
 
         public CutinInformation findCutinInfomation(uint _typeid)
         {
-            return m_cutin_infomation.FirstOrDefault(c => c._typeid == _typeid);
+            return MAKE_FIND_MAP_IFF(m_cutin_infomation, _typeid);
         }
 
         public Enchant findEnchant(uint _typeid)
@@ -694,32 +689,33 @@ namespace PangyaAPI.IFF.JP.Extensions
 
         public Furniture findFurniture(uint _typeid)
         {
-            return m_furniture.FirstOrDefault(_el => _el.ID == _typeid);
+            return MAKE_FIND_MAP_IFF(m_furniture, _typeid);
         }
 
         public HairStyle findHairStyle(uint _typeid)
         {
-            return m_hair_style.FirstOrDefault(c => c.ID == _typeid);
+            return MAKE_FIND_MAP_IFF(m_hair_style, _typeid);
         }
 
         public Match findMatch(uint _typeid)
         {
-            return m_match.FirstOrDefault(c => c.ID == _typeid);
+            return MAKE_FIND_MAP_IFF(m_match, _typeid);
         }
 
         public Skin findSkin(uint _typeid)
         {
-            return m_skin.FirstOrDefault(c => c.ID == _typeid);
+            return MAKE_FIND_MAP_IFF(m_skin, _typeid);
         }
 
         public Ability findAbility(uint _typeid)
         {
-            return m_ability.FirstOrDefault(c => c.ID == _typeid);
+            var ability = m_ability.FirstOrDefault(c => c.ID == _typeid);
+            return ability;
         }
 
         public Desc findDesc(uint _typeid)
         {
-            return m_desc.FirstOrDefault(c => c.ID == _typeid);
+            return MAKE_FIND_MAP_IFF(m_desc, _typeid);
         }
 
         public GrandPrixData findGrandPrixData(uint _typeid)
@@ -734,17 +730,17 @@ namespace PangyaAPI.IFF.JP.Extensions
 
         public MemorialShopCoinItem findMemorialShopCoinItem(uint _typeid)
         {
-            return m_memorial_shop_coin_item.FirstOrDefault(c => c.ID == _typeid);
+            return MAKE_FIND_MAP_IFF(m_memorial_shop_coin_item, _typeid);
         }
 
         public LevelUpPrizeItem findLevelUpPrizeItem(uint _level)
         {
-            return m_level_up_prize_item.FirstOrDefault(c => c.Level == _level);
+            return MAKE_FIND_MAP_IFF(m_level_up_prize_item, _level);
         }
 
         public SetEffectTable findSetEffectTable(uint _id)
         {
-            return m_set_effect_table.FirstOrDefault(c => c.Index == _id);
+            return MAKE_FIND_MAP_IFF(m_set_effect_table, _id);
         }
 
         public TikiPointTable findTikiPointTable(uint _id)
@@ -754,12 +750,12 @@ namespace PangyaAPI.IFF.JP.Extensions
 
         public TikiRecipe findTikiRecipe(uint _id)
         {
-            return m_tiki_recipe.FirstOrDefault(c => c.TypeID == _id);
+            return MAKE_FIND_MAP_IFF(m_tiki_recipe, _id);
         }
 
         public Dictionary<uint, CadieMagicBoxRandom> findCadieMagicBoxRandom(uint _id)
         {
-            var cadie = m_cadie_magic_box_random.FirstOrDefault(c=> c.ID == _id);
+            var cadie = MAKE_FIND_MAP_IFF(m_cadie_magic_box_random, _id);
             var dic = new Dictionary<uint, CadieMagicBoxRandom>();
             if (cadie != null)
             {
@@ -776,14 +772,12 @@ namespace PangyaAPI.IFF.JP.Extensions
 
         public CounterItem findCounterItem(uint _typeid)
         {
-            return Counter_item.FirstOrDefault(c => c.ID == _typeid);
+            return MAKE_FIND_MAP_IFF(Counter_item, _typeid);
         }
-
         public TimeLimitItem findTimeLimitItem(uint _typeid)
         {
             return m_time_limit_item.FirstOrDefault(_el => _el._typeid == _typeid);
         }
-
         public bool ItemEquipavel(uint _typeid)
         {
             return ((_typeid & 0xFE000000) >> 25 & 3) == 0;
@@ -1088,10 +1082,15 @@ namespace PangyaAPI.IFF.JP.Extensions
             return false;
         }
 
-        public IFF_GROUP getItemGroupIdentify(uint _typeid)
+        public IFF_GROUP _getItemGroupIdentify(uint _typeid)
         {
             return (IFF_GROUP)((_typeid & 0xFC000000) >> 26);
         }
+        public uint getItemGroupIdentify(uint _typeid)
+        {
+            return (uint)((_typeid & 0xFC000000) >> 26);
+        }
+
 
         public uint getItemSubGroupIdentify24(uint _typeid)
         {
@@ -1328,7 +1327,7 @@ namespace PangyaAPI.IFF.JP.Extensions
 
         public bool isGrandPrixNormal(uint _typeid)
         {
-            return (uint)((_typeid & 0x3000000) >> 24) == 0;
+            return (uint)((_typeid & 0x3000000) >> 24) == 0u;
         }
 
         public bool IsExist(uint _typeid)
@@ -1512,37 +1511,29 @@ namespace PangyaAPI.IFF.JP.Extensions
                     break;
                 case IFF_GROUP.SET_ITEM:
                     {
-                        var iff = findSetItem(_typeid);
-                        if (iff == null) return false;
-
                         var tipo_set_item = (SET_ITEM_SUB_TYPE)getItemSubGroupIdentify21(_typeid);
+                        var iff = findSetItem(_typeid);
 
-                        // Cards e Comets (Balls) sempre podem duplicar no Memorial
-                        if (tipo_set_item == SET_ITEM_SUB_TYPE.CHARACTER_SET_DUP_AND_ITEM_PASSIVE_AND_ACTIVE || tipo_set_item == SET_ITEM_SUB_TYPE.CARD || tipo_set_item == SET_ITEM_SUB_TYPE.BALL)
+                        if (tipo_set_item == SET_ITEM_SUB_TYPE.BALL
+                            || tipo_set_item == SET_ITEM_SUB_TYPE.CHARACTER_SET_DUP_AND_ITEM_PASSIVE_AND_ACTIVE
+                            || tipo_set_item == SET_ITEM_SUB_TYPE.CARD || tipo_set_item == SET_ITEM_SUB_TYPE.CHARACTER_SET_NEW)   //olhar um codigo melhor depois
                             return true;
 
-                        // Se for um Set de Personagem (Roupas/Acessórios) no Memorial
-                        if (is_memorial && (tipo_set_item == SET_ITEM_SUB_TYPE.CHARACTER_SET || tipo_set_item == SET_ITEM_SUB_TYPE.CHARACTER_SET_NEW))
+                        if (!is_memorial && (tipo_set_item == SET_ITEM_SUB_TYPE.CHARACTER_SET || tipo_set_item == SET_ITEM_SUB_TYPE.CHARACTER_SET_NEW))
                         {
                             for (int i = 0; i < iff.packege.item_qntd.Length; i++)
                             {
-                                uint innerId = iff.packege.item_typeid[i];
-                                if (innerId == 0) continue;
-
-                                // Se houver uma PART (Roupa) dentro do pacote que o player já possui
-                                if (getItemGroupIdentify(innerId) == IFF_GROUP.PART)
+                                if (getItemGroupIdentify(iff.packege.item_typeid[i]) == 2)
                                 {
-                                    // Se o player já tem a peça e ela NÃO é duplicável (não é UCC/Tempo)
-                                    if (!IsCanOverlapped(innerId, true))
+                                    var part = findCommomItem(iff.packege.item_typeid[i]);
+                                    if ((part.Shop.flag_shop.IsDuplication || part.Shop.flag_shop.can_send_mail_and_personal_shop))
                                     {
-                                        // No Memorial, se uma peça do set for repetida, barramos o set todo
-                                        // para evitar que o player ganhe 2 bonés iguais.
-                                        return false;
+                                        return true;
                                     }
                                 }
                             }
                         }
-                        return true;
+                        break;
                     }
                 case IFF_GROUP.AUX_PART:
                     {
@@ -1570,7 +1561,7 @@ namespace PangyaAPI.IFF.JP.Extensions
         public bool IsTitle(uint _typeid)
         {
 
-            if ((IFF_GROUP)getItemGroupIdentify(_typeid) == PangyaAPI.IFF.JP.Models.Flags.IFF_GROUP.SKIN)
+            if ((IFF_GROUP)getItemGroupIdentify(_typeid) == IFF_GROUP.SKIN)
             {
                 if ((_typeid & 0x3C00000u) != 0x1800000u)
                     return false;   // Não é um title
@@ -1835,16 +1826,26 @@ namespace PangyaAPI.IFF.JP.Extensions
                 _smp.message_pool.getInstance().push(new message("[iff::FindFirstItemInSetEffectTable][Error] IFF não carregado", type_msg.CL_FILE_LOG_AND_CONSOLE));
                 return null;
             }
-			
+            SetEffectTable ret = null;
+
             try
-            { 
-				return m_set_effect_table.FirstOrDefault(set => set.item.ID.Any(id => id == _typeid));
+            {
+                foreach (var _el in m_set_effect_table)
+                {
+                    for (int i = 0; i < _el.item.ID.Length; i++)
+                    {
+                        if (_el.item.ID[i] == _typeid)
+                        { ret = _el; break; }
+                    }
+                }
             }
-           catch (Exception e)
-    {
-        _smp.message_pool.getInstance().push(new message("[iff::findFirstItemInSetEffectTable][ErrorSystem] " + e.Message, type_msg.CL_FILE_LOG_AND_CONSOLE));
-        return null;
-    }
+            catch (Exception)
+            {
+                // Log opcional:
+                // MessagePool.Instance.Push(new Message("[iff::FindFirstItemInSetEffectTable][ErrorSystem] " + e.Message, CL_FILE_LOG_AND_CONSOLE));
+            }
+
+            return ret;
         }
 
         public List<SetEffectTable> findAllItemInSetEffectTable(uint _typeid)
@@ -1878,7 +1879,10 @@ namespace PangyaAPI.IFF.JP.Extensions
             return ret;
         }
 
-        public List<GrandPrixRankReward> findGrandPrixRankReward(uint ID) => m_grand_prix_rank_reward?.Where(c => c.ID == ID).ToList() ?? new List<GrandPrixRankReward>();
+        public List<GrandPrixRankReward> findGrandPrixRankReward(uint ID)
+        {
+            return m_grand_prix_rank_reward.Where(c => c.ID == ID).ToList();
+        }
 
         public List<GrandPrixAIOptionalData> getGrandPrixAIOptionalData()
         {
@@ -1908,12 +1912,12 @@ namespace PangyaAPI.IFF.JP.Extensions
                 foreach (var item in items)
                 {
                     if (!string.IsNullOrEmpty(item.ShopIcon))//icones vazios nao entram na galeria
-                    {
-                        allItems[itemType].Add(item);
-                    }
+                    { 
+                            allItems[itemType].Add(item);
+                    }    
                 }
             }
-            //somente esses é necessario
+             //somente esses é necessario
             AddItems(Character.AsEnumerable(), "character");
             AddItems(Part.AsEnumerable(), "part");
             AddItems(m_club_set.AsEnumerable(), "clubset");

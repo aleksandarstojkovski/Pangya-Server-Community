@@ -1,6 +1,6 @@
-﻿using Pangya_MessengerServer.Models; 
+﻿using MessengerServer.Models; 
 using PangyaAPI.Network.PangyaPacket;
-namespace Pangya_MessengerServer.Session
+namespace MessengerServer.Session
 {
     public class Player : PangyaAPI.Network.PangyaSession.Session
     {
@@ -9,7 +9,8 @@ namespace Pangya_MessengerServer.Session
         public Player()
         {
             m_pi = new PlayerInfo();
-        }           
+        }
+           
 
         public override string getNickname()
         {
@@ -26,25 +27,24 @@ namespace Pangya_MessengerServer.Session
             return m_pi.id;
         }
 
-        public override uint getCapability() { return m_pi.m_cap; } 
+        public override uint getCapability() { return (uint)m_pi.m_cap; }
+
+        public override bool clear()
+        {
+            bool ret;
+            if ((ret = base.clear()))
+            {
+
+                // Player Info
+                m_pi.clear();
+                                 
+            }
+            return ret;
+        }
 
         public override byte getStateLogged()
         {
             return 1;
-        }
-
-        public override bool clear()
-        {
-            lock (this)
-            {
-                bool ret;
-                if (ret = base.clear())
-                {
-                    // Player Info
-                    m_pi.clear(); 
-                }
-                return ret;
-            }
         }
     }
 }

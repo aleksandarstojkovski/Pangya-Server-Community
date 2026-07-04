@@ -230,7 +230,7 @@ namespace PangyaAPI.Utilities.Log
             }
         }
 
-        public void close_log_files()
+        private void close_log_files()
         {
             lock (cs_console)
             {
@@ -292,18 +292,8 @@ namespace PangyaAPI.Utilities.Log
         }
 
         private string read_ini_log_dir()
-        {
-
-            try
-            {
-                var reader_ini = new IniHandle("Server.ini");
-
-                return reader_ini.ReadString("LOG", "DIR", "Log");
-            }
-            catch
-            {
-                return "Log";   
-            }
+        { 
+            return "LOG";
         }
 
         private int get_tipo(T m)
@@ -338,46 +328,6 @@ namespace PangyaAPI.Utilities.Log
             }
 
             return ConsoleColor.Gray;
-        }
-
-        public void FlushAll()
-        {
-            lock (cs_console)
-            {
-                // Força a escrita de tudo que está nos buffers para o disco
-                log_time?.Flush();
-                log?.Flush();
-                log_io_data?.Flush();
-#if DEBUG
-                log_test?.Flush();
-#endif
-            }
-        }
-
-        public void LogEmergency(string message, string context = "CRASH")
-        {
-            try
-            {
-                // Define o caminho (usa o diretório configurado ou o padrão)
-                string emergencyPath = Path.Combine(dir ?? "Log", $"EMERGENCY_{DateTime.Now:ddMMyyyy}.log");
-
-                string fullMessage = $"{DateTime.Now:yyyy-MM-dd HH:mm:ss} [{context}] {message}{Environment.NewLine}";
-
-                // O File.AppendAllText abre, escreve e fecha o arquivo imediatamente.
-                // Isso é lento para o dia a dia, mas INFALÍVEL para erros fatais.
-                File.AppendAllText(emergencyPath, fullMessage);
-
-                // Também tenta mandar para o console caso ele ainda responda
-                Console.ForegroundColor = ConsoleColor.White;
-                Console.BackgroundColor = ConsoleColor.Red;
-                Console.WriteLine("\n!!! FATAL ERROR WRITTEN TO EMERGENCY LOG !!!");
-                Console.ResetColor();
-            }
-            catch
-            {
-                // Se até isso falhar (ex: falta de permissão de disco), 
-                // não há mais o que fazer a nível de software.
-            }
         }
 
         #endregion

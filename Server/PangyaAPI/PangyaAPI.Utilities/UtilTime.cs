@@ -276,18 +276,6 @@ namespace PangyaAPI.Utilities
     }
     public class UtilTime
     {
-        public static DateTime ToDateTime(SYSTEMTIME st)
-        {
-            try
-            {
-                return new DateTime(st.Year, st.Month, st.Day, st.Hour, st.Minute, st.Second, st.MilliSecond);
-            }
-            catch
-            {
-                return DateTime.MinValue; // Caso a data seja inválida no IFF
-            }
-        }
-
         /// <summary>
         /// Retorna o timestamp Unix (em segundos) da hora local atual.
         /// </summary>
@@ -491,25 +479,9 @@ namespace PangyaAPI.Utilities
             return utcTime.ToUnixTimeSeconds();
         }
 
-
-        public static string FormatDate(DateTime t)
+        public static string FormatDate(DateTime date)
         {
-            var str = string.Format(
-                "{0:0000}-{1:00}-{2:00} {3:00}:{4:00}:{5:00}.{6:000}",
-                t.Year, t.Month, t.Day,
-                t.Hour, t.Minute, t.Second, t.Millisecond
-            );
-            return str;
-        }
-
-        public static string FormatTime(DateTime t)
-        {
-            var str = string.Format(
-                "{0:00}:{1:00}:{2:00}.{3:000}",
-                t.Hour, t.Minute, t.Second, t.Millisecond
-            );
-
-            return str;
+            return date.ToString("yyyy-MM-dd HH:mm:ss.fff");
         }
 
         public static string FormatDate(SYSTEMTIME _date)
@@ -558,12 +530,18 @@ namespace PangyaAPI.Utilities
             return FormatDate(date);
         }
 
+        // Função para formatar hora para string
+        public static string FormatTime(DateTime date)
+        {
+            return date.ToString("HH:mm:ss.fff");
+        }
+
         // Função para formatar data do sistema para string (UTC)
         public static string FormatDateSystem(long timeUnix)
         {
             DateTime date;
             TranslateDateSystem(timeUnix, out date);
-            return date.ToString("yyyy-MM-dd HH:mm:ss");
+            return date.ToString("yyyy-MM-dd HH:mm:ss.fff");
         }
 
         // Função para formatar data local para string
@@ -571,13 +549,13 @@ namespace PangyaAPI.Utilities
         {
             DateTime date;
             TranslateDateLocal(timeUnix, out date);
-            return date.ToString("yyyy-MM-dd HH:mm:ss");
+            return date.ToString("yyyy-MM-dd HH:mm:ss.fff");
         }
         public static string formatDateLocal(long timeUnix)
         {
             DateTime date;
             TranslateDateLocal(timeUnix, out date);
-            return date.ToString("yyyy-MM-dd HH:mm:ss");
+            return date.ToString("yyyy-MM-dd HH:mm:ss.fff");
         }
         [DllImport("kernel32.dll", SetLastError = true)]
         [Obsolete]
@@ -626,17 +604,6 @@ namespace PangyaAPI.Utilities
             return DateTime.Now - time; // positivo se já passou, negativo se ainda não
         }
 
-        public static bool IsExpired(DateTime time)
-        {
-            return DateTime.Now >= time;
-        }
-
-        public static bool IsExpired(SYSTEMTIME time)
-        {
-            var _time = time.ConvertTime();
-            return DateTime.Now >= _time;
-        }
-
         public static long GetLocalTimeDiff(SYSTEMTIME dateTime)
         {
             // Cada Tick = 100 nanosegundos = 0.1 microssegundo
@@ -671,11 +638,6 @@ namespace PangyaAPI.Utilities
             _st2.Hour = _st2.Minute = _st2.Second = _st2.MilliSecond = 0;
 
             return (int)GetTimeDiff(_st1, _st2);
-        }
-
-        public static long GetTickCount()
-        {
-            return (long)Environment.TickCount;
         }
     }
 }

@@ -41,7 +41,8 @@ namespace Pangya_GameServer.Repository
 
             m_web_key = "";
 
-            var r = procedure(m_szConsulta,
+            var r = procedure(
+                m_szConsulta,
                 Convert.ToString(m_uid));
 
             checkResponse(r, "nao conseguiu pegar weblink key do player: " + Convert.ToString(m_uid));

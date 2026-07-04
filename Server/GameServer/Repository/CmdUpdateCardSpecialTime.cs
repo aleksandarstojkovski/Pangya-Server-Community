@@ -8,7 +8,7 @@ namespace Pangya_GameServer.Repository
     {
         public CmdUpdateCardSpecialTime()
         {
-            this.m_uid = 0;
+            this.m_uid = 0u;
         }
 
         public CmdUpdateCardSpecialTime(uint _uid,
@@ -18,7 +18,11 @@ namespace Pangya_GameServer.Repository
             this.m_uid = _uid;
             //this.
             this.m_cei = (_cei);
-        } 
+        }
+
+        public virtual void Dispose()
+        {
+        }
 
         public uint getUID()
         {
@@ -65,7 +69,9 @@ namespace Pangya_GameServer.Repository
                     4, 0));
             }
 
-            var r = procedure(m_szConsulta,  Convert.ToString(m_uid) + ", " + Convert.ToString(m_cei.id) + ", " + Convert.ToString(m_cei._typeid) + ", " + Convert.ToString(m_cei.efeito) + ", " + Convert.ToString(m_cei.efeito_qntd) + ", " + Convert.ToString(m_cei.tipo) + ", " + makeText(UtilTime.FormatDate(m_cei.end_date)));
+            var r = procedure(
+                m_szConsulta,
+                Convert.ToString(m_uid) + ", " + Convert.ToString(m_cei.id) + ", " + Convert.ToString(m_cei._typeid) + ", " + Convert.ToString(m_cei.efeito) + ", " + Convert.ToString(m_cei.efeito_qntd) + ", " + Convert.ToString(m_cei.tipo) + ", " + UtilTime.FormatDate(m_cei.end_date));
 
             checkResponse(r, "nao conseguiu atualizar tempo do Card Special[index=" + Convert.ToString(m_cei.id) + ", TYPEID=" + Convert.ToString(m_cei._typeid) + ", EFEITO{TYPE: " + Convert.ToString(m_cei.efeito) + ", QNTD: " + Convert.ToString(m_cei.efeito_qntd) + "}, TIPO=" + Convert.ToString(m_cei.tipo) + ", DATE{REG_DT: " + _formatDate(m_cei.use_date.ConvertTime()) + ", END_DT: " + _formatDate(m_cei.end_date.ConvertTime()) + "}] do PLAYER[UID=" + Convert.ToString(m_uid) + "]");
 

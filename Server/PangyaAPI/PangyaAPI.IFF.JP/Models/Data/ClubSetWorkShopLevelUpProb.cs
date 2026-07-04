@@ -1,6 +1,6 @@
 ﻿using System.Linq;
 using System.Runtime.InteropServices;
-using PangyaAPI.Utilities.Models;
+using PangyaAPI.Utilities.BinaryModels;
 
 namespace PangyaAPI.IFF.JP.Models.Data
 {

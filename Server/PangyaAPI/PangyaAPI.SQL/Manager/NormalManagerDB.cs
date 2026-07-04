@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Diagnostics;
 using PangyaAPI.SQL.Manager;
 using PangyaAPI.Utilities;
 namespace PangyaAPI.SQL.Manager
@@ -33,18 +32,6 @@ namespace PangyaAPI.SQL.Manager
      object _arg)
         {
             add(_id, ref _pangya_db, _callback_response, _arg);
-        }
-
-        public bool Connected()
-        {
-            try
-            {
-                return new DBCheckConnection().Connected();
-            }
-            catch (exception e)
-            { 
-                throw e;
-            }
         }
 
     }

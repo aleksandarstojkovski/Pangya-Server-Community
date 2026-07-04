@@ -7,9 +7,8 @@ using Pangya_GameServer.Game.System;
 using Pangya_GameServer.Models;
 using Pangya_GameServer.PacketFunc;
 using PangyaAPI.IFF.JP.Extensions;
-using PangyaAPI.IFF.JP.Models.Flags;
 using PangyaAPI.Utilities;
-using PangyaAPI.Utilities.Models;
+using PangyaAPI.Utilities.BinaryModels;
 using PangyaAPI.Utilities.Log;
 
 namespace Pangya_GameServer.Game.GameModes
@@ -24,7 +23,7 @@ namespace Pangya_GameServer.Game.GameModes
         public SpecialShuffleCourse(List<Player> _players, RoomInfoEx _ri, RateValue _rv, bool _channel_rookie) : base(_players, _ri, _rv, _channel_rookie)
         {
             this.m_SSC_state = false;
-            this.m_coin_SSC = 0;
+            this.m_coin_SSC = 0u;
 
             // Atualiza Treasure Hunter System Course
 
@@ -63,29 +62,24 @@ namespace Pangya_GameServer.Game.GameModes
 
         }
 
-        public override void Dispose(bool disposing)
+        protected override void Dispose(bool disposing)
         {
             if (disposing)
             {
-                deleteAllPlayer();
-
-                LogDestruction();
+                base.Dispose(disposing);
 
                 m_SSC_state = false;
-            }
-            base.Dispose(true);
-        }
 
-        ~SpecialShuffleCourse()
-        {
-            Dispose(false);
+                _smp.message_pool.getInstance().push(new message("[SpecialShuffleCourse::~SpecialShuffleCourse][Log] SpecialShuffleCourse destroyed on Room[Number=" + (m_ri.numero) + "]", 0));
+
+            }
         }
 
         public override bool deletePlayer(Player _session, int _option)
         {
             if (_session == null)
             {
-                throw new exception("[SpecialShuffleCourse::deletePlayer][Error] tentou deletar um player, mas o seu endereco é nullptr.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME,
+                throw new exception("[SpecialShuffleCourse::deletePlayer][Error] tentou deletar um player, mas o seu endereco eh nullptr.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME,
                     50, 0));
             }
 
@@ -158,18 +152,10 @@ namespace Pangya_GameServer.Game.GameModes
 
         public void deleteAllPlayer()
         {
-            // Percorre de trás para frente
-            for (int i = m_players.Count - 1; i >= 0; i--)
+
+            while (!m_players.empty())
             {
-                var player = m_players[i];
-                if (player != null)
-                {
-                    var pgi = getPlayerInfo(player);
-                    if (pgi != null)
-                    {
-                        deletePlayer(player, 0);
-                    }
-                }
+                deletePlayer(m_players.begin(), 0);
             }
         }
 
@@ -284,7 +270,7 @@ namespace Pangya_GameServer.Game.GameModes
             }
         }
 
-        public override bool init_game()
+        protected override bool init_game()
         {
 
             if (m_players.Count > 0)
@@ -394,7 +380,7 @@ namespace Pangya_GameServer.Game.GameModes
 
             return new DropItemRet();
         }
-        public override void requestUpdateItemUsedGame(Player _session)
+        protected override void requestUpdateItemUsedGame(Player _session)
         {
 
             var pgi = INIT_PLAYER_INFO("requestUpdateItemUsedGame",
@@ -415,7 +401,7 @@ namespace Pangya_GameServer.Game.GameModes
                     if (DefineConstants.CHECK_PASSIVE_ITEM(el.Value._typeid)
                     && el.Value._typeid != DefineConstants.TIME_BOOSTER_TYPEID/* / *Time Booster * /*/ && el.Value._typeid != DefineConstants.AUTO_COMMAND_TYPEID)
                         el.Value.count++;
-                    else if (sIff.getInstance().getItemGroupIdentify(el.Value._typeid) == IFF_GROUP.BALL /*/ *Ball * /*/ || sIff.getInstance().getItemGroupIdentify(el.Value._typeid) == IFF_GROUP.AUX_PART)
+                    else if (sIff.getInstance().getItemGroupIdentify(el.Value._typeid) == sIff.getInstance().BALL /*/ *Ball * /*/ || sIff.getInstance().getItemGroupIdentify(el.Value._typeid) == sIff.getInstance().AUX_PART)
                         el.Value.count++;
                 }
             }
@@ -521,7 +507,7 @@ namespace Pangya_GameServer.Game.GameModes
                     p.WriteInt32(item.id);
                     p.WriteUInt32(item.flag);
                     p.WriteBytes(item.stat.ToArray());
-                    p.WriteInt32((item.STDA_C_ITEM_TIME > 0) ? item.STDA_C_ITEM_TIME : item.STDA_C_ITEM_QNTD);
+                    p.WriteInt32((item.STDA_C_ITEM_TIME > 0) ? item.STDA_C_ITEM_TIME32 : item.STDA_C_ITEM_QNTD32);
                     p.WriteZeroByte(25);
                     packet_func.session_send(p,
                         _session, 1);
@@ -552,7 +538,7 @@ namespace Pangya_GameServer.Game.GameModes
 
                     // N o terminou o Jogo a tempo, add as tacadas dos outros holes que ele nao conseguiu terminar
                     // ------ O Original n o soma as tacadas do resto dos holes que o player n o jogou, quando o tempo acaba -------
-                    //if (pgi->type == PlayerGameInfo::eFLAG_GAME::END_GAME)
+                    //if (pgi->flag == PlayerGameInfo::eFLAG_GAME::END_GAME)
                     //pgi->ui.tacada = pgi->data.total_tacada_num;
 
                     requestSaveInfo(_session, 4);

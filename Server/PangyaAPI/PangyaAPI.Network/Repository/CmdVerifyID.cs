@@ -42,7 +42,7 @@ namespace PangyaAPI.Network.Repository
 
             m_uid = 0;
 
-            var r = procedure("pangya.ProcVerifyID", makeText(m_id));
+            var r = procedure("pangya.ProcVerifyID", m_id);
 
             checkResponse(r, "nao conseguiu verificar se existe o ID: " + m_id);
             return r;

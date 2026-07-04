@@ -2,7 +2,7 @@
 using PangyaAPI.Utilities.Log;
 using PangyaAPI.Utilities;
 using System.Collections.Generic;
-using PangyaAPI.Utilities.Models; 
+using PangyaAPI.Utilities.BinaryModels; 
 namespace Pangya_RankingServer.PacketFunc
 {
     public class packet_func : packet_func_base

@@ -1,7 +1,7 @@
 ﻿
 using System;
 using PangyaAPI.SQL;  
-namespace Pangya_AuthServer.Repository
+namespace AuthServer.Repository
 {
 	public class CmdGuildRankingUpdateTime : Pangya_DB
 	{

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Net.NetworkInformation;
 using PangyaAPI.Network.PangyaSession;
 using PangyaAPI.Utilities;
-using PangyaAPI.Utilities.Models;
+using PangyaAPI.Utilities.BinaryModels;
 using PangyaAPI.Utilities.Log;
 namespace PangyaAPI.Network.PangyaPacket
 {
@@ -136,13 +136,12 @@ namespace PangyaAPI.Network.PangyaPacket
                 total -= porPacket;
             }
         }
-
         public static void MAKE_SEND_BUFFER(byte[] rawPacket, Session _session)
         {
 
             try
             {
-                if (_session.m_client != null && _session.m_client.Connected)
+                if (_session.m_sock != null && _session.m_sock.Connected)
                 {
 
                     _session.requestSendBuffer(rawPacket);
@@ -162,34 +161,5 @@ namespace PangyaAPI.Network.PangyaPacket
                     throw;
             }
         }
-
-
-        public static void MAKE_SEND_CLIENT_BUFFER(byte[] rawPacket, Session _session)
-        {
-
-            try
-            {
-                if (_session.m_client != null && _session.m_client.Connected)
-                {
-
-                    _session.requestSendClientBuffer(rawPacket);
-
-                    if (_session.devolve())
-                        _session.Disconnect();
-                }
-            }
-            catch (exception e)
-            {
-
-                if (!ExceptionError.STDA_ERROR_CHECK_SOURCE_AND_ERROR_TYPE(e.getCodeError(), STDA_ERROR_TYPE.SESSION, 6/*n�o pode usa session*/))
-                    if (_session.devolve())
-                        _session.Disconnect();
-
-                if (ExceptionError.STDA_ERROR_CHECK_SOURCE_AND_ERROR_TYPE(e.getCodeError(), STDA_ERROR_TYPE.SESSION, 2))
-                    throw;
-            }
-        }
-
-
-}
+    }
 }

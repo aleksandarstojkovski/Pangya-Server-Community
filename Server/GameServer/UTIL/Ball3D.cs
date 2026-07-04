@@ -13,7 +13,7 @@
                 0.0f, 0.0f);
             this.m_max_height = 0.0f;
             this.m_num_max_height = -1;
-            this.m_count = 0;
+            this.m_count = 0u;
             this.m_curve = 0.0f;
             this.m_spin = 0.0f;
             this.m_rotation_curve = 0.0f;

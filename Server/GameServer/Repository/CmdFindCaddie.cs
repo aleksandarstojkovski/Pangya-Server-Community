@@ -12,8 +12,8 @@ namespace Pangya_GameServer.Repository
 
         public CmdFindCaddie(bool _waiter = false) : base(_waiter)
         {
-            this.m_uid = 0;
-            this.m_typeid = 0;
+            this.m_uid = 0u;
+            this.m_typeid = 0u;
             this.m_ci = new CaddieInfoEx();
         }
 
@@ -74,7 +74,7 @@ namespace Pangya_GameServer.Repository
                 m_ci._typeid = IFNULL(_result.data[2]);
                 m_ci.parts_typeid = IFNULL(_result.data[3]);
                 m_ci.level = (byte)IFNULL(_result.data[4]);
-                m_ci.exp = IFNULL<int>(_result.data[5]);
+                m_ci.exp = IFNULL(_result.data[5]);
                 m_ci.rent_flag = (byte)IFNULL(_result.data[6]);
 
                 //m_ci.end_date_unix = (short)IFNULL(_result->data[7]);  
@@ -100,7 +100,7 @@ namespace Pangya_GameServer.Repository
         protected override Response prepareConsulta()
         {
 
-            if (m_typeid == 0 || sIff.getInstance().getItemGroupIdentify(m_typeid) != PangyaAPI.IFF.JP.Models.Flags.IFF_GROUP.CADDIE)
+            if (m_typeid == 0 || sIff.getInstance().getItemGroupIdentify(m_typeid) != sIff.getInstance().CADDIE)
             {
                 throw new exception("[CmdFindCaddie::prepareConsulta][Error] _typeid caddie is invalid", STDA_MAKE_ERROR(STDA_ERROR_TYPE.PANGYA_DB,
                     4, 0));
@@ -109,7 +109,8 @@ namespace Pangya_GameServer.Repository
             m_ci.clear();
             m_ci.id = -1;
 
-            var r = procedure(m_szConsulta,
+            var r = procedure(
+                m_szConsulta,
                 Convert.ToString(m_uid) + ", " + Convert.ToString(m_typeid));
 
             checkResponse(r, "nao conseguiu encontrar o caddie[TYPEID=" + Convert.ToString(m_typeid) + "] para do PLAYER[UID=" + Convert.ToString(m_uid) + "]");

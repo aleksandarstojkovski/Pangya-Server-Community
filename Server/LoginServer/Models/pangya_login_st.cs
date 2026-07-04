@@ -1,11 +1,11 @@
-﻿using Pangya_LoginServer.PangyaEnums;
+﻿using LoginServer.PangyaEnums;
 using PangyaAPI.Network.Models;
 using PangyaAPI.Network.PangyaPacket;
-using PangyaAPI.Utilities.Models;
+using PangyaAPI.Utilities.BinaryModels;
 using System;
 using System.Runtime.InteropServices;
 
-namespace Pangya_LoginServer.Models
+namespace LoginServer.Models
 {                 
     // PlayerInfo
     public class player_info

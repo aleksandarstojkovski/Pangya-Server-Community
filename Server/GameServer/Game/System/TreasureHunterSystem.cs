@@ -17,7 +17,9 @@ namespace Pangya_GameServer.Game.System
         {
             this.m_thItem = new List<TreasureHunterItem>();
             this.m_load = false;
-            this.m_time = DateTime.Now; 
+            this.m_time = DateTime.Now;
+            // Inicializa
+            initialize();
         }
 
         /*static */
@@ -38,12 +40,12 @@ namespace Pangya_GameServer.Game.System
 
             bool isLoad = false;
 
-            //Monitor.Exit(m_cs);
+            Monitor.Enter(m_cs);
 
 
             isLoad = (m_load && m_thItem.Count > 0);
 
-            //Monitor.Exit(m_cs);
+            Monitor.Exit(m_cs);
 
 
             return isLoad;
@@ -73,20 +75,20 @@ namespace Pangya_GameServer.Game.System
 
             TreasureHunterInfo thi = null;
 
-            //Monitor.Exit(m_cs);
+            Monitor.Enter(m_cs);
 
 
             // Prote��o contra o Random Map, que usa o negatico do 'char'
             thi = m_thi[_course & 0x7F];
 
-            //Monitor.Exit(m_cs);
+            Monitor.Exit(m_cs);
 
 
             return thi;
         }
 
         /*static */
-        public uint calcPointNormal(int _tacada, int _par_hole)
+        public uint calcPointNormal(uint _tacada, sbyte _par_hole)
         {
 
             if (_tacada == 1) // Hole In One(HIO)
@@ -94,17 +96,17 @@ namespace Pangya_GameServer.Game.System
                 return 100;
             }
 
-            uint point = 0;
+            uint point = 0u;
 
-            switch ((_tacada - _par_hole))
+            switch ((sbyte)(_tacada - _par_hole))
             {
-                case -3: // Albatross
+                case (sbyte)-3: // Albatross
                     point = 100;
                     break;
-                case -2: // Eagle
+                case (sbyte)-2: // Eagle
                     point = 50;
                     break;
-                case -1: // Birdie
+                case (sbyte)-1: // Birdie
                     point = 30;
                     break;
                 case 0: // Par
@@ -125,7 +127,7 @@ namespace Pangya_GameServer.Game.System
         }
 
         /*static */
-        public uint calcPointSSC(int _tacada, int _par_hole)
+        public uint calcPointSSC(uint _tacada, sbyte _par_hole)
         {
 
             if (_tacada == 1) // Hole In One(HIO)
@@ -133,9 +135,9 @@ namespace Pangya_GameServer.Game.System
                 return 30;
             }
 
-            uint point = 0;
+            uint point = 0u;
 
-            switch ((_tacada - _par_hole))
+            switch ((sbyte)(_tacada - _par_hole))
             {
                 case -3: // Albatross
                     point = 1;
@@ -198,7 +200,7 @@ namespace Pangya_GameServer.Game.System
             Lottery lottery = new Lottery();
 
             foreach (var el in m_thItem)
-                lottery.Push(el.probabilidade, _value: el);
+                lottery.Push(el.probabilidade, value: el);
 
             TreasureHunterItem thi = new TreasureHunterItem();
 
@@ -210,7 +212,7 @@ namespace Pangya_GameServer.Game.System
             for (var i = 0; i < box;)
             {
                 // Sorteia item
-                if ((ctx = lottery.spinRoleta()) == null)
+                if ((ctx = lottery.SpinRoleta()) == null)
                 {
                     _smp.message_pool.getInstance().push(new message("[TreasureHunterSystem::drawItem][Warning] nao conseguiu sortear o item. Bug", type_msg.CL_FILE_LOG_AND_CONSOLE));
                     continue;
@@ -272,11 +274,11 @@ namespace Pangya_GameServer.Game.System
 
             Lottery.LotteryCtx ctx = null;
 
-            for (var i = 0; i < box;)
+            for (var i = 0u; i < box;)
             {
 
                 // Sorteia item
-                if ((ctx = lottery.spinRoleta()) == null)
+                if ((ctx = lottery.SpinRoleta()) == null)
                 {
                     _smp.message_pool.getInstance().push(new message("[TreasureHunterSystem::drawApproachBox][Warning] nao conseguiu sortear o item. Bug", type_msg.CL_FILE_LOG_AND_CONSOLE));
                     continue;
@@ -358,7 +360,13 @@ namespace Pangya_GameServer.Game.System
             {
                 throw cmd_thi.getException();
             }
-             
+
+            if (cmd_thi.getInfo().Count == 0)
+            {
+                throw new exception("[TreasureHunterSystem::initialize][Error] nao conseguiu pegar os treasure hunter point dos course na data base.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.TREASURE_HUNTER_SYSTEM,
+                    1, 0));
+            }
+
             var v_thi = cmd_thi.getInfo();
 
             foreach (TreasureHunterInfo i in v_thi)
@@ -375,7 +383,13 @@ namespace Pangya_GameServer.Game.System
             if (cmd_thItem.getException().getCodeError() != 0)
             {
                 throw cmd_thItem.getException();
-            } 
+            }
+
+            if (cmd_thItem.getInfo().Count == 0)
+            {
+                throw new exception("[TreasureHunterSystem::initialize][Error] nao tem item do Treasure Hunter no banco de dados.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.TREASURE_HUNTER_SYSTEM,
+                    1, 1));
+            }
 
             m_thItem = new List<TreasureHunterItem>(cmd_thItem.getInfo());
 
@@ -392,7 +406,7 @@ namespace Pangya_GameServer.Game.System
         protected void clear()
         {
 
-            //Monitor.Exit(m_cs);
+            Monitor.Enter(m_cs);
             // Limpa a lista de itens do Treasure Hunter System
             // n�o faz o shrink_to_fit por que pode preencher ela novamente
             if (m_thItem.Count > 0)
@@ -402,7 +416,7 @@ namespace Pangya_GameServer.Game.System
 
             m_load = false;
 
-            //Monitor.Exit(m_cs);
+            Monitor.Exit(m_cs);
 
         }
 

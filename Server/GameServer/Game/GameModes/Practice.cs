@@ -9,11 +9,11 @@ using Pangya_GameServer.PacketFunc;
 
 using PangyaAPI.Network.PangyaPacket;
 using PangyaAPI.Utilities;
-using PangyaAPI.Utilities.Models;
+using PangyaAPI.Utilities.BinaryModels;
 using PangyaAPI.Utilities.Log;
 namespace Pangya_GameServer.Game.GameModes
 {
-    public class Practice : TourneyBase
+    public class Practice : TourneyBase, IDisposable
     {
         bool m_practice_state;
 
@@ -27,24 +27,17 @@ namespace Pangya_GameServer.Game.GameModes
             m_state = init_game();
         }
 
-        public override void Dispose(bool disposing)
+        protected override void Dispose(bool disposing)
         {
-            if (disposedValue) return;
-            
             if (disposing)
             {
+                base.Dispose(disposing);
+
                 m_practice_state = false;
 
-                LogDestruction();
+                _smp.message_pool.getInstance().push(new message("[Practice::~Practice][Log] Practice destroyed on Room[Number=" + (m_ri.numero) + "]", 0));
+
             }
-
-            base.Dispose(true);
-
-        }
-
-        ~Practice()
-        {
-            Dispose(false);
         }
 
         public override void changeHole(Player _session)
@@ -70,7 +63,9 @@ namespace Pangya_GameServer.Game.GameModes
 
             if (pgi.shot_sync.state_shot.display.acerto_hole || pgi.data.giveup == 1)
             {
-                requestFinishHole(_session, 0); 
+                requestFinishHole(_session, 0);
+
+                UpdateRoomLogSql(_session);
 
                 requestUpdateItemUsedGame(_session);
             }
@@ -112,22 +107,14 @@ namespace Pangya_GameServer.Game.GameModes
 
             // Practice
             // Hole Repeat ganha 1/6 dos pang(s) feito
-            if (m_ri.modo == (int)RoomInfo.ROOM_INFO_MODO.M_REPEAT)
-            {
-                float taxaDinamica = 1.0f / 6.0f; // Padrão
+            // Course Practice ganha 1/3 dos pang(s) feito
 
-                // Se o cara fez MUITO Pang, a gente taxa mais para valorizar a moeda
-                if (pgi.data.bonus_pang > 20000)
-                {
-                    taxaDinamica = 0.05f; // Apenas 5% (Taxa de Luxo)
-                }
-                else if (pgi.data.bonus_pang > 10000)
-                {
-                    taxaDinamica = 0.10f; // 10%
-                }
+            if (m_ri.modo == (int)RoomInfo.eMODO.M_REPEAT)
+            { // Hole Repeat
 
-                pgi.data.pang = (ulong)(pgi.data.pang * taxaDinamica);
-                pgi.data.bonus_pang = (ulong)(pgi.data.bonus_pang * taxaDinamica);
+                pgi.data.pang = (ulong)(pgi.data.pang * (1.0f / 6.0f));
+                pgi.data.bonus_pang = (ulong)(pgi.data.bonus_pang * (1.0f / 6.0f));
+
             }
             else
             { // Course Practice
@@ -169,11 +156,11 @@ namespace Pangya_GameServer.Game.GameModes
                         sendUpdateState(_session, 2);
 
                         // Achievement Counter
-                        pgi.sys_achieve.incrementCounter((m_ri.getModo() == RoomInfo.ROOM_INFO_MODO.M_REPEAT) ? 0x6C40003Du /*/ *Hole Repeat * /*/ : 0x6C40003Eu /*/ *Course Practice * /*/);
+                        pgi.sys_achieve.incrementCounter((m_ri.getModo() == RoomInfo.eMODO.M_REPEAT) ? 0x6C40003Du /*/ *Hole Repeat * /*/ : 0x6C40003Eu /*/ *Course Practice * /*/);
                     }
                 }
 
-                //pgi->type = (_option == 0) ? PlayerGameInfo::eFLAG_GAME::FINISH : PlayerGameInfo::eFLAG_GAME::END_GAME;
+                //pgi->flag = (_option == 0) ? PlayerGameInfo::eFLAG_GAME::FINISH : PlayerGameInfo::eFLAG_GAME::END_GAME;
                 setGameFlag(pgi, (_option == 0) ? PlayerGameInfo.eFLAG_GAME.FINISH : PlayerGameInfo.eFLAG_GAME.END_GAME);
 
                 pgi.time_finish.CreateTime();
@@ -248,6 +235,8 @@ namespace Pangya_GameServer.Game.GameModes
 
                     if (m_timer != null)
                         clear_time();
+
+                    _smp.message_pool.getInstance().push(new message("[Practice::timeIsOver][Log] Tempo Acabou no Practice. na sala[NUMERO=" + Convert.ToString(m_ri.numero) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
                 }
             }
             catch (exception e)
@@ -256,7 +245,7 @@ namespace Pangya_GameServer.Game.GameModes
             }
         }
 
-        public override bool init_game()
+        protected override bool init_game()
         {
 
             if (m_players.Count > 0)
@@ -276,7 +265,7 @@ namespace Pangya_GameServer.Game.GameModes
             return true;
         }
 
-        public override void requestReplySyncShotData(Player _session)
+        protected override void requestReplySyncShotData(Player _session)
         {
             //CHECK_SESSION_BEGIN("requestReplySyncShotData");
 
@@ -335,7 +324,7 @@ namespace Pangya_GameServer.Game.GameModes
 
                     if (el.m_pi.level < 70)
                     {
-                        pgi.data.exp = 0;
+                        pgi.data.exp = (uint)((hole_seq > 0 ? hole_seq : 0) * TRANSF_SERVER_RATE_VALUE(m_rv.exp) * TRANSF_SERVER_RATE_VALUE(pgi.used_item.rate.exp));
                     }
 
                     _smp.message_pool.getInstance().push(new message("[Practice::requestFinishExpGame][Log] PLAYER[UID=" + Convert.ToString(el.m_pi.uid) + "] ganhou " + Convert.ToString(pgi.data.exp) + " de experience.", type_msg.CL_FILE_LOG_AND_CONSOLE));
@@ -415,11 +404,11 @@ namespace Pangya_GameServer.Game.GameModes
                             MapSystem.getInstance().load();
                         }
 
-                        var map = MapSystem.getInstance().getMap((byte)(m_ri.course & RoomInfo.ROOM_INFO_COURSE.UNK));
+                        var map = MapSystem.getInstance().getMap((byte)(m_ri.course & RoomInfo.eCOURSE.UNK));
 
                         if (map == null)
                         {
-                            _smp.message_pool.getInstance().push(new message("[TourneyBase::checkEndShotOfHole][Error][Warning] tentou pegar o Map dados estaticos do course[COURSE=" + Convert.ToString((ushort)((byte)(m_ri.course & RoomInfo.ROOM_INFO_COURSE.UNK))) + "], mas nao conseguiu encontra na classe do Server.", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                            _smp.message_pool.getInstance().push(new message("[TourneyBase::checkEndShotOfHole][Error][Warning] tentou pegar o Map dados estaticos do course[COURSE=" + Convert.ToString((ushort)((byte)(m_ri.course & RoomInfo.eCOURSE.UNK))) + "], mas nao conseguiu encontra na classe do Server.", type_msg.CL_FILE_LOG_AND_CONSOLE));
                         }
                         else
                         {

@@ -8,11 +8,11 @@ using Pangya_GameServer.Models;
 using Pangya_GameServer.PacketFunc;
 
 using PangyaAPI.Utilities;
-using PangyaAPI.Utilities.Models;
+using PangyaAPI.Utilities.BinaryModels;
 using PangyaAPI.Utilities.Log;
 namespace Pangya_GameServer.Game.GameModes
 {
-    public class GrandZodiac : GrandZodiacBase
+    public class GrandZodiac : GrandZodiacBase, IDisposable
     {
         private bool m_grand_zodiac_state;
 
@@ -33,15 +33,9 @@ namespace Pangya_GameServer.Game.GameModes
             m_state = init_game();
         }
 
-        ~GrandZodiac()
-        {
-            Dispose(false);
-        }
 
-        public override void Dispose(bool disposing)
+        protected override void Dispose(bool disposing)
         {
-            if (disposedValue) return;
-
             if (disposing)
             {
                 m_grand_zodiac_state = false;
@@ -60,10 +54,11 @@ namespace Pangya_GameServer.Game.GameModes
                 stopTime();
 
                 deleteAllPlayer();
-                LogDestruction();
 
-            }              
-            base.Dispose(true); 
+                _smp.message_pool.getInstance().push(new message("[GrandZodiac::~GrandZodiac][Log] Grand Zodiac destroyed on Room[Number=" + Convert.ToString(m_ri.numero) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                base.Dispose(disposing);
+
+            }
         }
 
 
@@ -164,11 +159,16 @@ namespace Pangya_GameServer.Game.GameModes
                         packet_func.session_send(p,
                             _session, 1);
                     }
-                } 
+                }
+
+#if _DEBUG
+			_smp.message_pool.getInstance().push(new message("[GrandZodiac::timeIsOver][Log] Tempo Acabou no Grand Zodiac. na sala[NUMERO=" + Convert.ToString(m_ri.numero) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
+#endif // _DEBUG
+
             }
         }
 
-        public override bool init_game()
+        protected override bool init_game()
         {
 
             if (m_players.Count > 0)
@@ -208,7 +208,7 @@ namespace Pangya_GameServer.Game.GameModes
 
                             if (el.Value.level < 70)
                             {
-                                el.Value.data.exp = exp;
+                                el.Value.data.exp = (uint)exp;
                             }
                         }
 
@@ -221,7 +221,7 @@ namespace Pangya_GameServer.Game.GameModes
 
                         if (el.Value.level < 70)
                         {
-                            el.Value.data.exp = exp;
+                            el.Value.data.exp = (uint)exp;
                         }
                     }
                 }
@@ -427,7 +427,7 @@ namespace Pangya_GameServer.Game.GameModes
                 p.WriteFloat(pgi.location.x);
                 p.WriteFloat(pgi.location.z);
 
-                if (m_ri.getTipo() == RoomInfo.ROOM_INFO_TYPE.GRAND_ZODIAC_INT)
+                if (m_ri.getTipo() == RoomInfo.TIPO.GRAND_ZODIAC_INT)
                 {
                     packet_func.game_broadcast(this,
                         p, 1);
@@ -604,7 +604,7 @@ namespace Pangya_GameServer.Game.GameModes
 
             PlayerGrandZodiacInfo pgzi = null;
 
-            float pontos_base = (m_ri.getTipo() == RoomInfo.ROOM_INFO_TYPE.GRAND_ZODIAC_INT ? 3.5f : 5.0f);
+            float pontos_base = (m_ri.getTipo() == RoomInfo.TIPO.GRAND_ZODIAC_INT ? 3.5f : 5.0f);
 
             foreach (var el in m_player_info)
             {

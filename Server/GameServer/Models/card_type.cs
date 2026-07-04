@@ -44,8 +44,8 @@ namespace Pangya_GameServer.Models
                 card.Clear();
             }
 
-            _typeid = 0;
-            num = 0;
+            _typeid = 0u;
+            num = 0u;
             volume = 0;
         }
         public class Rate

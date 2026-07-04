@@ -32,7 +32,8 @@ namespace Pangya_GameServer.Repository
         {
             v_tei.Clear();
 
-            var r = procedure((m_type == TYPE.NORMAL) ? m_szConsulta[0] : m_szConsulta[1],
+            var r = procedure(
+                (m_type == TYPE.NORMAL) ? m_szConsulta[0] : m_szConsulta[1],
                 Convert.ToUInt32(m_uid).ToString() + ", " + Convert.ToUInt32(m_season).ToString());
 
             checkResponse(r, "nao conseguiu pegar o Trophy Special do player: " + Convert.ToString(m_uid));

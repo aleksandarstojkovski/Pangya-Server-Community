@@ -202,22 +202,22 @@ namespace Pangya_GameServer.Game
             m_team_ctx.data.time_out = _timeout;
         }
 
-        public int getTacadaNum()
+        public uint getTacadaNum()
         {
             return m_team_ctx.data.tacada_num;
         }
 
-        public void setTacadaNum(in int _tacada_num)
+        public void setTacadaNum(in uint _tacada_num)
         {
             m_team_ctx.data.tacada_num = _tacada_num;
         }
 
-        public int getTotalTacadaNum()
+        public uint getTotalTacadaNum()
         {
             return m_team_ctx.data.total_tacada_num;
         }
 
-        public void setTotalTacadaNum(in int _total_tacada_num)
+        public void setTotalTacadaNum(in uint _total_tacada_num)
         {
             m_team_ctx.data.total_tacada_num = _total_tacada_num;
         }
@@ -306,12 +306,12 @@ namespace Pangya_GameServer.Game
         // increment
 
         // increment
-        public void incrementTacadaNum(int _inc = 1)
+        public void incrementTacadaNum(uint _inc = 1)
         {
             m_team_ctx.data.tacada_num += _inc;
         }
 
-        public void incrementTotalTacadaNum(int _inc = 1)
+        public void incrementTotalTacadaNum(uint _inc = 1)
         {
             m_team_ctx.data.total_tacada_num += _inc;
         }

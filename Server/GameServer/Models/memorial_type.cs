@@ -81,7 +81,7 @@ namespace Pangya_GameServer.Models
         public void clear()
         {
 
-            _typeid = 0;
+            _typeid = 0u;
             tipo = 0;
             flag = -100;
 

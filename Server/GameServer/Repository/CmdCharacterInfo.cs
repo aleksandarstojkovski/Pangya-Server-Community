@@ -3,7 +3,6 @@ using System.Data;
 using System.Diagnostics;
 using System.Linq;
 using Pangya_GameServer.Game.Manager;
-using PangyaAPI.IFF.JP.Extensions;
 using PangyaAPI.Network.Models;
 using PangyaAPI.SQL;
 
@@ -40,10 +39,14 @@ namespace Pangya_GameServer.Repository
 
                 ce.id = Convert.ToInt32(_result.data[0]);
                 ce._typeid = Convert.ToUInt32(_result.data[1]);
+                if (ce._typeid == 67108870)
+                {
+                    Debug.WriteLine("test");
+                }
                 for (i = 0; i < 24; i++)
-                    ce.parts_id[i] = Convert.ToUInt32(_result.data[2 + i]);        // 2 + 24 
+                    ce.parts_id[i] = Convert.ToUInt32(_result.data[2 + i]);        // 2 + 24
                 for (i = 0; i < 24; i++)
-                   ce.parts_typeid[i] = Convert.ToUInt32(_result.data[26 + i]);        // 2 + 24 
+                    ce.parts_typeid[i] = Convert.ToUInt32(_result.data[26 + i]);   // 26 + 24
                 ce.default_hair = (byte)Convert.ToUInt32(_result.data[50]);
                 ce.default_shirts = (byte)Convert.ToUInt32(_result.data[51]);
                 ce.gift_flag = (byte)Convert.ToUInt32(_result.data[52]);
@@ -51,50 +54,17 @@ namespace Pangya_GameServer.Repository
                     ce.pcl[i] = (byte)Convert.ToUInt32(_result.data[53 + i]); // 53 + 5
                 ce.purchase = (byte)Convert.ToUInt32(_result.data[58]);
                 for (i = 0; i < 5; i++)
-                {
-                    var aux_part = Convert.ToUInt32(_result.data[59 + i]);				// 59 + 5
-                    if (aux_part != 0)
-                    {
-                        ce.auxparts[i] = aux_part;
-                    }
-                }
-
+                    ce.auxparts[i] = Convert.ToUInt32(_result.data[59 + i]);				// 59 + 5
                 for (i = 0; i < 4; i++)
-                {
-                    var cut_in = Convert.ToUInt32(_result.data[64 + i]);				// 59 + 5
-                    if (cut_in != 0)
-                    {
-                        ce.cut_in[i] = cut_in;
-                    }
-                }
-
+                    ce.cut_in[i] = Convert.ToUInt32(_result.data[64 + i]);					// 64 + 4 Cut-in deveria guarda no db os outros 3 se for msm os 4 que penso q seja, � sim no JP USA os 4
                 ce.mastery = Convert.ToUInt32(_result.data[68]);
                 for (i = 0; i < 4; i++)
-                {
-                    var card = Convert.ToUInt32(_result.data[69 + i]);				// 59 + 5
-                    if (card != 0)
-                    {
-                        ce.Card_Character[i] = card;
-                    }
-                }
+                    ce.Card_Character[i] = Convert.ToUInt32(_result.data[69 + i]);		// 69 + 4
+                for (i = 0; i < 3; i++)
+                    ce.Card_Caddie[i] = Convert.ToUInt32(_result.data[73 + i]);			// 73 + 4
+                for (i = 0; i < 3; i++)
+                    ce.Card_NPC[i] = Convert.ToUInt32(_result.data[77 + i]);				// 77 + 4
 
-                for (i = 0; i < 4; i++)
-                {
-                    var card = Convert.ToUInt32(_result.data[73 + i]);				// 59 + 5
-                    if (card != 0)
-                    {
-                        ce.Card_Caddie[i] = card;
-                    }
-                }
-
-                for (i = 0; i < 4; i++)
-                {
-                    var card = Convert.ToUInt32(_result.data[77 + i]);				// 59 + 5
-                    if (card != 0)
-                    {
-                        ce.Card_NPC[i] = card;
-                    }
-                }
 
                 var it = v_ce.Where(c => c.Key == ce.id);
                 if (!it.Any())
@@ -109,13 +79,7 @@ namespace Pangya_GameServer.Repository
 
         protected override Response prepareConsulta()
         {
-
-            var (procName, parameters) = (m_type == TYPE.ALL)
-         ? ("pangya.USP_CHAR_EQUIP_LOAD_S4", m_uid.ToString())
-         : ("pangya.USP_CHAR_EQUIP_LOAD_S4_ONE", m_uid + "," + m_item_id);
-
-            var r = procedure(procName, parameters);
-
+            var r = procedure(m_type == TYPE.ALL ? $"pangya.USP_CHAR_EQUIP_LOAD_S4 {m_uid} " : $"pangya.USP_CHAR_EQUIP_LOAD_S4_ONE {m_uid},{m_item_id} ");
             checkResponse(r, "nao conseguiu pegar o member info do player: " + (m_uid));
             return r;
         }

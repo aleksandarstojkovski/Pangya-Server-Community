@@ -4,29 +4,7 @@ namespace PangyaAPI.Network.Cryptor
 {
 
     public static class Cipher
-    {
-
-        public static byte[] EncryptClient(byte[] source, byte key, byte salt)
-        {
-            if (key >= 0x10) throw new ArgumentOutOfRangeException(nameof(key), $"Key too large ({key} >= 0x10)");
-
-            var oracleIndex = (key << 8) + salt;
-            var buffer = new byte[source.Length + 5];
-            var pLen = buffer.Length - 4;
-
-            buffer[0] = salt;
-            buffer[1] = (byte)((pLen >> 0) & 0xFF);
-            buffer[2] = (byte)((pLen >> 8) & 0xFF);
-            buffer[4] = CryptoOracle.PUBLIC_KEY_TABLE[oracleIndex];
-
-            Array.Copy(source, 0, buffer, 5, source.Length);
-
-            for (var i = buffer.Length - 1; i >= 8; i--) buffer[i] ^= buffer[i - 4];
-
-            buffer[4] ^= CryptoOracle.PRIVATE_KEY_TABLE[oracleIndex];
-            return buffer;
-        }
-
+    {     
         /// <summary>
         ///     Decrypts data from client-side packets (sent from clients to servers.)
         /// </summary>
@@ -104,6 +82,18 @@ namespace PangyaAPI.Network.Cryptor
             }
         }
 
+        public static uint DecryptClient(uint source)
+        {
+            //code sent by: Hsreina
+            byte[] pval = BitConverter.GetBytes(source);
+            int i, index;
+            for (i = 0, index = 0; i < CryptoOracle.CryptTableDeserialize.Length; i++)
+            {
+                pval[index] ^= CryptoOracle.CryptTableDeserialize[i];
+                index = (index == 3) ? 0 : ++index;
+            }
+            return BitConverter.ToUInt32(pval, 0);
+        }
         public static byte[] _ServerEncrypt(this byte[] source, byte key, byte salt)
         {
             if (key >= 0x10)

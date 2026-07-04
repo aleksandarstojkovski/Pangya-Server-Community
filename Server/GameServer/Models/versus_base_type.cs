@@ -13,45 +13,49 @@ namespace Pangya_GameServer.Models
 
     public class stStateVersus
     {
+
+        private object m_cs;
         private STATE_VERSUS m_state;
-        private readonly object m_syncRoot = new object(); // O objeto de sincronização
 
         public stStateVersus()
         {
             m_state = STATE_VERSUS.WAIT_HIT_SHOT;
+            m_cs = new object();
         }
-         
+
+        ~stStateVersus()
+        {
+            m_state = STATE_VERSUS.WAIT_HIT_SHOT;
+            m_cs = null;
+        }
+
         public void @lock()
         {
-            Monitor.Enter(m_syncRoot);
+            Monitor.Enter(m_cs);
         }
-         
+
         public void unlock()
         {
-            Monitor.Exit(m_syncRoot);
+            Monitor.Exit(m_cs);
         }
 
         public STATE_VERSUS getState()
         {
-            // Opcional: garantir que a leitura seja thread-safe
-            lock (m_syncRoot)
-            {
-                return m_state;
-            }
+            return m_state;
         }
 
         public void setState(STATE_VERSUS state)
         {
-            lock (m_syncRoot)
-            {
-                m_state = state;
-            }
+            m_state = state;
         }
 
-        // Útil para mudar o estado quando você já tem o lock manual
         public void setStateWithLock(STATE_VERSUS _state)
         {
+            @lock();
+
             m_state = _state;
+
+            unlock();
         }
     }
 }

@@ -57,9 +57,10 @@ namespace Pangya_GameServer.Repository
             string upt_dt = "null";
 
             if (!m_ps.update_date.IsEmpty)
-                upt_dt = makeText(_formatDate(m_ps.update_date.ConvertTime()));
+                upt_dt = _formatDate(m_ps.update_date.ConvertTime());
 
-            var r = procedure(m_szConsulta,
+            var r = procedure(
+                m_szConsulta,
                 Convert.ToString(m_ps.numero) + ", " + Convert.ToString(m_ps.price_normal) + ", " + Convert.ToString(m_ps.price_big) + ", " + Convert.ToString((ushort)m_ps.limitted_per_day) + ", " + upt_dt);
 
             checkResponse(r, "nao conseguiu atualizar o Papel Shop Config[" + m_ps.toString() + "]");

@@ -11,7 +11,7 @@ namespace Pangya_GameServer.Repository
         {
             this.m_uid = 0;
             this.m_email_id = null;
-            this.m_count = 0;
+            this.m_count = 0u;
         }
 
         public CmdDeleteEmail(uint _uid,
@@ -20,7 +20,7 @@ namespace Pangya_GameServer.Repository
         {
             this.m_uid = _uid;
             this.m_email_id = null;
-            this.m_count = 0;
+            this.m_count = 0u;
 
             if (_email_id == null || _count == 0u)
             {
@@ -53,7 +53,7 @@ namespace Pangya_GameServer.Repository
             if (_email_id == null || _count == 0u)
             {
                 m_email_id = null;
-                m_count = 0;
+                m_count = 0u;
                 return;
             }
 

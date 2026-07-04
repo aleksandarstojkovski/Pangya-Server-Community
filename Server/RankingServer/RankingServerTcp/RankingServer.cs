@@ -6,7 +6,7 @@ using Pangya_RankingServer.Session;
 using PangyaAPI.Utilities.Log;
 using PangyaAPI.IFF.JP.Extensions;
 using Pangya_RankingServer.PacketFunc;
-using PangyaAPI.Utilities.Models;
+using PangyaAPI.Utilities.BinaryModels;
 using PangyaAPI.Network.Repository;
 using Pangya_RankingServer.PangyaEnums;
 using System.Threading;
@@ -17,11 +17,14 @@ using System.Diagnostics;
 using System.Collections.Generic;
 using Pangya_RankingServer.UTIL;
 using PangyaAPI.SQL;
+
 namespace Pangya_RankingServer.RankingServerTcp
 {
     public class RankingServer : Server
-    {
+    { 
         static player_manager m_player_manager = new player_manager();
+        RankRegistryManager m_rank_registry_manager;
+
         RankRefreshTime m_refresh_time;
 
         int m_sync_update_time_refresh = 0;
@@ -41,14 +44,17 @@ namespace Pangya_RankingServer.RankingServerTcp
 
             try
             {
-               
+                m_rank_registry_manager = new RankRegistryManager();
+
                 config_init();
-                 
+
+                // Carrega IFF_STRUCT
+                if (!sIff.getInstance().isLoad())
+                    sIff.getInstance().initilation();
+
                 // Request Cliente
                 init_Packets();
 
-                init_systems();
-                 
                 // Initialized complete
                 m_state = ServerState.Initialized;
             }
@@ -74,29 +80,29 @@ namespace Pangya_RankingServer.RankingServerTcp
                     // Verifica se o valor de packetId é válido no enum PacketIDClient
                     if (Enum.IsDefined(typeof(PacketIDClient), (PacketIDClient)packetId))
                     {
-                        if (packetId != 244)
-                            _smp.message_pool.getInstance().push(new message($"[{GetType().Name}::CheckPacket][Debug] PLAYER[UID: " + (uid == 0 ? player.m_ip : uid.ToString()) + ", PID: " + (PacketIDClient)packetId + "]", type_msg.CL_ONLY_CONSOLE));
+                       _smp.message_pool.getInstance().push(new message("[RankingServer::CheckPacket][Log] PLAYER[UID: " + (uid == 0 ? player.m_ip : uid.ToString()) + ", PID: " + (PacketIDClient)packetId + "]", type_msg.CL_ONLY_CONSOLE));
                         return true;
                     }
                     else// nao tem no PacketIDClient
                     {
-                        _smp.message_pool.getInstance().push(new message($"[{GetType().Name}::CheckPacket][Info]: PLAYER[UID: {player.m_pi.uid}, CGPID: 0x{packet.Id:X}]", type_msg.CL_ONLY_CONSOLE));
+                        Debug.WriteLine($"[RankingServer::CheckPacket][Log]: PLAYER[UID: {player.m_pi.uid}, CRPID: 0x{packet.Id:X}]");
                         return true;
                     }
                 default:
                     // Verifica se o valor de packetId é válido no enum PacketIDServer
                     if (Enum.IsDefined(typeof(PacketIDServer), (PacketIDServer)packetId))
                     {
-                        Debug.WriteLine($"[{GetType().Name}::CheckPacket][Info]: PLAYER[UID: {player.m_pi.uid}, SGPID: {(PacketIDServer)packetId}]", ConsoleColor.Cyan);
+                        Debug.WriteLine($"[RankingServer::CheckPacket][Log]: PLAYER[UID: {player.m_pi.uid}, SRPID: {(PacketIDServer)packetId}]", ConsoleColor.Cyan);
                         return true;
                     }
                     else// nao tem no PacketIDServer
                     {
-                        Debug.WriteLine($"[{GetType().Name}::CheckPacket][Info]: PLAYER[UID: {player.m_pi.uid}, SGPID: 0x{packet.Id:X}]");
+                        Debug.WriteLine($"[RankingServer::CheckPacket][Log]: PLAYER[UID: {player.m_pi.uid}, SRPID: 0x{packet.Id:X}]");
                         return true;
                     }
             }
         }
+
 
         public override void onDisconnected(PangyaAPI.Network.PangyaSession.Session _session)
         {
@@ -108,62 +114,44 @@ namespace Pangya_RankingServer.RankingServerTcp
             _smp.message_pool.getInstance().push(new message("[RankingServer::onDisconnected][Log] PLAYER[ID: " + (p.m_pi.id) + ", UID: " + (p.m_pi.uid) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
         }
 
-        public void init_systems()
-        {
-            try
-            { 
-                // Carrega IFF_STRUCT
-                if (!sIff.getInstance().isLoad())
-                    sIff.getInstance().initilation(); 
-
-                // Trava update check, para n�o ficar enviando varias requisi��o para atualizar os registro para o banco de dados
-                m_sync_update_time_refresh = 1;
-
-                // Envia a requisi��o para o banco de dados
-                snmdb.NormalManagerDB.getInstance().add(1,
-                new CmdUpdateRankRegistry(),
-                this.SQLDBResponse,
-                this);
-
-                if (!sRankRegistryManager.getInstance().isLoad())
-                    sRankRegistryManager.getInstance().load(); // Carrega os registros do Rank
-            }
-            catch (exception e)
-            {
-                _smp.message_pool.getInstance().push(new message("[rank_server::onHeartBeat][Error] -> " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
-
-            }
-        }
-
         public override void OnHeartBeat()
-        {  
+        {
+            // Aqui depois tenho que colocar uma verifica��o que eu queira fazer no server
+            // Esse fun��o � chamada na thread monitor
+
             try
-            { 
+            {
+
                 // Server ainda n�o est� totalmente iniciado
                 if (m_state != ServerState.Initialized)
                     return;
 
-                if (!sRankRegistryManager.getInstance().isLoad())
-                    sRankRegistryManager.getInstance().load(); // Carrega os registros do Rank
-
-                if (m_state == ServerState.Initialized  && m_sync_update_time_refresh == 0  && m_refresh_time.isOutDated())
+                if (m_state == ServerState.Initialized
+                   && Interlocked.CompareExchange(ref m_sync_update_time_refresh,
+                       1, 1) == 0u
+                   && m_refresh_time.isOutDated())
                 {
 
+                    // Log
+                    _smp.message_pool.getInstance().push(new message("[rank_server::onHeartBeat][Log] Passou da hora de atualizar os registros do Rank.", type_msg.CL_FILE_LOG_AND_CONSOLE));
+
                     // Trava update check, para n�o ficar enviando varias requisi��o para atualizar os registro para o banco de dados
-                   m_sync_update_time_refresh = 1;
+                    Interlocked.Exchange(ref m_sync_update_time_refresh, 1);
 
                     // Envia a requisi��o para o banco de dados
                     snmdb.NormalManagerDB.getInstance().add(1,
                     new CmdUpdateRankRegistry(),
                     this.SQLDBResponse,
                     this);
-                }
-                
+                } 
             }
             catch (exception e)
-            { 
+            {
+
                 _smp.message_pool.getInstance().push(new message("[RankingServer::onHeartBeat][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
-            } 
+            }
+
+            return;
         }
 
         public override void OnStart()
@@ -242,6 +230,7 @@ namespace Pangya_RankingServer.RankingServerTcp
             }
 
             m_refresh_time = cmd_rci.getInfo();
+             
         }
         protected virtual void ReloadFiles()
         {
@@ -254,6 +243,7 @@ namespace Pangya_RankingServer.RankingServerTcp
         uint _req_server_uid,
         AuthServerPlayerInfo _aspi)
         {
+            //CHECK_SESSION_BEGIN("confirmLoginOnOtherServer");
 
             var p = new PangyaBinaryWriter();
 
@@ -278,18 +268,26 @@ namespace Pangya_RankingServer.RankingServerTcp
                         3, 0x5200203));
                 }
 
+                if (_aspi.ip.CompareTo(_session.getIP()) != 0)
+                {
+                    throw new exception("[rank_server::confirmLoginOnOtherServer][Error] Player[UID=" + Convert.ToString(_session.m_pi.uid) + ", REQ_UID=" + Convert.ToString(_aspi.uid) + ", REQ_SERVER=" + Convert.ToString(_req_server_uid) + "] request Info player, mas nao eh o mesmo IP[IP=" + _session.getIP() + ", REQ_IP=" + _aspi.ip + "] que foi retornado do request com o Auth Server.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.RANK_SERVER,
+                        4, 0x5200204));
+                }
+
                 // Confirm Login com sucesso, Atualiza o cliente
+
+                // Logado [Online] -- isso aqui � do MSN que compiei o projeto do msn para fazer esse mais r�pido
                 _session.m_pi.m_state = 4;
 
                 // Authorized a ficar online no server por tempo indeterminado
                 _session.m_is_authorized = true;
-
+                 
                 // Resposta para o Pedido de Login
                 sendFirstPage(_session, 0);
 
             }
             catch (exception e)
-            {
+            { 
                 // Resposta
                 sendFirstPage(_session, 1);
 
@@ -323,7 +321,7 @@ namespace Pangya_RankingServer.RankingServerTcp
                 // Op��es descontinuadas no Fresh UP!, por�m ele ainda mant�m nos packet
                 p.WriteByte(_session.m_pi.m_sd.class_type);
 
-                sRankRegistryManager.getInstance().pageToPacket(p, _session.m_pi.m_sd);
+                m_rank_registry_manager.pageToPacket(p, _session.m_pi.m_sd);
 
                 // Resposta da requisi��o do player
                 // 0 - player est� no rank entre os player colocados. Ex (Top 100)
@@ -332,7 +330,7 @@ namespace Pangya_RankingServer.RankingServerTcp
 
                 if (_session.m_pi.m_sd.active > 0)
                 {
-                    sRankRegistryManager.getInstance().playerPositionToPacket(p,
+                    m_rank_registry_manager.playerPositionToPacket(p,
                         _session, _session.m_pi.m_sd);
                 }
                 else
@@ -359,9 +357,9 @@ namespace Pangya_RankingServer.RankingServerTcp
 
                 uint uid = _packet.ReadUInt32();
                 string id = _packet.ReadString();
-                byte active = _packet.ReadByte();
+                byte active = _packet.ReadByte(); 
 
-                sRankRegistryManager.getInstance().sendPlayerFullInfo(_session, uid);
+                m_rank_registry_manager.sendPlayerFullInfo(_session, uid);
 
             }
             catch (exception e)
@@ -379,9 +377,18 @@ namespace Pangya_RankingServer.RankingServerTcp
 
             try
             {
+
                 if (_ret == 0)
                 {
-                   m_sync_update_time_refresh = 0;
+
+                    _smp.message_pool.getInstance().push(new message("[rank_server::updateTimeRefresh][Error] Nao conseguiu atualizar os registro do Rank no banco de dados.", type_msg.CL_FILE_LOG_AND_CONSOLE));
+
+
+                    // Libera o HearBeat tentar atualizar o registros de novo
+                    _smp.message_pool.getInstance().push(new message("[rank_server::updateTimeRefresh][Log] Libera o HearBeat tentar atualizar o registros de novo.", type_msg.CL_FILE_LOG_AND_CONSOLE));
+
+                    Interlocked.Exchange(ref m_sync_update_time_refresh, 0);
+
                 }
                 else if (_ret == 1)
                 {
@@ -389,24 +396,33 @@ namespace Pangya_RankingServer.RankingServerTcp
                     // Atualiza tempo e recarregar o registro do Rank novamente
                     m_refresh_time.setLastRefreshDate(_date);
 
-                    sRankRegistryManager.getInstance().load();
+                    m_rank_registry_manager.load();
 
                     // Cria arquivo de log, com todos os registros
-                    sRankRegistryManager.getInstance().makeLog();
- 
+                    m_rank_registry_manager.makeLog();
+
+                    // Log
+                    _smp.message_pool.getInstance().push(new message("[rank_server::updateTimeRefresh][Log] Atualizou os registro do Rank Com sucesso. Rank Refresh[" + m_refresh_time.toString() + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
+
                     // Libera o HearBeat para verificar de novo quando tempo vai acabar
-                    m_sync_update_time_refresh = 0;
+                    Interlocked.Exchange(ref m_sync_update_time_refresh, 0);
+
                 }
+
             }
             catch (exception e)
             {
+
                 _smp.message_pool.getInstance().push(new message("[rank_server::updateTimeRefresh][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
 
 
         public void requestSearchPlayerInRank(Player _session, packet _packet)
-        { 
+        {
+            //REQUEST_BEGIN("SearchPlayerInRank");
+
+
             var p = new PangyaBinaryWriter();
 
             try
@@ -433,7 +449,7 @@ namespace Pangya_RankingServer.RankingServerTcp
 
                     sd.ToRead(_packet);
 
-                    sRankRegistryManager.getInstance().searchPlayerByNicknameAndSendPage(_session,
+                    m_rank_registry_manager.searchPlayerByNicknameAndSendPage(_session,
                         nickname, sd);
 
                 }
@@ -452,7 +468,7 @@ namespace Pangya_RankingServer.RankingServerTcp
 
                     sd.ToRead(_packet);
 
-                    sRankRegistryManager.getInstance().searchPlayerByRankAndSendPage(_session,
+                    m_rank_registry_manager.searchPlayerByRankAndSendPage(_session,
                         position, sd);
 
                 }
@@ -501,21 +517,20 @@ namespace Pangya_RankingServer.RankingServerTcp
                             + _time_sec + " segundos, mas o server ja esta com o timer de shutdown", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
             }
-            catch (exception e)
-            {
+            catch (exception e) {
 
                 _smp.message_pool.getInstance().push(new message("[RankingServer::authCmdShutdown][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
-        }
+            }
 
 
-        public override void shutdown_time(int _time_sec)
+       public override void shutdown_time(int _time_sec)
         {
 
             if (_time_sec <= 0) // Desliga o Server Imediatemente
                 base.shutdown();
             else
-            {
+            { 
                 // Se o Shutdown Timer estiver criado descria e cria um novo
                 if (m_shutdown != null)
                 {
@@ -527,7 +542,7 @@ namespace Pangya_RankingServer.RankingServerTcp
                     m_timer_mgr.DeleteTimer(m_shutdown);
                 }
 
-                if ((m_shutdown = m_timer_mgr.CreateTimer((uint)(_time_sec * 1000), () => base.end_time_shutdown(this, 0))) == null)
+                if ((m_shutdown = m_timer_mgr.CreateTimer((uint)(_time_sec * 1000), ()=> base.end_time_shutdown(this, 0))) == null)
                     throw new exception("[RankingServer::shutdown_time][Error] nao conseguiu criar o timer", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.RANK_SERVER, 51, 0));
             }
         }
@@ -658,7 +673,7 @@ namespace Pangya_RankingServer.RankingServerTcp
         {
 
         }
-
+         
 
         public override bool CheckCommand(Queue<string> _command)
         {
@@ -685,7 +700,7 @@ namespace Pangya_RankingServer.RankingServerTcp
                 //    m_accept_sock.ReloadConfigFile();
                 //else
                 //    _smp.message_pool.getInstance().push(new message("[RankingServer::CheckCommand][WARNING] m_accept_sock is invalid.", type_msg.CL_FILE_LOG_AND_CONSOLE));
-            }
+            } 
             else
             {
                 _smp.message_pool.getInstance().push(new message($"Unknown Command: {command}", type_msg.CL_ONLY_CONSOLE));
@@ -707,7 +722,7 @@ namespace Pangya_RankingServer.RankingServerTcp
                 uint uid = _packet.ReadUInt32();
                 string id = _packet.ReadString();
 
-                _session.m_pi.m_sd.ToRead(_packet);
+                _session.m_pi.m_sd.ToRead(_packet); 
 
                 if (uid == 0)
                 {

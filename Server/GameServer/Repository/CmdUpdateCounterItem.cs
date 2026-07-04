@@ -6,7 +6,12 @@ using PangyaAPI.Utilities;
 namespace Pangya_GameServer.Repository
 {
     public class CmdUpdateCounterItem : Pangya_DB
-    { 
+    {
+        public CmdUpdateCounterItem()
+        {
+            this.m_uid = 0;
+            this.m_cii = new CounterItemInfo(0);
+        }
         public CmdUpdateCounterItem(uint _uid,
             CounterItemInfo _cii)
         {

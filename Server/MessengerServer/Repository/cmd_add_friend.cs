@@ -1,9 +1,9 @@
-﻿using Pangya_MessengerServer.Models;
+﻿using MessengerServer.Models;
 using PangyaAPI.SQL;
 using PangyaAPI.Utilities;
 using System;
 
-namespace Pangya_MessengerServer.Repository
+namespace MessengerServer.Repository
 {
     public class CmdAddFriend : Pangya_DB
     {
@@ -69,7 +69,7 @@ namespace Pangya_MessengerServer.Repository
 
             var r = procedure(
                 m_szConsulta,
-                Convert.ToString(m_uid) + ", " + Convert.ToString(m_fi.uid) + ", " + makeText(m_fi.apelido) + ", " + Convert.ToString(m_fi.lUnknown) + ", " + Convert.ToString(m_fi.lUnknown2) + ", " + Convert.ToString(m_fi.lUnknown3) + ", " + Convert.ToString(m_fi.lUnknown4) + ", " + Convert.ToString(m_fi.lUnknown5) + ", " + Convert.ToString(m_fi.lUnknown6) + ", " + Convert.ToString((short)m_fi.cUnknown_flag) + ", " + Convert.ToString((ushort)m_fi.state.ucState));
+                Convert.ToString(m_uid) + ", " + Convert.ToString(m_fi.uid) + ", " + m_fi.apelido + ", " + Convert.ToString(m_fi.lUnknown) + ", " + Convert.ToString(m_fi.lUnknown2) + ", " + Convert.ToString(m_fi.lUnknown3) + ", " + Convert.ToString(m_fi.lUnknown4) + ", " + Convert.ToString(m_fi.lUnknown5) + ", " + Convert.ToString(m_fi.lUnknown6) + ", " + Convert.ToString((short)m_fi.cUnknown_flag) + ", " + Convert.ToString((ushort)m_fi.state.ucState));
 
             checkResponse(r, "nao conseguiu adicionar o Friend[UID=" + Convert.ToString(m_fi.uid) + ", APELIDO=" + (m_fi.apelido) + ", NICK=" + (m_fi.nickname) + ", STATE=" + Convert.ToString((ushort)m_fi.state.ucState) + "] para o player[UID=" + Convert.ToString(m_uid) + "]");
 

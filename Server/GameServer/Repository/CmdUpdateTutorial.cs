@@ -8,7 +8,7 @@ namespace Pangya_GameServer.Repository
     {
         public CmdUpdateTutorial()
         {
-            this.m_uid = 0;
+            this.m_uid = 0u;
             this.m_ti = new TutorialInfo();
         }
 

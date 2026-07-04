@@ -1,52 +1,62 @@
-﻿using PangyaAPI.Utilities;
-using PangyaAPI.Utilities.Log;
-using System;
-using System.Collections.Generic;
+﻿using System;
 using System.Data;
-using System.Data.Odbc;
+using System.Data.SqlClient;
+using System.Diagnostics;
 using System.Linq;
-using static PangyaAPI.SQL.ctx_db;
+using PangyaAPI.Utilities;
+using PangyaAPI.Utilities.Log;
+using response = PangyaAPI.SQL.Response;
+using result_set = PangyaAPI.SQL.Result_Set;
 
 namespace PangyaAPI.SQL.Manager
 {
     public class mssql : database
     {
-        public mssql(ctx_db ctx) : base(ctx)
+        public virtual void destroy()
         {
-            connect();
+
+            if (is_connected())
+                disconnect();
+
+            if (m_ctx_db._mssql.hDbc != null)
+                m_ctx_db._mssql.hDbc = null;
+
+            if (m_ctx_db._mssql.hEnv != null)
+                m_ctx_db._mssql.hEnv = null;
+
+            m_state = false;
         }
+
+
+        public override bool hasGoneAway()
+        {
+            return false;
+        }
+
 
         public override void connect()
         {
             try
             {
-                if (m_ctx_db._mssql.hDbc != null &&
-               m_ctx_db._mssql.hDbc.State == ConnectionState.Open)
-                    return;
+                init();
 
-                m_ctx_db._mssql.hDbc =
-                    new OdbcConnection(m_ctx_db.CreateStrConnection());
+                if (m_error)
+                    throw new exception(m_error_string);
 
-                m_ctx_db._mssql.hDbc.Open();
+                if (m_ctx_db._mssql.hDbc != null && m_ctx_db._mssql.hDbc.State == ConnectionState.Closed)
+                {
+                    m_ctx_db._mssql.hDbc = new SqlConnection(m_ctx_db.CreateStrConnection());
+
+                    m_ctx_db._mssql.hDbc.Open();
+                }
+
                 m_connected = true;
             }
-            catch (OdbcException ex)
+            catch (Exception ex)
             {
-               
-                m_connected = false; 
-                _smp.message_pool.getInstance().push(new message($"[mssql::Connect][Error] {ex.Message}", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                _smp.message_pool.getInstance().push(new message("[mssql::Connect][Error] " + ex.Message + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                m_connected = false;
             }
-
-        }
-
-        public override void disconnect()
-        {
-            if (m_ctx_db._mssql.hDbc != null)
-            { 
-                m_ctx_db._mssql.clear();
-            }
-
-            m_connected = false;
         }
 
         public override void reconnect()
@@ -55,270 +65,361 @@ namespace PangyaAPI.SQL.Manager
             connect();
         }
 
-        public override bool hasGoneAway()
+        public override void disconnect()
         {
-            return m_ctx_db._mssql.hDbc == null ||
-                   m_ctx_db._mssql.hDbc.State != ConnectionState.Open;
+            if (is_connected())
+            {
+                if (m_ctx_db._mssql.hDbc != null)
+                    m_ctx_db._mssql.hDbc.Close();
+            }
+
+            m_connected = false;
         }
 
-        public override Response ExecQuery(string query)
-        { 
-            var res = new Response(); 
 
+        public override response ExecQuery(string _query)
+        {
+            response res = new response();
+            uint numResults = 0;
+            int numRows;
             try
-            { 
-                executeReader(query);
-                buildResponse(res);
+            {
+                HandleDiagnosticRecord(_query);
+                if (m_ctx_db._mssql.hStmt != null)
+                {
+                    var _data = m_ctx_db._mssql.hStmt.Tables[m_ctx_db.db_name];
+                    if (_data == null)
+                    {
+                        res = new response();
+                        res.addResultSet(new result_set((uint)result_set.STATE_TYPE._NO_DATA, 0, 0, null));
+                        return res;
+                    }
+                    if (_data.Rows.Count == 1)
+                    {
+                        numResults = 1;
+                    }
+                    if (_data.Rows.Count > 1)
+                    {
+                        numResults = (uint)_data.Rows.Count - 1;
+                    }
+                    numRows = _data.Columns.Count;
+                    res.setRowsAffected(numRows);
+                    if (numResults > 0)
+                    {
+                        foreach (DataRow item in _data.Rows)
+                            res.addResultSet(new result_set((uint)result_set.STATE_TYPE.HAVE_DATA, numResults, (uint)numRows, item));
+                    }
+
+                    m_ctx_db._mssql.hStmt.Clear();
+                }
+                return res;
             }
             catch (Exception ex)
             {
-                logError("ExecQuery", ex.Message, query);
+
+                // Montar a string de comando para execução do procedimento
+                var commandText = $"{_query}";
+
+                // A mensagem completa da exceção
+                string mensagemErro = string.Format(
+                    "[mssql::ExecQuery][Error]: {0}, [Query]: {1}",
+                    ex.Message, commandText
+                );
+
+                // Enviar a mensagem para o message_pool
+                _smp.message_pool.getInstance().push(new message(mensagemErro, 0)); return res;
             }
-
-            return res;
         }
-
-        public override Response ExecProc(string proc, string valores = null)
+        public override response ExecProc(string _proc_name, string valor = null)
         {
-             
-            var res = new Response();
-			  
+            response res = new response();
+            uint numResults = 0;
+            int numRows = 0;
             try
             {
-
-                executeProc(proc, valores);
-                buildResponse(res);
+                HandleDiagnosticRecord(_proc_name, valor);
+                if (m_ctx_db._mssql.hStmt != null && m_ctx_db._mssql.hStmt.Tables[m_ctx_db.db_name] != null)
+                {
+                    var _data = m_ctx_db._mssql.hStmt.Tables[m_ctx_db.db_name];
+                    if (_data != null && _data.Rows.Count == 1)
+                    {
+                        numResults = 1;
+                    }
+                    if (_data.Rows.Count > 1)
+                    {
+                        numResults = (uint)_data.Rows.Count - 1;
+                    }
+                    numRows = _data.Columns.Count;
+                    res.setRowsAffected(numRows);
+                    if (numResults > 0)
+                    {
+                        foreach (DataRow item in _data.Rows)
+                            res.addResultSet(new result_set((uint)result_set.STATE_TYPE.HAVE_DATA, numResults, (uint)numRows, item));
+                    }
+                    m_ctx_db._mssql.hStmt.Clear();
+                }
+                return res;
             }
             catch (Exception ex)
             {
-                logError("ExecProc", ex.Message, $"EXECUTE->> {proc} {valores}");
-            }
+                // Montar a string de comando para execução do procedimento
+                var commandText = $"EXEC {m_ctx_db.db_name}.{_proc_name} ";
 
-            return res;
-        } 
-
-        public override Response ExecQueryWithParams(string proc, string valores = null)
-        { 
-
-            var res = new Response();
-            var tmp = valores;
-			var valorArray = valores.Split(',')
+                if (!string.IsNullOrEmpty(valor))
+                {
+                    // Divide os valores com base na vírgula
+                    var valorArray = valor.Split(',')
                                             .Select(v => v.Trim()) // Remove espaços em branco
                                             .Select(v => $"'{v}'") // Adiciona aspas simples
                                             .ToArray();
 
                     // Junta os valores formatados de volta em uma string
-                    valores = string.Join(", ", valorArray);
-					
-            try
-            {
-                 
-                executeProc(proc, valores);
-                buildResponse(res);
-            }
-            catch (Exception ex)
-            {
-                logError("ExecProcWithParams", ex.Message, proc);
-            }
-
-            return res;
-        }
-
-        public override Response ExecProcWithParams(string proc, object[] _params = null)
-        {
-            string valores = "";
-           
-            if (_params != null)
-            {
-                foreach (var item in _params)
-                {
-                    valores += item.ToString() + ",";
+                    commandText += string.Join(", ", valorArray);
                 }
-                 
-            }
-             
 
-            var res = new Response();
-            try
-            {
-                executeProc(proc, valores);
-                buildResponse(res);
-            }
-            catch (Exception ex)
-            {
-                logError("ExecProcWithParams", ex.Message, proc);
-            }
+                // A mensagem completa da exceção
+                string mensagemErro = string.Format(
+                    "[mssql::ExecProc][Error]: {0}, [Query]: {1}",
+                    ex.Message, commandText
+                );
 
-            return res;
+                // Enviar a mensagem para o message_pool
+                _smp.message_pool.getInstance().push(new message(mensagemErro, type_msg.CL_FILE_LOG_AND_CONSOLE));
+                return res;
+            }
         }
 
-        public override Response ExecProcWithParams(
-            string proc, 
-            string valor = null)
+        public override response ExecQueryWithParams(string _proc_name, string[] parameter = null, SqlDbType[] tipo = null, object[] valor = null, ParameterDirection Direcao = ParameterDirection.Input)
         {
-            var res = new Response();
-
-            try
-            {
-                executeProc(proc, valor);
-                buildResponse(res);
-            }
-            catch (Exception ex)
-            {
-                logError("ExecProcWithParams", ex.Message, proc);
-            }
-
-            return res;
-        }
-         
-      
-        private void executeProc(string proc, string valores)
-        { 
-            executeReader($"EXEC {proc} {valores}");
-        }
-
-
-        private void executeReader(string proc)
-        {
-            ensureConnected();
-            var stmt = new OdbcStmt();
-            m_ctx_db._mssql.hStmt = stmt;
-
-            using (var cmd = new OdbcCommand(proc, m_ctx_db._mssql.hDbc))
-            {
-                cmd.CommandTimeout = 300;
-
-                using (var reader = cmd.ExecuteReader())
-                {
-                    // Variáveis temporárias para armazenar o último resultado válido encontrado
-                    List<string> lastColumns = new List<string>();
-                    List<object[]> lastRows = new List<object[]>();
-                    bool foundAnyData = false;
-
-                    do
-                    {
-                        // Se este conjunto de resultados tiver colunas, tratamos como um candidato a dado real
-                        if (reader.FieldCount > 0)
-                        {
-                            foundAnyData = true;
-                            lastColumns.Clear();
-                            lastRows.Clear();
-
-                            // 1. Guarda os nomes das colunas deste resultado atual
-                            for (int i = 0; i < reader.FieldCount; i++)
-                                lastColumns.Add(reader.GetName(i));
-
-                            // 2. Lê todas as linhas deste resultado atual
-                            OdbcDataReaderEx readerEx = new OdbcDataReaderEx(reader);
-                            while (reader.Read())
-                            {
-                                var row = new object[reader.FieldCount];
-                                for (int i = 0; i < reader.FieldCount; i++)
-                                    row[i] = readerEx.GetSafeValue(i);
-
-                                lastRows.Add(row);
-                            }
-                        }
-                    } while (reader.NextResult()); // Pula para o próximo (o último SELECT vencerá)
-
-                    // Se não encontrou absolutamente nada em nenhum dos resultados, sai
-                    if (!foundAnyData) return;
-
-                    // 3. Agora que o loop acabou, o 'lastColumns' e 'lastRows' contém o ÚLTIMO SELECT da procedure
-                    foreach (var colName in lastColumns)
-                        stmt.Columns.Add(colName);
-
-                    foreach (var rowData in lastRows)
-                        stmt.Rows.Add(rowData);
-                }
-            }
-        }
-
-        private void buildResponse(Response res)
-        {
-            var stmt = (OdbcStmt)m_ctx_db._mssql.hStmt;
+            response res = new response();
             uint numResults = 0;
             int numRows = 0;
-
-            if (stmt != null && stmt.Rows.Count == 1)
+            try
             {
-                numResults = 1;
-            }
-            if (stmt.Rows.Count > 1)
-            {
-                numResults = (uint)stmt.Rows.Count - 1;
-            }
-            numRows = (int)stmt.Columns.Count;
-            res.setRowsAffected(numRows);
-            if (numResults > 0)
-            {
-                foreach (var item in stmt.Rows)
+                HandleDiagnosticRecord(_proc_name, parameter, tipo, valor, Direcao, CommandType.Text);
+                if (m_ctx_db._mssql.hStmt != null && m_ctx_db._mssql.hStmt.Tables[m_ctx_db.db_name] != null)
                 {
-                    res.addResultSet(new Result_Set(
-                  (uint)Result_Set.STATE_TYPE.HAVE_DATA,
-                  numResults,
-                  (uint)numRows,
-                  item));
+                    var _data = m_ctx_db._mssql.hStmt.Tables[m_ctx_db.db_name];
+                    if (_data != null && _data.Rows.Count == 1)
+                    {
+                        numResults = 1;
+                    }
+                    if (_data.Rows.Count > 1)
+                    {
+                        numResults = (uint)_data.Rows.Count - 1;
+                    }
+                    numRows = _data.Columns.Count;
+                    res.setRowsAffected(numRows);
+                    if (numResults > 0)
+                    {
+                        foreach (DataRow item in _data.Rows)
+                        {
+                            res.addResultSet(new result_set((uint)result_set.STATE_TYPE.HAVE_DATA, numResults, (uint)numRows, item));
+                        }
+                    }
+                    m_ctx_db._mssql.hStmt.Clear();
+                }
+                return res;
+            }
+            catch (exception ex)
+            {
+
+                _smp.message_pool.getInstance().push(new message("[mssql::ExecProcWithParams][Error] " + ex.getFullMessageError() + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                return res;
+
+            }
+        }
+        public override response ExecProcWithParams(string _proc_name, string[] parameter = null, SqlDbType[] tipo = null, object[] valor = null, ParameterDirection Direcao = ParameterDirection.Input)
+        {
+            response res = new response();
+            uint numResults = 0;
+            int numRows = 0;
+            try
+            {
+                HandleDiagnosticRecord(_proc_name, parameter, tipo, valor, Direcao);
+                if (m_ctx_db._mssql.hStmt != null && m_ctx_db._mssql.hStmt.Tables[m_ctx_db.db_name] != null)
+                {
+                    var _data = m_ctx_db._mssql.hStmt.Tables[m_ctx_db.db_name];
+                    if (_data != null && _data.Rows.Count == 1)
+                    {
+                        numResults = 1;
+                    }
+                    if (_data.Rows.Count > 1)
+                    {
+                        numResults = (uint)_data.Rows.Count - 1;
+                    }
+                    numRows = _data.Columns.Count;
+                    res.setRowsAffected(numRows);
+                    if (numResults > 0)
+                    {
+                        foreach (DataRow item in _data.Rows)
+                            res.addResultSet(new result_set((uint)result_set.STATE_TYPE.HAVE_DATA, numResults, (uint)numRows, item));
+                    }
+                    m_ctx_db._mssql.hStmt.Clear();
+                }
+                return res;
+            }
+            catch (exception ex)
+            {
+
+                _smp.message_pool.getInstance().push(new message("[mssql::ExecProcWithParams][Error] " + ex.getFullMessageError() + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                return res;
+
+            }
+        }
+        public override string makeEscapeKeyword(string _value)
+        {
+            return "[" + _value + "]";
+        }
+
+        public mssql(ctx_db _m_ctx_db) : base(_m_ctx_db)
+        {
+            connect();
+        }
+
+        protected void HandleDiagnosticRecord(string query)
+        {
+
+            Stopwatch stopwatch = System.Diagnostics.Stopwatch.StartNew();
+            try
+            {
+                if (m_ctx_db._mssql.hDbc != null)
+                {
+                    if (string.IsNullOrEmpty(m_ctx_db._mssql.hDbc.ConnectionString))
+                        m_ctx_db._mssql.hDbc.ConnectionString = m_ctx_db.CreateStrConnection();
+
+                    // RECRIAR o DataSet antes de popular
+                    m_ctx_db._mssql.hStmt = new DataSet();
+
+                    var da = new SqlDataAdapter(query, m_ctx_db._mssql.hDbc);
+                    da.Fill(m_ctx_db._mssql.hStmt, m_ctx_db.db_name);
                 }
             }
-        }
-
-        private void ensureConnected()
-        {
-            if (!is_connected())
-                connect();
-        }
-
-        public override string makeEscapeKeyword(string value)
-        {
-            return $"[{value}]";
-        }
-
-        private void handleSchemaError(string sql, OdbcException ex)
-        {
-            foreach (OdbcError err in ex.Errors)
+            catch (exception ex)
             {
-                switch (err.SQLState)
-                {
-                    case "42S02": // tabela não existe
-                        logSchema("executeReader", err, sql);
-                        return;
+                _smp.message_pool.getInstance().push(new message("[mssql::HandleDiagnosticQuery][Error] " + ex.getFullMessageError() + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
+            }
+            finally
+            {
+                stopwatch.Stop();
+                //Debug.WriteLine($"[HandleDiagnosticRecord][Log] Tempo de execução: {stopwatch.ElapsedMilliseconds}ms");
 
-                    case "42S22": // coluna não existe
-                        logSchema("executeReader", err, sql);
-                        return;
-
-                    case "3F000": // schema inválido
-                        logSchema("executeReader", err, sql);
-                        return;
-
-                    case "42000": // permissão / proc inválida
-                        logSchema("executeReader", err, sql);
-                        return;
-                    case "IM002":
-                        logSchema("Connection", err, sql);
-                        break;
-                }
             }
 
-            // erro genérico
-            logSchema("ODBC_ERROR", ex.Errors[0], sql);
         }
 
-        private void logSchema(string type, OdbcError err, string sql)
+        protected void HandleDiagnosticRecord(string _proc_name, string valores = null)
         {
-            _smp.message_pool.getInstance().push(
-                new message(
-                    $"[mssql::{type}][ErrorCode: {err.SQLState}/{err.NativeError}, {err.Message}]",
-                    type_msg.CL_FILE_LOG_AND_CONSOLE));
-        }
+            Stopwatch stopwatch = Stopwatch.StartNew();
 
-        private void logError(string where, string msg, string sql)
+            try
+            {
+
+                if (string.IsNullOrEmpty(m_ctx_db._mssql.hDbc.ConnectionString))
+                {
+                    m_ctx_db._mssql.hDbc.Close();
+                    m_ctx_db._mssql.hDbc = new SqlConnection(m_ctx_db.CreateStrConnection());
+                    m_ctx_db._mssql.hDbc.Open();
+                }
+
+                // RECRIAR o DataSet antes de popular
+                m_ctx_db._mssql.hStmt = new DataSet();
+
+                // Montar a string de comando para execução do procedimento
+                var commandText = $"EXEC {m_ctx_db.db_name}.{_proc_name} ";
+
+                if (!string.IsNullOrEmpty(valores))
+                {
+                    // Verifica se os valores estão no formato de uma sequência separada por '|'
+                    if (valores.Contains("|"))
+                    {
+                        // Dividindo corretamente pelos pipes '|'
+                        var valorArray = valores.Split('|')
+                                                .Select(v => v.Trim()) // Remover espaços em branco
+                                                .Select(v => v.ToUpper() == "NULL" ? "NULL" : $"N'{v.Replace("'", "''")}'")
+                                                .ToArray();
+
+                        commandText += string.Join(", ", valorArray);
+                    }
+                    else
+                    {
+                        // Dividindo por vírgula ',' caso não contenha pipe
+                        var valorArray = valores.Split(',')
+                                                .Select(v => v.Trim())
+                                                .Select(v => v.ToUpper() == "NULL" ? "NULL" : $"N'{v.Replace("'", "''")}'")
+                                                .ToArray();
+
+                        commandText += string.Join(", ", valorArray);
+                    }
+
+                }
+                m_ctx_db._mssql.hEnv = new SqlCommand(commandText, m_ctx_db._mssql.hDbc);
+                m_ctx_db._mssql.hEnv.CommandTimeout = 300;
+                var da = new SqlDataAdapter(m_ctx_db._mssql.hEnv);
+                da.Fill(m_ctx_db._mssql.hStmt, m_ctx_db.db_name);
+            }
+            catch (exception ex)
+            {
+                _smp.message_pool.getInstance().push(new message("[mssql::HandleDiagnosticQuery][Error] " + ex.getFullMessageError() + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
+            }
+
+            finally
+            {
+                stopwatch.Stop();
+                //Debug.WriteLine($"[HandleDiagnosticRecord1][Log] Tempo de execução: {stopwatch.ElapsedMilliseconds}ms");
+
+            }
+        }
+        public void HandleDiagnosticRecord(string _proc_name, string[] parameter = null, SqlDbType[] tipo = null, object[] valor = null, ParameterDirection Direcao = ParameterDirection.Input, CommandType command = CommandType.StoredProcedure)
         {
-            _smp.message_pool.getInstance().push(
-                new message(
-                    $"[mssql::{where}][Error] {msg} | SQL: {sql}",
-                    type_msg.CL_FILE_LOG_AND_CONSOLE));
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+            try
+            {
+
+                m_ctx_db._mssql.hDbc = new SqlConnection(m_ctx_db.CreateStrConnection());
+                m_ctx_db._mssql.hDbc.Open();
+
+                m_ctx_db._mssql.hStmt = new DataSet();
+
+                m_ctx_db._mssql.hEnv = new SqlCommand($"{m_ctx_db.db_name}.{_proc_name}", m_ctx_db._mssql.hDbc)
+                {
+                    CommandType = command,
+                    CommandTimeout = 300
+                };
+
+                if (parameter != null && parameter.Length > 0)
+                {
+                    for (int i = 0; i < parameter.Length; i++)
+                    {
+                        var param = new SqlParameter
+                        {
+                            ParameterName = parameter[i],
+                            SqlDbType = tipo[i],
+                            Direction = Direcao,
+                            Value = (valor[i] is Guid g && g == Guid.Empty) ? DBNull.Value : valor[i]
+                        };
+
+
+                        if (tipo[i] == SqlDbType.NVarChar || tipo[i] == SqlDbType.VarChar)
+                            param.Size = 1024;
+
+                        m_ctx_db._mssql.hEnv.Parameters.Add(param);
+                    }
+                }
+
+                var da = new SqlDataAdapter(m_ctx_db._mssql.hEnv);
+                da.Fill(m_ctx_db._mssql.hStmt, m_ctx_db.db_name);
+            }
+            catch (SqlException ex)
+            {
+                throw new Exception("[HandleDiagnosticRecord][SqlException] " + ex.Message, ex);
+            }
+
+            finally
+            {
+                stopwatch.Stop();
+                Debug.WriteLine($"[HandleDiagnosticRecord2][Log] Tempo de execução: {stopwatch.ElapsedMilliseconds}ms");
+            }
         }
     }
 }

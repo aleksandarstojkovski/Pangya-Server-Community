@@ -1,29 +1,36 @@
-﻿using Pangya_RankingServer.Models;
-using Pangya_RankingServer.PacketFunc;
-using Pangya_RankingServer.Repository;
-using Pangya_RankingServer.Session;
-using PangyaAPI.Utilities;
-using PangyaAPI.Utilities.Models;
-using PangyaAPI.Utilities.Log;
-using System;
+﻿using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
+using Pangya_RankingServer.PacketFunc;
+using PangyaAPI.Network.PangyaPacket;
+using PangyaAPI.Utilities.BinaryModels;
+using PangyaAPI.Utilities.Log;
+using PangyaAPI.Utilities;
+using System.IO;
+using System.Security.Policy;
+using Pangya_RankingServer.Models;
+using System.Threading;
+using Microsoft.Win32;
+using System.Reflection.Emit;
+using Pangya_RankingServer.Session;
+using System.Media;
+using PangyaAPI.IFF.JP.Extensions;
+using Pangya_RankingServer.Repository;
 
 namespace Pangya_RankingServer.UTIL
 {
     // Found Player typedef 
-    using FoundPlayer = Tuple<uint /*Key*/ /*Position do player*/, int /*Value*/ /*Page or -1 error*/>;
+    using FoundPlayer = System.Tuple<uint /*Key*/ /*Position do player*/, int /*Value*/ /*Page or -1 error*/>;
 
-    public class RankRegistryManager : IDisposable
+    public class RankRegistryManager : System.IDisposable
     {
-        public const uint LIMIT_REGISTRY_FOR_PAGE = 12;
+        public const uint LIMIT_REGISTRY_FOR_PAGE = 12u;
 
         private static uint NUMBER_OF_PAGE_MENU_REGISTRY(uint __num_registrys)
         {
-            return (__num_registrys % LIMIT_REGISTRY_FOR_PAGE) == 0
+            return (__num_registrys % LIMIT_REGISTRY_FOR_PAGE) == 0u
                 ? __num_registrys / LIMIT_REGISTRY_FOR_PAGE
-                : (__num_registrys / LIMIT_REGISTRY_FOR_PAGE) + 1;
+                : (__num_registrys / LIMIT_REGISTRY_FOR_PAGE) + 1u;
         }
 
         public RankRegistryManager()
@@ -34,6 +41,9 @@ namespace Pangya_RankingServer.UTIL
             // Log
             prex = "";
             dir = "Log";
+
+            // Inicializa
+            initialize();
         }
 
         public virtual void Dispose()
@@ -50,6 +60,7 @@ namespace Pangya_RankingServer.UTIL
 
         public void load()
         {
+
             if (isLoad())
             {
                 clear();
@@ -171,6 +182,8 @@ namespace Pangya_RankingServer.UTIL
 
                 if (it_entry != null && it_entry.Count > 0)
                 {
+
+                    // C++ TO C# CONVERTER TASK: Lambda expressions cannot be assigned to 'var':
                     var it = it_entry.Values.FirstOrDefault(_el =>
                     {
                         return _el.Value.First().Value.m_uid == _session.m_pi.uid;
@@ -509,6 +522,7 @@ namespace Pangya_RankingServer.UTIL
                 }
 
                 // Find player By nickname, sem Case sensitive
+                // C++ TO C# CONVERTER TASK: Lambda expressions cannot be assigned to 'var':
                 var it_player = m_character_entry.FirstOrDefault(_el =>
                 {
                     return _el.Value.getNickname() != null && string.Compare(_el.Value.getNickname(), _nickname) == 0;
@@ -593,13 +607,16 @@ namespace Pangya_RankingServer.UTIL
                         7, 0));
                 }
 
+                // C++ TO C# CONVERTER TASK: Lambda expressions cannot be assigned to 'var':
                 var it_entry = it_map.Values.FirstOrDefault(_el =>
                 {
                     return _el.Value.First().Value.getCurrentPosition() == _position;
                 });
 
                 if (it_entry.Key == null)
-                { 
+                {
+
+
                     return ret; // N�o tem registro do player no Rank Menu->item
                 }
 
@@ -656,7 +673,11 @@ namespace Pangya_RankingServer.UTIL
 
 
 
-                close_log(); 
+                close_log();
+
+                // Log console
+                _smp.message_pool.getInstance().push(new message("[RankRegistryManager::makeLog][Log] Log dos registros criado com sucesso!", type_msg.CL_FILE_LOG_AND_CONSOLE));
+
             }
             catch (exception e)
             {
@@ -668,9 +689,9 @@ namespace Pangya_RankingServer.UTIL
             }
         }
 
-        public void initialize()
+        protected void initialize()
         {
-            m_state = true;
+
             try
             {
                 CmdRankRegistryInfo cmd_rri = new CmdRankRegistryInfo(true); // Waiter
@@ -687,8 +708,7 @@ namespace Pangya_RankingServer.UTIL
 
                 if (m_entry.empty())
                 {
-                    m_state = false;
-                    return;
+                    _smp.message_pool.getInstance().push(new message("[RankRegistryManager::initialize][Log] Nao tem nenhum registro do rank no banco de dados.", type_msg.CL_FILE_LOG_AND_CONSOLE));
                 }
 
                 CmdRankRegistryCharacterInfo cmd_rrci = new CmdRankRegistryCharacterInfo(true); // Waiter
@@ -703,11 +723,17 @@ namespace Pangya_RankingServer.UTIL
 
                 m_character_entry = cmd_rrci.getInfo();
 
-                if (m_character_entry.empty())
+                if (!m_entry.empty() && m_character_entry.empty())
                 {
-                     m_state = false;
-                    return;
-                } 
+                    throw new exception("[RankRegistryManager::initialize][Error] m_entry tem registros mas o m_rank_character_entry nao tem registros no banco de dados.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.RANK_REGISTRY_MANAGER,
+                        2, 0));
+                }
+                else if (m_character_entry.empty())
+                {
+                    _smp.message_pool.getInstance().push(new message("[RankRegistryManager::initialiaze][Log] Nao tem nenhum registro do character do rank no banco de dados.", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                }
+                // Sucesso
+                m_state = true;
             }
             catch (exception e)
             {
@@ -817,7 +843,11 @@ namespace Pangya_RankingServer.UTIL
                         (uint)ExceptionError.STDA_MAKE_ERROR((uint)STDA_ERROR_TYPE.RANK_REGISTRY_MANAGER, 5, 0));
 
                 if ((_page + 1) > num_pages)
-                { 
+                {
+                    _smp.message_pool.getInstance().push(new message(
+                        $"[RankRegistryManager::getPage][Error] Requested page {_page + 1} exceeds total pages {num_pages}, using last page.",
+                        type_msg.CL_FILE_LOG_AND_CONSOLE));
+
                     _page = num_pages - 1;
                 }
 
@@ -988,10 +1018,4 @@ namespace Pangya_RankingServer.UTIL
         protected object m_cs = new object();
 
     }
-
-    public class sRankRegistryManager : Singleton<Pangya_RankingServer.UTIL.RankRegistryManager>
-    {
-
-    } 
 }
- 

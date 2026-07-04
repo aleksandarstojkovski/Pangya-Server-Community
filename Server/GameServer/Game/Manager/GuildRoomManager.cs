@@ -4,7 +4,7 @@ using System.Linq;
 using Pangya_GameServer.Models;
 
 using PangyaAPI.SQL;
-using PangyaAPI.Utilities.Models;
+using PangyaAPI.Utilities.BinaryModels;
 using PangyaAPI.Utilities.Log;
 
 namespace Pangya_GameServer.Game.Manager

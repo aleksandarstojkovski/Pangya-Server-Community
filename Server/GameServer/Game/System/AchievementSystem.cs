@@ -1,19 +1,17 @@
-﻿using Pangya_GameServer.Game.Manager;
-using Pangya_GameServer.Models;
-using Pangya_GameServer.PacketFunc;
-using Pangya_GameServer.Repository;
-using PangyaAPI.IFF.JP.Extensions;
-using PangyaAPI.IFF.JP.Models.Data;
-using PangyaAPI.IFF.JP.Models.Flags;
-using PangyaAPI.Network.PangyaSession;
-using PangyaAPI.SQL;
-using PangyaAPI.Utilities;
-using PangyaAPI.Utilities.Models;
-using PangyaAPI.Utilities.Log;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using static Pangya_GameServer.Models.AchievementInfo;
+using Pangya_GameServer.Repository;
+using Pangya_GameServer.Game;
+using Pangya_GameServer.Game.Manager;
+using Pangya_GameServer.Models;
+using Pangya_GameServer.PacketFunc;  
+using PangyaAPI.IFF.JP.Extensions;
+using PangyaAPI.IFF.JP.Models.Data;
+using PangyaAPI.SQL;
+using PangyaAPI.Utilities;
+using PangyaAPI.Utilities.BinaryModels;
+using PangyaAPI.Utilities.Log;
 namespace Pangya_GameServer.Game.System
 {
     public class AchievementSystem
@@ -24,7 +22,7 @@ namespace Pangya_GameServer.Game.System
         protected Dictionary<int, CounterItemCtx> map_cii_change = new Dictionary<int, CounterItemCtx>();
 
         protected List<Reward> v_reward = new List<Reward>();
-        public class Counter
+        public partial class Counter
         {
             public void clear()
             {
@@ -40,9 +38,9 @@ namespace Pangya_GameServer.Game.System
             public int value = 0;
         }
 
-        public class CounterItemCtx : CounterItemInfo
+        public partial class CounterItemCtx : CounterItemInfo
         {
-            public CounterItemCtx()
+            public CounterItemCtx(uint _ul = 0u) : base(0)
             {
                 clear();
             }
@@ -55,17 +53,10 @@ namespace Pangya_GameServer.Game.System
             }
             public int last_value = 0;
             public int increase_value = 0;
-
-            public override void clear()
-            { 
-                this.last_value = 0;
-                this.increase_value = 0;
-                base.clear(); 
-            }
         }
 
         // Guarda o typeid do achievement e o typeid da ques concluída do player
-        public class QuestClear
+        public partial class QuestClear
         {
 
             public uint achievement_typeid = new uint();
@@ -79,7 +70,7 @@ namespace Pangya_GameServer.Game.System
             public QuestClear() { }
         }
 
-        public class Reward
+        public partial class Reward
         {
             public uint _typeid = new uint();
             public int qntd = new int();
@@ -123,7 +114,7 @@ namespace Pangya_GameServer.Game.System
                     value = 0,
                     _typeid = el.ID
                 };
-
+                 
                 v_counters[el.ID] = c;
             }
         }
@@ -160,43 +151,49 @@ namespace Pangya_GameServer.Game.System
 
         public void incrementCounter(uint _typeid)
         {
-            // Em C#, preferimos verificar argumentos com ArgumentException
             if (_typeid == 0)
             {
-                throw new ArgumentException("[SysAchievement::IncrementCounter][Error] typeId is invalid (zero)");
+                throw new exception("[AchievementSystem::incrementCounter][Error] _typeid is invalid", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.SYS_ACHIEVEMENT,
+                    2, 0));
             }
-            // Assumindo que v_c seja uma List<CounterItem>
-            // O foreach é o padrão ouro no C# para essa operação
-            foreach (var el in v_counters.Values)
+
+            if (v_counters.TryGetValue(_typeid, out var el))
             {
-                if (el._typeid == _typeid)
-                {
-                    el.value++;
-                }
+                checked { el.value++; } // lança OverflowException se estourar
+                v_counters[_typeid] = el;
+            }
+            else
+            {
+                v_counters[_typeid] = new Counter { _typeid = _typeid, value = 1 };
             }
         }
 
-        public void incrementCounter(uint typeId, int _value)
+        public void incrementCounter(uint _typeid, int _value)
         {
-            // Em C#, preferimos verificar argumentos com ArgumentException
-            if (typeId == 0)
+
+            if (_typeid == 0)
             {
-                throw new ArgumentException("[SysAchievement::IncrementCounter][Error] typeId is invalid (zero)");
+                throw new exception("[AchievementSystem::incrementCounter][Error] _typeid is invalid (zero)", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.SYS_ACHIEVEMENT,
+                    2, 0));
             }
 
             if (_value == 0)
             {
-                throw new ArgumentException($"[SysAchievement::IncrementCounter][Error] CounterItem[typeid={typeId}] value is zero");
+                throw new exception("[AchievementSystem::incrementCounter][Error] CounterItem[typeid=" + Convert.ToString(_typeid) + "] _value is zero", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.SYS_ACHIEVEMENT,
+                    3, 0));
             }
 
-            foreach (var el in v_counters.Values)
+            if (v_counters.TryGetValue(_typeid, out var el))
             {
-                if (el._typeid == typeId)
-                {
-                    el.value += _value;
-                }
+                checked { el.value += _value; } // lança OverflowException se estourar
+                v_counters[_typeid] = el;
+            }   
+            else
+            {
+                v_counters[_typeid] = new Counter { _typeid = _typeid, value = _value };
             }
         }
+
         public void decrementCounter(uint _typeid)
         {
 
@@ -205,34 +202,35 @@ namespace Pangya_GameServer.Game.System
                 throw new exception("[AchievementSystem::decrementCounter][Error] _typeid is invalid", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.SYS_ACHIEVEMENT,
                     2, 0));
             }
-            foreach (var el in v_counters.Values)
+
+            if (v_counters.TryGetValue(_typeid, out var el))
             {
-                if (el._typeid == _typeid)
+                checked
                 {
+                    if (el.value == int.MinValue)
+                        throw new OverflowException("Counter cannot go below int.MinValue");
                     el.value--;
                 }
-            }
+                v_counters[_typeid] = el;
+            } 
         }
 
         public void CHECK_CHANGE_COUNTER_AND_INCREMENT_AND_SAVE(CounterItemInfo pcii, Counter _c)
         {
-            // Verifica se já processamos esse counter nesta iteração
-            if (!map_cii_change.ContainsKey(pcii.id))
+            // Só incrementa se ainda não estiver no map
+            if (!map_cii_change.ContainsKey((int)pcii.id))
             {
-                pcii.value += _c.value;
+                pcii.value += (uint)_c.value;
             }
 
-            // Criamos o contexto de mudança 
-            int diff = _c.value;
-            int oldValue = (pcii.value - _c.value);
-
-            map_cii_change[pcii.id] = new CounterItemCtx(pcii, oldValue, diff);
+            // Sempre atualiza o map
+            map_cii_change[(int)pcii.id] = new CounterItemCtx(pcii, (int)(pcii.value - _c.value), _c.value);
         }
 
 
         public void finish_and_update(Player _session)
         {
-            if (!_session.isConnected())
+            if (!(_session).isConnected() || !(_session).getState())
             {
                 throw new exception("[AchievementSystem::" + "finish_and_update" + "][Error] _session don't connected", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.SYS_ACHIEVEMENT,
                     1, 0));
@@ -248,9 +246,10 @@ namespace Pangya_GameServer.Game.System
                 var v_ai = getAchievementChanged(_session, v_counter);
 
                 // envia a altera��o nos contadores e no achievements
-                if (v_ai.Count != 0)
-                { 
-                    if (map_cii_change.Count != 0)
+                if (!v_ai.empty())
+                {
+
+                    if (!map_cii_change.empty())
                     {
                         p.init_plain(0x216);
 
@@ -262,22 +261,26 @@ namespace Pangya_GameServer.Game.System
                         {
 
                             // Atualiza o Counter no banco de dados
-                            snmdb.NormalManagerDB.getInstance().add(3, new CmdUpdateCounterItem(_session.m_pi.uid, el.Value),  SQLDBResponse, this);
+                            snmdb.NormalManagerDB.getInstance().add(3, // Not Waitable
+                                new CmdUpdateCounterItem(_session.m_pi.uid, el.Value),
+                                SQLDBResponse,
+                                this);
 
                             p.WriteByte(2); // Type
                             p.WriteUInt32(el.Value._typeid);
                             p.WriteInt32(el.Value.id);
                             p.WriteInt32(0); // Flag
                             p.WriteInt32(el.Value.last_value); // Qtnd Antes
-                            p.WriteInt32(el.Value.value); // Qtnd Depois
+                            p.WriteUInt32(el.Value.value); // Qtnd Depois
                             p.WriteInt32(el.Value.increase_value); // Qtnd que add
                             p.WriteZeroByte(25); // 25 bytes que n�o usa com esse tipo de item
                         }
 
-                        packet_func.session_send(p, _session, 1);
+                        packet_func.session_send(p,
+                            _session, 1);
                     }
 
-                    if (v_reward.Count != 0)
+                    if (!v_reward.empty())
                     {
 
                         List<stItem> v_item = new List<stItem>();
@@ -286,13 +289,12 @@ namespace Pangya_GameServer.Game.System
                         foreach (var el in v_reward)
                         {
 
-                            item = new stItem
-                            {
-                                type = 2,
-                                _typeid = el._typeid,
-                                qntd = (int)el.qntd
-                            };
-                            item.STDA_C_ITEM_QNTD = (short)item.qntd;
+                            item = new stItem();
+
+                            item.type = 2;
+                            item._typeid = el._typeid;
+                            item.qntd = (int)el.qntd;
+                            item.STDA_C_ITEM_QNTD =(short)item.qntd;
                             item.c[2] = (short)el.time;
 
                             var rt = ItemManager.RetAddItem.T_INIT_VALUE;
@@ -308,6 +310,8 @@ namespace Pangya_GameServer.Game.System
                             {
                                 v_item.Add(new stItem(item));
                             }
+
+                            _smp.message_pool.getInstance().push(new message("[Log] Achievement.Quest.Reward[TYPEID=" + Convert.ToString(el._typeid) + ", QNTD=" + Convert.ToString(el.qntd) + ", TIME=" + Convert.ToString(el.time) + "] para o player: " + Convert.ToString(_session.m_pi.uid), type_msg.CL_FILE_LOG_AND_CONSOLE));
                         }
 
                         p.init_plain(0x216);
@@ -323,11 +327,12 @@ namespace Pangya_GameServer.Game.System
                             p.WriteInt32(el.id);
                             p.WriteInt32(el.flag); // Flag
                             p.WriteBytes(el.stat.ToArray());
-                            p.WriteInt32((el.STDA_C_ITEM_TIME > 0) ? el.STDA_C_ITEM_TIME : el.STDA_C_ITEM_QNTD); // Qtnd que add
+                            p.WriteInt32((el.c[3] > 0) ? el.c[3] : el.c[0]); // Qtnd que add
                             p.WriteZeroByte(25); // 25 bytes que n�o usa com esse tipo de item
                         }
 
-                        packet_func.session_send(p, _session, 1);
+                        packet_func.session_send(p,
+                            _session, 1);
                     }
 
                     // Aqui tem que manda o pacote22e(quando uma quest(daily ou achievement) foi concluida) e 220(Att Achievement)
@@ -357,14 +362,14 @@ namespace Pangya_GameServer.Game.System
                         p.WriteByte(el.active);
                         p.WriteUInt32(el._typeid);
                         p.WriteInt32(el.id);
-                        p.WriteInt32(el.status);
+                        p.WriteUInt32(el.status);
                         p.WriteUInt32((uint)el.v_qsi.Count);
 
                         foreach (var el2 in el.v_qsi)
                         {
                             p.WriteUInt32(el2._typeid);
 
-                            if (el2.counter_item_id > 0 && (cii = el.findCounterItemById(el2.counter_item_id)) != null)
+                            if (el2.counter_item_id > 0 && (cii = el.FindCounterItemById((uint)el2.counter_item_id)) != null)
                             {
                                 p.WriteUInt32(cii._typeid);
                                 p.WriteUInt32((uint)cii.id);
@@ -408,7 +413,7 @@ namespace Pangya_GameServer.Game.System
                 CounterItemInfo cii = null;
                 el.v_qsi.ForEach(el2 =>
                 {
-                    if ((_all_force || el2.clear_date_unix == 0) && (cii = el.findCounterItemById(el2.counter_item_id)) != null)
+                    if ((_all_force || el2.clear_date_unix == 0) && (cii = el.FindCounterItemById((uint)el2.counter_item_id)) != null)
                     {
                         map_cii[(int)cii.id] = cii;
                     }
@@ -419,7 +424,7 @@ namespace Pangya_GameServer.Game.System
                 }
             });
 
-            return v_countersii;
+            return new List<CounterItemInfo>(v_countersii);
         }
 
         // get Typeid do Counter Item do Character TypeId
@@ -665,7 +670,7 @@ namespace Pangya_GameServer.Game.System
         }
 
         // get Typeid do Counter Item do Score do Hole
-        public static uint getScoreCounterTypeId(int _tacada_num, int _par_hole)
+        public static uint getScoreCounterTypeId(uint _tacada_num, uint _par_hole)
         {
 
             uint counter_typeid = 0u;
@@ -777,7 +782,7 @@ namespace Pangya_GameServer.Game.System
         }
 
         // get score num 0 HIO, 1 Alba, 2 Eagle, 3 Birdie, 4 Par, 5 Bogey, 6 Double Bogey
-        public static int getScoreNum(int _tacada_num, int _par_hole)
+        public static int getScoreNum(uint _tacada_num, uint _par_hole)
         {
 
             int score_num = 0; // HIO
@@ -815,14 +820,16 @@ namespace Pangya_GameServer.Game.System
 
         protected List<Counter> getCounterChanged()
         {
-            return v_counters.Values.Where(el => el.value != 0).ToList(); 
+            return v_counters
+                .Values.Where(el => el.value != 0)   // pega só os que mudaram
+                .ToList();                    // converte pra lista
         }
 
 
         protected List<AchievementInfoEx> getAchievementChanged(Player _session, List<Counter> _v_counters)
         {
 
-            if (!_session.isConnected())
+            if (!(_session).isConnected() || !(_session).getState())
             {
                 throw new exception("[AchievementSystem::" + "getAcheievementChanged" + "][Error] _session don't connected", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.SYS_ACHIEVEMENT,
                     1, 0));
@@ -836,9 +843,10 @@ namespace Pangya_GameServer.Game.System
             {
                 foreach (var el in _session.m_pi.mgr_achievement.getAchievementInfo())
                 {
-                    if (el.Value.status == (uint)ACHIEVEMENT_STATUS.ACTIVED && (cii = el.Value.findCounterItemByTypeId(element._typeid)) != null)
+                    if (el.Value.status == (uint)AchievementInfo.AchievementStatus.Active && (cii = el.Value.FindCounterItemByTypeId(element._typeid)) != null)
                     {
-                        if (checkAchievement(_session, el.Value, element, _v_counters))
+                        if (checkAchievement(_session,
+                            el.Value, element, _v_counters))
                         {
                             v_ai.Add(el.Value);
                         }
@@ -847,12 +855,12 @@ namespace Pangya_GameServer.Game.System
             });
 
             // Verifica se teve Daily Quest Clear, para poder somar o seu Counter Item
-            Counter count = new Counter(0x6C400039u/*Clear Daily Quest*/, 0);
+            Counter count = new Counter(0x6C400039u, 0);
 
             foreach (var el in v_quest_clear)
-            {
+            { 
                 // Verifica se � Quest Conclu�da
-                if (sIff.getInstance().getItemGroupIdentify(el.achievement_typeid) == PangyaAPI.IFF.JP.Models.Flags.IFF_GROUP.QUEST_ITEM)
+                if (sIff.getInstance().getItemGroupIdentify(el.achievement_typeid) == sIff.getInstance().QUEST_ITEM)
                 {
                     count.value++;
                 }
@@ -864,18 +872,16 @@ namespace Pangya_GameServer.Game.System
                 // Add o Count do Clear Daily Quest, ao vector de contadores modificados
                 _v_counters.Add(count);
 
+                var it = _session.m_pi.mgr_achievement.getAchievementInfo().FirstOrDefault(el =>
+                {
+                    return el.Value.status == (uint)AchievementInfo.AchievementStatus.Active && (cii = el.Value.FindCounterItemByTypeId(count._typeid)) != null;
+                });
 
-                var achievementInfo = _session.m_pi.mgr_achievement.getAchievementInfo();
-
-                var it =  achievementInfo.FirstOrDefault(el =>
-        el.Value.status == (uint)ACHIEVEMENT_STATUS.ACTIVED &&
-        el.Value.findCounterItemByTypeId(count._typeid) != null
-    );
-
-                if (it.Value != null)
+                if (it.Key != 0 && it.Value != null)
                 {
 
-                    if (checkAchievement(_session, it.Value, count, _v_counters))
+                    if (checkAchievement(_session,
+                        it.Value, count, _v_counters))
                     {
                         v_ai.Add(it.Value);
                     }
@@ -883,78 +889,98 @@ namespace Pangya_GameServer.Game.System
             }
             // Fim de check Clear Daily Quest
 
-            return v_ai;
+            return new List<AchievementInfoEx>(v_ai);
         }
 
-        protected byte checkQuestClear(Player _session, QuestStuffInfo _qsi, CounterItemInfo _cii, List<Counter> _v_c)
+        protected byte checkQuestClear(Player _session,
+            QuestStuffInfo _qsi,
+            CounterItemInfo _cii,
+            List<Counter> _v_counters)
         {
-            // C# usa propriedades ou métodos explicitamente
-            if (!_session.isConnected())
+
             {
-                throw new Exception("[AchievementSystem::checkQuestClear][Error] _session not connected");
-            }
+                if (!(_session).isConnected() || !(_session).getState())
+                {
+                    throw new exception("[AchievementSystem::" + "checkQuestClear" + "][Error] _session don't connected", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.SYS_ACHIEVEMENT,
+                        1, 0));
+                }
+            };
 
             if (_qsi.id <= 0 || _qsi._typeid == 0)
             {
                 _smp.message_pool.getInstance().push(new message("[AchievementSystem::checkQuestClear][Error] QuestStuffinfo _qsi is invalid", type_msg.CL_FILE_LOG_AND_CONSOLE));
+
                 return (byte)eSTATE.NOT_MATCH;
             }
 
-            if (_v_c == null || _v_c.Count == 0)
+            if (_v_counters.Count == 0) // n�o teve mudan�a nos countadores
+            {
                 return (byte)eSTATE.NOT_MATCH;
+            }
 
             byte ret = (byte)eSTATE.NOT_MATCH;
 
-            var qs = sIff.getInstance().findQuestStuff(_qsi._typeid);
-            if (qs != null)
+            QuestStuff qs = null;
+
+            if ((qs = sIff.getInstance().findQuestStuff(_qsi._typeid)) != null)
             {
-                for (int i = 0; i < qs.counter_item._typeid.Length; ++i)
+
+                var it = _v_counters.end();
+
+                for (var i = 0u; i < (qs.counter_item._typeid.Length); ++i)
                 {
-                    uint currentTargetId = qs.counter_item._typeid[i];
-                    if (currentTargetId == 0) continue;
 
-                    // Busca o contador correspondente na lista
-                    var counter = _v_c.Find(x => x._typeid == currentTargetId);
-                    if (counter == null)
-                        return (byte)eSTATE.NOT_MATCH;
-
-                    int targetQntd = qs.counter_item.qntd[i];
-
-                    if (_cii._typeid == currentTargetId)
+                    if (qs.counter_item._typeid[i] == 0)
                     {
-                        // Calcula o valor total (Tentativa)
-                        // Se não está no mapa de mudanças, soma o valor atual do contador
-                        int currentVal = !map_cii_change.ContainsKey(_cii.id) ? counter.value : 0;
-                        int totalValue = _cii.value + currentVal;
+                        continue;
+                    }
 
-                        // Lógica CheckBetter: Se objetivo < 0 (decrescente/pior), senão (crescente/melhor)
-                        bool isBetter = (targetQntd < 0) ? (targetQntd >= totalValue) : (targetQntd <= totalValue);
+                    /*
+                    * Descri��o
+                    * Se o valor do counter padr�o for 1, a quest n�o � cumulativa e sim uma quest �nica
+                    * Se ela for maior que 1, � cumulativa e soma mesmo que o counter item padr�o n�o concluiu
+                    */
 
-                        if (isBetter)
+                    // Não encontrou o contador, retorna o not match
+                    it = _v_counters.Find(x => x._typeid == qs.counter_item._typeid[i]);
+
+                    if (it == null)
+                    {
+                        return (byte)eSTATE.NOT_MATCH;
+                    }
+
+
+                    if (_cii._typeid == qs.counter_item._typeid[i])
+                    {
+
+                        // [Bug Fix] o check better o primeiro parametro tem que ser o objetivo o segundo a tentativa, estava trocado
+                        if ((qs.counter_item.qntd[i] < 0)
+                            ? (qs.counter_item.qntd[i] >= (_cii.value + (!(map_cii_change.ContainsKey((int)_cii.id)) ? it.value : 0)))
+                            : (qs.counter_item.qntd[i] <= (_cii.value + (!(map_cii_change.ContainsKey((int)_cii.id)) ? it.value : 0))))
                         {
                             ret |= (byte)eSTATE.CLEAR;
                         }
-                        else if (targetQntd == 1)
+                        else if (qs.counter_item.qntd[i] == 1)
                         {
-                            return (byte)eSTATE.NOT_MATCH; // Não cumulativa
+                            return (byte)eSTATE.NOT_MATCH; // quantidade do counter item padr�o � 1, ent�o essa quest o contador n�o � acumulativa
                         }
                         else
                         {
                             ret |= (byte)eSTATE.INCREMENT_COUNTER;
                         }
+
+                        // [Bug Fix] o check better o primeiro parametro tem que ser o objetivo o segundo a tentativa, estava trocado
                     }
-                    else
+                    else if (!(((qs.counter_item.qntd[i]) < 0) ? (qs.counter_item.qntd[i]) >= (it.value) : (qs.counter_item.qntd[i]) <= (it.value))) // Se n�o for melhor ou igual, n�o conclu� o objetivo do countador secund�rio retorna NOT_MATCH
                     {
-                        // Verifica contadores secundários
-                        bool isSecondaryBetter = (targetQntd < 0) ? (targetQntd >= counter.value) : (targetQntd <= counter.value);
-                        if (!isSecondaryBetter)
-                            return (byte)eSTATE.NOT_MATCH;
+                        return (byte)eSTATE.NOT_MATCH; // j� n�o da certo a quest, por que uma das condi��es n�o foi antendida
                     }
                 }
+
             }
             else
             {
-                _smp.message_pool.getInstance().push(new message($"[AchievementSystem::checkQuestClear][Error] Quest stuff [TYPEID={_qsi._typeid}] nao encontrado.", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                _smp.message_pool.getInstance().push(new message("[AchievementSystem::checkQuestClear][Error] O quest stuff[TYPEID=" + Convert.ToString(_qsi._typeid) + "] nao encontrou no IFF dados do server.", type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
 
             return ret;
@@ -962,122 +988,144 @@ namespace Pangya_GameServer.Game.System
 
         protected bool checkAchievement(Player _session, AchievementInfoEx _ai, Counter _c, List<Counter> _v_counters)
         {
+
             CounterItemInfo pcii = null;
             CounterItemInfo pcii_new = null;
+            CounterItemInfo cii = new CounterItemInfo();
             byte ret = (byte)eSTATE.NOT_MATCH;
+
             bool necessary_update = false;
 
+            // Check se concluiu quest
             foreach (var el in _ai.v_qsi)
             {
-                // Validação inicial
-                if (el.clear_date_unix <= 0 && el.counter_item_id != 0 && (pcii = _ai.findCounterItemById(el.counter_item_id)) != null)
+                if (el.clear_date_unix <= 0
+                    && el.counter_item_id != 0
+                    && (pcii = _ai.FindCounterItemById((uint)(el.counter_item_id))) != null)
                 {
-                    ret = checkQuestClear(_session, el, pcii, _v_counters);
 
-                    if (ret == (byte)eSTATE.CLEAR)
+                    // Esse tem que ser igual a clear n�o pode ter valor misturado
+                    if ((ret = checkQuestClear(_session,
+                        el, pcii, _v_counters)) == (byte)eSTATE.CLEAR)
                     {
-                        necessary_update = true;
 
-                        // Macro convertida para método
+                        // � Necess�rio o Update do Achievement, no Game, por que Modificou o Counter Item do achievement
+                        necessary_update = true;
+                         
                         CHECK_CHANGE_COUNTER_AND_INCREMENT_AND_SAVE(pcii, _c);
 
-                        var questBase = _ai.getQuestBase();
+                        var it = _ai.getQuestBase().Current;
 
-                        if (questBase != null)
+
+                        if (it != null)
                         {
-                            // Se usa o counter da quest base, desvincula criando um novo
-                            if (el._typeid != questBase._typeid && el.counter_item_id == questBase.counter_item_id)
+                            if (el._typeid != it._typeid && el.counter_item_id == it.counter_item_id)
+                            { // est� usando o counter da quest base, cria um novo counter para ele
+                                cii = new CounterItemInfo();
+
+                                cii.active = 1;
+                                cii._typeid = pcii._typeid;
+                                cii.value = pcii.value;
+
+                                CmdAddCounterItem cmd_aci = new CmdAddCounterItem(_session.m_pi.uid, // waitable
+                                    pcii._typeid, cii.value);
+
+                                snmdb.NormalManagerDB.getInstance().add(0,
+                                    cmd_aci, null, null);
+                                if (cmd_aci.getException().getCodeError() != 0 || (cii.id = cmd_aci.getId()) == -1)
+                                {
+                                    throw new exception("[AchievementSystem::finish_and_update][Error]", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.SYS_ACHIEVEMENT,
+                                        12, 0));
+                                }
+
+                                // New Counter Item Id from Database
+                                el.counter_item_id = cii.id;
+                                _ai.map_counter_item.Add((uint)cii.id, cii);
+                                var itt = _ai.map_counter_item.Where(c => c.Key == cii.id);
+                                if (itt.Count() == 0)
+                                {
+                                    throw new exception("[AchievementSystem::checkAchievement][Error] nao conseguiu adicionar o counter item[TYPEID=" + Convert.ToString(cii._typeid) + ", ID=" + Convert.ToString(cii.id) + "] no map de counter item do player: " + Convert.ToString(_session.m_pi.uid), ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.SYS_ACHIEVEMENT,
+                                        13, 0));
+                                }
+
+                                if ((pcii_new = itt.FirstOrDefault().Value) == null)
+                                {
+                                    throw new exception("[AchievementSystem::checkAchievement][Error] nao conseguiu adicionar o counter item[TYPEID=" + Convert.ToString(cii._typeid) + ", ID=" + Convert.ToString(cii.id) + "] no map de counter item do player: " + Convert.ToString(_session.m_pi.uid), ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.SYS_ACHIEVEMENT,
+                                        13, 1));
+                                }
+
+                                // Add o counter item novo para o map de counter item change(modificado)
+                                map_cii_change[(int)pcii_new.id] = new CounterItemCtx(pcii_new, (int)(pcii_new.value - pcii.value), (int)pcii.value);
+                            }
+                        }
+
+                        // Envia os Quest reward se tiver
+                        var qs = sIff.getInstance().findQuestStuff(el._typeid);
+
+                        if (qs == null)
+                        {
+                            throw new exception("[AchievementSystem::checkAchievement][Error] o quest stuff nao foi encontrado no IFF dados do server. para o player: " + Convert.ToString(_session.m_pi.uid), ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.SYS_ACHIEVEMENT,
+                                14, 0));
+                        }
+
+                        for (var i = 0u; i < (qs.reward_item._typeid.Length); ++i)
+                        {
+
+                            // Diferente de 0 tem recompensa por concluir a quest
+                            if (qs.reward_item._typeid[i] != 0)
                             {
-                                var cii = new CounterItemInfo
+
+                                if (qs.reward_item._typeid[i] == 0x6C000001)
                                 {
-                                    active = 1,
-                                    _typeid = pcii._typeid,
-                                    value = pcii.value
-                                };
-
-                                // Assume-se que este método faz o insert e retorna o ID
-                                cii.id = UpdateACounterItemInfo(_session, pcii._typeid, cii.value);
-
-                                if (cii.id != -1)
+                                    _session.m_pi.mgr_achievement.incrementPoint(qs.reward_item.qntd[i]); // Add os pontos ganhos de achievement por concluir a quest
+                                }
+                                else
                                 {
-                                    el.counter_item_id = cii.id;
-
-                                    // Adiciona ao mapa. Use TryAdd para evitar erro de chave duplicada
-                                    if (!_ai.map_counter_item.TryAdd(cii.id, cii))
-                                    {
-                                        throw new exception($"[Error] Falha ao inserir ID {cii.id} no mapa.",
-                                            ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.SYS_ACHIEVEMENT, 13, 0));
-                                    }
-
-                                    pcii_new = _ai.map_counter_item[cii.id];
-
-                                    // Registra a mudança
-                                    map_cii_change[pcii_new.id] = new CounterItemCtx(pcii_new, (int)(pcii_new.value - pcii.value), (int)pcii.value);
+                                    v_reward.Add(new Reward(qs.reward_item._typeid[i], (int)qs.reward_item.qntd[i], (int)qs.reward_item.time[i]));
                                 }
                             }
                         }
 
-                        // --- Processamento de Recompensas ---
-                        var qs = sIff.getInstance().findQuestStuff(el._typeid);
-                        if (qs == null)
-                        {
-                            throw new exception($"[Error] IFF Quest {el._typeid} nao encontrado.",
-                                ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.SYS_ACHIEVEMENT, 14, 0));
-                        }
-
-                        for (int i = 0; i < qs.reward_item._typeid.Length; ++i)
-                        {
-                            uint rId = qs.reward_item._typeid[i];
-                            if (rId != 0)
-                            {
-                                if (rId == 0x6C000001) // Pontos de Achievement
-                                    _session.m_pi.mgr_achievement.incrementPoint(qs.reward_item.qntd[i]);
-                                else
-                                    v_reward.Add(new Reward(rId, (int)qs.reward_item.qntd[i], (int)qs.reward_item.time[i]));
-                            }
-                        }
-
-                        // Finalização da Quest
+                        // Finalizar a quest no db colocar a data que ela foi conclu�da
                         el.clear_date_unix = (uint)UtilTime.GetLocalTimeAsUnix();
-                        snmdb.NormalManagerDB.getInstance().add(1, new CmdUpdateQuestUser(_session.m_pi.uid, el), SQLDBResponse, this);
 
+                        snmdb.NormalManagerDB.getInstance().add(1,
+                            new CmdUpdateQuestUser(_session.m_pi.uid, el),
+                            SQLDBResponse,
+                            this);
+
+                        // Quest Conclu�da
                         v_quest_clear.Add(new QuestClear(_ai._typeid, el._typeid));
 
-                        // Verifica se concluiu o Achievement inteiro
-                        if (_ai.checkAllQuestClear())
+                        _smp.message_pool.getInstance().push(new message("[AchievementSystem::checkAchievement][Log] Achievement[ID=" + Convert.ToString(_ai.id) + "].Quest Clear[ID=" + Convert.ToString(el.id) + "] do player: " + Convert.ToString(_session.m_pi.uid), type_msg.CL_FILE_LOG_AND_CONSOLE));
+
+                        // Verifica se todas a quest do achievement foram conclu�das
+                        if (_ai.CheckAllQuestClear())
                         {
-                            _ai.status = (int)ACHIEVEMENT_STATUS.CONCLUEDED;
-                            snmdb.NormalManagerDB.getInstance().add(2, new CmdUpdateAchievementUser(_session.m_pi.uid, _ai), SQLDBResponse, this);
+                            // Troca o estado do achievement para conclu�do
+                            _ai.status = (uint)AchievementInfo.AchievementStatus.Concluded;
+
+                            // Atualiza no banco de dados
+                            snmdb.NormalManagerDB.getInstance().add(2,
+                                new CmdUpdateAchievementUser(_session.m_pi.uid, _ai),
+                                SQLDBResponse,
+                                this);
+
+                            _smp.message_pool.getInstance().push(new message("[AchievementSystem::checkAchievement][Log] Achievement[TYPEID=" + Convert.ToString(_ai._typeid) + ", ID=" + Convert.ToString(_ai.id) + "] concluido. do player: " + Convert.ToString(_session.m_pi.uid), type_msg.CL_FILE_LOG_AND_CONSOLE));
                         }
+
                     }
-                    // CORREÇÃO AQUI: (ret & flag) != 0
-                    else if ((ret & (byte)eSTATE.INCREMENT_COUNTER) != 0 &&
-                            (sIff.getInstance().getItemGroupIdentify(_ai._typeid) == IFF_GROUP.QUEST_ITEM || _ai.quest_base_typeid != 0))
+                    else if ((ret & (byte)eSTATE.INCREMENT_COUNTER) == 1 && (sIff.getInstance().getItemGroupIdentify(_ai._typeid) == sIff.getInstance().QUEST_ITEM || _ai.quest_base_typeid != 0))
                     {
                         CHECK_CHANGE_COUNTER_AND_INCREMENT_AND_SAVE(pcii, _c);
+
+                        // � Necess�rio o Update do Achievement, no Game, por que Modificou o Counter Item do achievement
                         necessary_update = true;
                     }
                 }
             }
 
-            // CORREÇÃO AQUI: Count > 0 em vez de !empty()
-            return necessary_update && map_cii_change.Count > 0;
-        }
-        private int UpdateACounterItemInfo(Player _session, uint _typeid, int _value)
-        {
-
-            CmdAddCounterItem cmd_aci = new CmdAddCounterItem(_session.m_pi.uid, _typeid, _value);
-
-            snmdb.NormalManagerDB.getInstance().add(0, cmd_aci, null, null);
-
-            if (cmd_aci.getException().getCodeError() != 0)
-            {
-                throw new exception("[AchievementSystem::finish_and_update][Error]", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.SYS_ACHIEVEMENT,
-                    12, 0));
-            }
-
-
-            return cmd_aci.getId();
+            return necessary_update && !map_cii_change.empty();
         }
 
         private static void SQLDBResponse(int _msg_id,
@@ -1096,13 +1144,59 @@ namespace Pangya_GameServer.Game.System
                 _smp.message_pool.getInstance().push(new message("[AchievementSystem::SQLDBResponse][Error] " + _pangya_db.getException().getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
                 return;
             }
-             
+
+
+            var _channel = Tools.reinterpret_cast<Channel>(_arg);
+
             switch (_msg_id)
-            {  
+            {
+                case 1: // Update Quest Stuff User
+                    {
+
+                        var cmd_uqu = Tools.reinterpret_cast<CmdUpdateQuestUser>(_pangya_db);
+
+#if DEBUG
+                        _smp.message_pool.getInstance().push(new message("[AchievementSystem::SQLDBResponse][Debug] PLAYER[UID=" + Convert.ToString(cmd_uqu.getUID()) + "] Atualizou o Quest Stuff[TYPEID=" + Convert.ToString(cmd_uqu.getInfo()._typeid) + ", ID=" + Convert.ToString(cmd_uqu.getInfo().id) + "] com sucesso.", type_msg.CL_FILE_LOG_AND_CONSOLE));
+#else
+					_smp.message_pool.getInstance().push(new message("[AchievementSystem::SQLDBResponse][Debug] PLAYER[UID=" + Convert.ToString(cmd_uqu.getUID()) + "] Atualizou o Quest Stuff[TYPEID=" + Convert.ToString(cmd_uqu.getInfo()._typeid) + ", ID=" + Convert.ToString(cmd_uqu.getInfo().id) + "] com sucesso.", type_msg.CL_ONLY_FILE_LOG));
+#endif // DEBUG
+
+                        break;
+                    }
+                case 2: // Update Achievement User
+                    {
+
+                        var cmd_uau = Tools.reinterpret_cast<CmdUpdateAchievementUser>(_pangya_db);
+
+#if DEBUG
+                        _smp.message_pool.getInstance().push(new message("[AchievementSystem::SQLDBResponse][Debug] PLAYER[UID=" + Convert.ToString(cmd_uau.getUID()) + "] Atualizou o Achievement[TYPEID=" + Convert.ToString(cmd_uau.getInfo()._typeid) + ", ID=" + Convert.ToString(cmd_uau.getInfo().id) + "] com sucesso.", type_msg.CL_FILE_LOG_AND_CONSOLE));
+#else
+					_smp.message_pool.getInstance().push(new message("[AchievementSystem::SQLDBResponse][Debug] PLAYER[UID=" + Convert.ToString(cmd_uau.getUID()) + "] Atualizou o Achievement[TYPEID=" + Convert.ToString(cmd_uau.getInfo()._typeid) + ", ID=" + Convert.ToString(cmd_uau.getInfo().id) + "] com sucesso.", type_msg.CL_ONLY_FILE_LOG));
+#endif // !DEBUG
+
+                        break;
+                    }
+                case 3: // Update Counter Item
+                    {
+
+                        var cmd_uci = Tools.reinterpret_cast<CmdUpdateCounterItem>(_pangya_db);
+
+#if DEBUG
+                        _smp.message_pool.getInstance().push(new message("[AchievementSystem::SQLDBResponse][Debug] PLAYER[UID=" + Convert.ToString(cmd_uci.getUID()) + "] Atualizou o Counter Item[TYPEID=" + Convert.ToString(cmd_uci.getInfo()._typeid) + ", ID=" + Convert.ToString(cmd_uci.getInfo().id) + "] com sucesso.", type_msg.CL_FILE_LOG_AND_CONSOLE));
+#else
+					_smp.message_pool.getInstance().push(new message("[AchievementSystem::SQLDBResponse][Debug] PLAYER[UID=" + Convert.ToString(cmd_uci.getUID()) + "] Atualizou o Counter Item[TYPEID=" + Convert.ToString(cmd_uci.getInfo()._typeid) + ", ID=" + Convert.ToString(cmd_uci.getInfo().id) + "] com sucesso.", type_msg.CL_ONLY_FILE_LOG));
+#endif // DEBUG
+
+
+                        break;
+                    }
+                case 0:
                 default: // 25 � update item equipado slot
                     break;
             }
 
         }
     }
+
+
 }

@@ -1,24 +1,23 @@
-// Arquivo Game.cs
+﻿// Arquivo Game.cs
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Threading;
+using Pangya_GameServer.Repository;
 using Pangya_GameServer.Game.Manager;
 using Pangya_GameServer.Game.System;
 using Pangya_GameServer.Models;
 using Pangya_GameServer.PacketFunc;
-using Pangya_GameServer.Repository;
 using Pangya_GameServer.UTIL;
 using PangyaAPI.IFF.JP.Extensions;
 using PangyaAPI.IFF.JP.Models.Flags;
 using PangyaAPI.Network.PangyaPacket;
 using PangyaAPI.SQL;
 using PangyaAPI.Utilities;
-using PangyaAPI.Utilities.Models;
+using PangyaAPI.Utilities.BinaryModels;
 using PangyaAPI.Utilities.Log;
 using sgs;
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Runtime.CompilerServices;
-using System.Threading;
 using static Pangya_GameServer.Models.DefineConstants;
 using int32_t = System.Int32;
 using int64_t = System.Int64;
@@ -46,24 +45,34 @@ namespace Pangya_GameServer.Game.Base
         protected volatile int m_sync_send_init_data;
         protected CourseManager m_course;
         public RoomInfoLog m_room_log;
-        protected bool disposedValue = false; // Mudei para protected para as filhas verem
+        private bool disposedValue;
         // 
         #region Abstract Methods 
         // Game
         public abstract bool requestFinishGame(Player _session, packet _packet);
 
         // Inicializa Jogo e Finaliza Jogo
-        public abstract bool init_game();
+        protected abstract bool init_game();
 
         // Trata Shot Sync Data
-        public abstract void requestTranslateSyncShotData(Player _session, ShotSyncData _ssd);
-        public abstract void requestReplySyncShotData(Player _session);
+        protected abstract void requestTranslateSyncShotData(Player _session, ShotSyncData _ssd);
+        protected abstract void requestReplySyncShotData(Player _session);
 
         // Metôdos do Game.Course.Hole
         public abstract void requestInitHole(Player _session, packet _packet);
         public abstract bool requestFinishLoadHole(Player _session, packet _packet);
         public abstract void requestFinishCharIntro(Player _session, packet _packet);
         public abstract void requestFinishHoleData(Player _session, packet _packet);
+
+        // São implementados na suas classe base
+
+        // Esses 2 Aqui é do modo VS
+        //virtual void changeHole() = 0;
+        //virtual void finishHole() = 0;
+
+        // Esses 2 Aqui é do Modo Tourney
+        //virtual void changeHole(Player& _session) = 0;
+        //virtual void finishHole(Player& _session) = 0;
 
         // Server enviou a resposta do InitShot para o cliente
         // Esse aqui é exclusivo do VersusBase 
@@ -190,7 +199,7 @@ namespace Pangya_GameServer.Game.Base
             this.m_timer = null;
             this.m_player_report_game = new Dictionary<uint, uint>();
 
-            m_sync_send_init_data = 0;
+            Interlocked.Exchange(ref m_sync_send_init_data, 0);
 
             // Inicializar Artefact Info Of Game
             initArtefact();
@@ -221,7 +230,7 @@ namespace Pangya_GameServer.Game.Base
                 m_rv.rain, m_rv.persist_rain);
         }
 
-        public virtual void clear_player_order()
+        protected virtual void clear_player_order()
         {
             m_player_order.Clear();
         }
@@ -391,13 +400,13 @@ namespace Pangya_GameServer.Game.Base
         {
             if (!_session.getState())
             {
-                throw new exception("[GameBase::requestActiveAutoCommand][Error] player nao esta connectado.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME,
+                throw new exception("[GameBase::" + (("request" + "ActiveAutoCommand")) + "][Error] player nao esta connectado.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME,
                     1, 0));
             }
 
             if (_packet == null)
             {
-                throw new exception("[GameBase::requestActiveAutoCommand][Error] _packet is null", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME,
+                throw new exception("[GameBase::request" + "ActiveAutoCommand" + "][Error] _packet is null", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME,
                     6, 0));
             }
 
@@ -409,7 +418,7 @@ namespace Pangya_GameServer.Game.Base
                 var pgi = getPlayerInfo((_session));
                 if (pgi == null)
                 {
-                    throw new exception("[GameBase::" + "requestActiveAutoCommand][Error] PLAYER[UID=" + Convert.ToString((_session).m_pi.uid) + "] " + "tentou ativar var Command no jogo" + ", mas o game nao tem o info dele guardado. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME,
+                    throw new exception("[GameBase::" + "requestActiveAutoCommand" + "][Error] PLAYER[UID=" + Convert.ToString((_session).m_pi.uid) + "] " + "tentou ativar var Command no jogo" + ", mas o game nao tem o info dele guardado. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME,
                         1, 4));
                 }
 
@@ -470,13 +479,13 @@ namespace Pangya_GameServer.Game.Base
         {
             if (!_session.getState())
             {
-                throw new exception("[GameBase::requestActiveAssistGreen][Error] player nao esta connectado.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME,
+                throw new exception("[GameBase::" + (("request" + "ActiveAssistGreen")) + "][Error] player nao esta connectado.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME,
                     1, 0));
             }
             ;
             if (_packet == null)
             {
-                throw new exception("[GameBase::requestActiveAssistGreen][Error] _packet is null", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME,
+                throw new exception("[GameBase::request" + "ActiveAssistGreen" + "][Error] _packet is null", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME,
                     6, 0));
             }
 
@@ -630,7 +639,7 @@ namespace Pangya_GameServer.Game.Base
             var pgi = getPlayerInfo((_session));
             if (pgi == null)
             {
-                throw new exception("[GameBase::" + "requestPlace][Error] PLAYER[UID=" + Convert.ToString((_session).m_pi.uid) + "] " + "tentou pegar o lugar[Hole] do player no jogo" + ", mas o game nao tem o info dele guardado. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME,
+                throw new exception("[GameBase::" + "requestPlace" + "][Error] PLAYER[UID=" + Convert.ToString((_session).m_pi.uid) + "] " + "tentou pegar o lugar[Hole] do player no jogo" + ", mas o game nao tem o info dele guardado. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME,
                     1, 4));
             }
 
@@ -702,12 +711,12 @@ namespace Pangya_GameServer.Game.Base
             {
                 //check player connection
                 if (!_session.getState())
-                    throw new exception("[GameBase::requestReadSyncShotData][Error] player nao esta connectado.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME,
+                    throw new exception("[GameBase::" + (("request" + "readSyncShotData")) + "][Error] player nao esta connectado.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME,
                            1, 0));
 
                 //check packet
                 if (_packet == null)
-                    throw new exception("[GameBase::requestReadSyncShotData][Error] _packet is null", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME,
+                    throw new exception("[GameBase::request" + "readSyncShotData" + "][Error] _packet is null", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME,
                             6, 0));
 
                 //check size packet
@@ -725,6 +734,11 @@ namespace Pangya_GameServer.Game.Base
                 var oid = _ssd.oid;
 
                 if (_ssd.oid == -1)
+                    throw new exception($"[GameBase::requestReadSyncShotData][Error] Player no exist:" + oid, ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME,
+                              9, 0));
+
+
+                if (!m_players.Any(c => c.m_oid == oid))
                     throw new exception($"[GameBase::requestReadSyncShotData][Error] Player no exist:" + oid, ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME,
                               9, 0));
 
@@ -755,19 +769,11 @@ namespace Pangya_GameServer.Game.Base
                 m_timer.Pause();
 
 
-                _smp.message_pool.getInstance().push(new message("[GameBase::pauseTime][Log] pausou o Timer[Tempo=" + m_timer.getTimeLog() + "" + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                _smp.message_pool.getInstance().push(new message("[GameBase::pauseTime][Log] pausou o Timer[Tempo=" + Convert.ToString(m_ri.time_30s > 0 ? m_ri.time_30s : m_ri.time_vs) + "" + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
 
                 return true;
             }
-
-            return false;
-        }
-
-        public bool finishTime()
-        {
-            if (m_timer != null)
-                return m_timer.getState() == PangyaSyncTimer.TIMER_STATE.FINISH;
 
             return false;
         }
@@ -777,8 +783,7 @@ namespace Pangya_GameServer.Game.Base
             if (m_timer != null)
             {
                 m_timer.Resume();
-
-                _smp.message_pool.getInstance().push(new message("[GameBase::resumerTime][Log] Retomou o Timer[Tempo=" + m_timer.getTimeLog() + "" + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                _smp.message_pool.getInstance().push(new message("[GameBase::resumerTime][Log] Retomou o Timer[Tempo=" + Convert.ToString(m_ri.time_30s > 0 ? m_ri.time_30s : m_ri.time_vs) + "" + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
                 return true;
             }
@@ -791,13 +796,13 @@ namespace Pangya_GameServer.Game.Base
         {
             if (!_session.getState())
             {
-                throw new exception("[GameBase::requestPlayerReportChatGame][Error] player nao esta connectado.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME,
+                throw new exception("[GameBase::" + (("request" + "PlayerReportChatGame")) + "][Error] player nao esta connectado.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME,
                     1, 0));
             }
             ;
             if (_packet == null)
             {
-                throw new exception("[GameBase::requestPlayerReportChatGame][Error] _packet is null", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME,
+                throw new exception("[GameBase::request" + "PlayerReportChatGame" + "][Error] _packet is null", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME,
                     6, 0));
             }
 
@@ -885,6 +890,9 @@ namespace Pangya_GameServer.Game.Base
                     if (s.m_pi.ei.char_info.parts_typeid.Any(_element =>
       devil_wings.Contains(_element)))
                     {
+
+                        _smp.message_pool.getInstance().push(new message("[GameBase::initPlayersItemRainRate][Log] PLAYER[UID=" + Convert.ToString(s.m_pi.uid) + "] esta equipado com Devil Wings no Character[TYPEID=" + Convert.ToString(s.m_pi.ei.char_info._typeid) + ", ID=" + Convert.ToString(s.m_pi.ei.char_info.id) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
+
                         m_rv.rain += 10;
                     }
 
@@ -892,6 +900,9 @@ namespace Pangya_GameServer.Game.Base
                     if (s.m_pi.ei.char_info.parts_typeid.Any(_element =>
       obsidian_wings.Contains(_element)))
                     {
+
+                        _smp.message_pool.getInstance().push(new message("[GameBase::initPlayersItemRainRate][Log] PLAYER[UID=" + Convert.ToString(s.m_pi.uid) + "] esta equipado com Obsidian Wings no Character[TYPEID=" + Convert.ToString(s.m_pi.ei.char_info._typeid) + ", ID=" + Convert.ToString(s.m_pi.ei.char_info.id) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
+
                         m_rv.rain += 10;
                     }
 
@@ -899,6 +910,9 @@ namespace Pangya_GameServer.Game.Base
                     if (s.m_pi.ei.char_info.parts_typeid.Any(_element =>
     corrupt_wings.Contains(_element)))
                     {
+
+                        _smp.message_pool.getInstance().push(new message("[GameBase::initPlayersItemRainRate][Log] PLAYER[UID=" + Convert.ToString(s.m_pi.uid) + "] esta equipado com Corrupt Wings no Character[TYPEID=" + Convert.ToString(s.m_pi.ei.char_info._typeid) + ", ID=" + Convert.ToString(s.m_pi.ei.char_info.id) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
+
                         m_rv.rain += 15;
                     }
 
@@ -906,12 +920,21 @@ namespace Pangya_GameServer.Game.Base
                     if (s.m_pi.ei.char_info.parts_typeid.Any(_element =>
       hasegawa_chirain.Contains(_element)))
                     {
+
+                        _smp.message_pool.getInstance().push(new message("[GameBase::initPlayersItemRainRate][Log] PLAYER[UID=" + Convert.ToString(s.m_pi.uid) + "] esta equipado com Hasegawa Chirain Item Part no Character[TYPEID=" + Convert.ToString(s.m_pi.ei.char_info._typeid) + ", ID=" + Convert.ToString(s.m_pi.ei.char_info.id) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
+
                         m_rv.rain += 10;
                     }
 
                     // Hat Spooky Halloween -- Só funciona na época do Halloween (ex: outubro)
                     if (DateTime.Now.Month == 10 && s.m_pi.ei.char_info.parts_typeid.Any(_element => hat_spooky_halloween.Contains(_element)))
                     {
+                        _smp.message_pool.getInstance().push(new message(
+                            "[GameBase::initPlayersItemRainRate][Log] PLAYER[UID=" + Convert.ToString(s.m_pi.uid) +
+                            "] esta equipado com Hat Spooky Halloween no Character[TYPEID=" + Convert.ToString(s.m_pi.ei.char_info._typeid) +
+                            ", ID=" + Convert.ToString(s.m_pi.ei.char_info.id) + "]",
+                            type_msg.CL_FILE_LOG_AND_CONSOLE));
+
                         m_rv.rain += 10;
                     }
 
@@ -924,6 +947,9 @@ namespace Pangya_GameServer.Game.Base
 
                     if (it != null)
                     {
+
+                        _smp.message_pool.getInstance().push(new message("[GameBase::initPlayersItemRainRate][Log] PLAYER[UID=" + Convert.ToString(s.m_pi.uid) + "] esta equipado com Card[TYPEID=" + Convert.ToString(it._typeid) + ", EFEITO=" + Convert.ToString(it.efeito) + ", EFEITO_QNTD=" + Convert.ToString(it.efeito_qntd) + "] especial", type_msg.CL_FILE_LOG_AND_CONSOLE));
+
                         if (it.efeito_qntd > 0)
                         {
                             m_rv.rain += it.efeito_qntd;
@@ -933,19 +959,25 @@ namespace Pangya_GameServer.Game.Base
                     // Mascot Poltergeist -- Esse aqui "tenho que colocar a regra para funcionar só na epoca do halloween"
                     if (s.m_pi.ei.mascot_info != null && s.m_pi.ei.mascot_info._typeid == 0x40000029)
                     {
+
+                        _smp.message_pool.getInstance().push(new message("[GameBase::initPlayersItemRainRate][Log] PLAYER[UID=" + Convert.ToString(s.m_pi.uid) + "] esta equipado com Mascot Poltergeist[TYPEID=" + Convert.ToString(s.m_pi.ei.mascot_info._typeid) + ", ID=" + Convert.ToString(s.m_pi.ei.mascot_info.id) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
+
                         m_rv.rain += 10;
                     }
 
                     // Caddie Big Black Papel
                     if (s.m_pi.ei.cad_info != null && s.m_pi.ei.cad_info._typeid == 0x1C00000E)
                     {
+
+                        _smp.message_pool.getInstance().push(new message("[GameBase::initPlayersItemRainRate][Log] PLAYER[UID=" + Convert.ToString(s.m_pi.uid) + "] esta equipado com Caddie Big Black Papel[TYPEID=" + Convert.ToString(s.m_pi.ei.cad_info._typeid) + ", ID=" + Convert.ToString(s.m_pi.ei.cad_info.id) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
+
                         m_rv.rain += 10;
                     }
                 }
             }
         }
 
-        public virtual void initPlayersItemRainPersistNextHole()
+        protected virtual void initPlayersItemRainPersistNextHole()
         {
 
             // Characters Equip
@@ -964,6 +996,9 @@ namespace Pangya_GameServer.Game.Base
                     if (s.m_pi.ei.char_info.parts_typeid.Any(_element =>
       devil_wings.Contains(_element)))
                     {
+
+                        _smp.message_pool.getInstance().push(new message("[GameBase::initPlayersItemRainPersistNextHole][Log] PLAYER[UID=" + Convert.ToString(s.m_pi.uid) + "] esta equipado com Devil Wings no Character[TYPEID=" + Convert.ToString(s.m_pi.ei.char_info._typeid) + ", ID=" + Convert.ToString(s.m_pi.ei.char_info.id) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
+
                         // sai por que só precisa que 1 player tenha o item para valer para o game todo
                         m_rv.persist_rain = 1;
                         return;
@@ -973,6 +1008,9 @@ namespace Pangya_GameServer.Game.Base
                     if (s.m_pi.ei.char_info.parts_typeid.Any(_element =>
      obsidian_wings.Contains(_element)))
                     {
+
+                        _smp.message_pool.getInstance().push(new message("[GameBase::initPlayersItemRainPersistNextHole][Log] PLAYER[UID=" + Convert.ToString(s.m_pi.uid) + "] esta equipado com Obsidian Wings no Character[TYPEID=" + Convert.ToString(s.m_pi.ei.char_info._typeid) + ", ID=" + Convert.ToString(s.m_pi.ei.char_info.id) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
+
                         // sai por que só precisa que 1 player tenha o item para valer para o game todo
                         m_rv.persist_rain = 1;
                         return;
@@ -981,7 +1019,11 @@ namespace Pangya_GameServer.Game.Base
                     // Corrupt Wings
                     if (s.m_pi.ei.char_info.parts_typeid.Any(_element =>
      corrupt_wings.Contains(_element)))
+
                     {
+
+                        _smp.message_pool.getInstance().push(new message("[GameBase::initPlayersItemRainPersistNextHole][Log] PLAYER[UID=" + Convert.ToString(s.m_pi.uid) + "] esta equipado com Corrupt Wings no Character[TYPEID=" + Convert.ToString(s.m_pi.ei.char_info._typeid) + ", ID=" + Convert.ToString(s.m_pi.ei.char_info.id) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
+
                         // sai por que só precisa que 1 player tenha o item para valer para o game todo
                         m_rv.persist_rain = 1;
                         return;
@@ -991,6 +1033,9 @@ namespace Pangya_GameServer.Game.Base
                     if (s.m_pi.ei.char_info.parts_typeid.Any(_element =>
      hasegawa_chirain.Contains(_element)))
                     {
+
+                        _smp.message_pool.getInstance().push(new message("[GameBase::initPlayersItemRainPersistNextHole][Log] PLAYER[UID=" + Convert.ToString(s.m_pi.uid) + "] esta equipado com Hasegawa Chirain Item Part no Character[TYPEID=" + Convert.ToString(s.m_pi.ei.char_info._typeid) + ", ID=" + Convert.ToString(s.m_pi.ei.char_info.id) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
+
                         // sai por que só precisa que 1 player tenha o item para valer para o game todo
                         m_rv.persist_rain = 1;
                         return;
@@ -1000,6 +1045,12 @@ namespace Pangya_GameServer.Game.Base
                     if (DateTime.Now.Month == 10 && s.m_pi.ei.char_info.parts_typeid.Any(_element =>
      hat_spooky_halloween.Contains(_element)))
                     {
+
+                        _smp.message_pool.getInstance().push(new message("[GameBase::initPlayersItemRainPersistNextHole][Log] PLAYER[UID=" + Convert.ToString(s.m_pi.uid) +
+                             "] esta equipado com Hat Spooky Halloween no Character[TYPEID=" + Convert.ToString(s.m_pi.ei.char_info._typeid) +
+                             ", ID=" + Convert.ToString(s.m_pi.ei.char_info.id) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
+
+
                         m_rv.persist_rain = 1;
                         return;
                     }
@@ -1014,6 +1065,9 @@ namespace Pangya_GameServer.Game.Base
 
                     if (it != null)
                     {
+
+                        _smp.message_pool.getInstance().push(new message("[GameBase::initPlayersItemRainPersistNextHole][Log] PLAYER[UID=" + Convert.ToString(s.m_pi.uid) + "] esta equipado com Card[TYPEID=" + Convert.ToString(it._typeid) + ", EFEITO=" + Convert.ToString(it.efeito) + ", EFEITO_QNTD=" + Convert.ToString(it.efeito_qntd) + "] especial", type_msg.CL_FILE_LOG_AND_CONSOLE));
+
                         // sai por que só precisa que 1 player tenha o item para valer para o game todo
                         m_rv.persist_rain = 1;
                         return;
@@ -1028,7 +1082,7 @@ namespace Pangya_GameServer.Game.Base
         private void initArtefact()
         {
 
-            switch (m_ri.typeid_artefatic)
+            switch (m_ri.artefato)
             {
                 // Artefact of EXP
                 case ART_LUMINESCENT_CORAL:
@@ -1077,8 +1131,12 @@ namespace Pangya_GameServer.Game.Base
                 return (_session.m_pi.ei.char_info.id == _el.parts_id && _session.m_pi.ei.char_info._typeid == _el.parts_typeid) && sIff.getInstance().getItemSubGroupIdentify22(_el._typeid) == 1 && (_el.efeito == 3 || _el.efeito == 17 || _el.efeito == 13 || _el.efeito == 12);
             });
 
-            if (it != null)
+            if (it != null)//(it.Key != _session.m_pi.v_cei.end().Key)
             {
+
+                _smp.message_pool.getInstance().push(new message("[GameBase::getPlayerWindFlag][Log] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] esta equipado com Card[TYPEID=" + Convert.ToString(it._typeid) + ", EFEITO=" + Convert.ToString(it.efeito) + ", EFEITO_QNTD=" + Convert.ToString(it.efeito_qntd) + "] Caddie", type_msg.CL_FILE_LOG_AND_CONSOLE));
+
+
                 switch (it.efeito)
                 {
                     case 3:
@@ -1167,6 +1225,10 @@ namespace Pangya_GameServer.Game.Base
             {
                 foreach (var el in v_cei)
                 {
+
+                    _smp.message_pool.getInstance().push(new message("[GameBase::getPlayerTreasureInfo][Log] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] esta equipado com Card[TYPEID=" + Convert.ToString(el._typeid) + ", EFEITO=" + Convert.ToString(el.efeito) + ", EFEITO_QNTD=" + Convert.ToString(el.efeito_qntd) + "] Caddie", type_msg.CL_FILE_LOG_AND_CONSOLE));
+
+
                     switch (el.efeito)
                     {
                         case 8: // Todos Score
@@ -1192,10 +1254,20 @@ namespace Pangya_GameServer.Game.Base
                 return sIff.getInstance().getItemSubGroupIdentify22(_el._typeid) == 2 && _el.efeito == 18;
             });
 
-            if (it != null)
+            if (it != null)//(it.Key != _session.m_pi.v_cei.end().Key)
             {
+
+                _smp.message_pool.getInstance().push(new message("[GameBase::getPlayerTreasureInfo][Log] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] esta equipado com Card[TYPEID=" + Convert.ToString(it._typeid) + ", EFEITO=" + Convert.ToString(it.efeito) + ", EFEITO_QNTD=" + Convert.ToString(it.efeito_qntd) + "] especial", type_msg.CL_FILE_LOG_AND_CONSOLE));
+
+
                 pti.all_score += (byte)it.efeito_qntd;
             }
+
+            /// Todos que dão Drop Rate da treasue hunter point, então aonde dá o drop rate já vai dá o treasure point
+            /// Angel Wings deixa que ela é uma excessão não tem os valores no IFF, é determinado pelo server e o ProjectG
+            // Passarinho gordo aumenta 30 treasure hunter point para todos scores
+            //if (_session.m_pi.ei.mascot_info != null && _session.m_pi.ei.mascot_info->_typeid == MASCOT_FAT_BIRD)
+            //pti.all_score += 30;	// +30 all score
 
             // Verifica se está com asa de anjo equipada (shop ou gacha), aumenta 30 treasure hunter point para todos scores
             if (_session.m_pi.ei.char_info.AngelEquiped() == 1 && _session.m_pi.ui.getQuitRate() < GOOD_PLAYER_ICON)
@@ -1206,13 +1278,13 @@ namespace Pangya_GameServer.Game.Base
             return pti;
         }
 
-        public virtual void updatePlayerAssist(Player _session)
+        protected virtual void updatePlayerAssist(Player _session)
         {
 
             var pgi = getPlayerInfo((_session));
             if (pgi == null)
             {
-                throw new exception("[GameBase::" + "updatePlayerAssist][Error] PLAYER[UID=" + Convert.ToString((_session).m_pi.uid) + "] " + "tentou atualizar assist pang no jogo" + ", mas o game nao tem o info dele guardado. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME,
+                throw new exception("[GameBase::" + "updatePlayerAssist" + "][Error] PLAYER[UID=" + Convert.ToString((_session).m_pi.uid) + "] " + "tentou atualizar assist pang no jogo" + ", mas o game nao tem o info dele guardado. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME,
                     1, 4));
             }
 
@@ -1220,18 +1292,18 @@ namespace Pangya_GameServer.Game.Base
                 pgi.data.pang = Convert.ToUInt64(pgi.data.pang * 0.7f); // - 30% dos pangs
         }
 
-        public virtual void initGameTime()
+        protected virtual void initGameTime()
         {
             m_start_time = DateTime.Now;
         }
 
-        public virtual uint32_t getRankPlace(Player _session)
+        protected virtual uint32_t getRankPlace(Player _session)
         {
 
             var pgi = getPlayerInfo((_session));
             if (pgi == null)
             {
-                throw new exception("[GameBase::" + "getRankPlace][Error] PLAYER[UID=" + Convert.ToString((_session).m_pi.uid) + "] " + "tentou pegar o lugar no rank do jogo" + ", mas o game nao tem o info dele guardado. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME,
+                throw new exception("[GameBase::" + "getRankPlace" + "][Error] PLAYER[UID=" + Convert.ToString((_session).m_pi.uid) + "] " + "tentou pegar o lugar no rank do jogo" + ", mas o game nao tem o info dele guardado. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME,
                     1, 4));
             }
 
@@ -1253,7 +1325,7 @@ namespace Pangya_GameServer.Game.Base
             var pgi = getPlayerInfo((_session));
             if (pgi == null)
             {
-                throw new exception("[GameBase::" + "requestInitDrop][Error] PLAYER[UID=" + Convert.ToString((_session).m_pi.uid) + "] " + "tentou inicializar drop do hole no jogo" + ", mas o game nao tem o info dele guardado. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME,
+                throw new exception("[GameBase::" + "requestInitDrop" + "][Error] PLAYER[UID=" + Convert.ToString((_session).m_pi.uid) + "] " + "tentou inicializar drop do hole no jogo" + ", mas o game nao tem o info dele guardado. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME,
                     1, 4));
             }
 
@@ -1268,7 +1340,7 @@ namespace Pangya_GameServer.Game.Base
             }
 
             // Init Course Info Drop System
-            ci.artefact = m_ri.typeid_artefatic;
+            ci.artefact = m_ri.artefato;
             ci.char_motion = pgi.char_motion_item;
             ci.course = (byte)(hole.getCourse() & 0x7F); // Course do Hole, Por que no SSC, cada hole é um course
             ci.hole = pgi.hole;
@@ -1336,7 +1408,7 @@ namespace Pangya_GameServer.Game.Base
             }
 
             // Drop Grand Prix Ticket, não drop no Grand Prix
-            if (m_ri.qntd_hole == ci.seq_hole && m_ri.getTipo() != RoomInfo.ROOM_INFO_TYPE.GRAND_PRIX)
+            if (m_ri.qntd_hole == ci.seq_hole && m_ri.getTipo() != RoomInfo.TIPO.GRAND_PRIX)
             {
                 var gp_ticket = sDropSystem.getInstance().drawGrandPrixTicket(ci, _session);
 
@@ -1374,7 +1446,7 @@ namespace Pangya_GameServer.Game.Base
             var pgi = getPlayerInfo((_session));
             if (pgi == null)
             {
-                throw new exception("[GameBase::" + "requestSaveDrop][Error] PLAYER[UID=" + Convert.ToString((_session).m_pi.uid) + "] " + "tentou salvar drop item no jogo" + ", mas o game nao tem o info dele guardado. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME,
+                throw new exception("[GameBase::" + "requestSaveDrop" + "][Error] PLAYER[UID=" + Convert.ToString((_session).m_pi.uid) + "] " + "tentou salvar drop item no jogo" + ", mas o game nao tem o info dele guardado. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME,
                     1, 4));
             }
             pgi.drop_list.v_drop = pgi.drop_list.v_drop.Where(c => c._typeid != 0).ToList();
@@ -1407,7 +1479,7 @@ namespace Pangya_GameServer.Game.Base
                     }
                 }
 
-                var rai = ItemManager.addItem(v_item, _session.getUID(), 0, 0);
+                var rai = ItemManager.addItem(v_item, _session, 0, 0);
 
                 if (rai.fails.Any() && rai.type != ItemManager.RetAddItem.T_SUCCESS_PANG_AND_EXP_AND_CP_POUCH)
                 {
@@ -1428,7 +1500,7 @@ namespace Pangya_GameServer.Game.Base
                     p.WriteInt32(el.id);
                     p.WriteUInt32(el.flag_time);
                     p.WriteBytes(el.stat.ToArray());
-                    p.WriteInt32((el.STDA_C_ITEM_TIME > 0) ? el.STDA_C_ITEM_TIME : el.STDA_C_ITEM_QNTD);
+                    p.WriteInt32((el.STDA_C_ITEM_TIME > 0) ? el.STDA_C_ITEM_TIME32 : el.STDA_C_ITEM_QNTD32);
                     p.WriteZeroByte(25);
                 }
 
@@ -1440,13 +1512,13 @@ namespace Pangya_GameServer.Game.Base
         {
             if (!_session.getState())
             {
-                throw new exception("[GameBase::requestInitCubeCoin][Error] player nao esta connectado.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME,
+                throw new exception("[GameBase::" + (("request" + "InitCubeCoin")) + "][Error] player nao esta connectado.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME,
                     1, 0));
             }
             ;
             if (_packet == null)
             {
-                throw new exception("[GameBase::requestInitCubeCoin][Error] _packet is null", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME,
+                throw new exception("[GameBase::request" + "InitCubeCoin" + "][Error] _packet is null", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME,
                     6, 0));
             }
 
@@ -1465,7 +1537,7 @@ namespace Pangya_GameServer.Game.Base
                     var pgi = getPlayerInfo((_session));
                     if (pgi == null)
                     {
-                        throw new exception("[GameBase::" + "initCubeCoin][Error] PLAYER[UID=" + Convert.ToString((_session).m_pi.uid) + "] " + "tentou terninar o hole no jogo" + ", mas o game nao tem o info dele guardado. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME,
+                        throw new exception("[GameBase::" + "initCubeCoin" + "][Error] PLAYER[UID=" + Convert.ToString((_session).m_pi.uid) + "] " + "tentou terninar o hole no jogo" + ", mas o game nao tem o info dele guardado. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME,
                             1, 4));
                     }
 
@@ -1536,48 +1608,35 @@ namespace Pangya_GameServer.Game.Base
 
         public virtual void requestCalculePang(Player _session)
         {
-            var pgi = getPlayerInfo(_session);
+
+            var pgi = getPlayerInfo((_session));
             if (pgi == null)
             {
-                throw new exception("[GameBase::requestCalculePang][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou calcular o pang, mas o info não existe.",
-                    ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME, 1, 4));
+                throw new exception("[GameBase::" + "requestCalculePang" + "][Error] PLAYER[UID=" + Convert.ToString((_session).m_pi.uid) + "] " + "tentou calcular o pang do player no jogo" + ", mas o game nao tem o info dele guardado. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME,
+                    1, 4));
             }
 
-            // 1 e 2. Busca informações do Course (Campo)
+            // Course Rate of Pang
             var course = sIff.getInstance().findCourse((uint)((int)m_ri.course & 0x7F) | 0x28000000u);
+
+            // Rate do course, tem uns que é 10% a+ tem outros que é 30% a mais que o pangya JP deixou
             float course_rate = (course != null && course.RatePang >= 1.0f) ? course.RatePang : 1.0f;
+            float pang_rate = 0.0f;
 
-            // 3. Cálculo do Rate Total
-            uint base_rate = (uint)(m_rv.pang + (m_ri.modo == (byte)RoomInfo.ROOM_INFO_MODO.M_SHUFFLE ? 10 : 0));
+            pang_rate = TRANSF_SERVER_RATE_VALUE(pgi.used_item.rate.pang) * TRANSF_SERVER_RATE_VALUE((uint)(m_rv.pang + (m_ri.modo == (byte)RoomInfo.eMODO.M_SHUFFLE ? 10 : 0))) * course_rate;
 
-            // IMPORTANTE: Se o item_rate estiver multiplicando o base_rate, o valor explode.
-            float item_rate = TRANSF_SERVER_RATE_VALUE(pgi.used_item.rate.pang);
-            float server_rate = TRANSF_SERVER_RATE_VALUE(base_rate);
-
-            float pang_rate = item_rate * server_rate * course_rate;
-
-            // 1. Cálculo do Bônus Bruto
-            // (Pang da partida * taxa) - Pang da partida = Apenas o bônus extra 
-            uint64_t novo_bonus = (uint64_t)((pgi.data.pang * pang_rate) - pgi.data.pang) + pgi.data.bonus_pang;
-            // 2. TAXA DE 10% (O servidor "come" 10%, sobra 90% para o player)
-            novo_bonus = (uint64_t)(novo_bonus * 0.90f);
-
-            // 6. TRAVA DE SEGURANÇA (Hard Cap)
-            // Se após a taxa ainda for maior que 20.000, limitamos para proteger a economia
-            if (novo_bonus > 20000)
-            {
-                novo_bonus = 20000 + (uint64_t)((novo_bonus - 20000) * 0.1f);
-            }
-
-            pgi.data.bonus_pang = novo_bonus;
+            pgi.data.bonus_pang = (uint64_t)(((pgi.data.pang * pang_rate) - pgi.data.pang) + (pgi.data.bonus_pang * pang_rate));
         }
 
-        public virtual void requestSaveInfo(Player _session, int option)
+        protected virtual void requestSaveInfo(Player _session, int option)
         {
 
             var pgi = getPlayerInfo((_session));
             if (pgi == null)
-                return;
+            {
+                throw new exception("[GameBase::" + "requestSaveInfo" + "][Error] PLAYER[UID=" + Convert.ToString((_session).m_pi.uid) + "] " + "tentou salvar o info dele no jogo" + ", mas o game nao tem o info dele guardado. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME,
+                    1, 4));
+            }
 
             try
             {
@@ -1759,19 +1818,19 @@ namespace Pangya_GameServer.Game.Base
             }
         }
 
-        public virtual void requestUpdateItemUsedGame(Player _session)
+        protected virtual void requestUpdateItemUsedGame(Player _session)
         {
 
             var pgi = getPlayerInfo((_session));
             if (pgi == null)
             {
-                throw new exception("[GameBase::" + "requestUpdateItemUsedGame][Error] PLAYER[UID=" + Convert.ToString((_session).m_pi.uid) + "] " + "tentou atualizar itens usado no jogo" + ", mas o game nao tem o info dele guardado. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME,
+                throw new exception("[GameBase::" + "requestUpdateItemUsedGame" + "][Error] PLAYER[UID=" + Convert.ToString((_session).m_pi.uid) + "] " + "tentou atualizar itens usado no jogo" + ", mas o game nao tem o info dele guardado. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME,
                     1, 4));
             }
 
             var ui = pgi.used_item;
 
-            // Club Mastery // ((int)((int)m_ri.course & 0x7F) == RoomInfo.ROOM_INFO_TYPE.SPECIAL_SHUFFLE_COURSE ? 1.5f : 1.f), SSSC sobrecarrega essa função para colocar os valores dele
+            // Club Mastery // ((int)((int)m_ri.course & 0x7F) == RoomInfo.TIPO.SPECIAL_SHUFFLE_COURSE ? 1.5f : 1.f), SSSC sobrecarrega essa função para colocar os valores dele
             ui.club.count += (uint32_t)(1.0f * 10.0f * ui.club.rate * TRANSF_SERVER_RATE_VALUE(m_rv.clubset) * TRANSF_SERVER_RATE_VALUE(ui.rate.club));
 
             // Passive Item exceto Time Booster e var Command, que soma o contador por uso, o cliente passa o pacote, dizendo que usou o item
@@ -1791,14 +1850,14 @@ namespace Pangya_GameServer.Game.Base
                     }
 
                 }
-                else if (sIff.getInstance().getItemGroupIdentify(el.Value._typeid) == PangyaAPI.IFF.JP.Models.Flags.IFF_GROUP.BALL || sIff.getInstance().getItemGroupIdentify(el.Value._typeid) == PangyaAPI.IFF.JP.Models.Flags.IFF_GROUP.AUX_PART) //AuxPart(Anel)
+                else if (sIff.getInstance().getItemGroupIdentify(el.Value._typeid) == sIff.getInstance().BALL || sIff.getInstance().getItemGroupIdentify(el.Value._typeid) == sIff.getInstance().AUX_PART) //AuxPart(Anel)
                 {
                     el.Value.count++;
                 }
             }
         }
 
-        public virtual void requestFinishItemUsedGame(Player _session)
+        protected virtual void requestFinishItemUsedGame(Player _session)
         {
 
             List<stItemEx> v_item = new List<stItemEx>();
@@ -1806,7 +1865,7 @@ namespace Pangya_GameServer.Game.Base
             var pgi = getPlayerInfo((_session));
             if (pgi == null)
             {
-                throw new exception("[GameBase::" + "requestFinishItemUsedGame][Error] PLAYER[UID=" + Convert.ToString((_session).m_pi.uid) + "] " + "tentou finalizar itens usado no jogo" + ", mas o game nao tem o info dele guardado. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME,
+                throw new exception("[GameBase::" + "requestFinishItemUsedGame" + "][Error] PLAYER[UID=" + Convert.ToString((_session).m_pi.uid) + "] " + "tentou finalizar itens usado no jogo" + ", mas o game nao tem o info dele guardado. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME,
                     1, 4));
             }
 
@@ -1841,9 +1900,9 @@ namespace Pangya_GameServer.Game.Base
                 if (it_ac.Key != 0)
                 {
 
-                    int qntd = m_course.findHoleSeq(pgi.hole);
+                    uint32_t qntd = m_course.findHoleSeq(pgi.hole);
 
-                    if (qntd == ~0)
+                    if (unchecked(qntd == (ushort)~0u))
                     {
                         qntd = m_ri.qntd_hole;
                     }
@@ -1868,7 +1927,7 @@ namespace Pangya_GameServer.Game.Base
                 {
 
                     // Item Aqui tem o Achievemente de passive item
-                    if (sIff.getInstance().getItemGroupIdentify(el.Value._typeid) == PangyaAPI.IFF.JP.Models.Flags.IFF_GROUP.ITEM && !sIff.getInstance().IsItemEquipable(el.Value._typeid))
+                    if (sIff.getInstance().getItemGroupIdentify(el.Value._typeid) == sIff.getInstance().ITEM && !sIff.getInstance().IsItemEquipable(el.Value._typeid))
                     {
 
                         pgi.sys_achieve.incrementCounter(0x6C400075u, (int)el.Value.count);
@@ -1923,7 +1982,7 @@ namespace Pangya_GameServer.Game.Base
                 {
 
                     // Aqui tem achievement de Item Active
-                    if (sIff.getInstance().getItemGroupIdentify(el.Value._typeid) == PangyaAPI.IFF.JP.Models.Flags.IFF_GROUP.ITEM && sIff.getInstance().IsItemEquipable(el.Value._typeid))
+                    if (sIff.getInstance().getItemGroupIdentify(el.Value._typeid) == sIff.getInstance().ITEM && sIff.getInstance().IsItemEquipable(el.Value._typeid))
                     {
 
                         pgi.sys_achieve.incrementCounter(0x6C40004Fu, (int)el.Value.count);
@@ -1937,7 +1996,7 @@ namespace Pangya_GameServer.Game.Base
 
                     // Só tira os itens Active se a sala não estiver com o artefact Frozen Flame,
                     // se ele estiver com artefact Frozen Flame ele mantém os Itens Active, não consome e nem desequipa do inventório do player
-                    if (m_ri.typeid_artefatic != ART_FROZEN_FLAME)
+                    if (m_ri.artefato != ART_FROZEN_FLAME)
                     {
 
                         // Limpa o Item Slot do player, dos itens que foram usados(Ativados) no jogo
@@ -1983,11 +2042,11 @@ namespace Pangya_GameServer.Game.Base
             // Se for o Master da sala e ele estiver com artefato tira o mana dele
             // Antes tirava assim que começava o jogo, mas aí o cliente atualizava a sala tirando o artefact aí no final não tinha como ver se o frozen flame estava equipado
             // e as outras pessoas que estão na lobby não sabe qual artefect que está na sala, por que o master mesmo mando o pacote pra tirar da sala quando o server tira o mana dele no init game
-            if (m_ri.typeid_artefatic != 0 && m_ri.master == _session.m_pi.uid)
+            if (m_ri.artefato != 0 && m_ri.master == _session.m_pi.uid)
             {
 
                 // Tira Artefact Mana do master da sala
-                var pWi = _session.m_pi.findWarehouseItemByTypeid(m_ri.typeid_artefatic + 1);
+                var pWi = _session.m_pi.findWarehouseItemByTypeid(m_ri.artefato + 1);
 
                 if (pWi != null)
                 {
@@ -1997,7 +2056,7 @@ namespace Pangya_GameServer.Game.Base
                     item.type = 2;
                     item.id = pWi.id;
                     item._typeid = pWi._typeid;
-                    item.qntd = (int)((pWi.STDA_C_ITEM_QNTD <= 0) ? 1 : pWi.STDA_C_ITEM_QNTD);
+                    item.qntd = (int)((pWi.STDA_C_ITEM_QNTD <= 0) ? 1 : pWi.STDA_C_ITEM_QNTD32);
                     item.STDA_C_ITEM_QNTD = (short)(item.qntd * -1);
 
                     // Add on Vector Update Itens
@@ -2006,7 +2065,7 @@ namespace Pangya_GameServer.Game.Base
                 }
                 else
                 {
-                    _smp.message_pool.getInstance().push(new message("[GameBase::requestFinishItemUsedGame][Warning] Master[UID=" + Convert.ToString(_session.m_pi.uid) + "] do jogo nao tem Mana do Artefect[TYPEID=" + Convert.ToString(m_ri.typeid_artefatic) + ", MANA=" + Convert.ToString(m_ri.typeid_artefatic + 1) + "] e criou e comecou um jogo com artefact sem mana. Hacker ou Bug", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                    _smp.message_pool.getInstance().push(new message("[GameBase::requestFinishItemUsedGame][Warning] Master[UID=" + Convert.ToString(_session.m_pi.uid) + "] do jogo nao tem Mana do Artefect[TYPEID=" + Convert.ToString(m_ri.artefato) + ", MANA=" + Convert.ToString(m_ri.artefato + 1) + "] e criou e comecou um jogo com artefact sem mana. Hacker ou Bug", type_msg.CL_FILE_LOG_AND_CONSOLE));
                 }
             }
 
@@ -2021,7 +2080,7 @@ namespace Pangya_GameServer.Game.Base
             }
 
             // Club Mastery
-            if (ui.club.count != 0 && ui.club._typeid != 0)
+            if (ui.club.count > 0u && ui.club._typeid > 0u)
             {
 
                 var pClub = _session.m_pi.findWarehouseItemByTypeid(ui.club._typeid);
@@ -2076,7 +2135,7 @@ namespace Pangya_GameServer.Game.Base
                     p.WriteInt32(el.id);
                     p.WriteUInt32(el.flag_time);
                     p.WriteBytes(el.stat.ToArray());
-                    p.WriteInt32((el.STDA_C_ITEM_TIME > 0) ? el.STDA_C_ITEM_TIME : el.STDA_C_ITEM_QNTD);
+                    p.WriteUInt32((el.STDA_C_ITEM_TIME > 0) ? el.STDA_C_ITEM_TIME : el.STDA_C_ITEM_QNTD);
                     p.WriteZeroByte(25); // 10 PCL[C0~C4] 2 Bytes cada, 15 bytes desconhecido
                     if (el.type == 0xCC)
                     {
@@ -2095,13 +2154,14 @@ namespace Pangya_GameServer.Game.Base
         /// <param name="_session"></param>
         /// <param name="option"></param>
         /// <exception cref="exception"></exception>
-        public virtual void requestFinishHole(Player _session, int option)
+        protected virtual void requestFinishHole(Player _session, int option)
         {
-            var pgi = getPlayerInfo(_session);
+
+            var pgi = getPlayerInfo((_session));
             if (pgi == null)
             {
-                throw new exception($"[GameBase::requestFinishHole][Error] PLAYER[UID={_session.m_pi.uid}] tentou finalizar dados do hole, mas info não guardada.",
-                    ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME, 1, 4));
+                throw new exception("[GameBase::" + "requestFinishHole" + "][Error] PLAYER[UID=" + Convert.ToString((_session).m_pi.uid) + "] " + "tentou finalizar o dados do hole do player no jogo" + ", mas o game nao tem o info dele guardado. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME,
+                    1, 4));
             }
 
             if (pgi.hole == 255)
@@ -2111,94 +2171,125 @@ namespace Pangya_GameServer.Game.Base
 
             if (hole == null)
             {
-                throw new exception($"[GameBase::finishHole][Error] PLAYER[UID={_session.m_pi.uid}] hole[NUMERO={(ushort)pgi.hole}] inválido.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME, 20, 0));
+                throw new exception("[GameBase::finishHole][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou finalizar hole[NUMERO=" + Convert.ToString((ushort)pgi.hole) + "] no jogo, mas o numero do hole is invalid. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME,
+                    20, 0));
             }
 
-            // Variáveis locais para garantir a precisão do cálculo ANTES de manipular o objeto global
-            int score_hole = 0;
-            int tacada_hole_atual = pgi.data.tacada_num;
-            int par_do_hole = hole.getPar().par;
-
-            // --- BLOCO DE CÁLCULO ---
-            if (option == 0) // Terminou o buraco normalmente
+            int score_hole = 0;//negativo 
+            // Finish Hole Dados
+            if (option == 0) // melhorar depois@@@@@
             {
-                // 1. Atualiza totais da partida
-                pgi.data.total_tacada_num += tacada_hole_atual;
+                pgi.data.total_tacada_num += pgi.data.tacada_num;
+                // Tacadas do hole
+                var tacada_hole = pgi.data.tacada_num;
 
-                // 2. Calcula score (negativo ou positivo)
-                score_hole = (int)(tacada_hole_atual - par_do_hole);
-                pgi.data.score += score_hole;
+                // Tacadas do hole 
+                pgi.data.score += Convert.ToInt32(pgi.data.tacada_num - hole.getPar().par);
+                score_hole = Convert.ToInt32(pgi.data.tacada_num - hole.getPar().par);
 
-                // 3. Sync Database (Log da sala)
                 UpdateRoomLogSql(_session);
 
-                // 4. Conquistas (Achievement)
-                var tmp_counter_typeid = AchievementSystem.getScoreCounterTypeId((int)tacada_hole_atual, par_do_hole);
+                //// Achievement Score
+                var tmp_counter_typeid = AchievementSystem.getScoreCounterTypeId(tacada_hole, (uint)hole.getPar().par);
+
                 if (tmp_counter_typeid > 0)
                     pgi.sys_achieve.incrementCounter(tmp_counter_typeid);
 
-                // --- RESET DE DADOS DO BURACO ATUAL ---
+
+                _smp.message_pool.getInstance().push(new message("[GameBase::requestFinishHole][Log] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] terminou o hole[COURSE=" + Convert.ToString(hole.getCourse()) + ", NUMERO=" + Convert.ToString(hole.getNumero()) + ", PAR=" + Convert.ToString(hole.getPar().par) + ", SHOT=" + pgi.data.tacada_num + ", SCORE=" + Convert.ToString(pgi.data.score) + ", TOTAL_SHOT=" + Convert.ToString(pgi.data.total_tacada_num) + ", TOTAL_SCORE=" + Convert.ToString(pgi.data.score) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
+
+                // Zera dados
                 pgi.data.time_out = 0;
+
+                // Giveup Flag
                 pgi.data.giveup = 0;
+
+                // Zera as penalidades do hole
                 pgi.data.penalidade = 0;
+
             }
-            else if (option == 1) // Quit/GiveUp (Calcula o resto do campo como Max Score)
-            {
+            else if (option == 1)
+            { // Não acabou o hole então faz os calculos para o jogo todo
+
                 var range = m_course.findRange(pgi.hole);
+
                 foreach (var kv in range)
                 {
-                    if (kv.Key > m_ri.qntd_hole) break;
+                    if (kv.Key > m_ri.qntd_hole)
+                    {
+                        break;  // Igual à condição it->first <= m_ri.qntd_hole
+                    }
 
-                    pgi.data.total_tacada_num += kv.Value.getPar().total_shot;
-                    pgi.data.score += kv.Value.getPar().range_score[1]; // Geralmente +3 ou +4 por buraco
+                    pgi.data.total_tacada_num += (uint)kv.Value.getPar().total_shot;
+                    pgi.data.score += kv.Value.getPar().range_score[1];  // Max Score
                 }
+
+                UpdateRoomLogSql(_session);
+
+
+                // Zera dados
                 pgi.data.time_out = 0;
+
                 pgi.data.tacada_num = 0;
+
+                // Giveup Flag
                 pgi.data.giveup = 0;
+
+                // Zera as penalidades do hole do player
                 pgi.data.penalidade = 0;
             }
 
-            // --- ATUALIZAÇÃO DO PROGRESSO (CARD DE SCORE) ---
+            // Aqui tem que atualiza o PGI direitinho com outros dados
             pgi.progress.hole = (short)m_course.findHoleSeq(pgi.hole);
 
+            // Dados Game Progress do Player
             if (option == 0)
             {
-                int index = pgi.progress.hole - 1;
-                if (index >= 0 && index < 18)
-                {
-                    if (pgi.shot_sync.state_shot.display.acerto_hole)
-                        pgi.progress.finish_hole[index] = 1;
 
-                    pgi.progress.par_hole[index] = (int)par_do_hole;
-                    pgi.progress.score[index] = score_hole;
-                    pgi.progress.tacada[index] = tacada_hole_atual; // Usa a local, pois a global já foi zerada
+                if (pgi.progress.hole > 0)
+                {
+
+                    if (pgi.shot_sync.state_shot.display.acerto_hole)
+                    {
+                        pgi.progress.finish_hole[pgi.progress.hole - 1] = 1; // Terminou o hole
+                    }
+
+                    pgi.progress.par_hole[pgi.progress.hole - 1] = hole.getPar().par;
+                    pgi.progress.score[pgi.progress.hole - 1] = (sbyte)score_hole;
+                    pgi.progress.tacada[pgi.progress.hole - 1] = pgi.data.tacada_num;
                 }
+
             }
             else
             {
+
                 var range = m_course.findRange(pgi.hole);
+
                 foreach (var kv in range)
                 {
                     int index = kv.Key - 1;
-                    if (index >= 0 && index < 18)
-                    {
-                        pgi.progress.finish_hole[index] = 0;
-                        pgi.progress.par_hole[index] = kv.Value.getPar().par;
-                        pgi.progress.score[index] = kv.Value.getPar().range_score[1];
-                        pgi.progress.tacada[index] = kv.Value.getPar().total_shot;
-                    }
+
+                    pgi.progress.finish_hole[index] = 0; // não terminou
+
+                    pgi.progress.par_hole[index] = kv.Value.getPar().par;
+
+                    pgi.progress.score[index] = kv.Value.getPar().range_score[1]; // Max Score
+
+                    pgi.progress.tacada[index] = (uint)kv.Value.getPar().total_shot;
                 }
+
             }
+
         }
 
-        public virtual void requestSaveRecordCourse(Player _session,
+        protected virtual void requestSaveRecordCourse(Player _session,
             int game, int option)
         {
 
             var pgi = getPlayerInfo((_session));
             if (pgi == null)
             {
-                throw new exception("[GameBase::" + "requestSaveRecordCourse][Error] PLAYER[UID=" + Convert.ToString((_session).m_pi.uid) + "] " + "tentou salvar record do course do player no jogo" + ", mas o game nao tem o info dele guardado. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME,
+                throw new exception("[GameBase::" + "requestSaveRecordCourse" + "][Error] PLAYER[UID=" + Convert.ToString((_session).m_pi.uid) + "] " + "tentou salvar record do course do player no jogo" + ", mas o game nao tem o info dele guardado. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME,
                     1, 4));
             }
 
@@ -2217,7 +2308,7 @@ namespace Pangya_GameServer.Game.Base
                 {
                     pMs = _session.m_pi.a_msa_grand_prix[(int)((int)m_ri.course & 0x7F)];
                 }
-                else if (m_ri.special_flag_mod.natural)
+                else if (m_ri.natural.natural == 1)
                 { // Natural
                     pMs = _session.m_pi.a_msa_natural[(int)((int)m_ri.course & 0x7F)];
 
@@ -2236,7 +2327,7 @@ namespace Pangya_GameServer.Game.Base
                 {
                     pMs = _session.m_pi.a_ms_grand_prix[(int)((int)m_ri.course & 0x7F)];
                 }
-                else if (m_ri.special_flag_mod.natural)
+                else if (m_ri.natural.natural == 1)
                 { // Natural
                     pMs = _session.m_pi.a_ms_natural[(int)((int)m_ri.course & 0x7F)];
 
@@ -2289,10 +2380,9 @@ namespace Pangya_GameServer.Game.Base
             pMs.total_score += pgi.data.score;
             pMs.event_score = 0;
 
-            MapStatisticsEx ms = new MapStatisticsEx(pMs)
-            {
-                tipo = (byte)game
-            };
+            MapStatisticsEx ms = new MapStatisticsEx(pMs);
+
+            ms.tipo = (byte)game;
 
             // UPDATE ON DB
             snmdb.NormalManagerDB.getInstance().add(5,
@@ -2303,6 +2393,10 @@ namespace Pangya_GameServer.Game.Base
             // UPDATE ON GAME, se ele fez record, e add 1000 para ele
             if (make_record)
             {
+
+                // Log
+                _smp.message_pool.getInstance().push(new message("[GameBase::requestSaveRecordCourse][Log] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] fez record no Map[COURSE=" + Convert.ToString((ushort)(int)((int)m_ri.course & 0x7F)) + " (" + Convert.ToString((ushort)pMs.course) + "), SCORE=" + Convert.ToString((short)pMs.best_score) + ", PANG=" + Convert.ToString(pMs.best_pang) + ", CHARACTER=" + Convert.ToString(pMs.character_typeid) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
+
                 // Add 1000 pang por ele ter quebrado o  record dele
                 _session.m_pi.addPang(1000);
 
@@ -2316,7 +2410,7 @@ namespace Pangya_GameServer.Game.Base
             }
         }
 
-        public virtual void requestInitItemUsedGame(Player _session, PlayerGameInfo _pgi)
+        protected virtual void requestInitItemUsedGame(Player _session, PlayerGameInfo _pgi)
         {
 
             //INIT_PLAYER_INFO("requestInitItemUsedGame", "tentou inicializar itens usado no jogo", _session, out PlayerGameInfo pgi);
@@ -2349,27 +2443,27 @@ namespace Pangya_GameServer.Game.Base
                 {
                     if (passive_item.Any(c => c == _el.Value._typeid))
                     {
-                        ui.v_passive.insert(Tuple.Create(_el.Value._typeid, new UsedItem.Passive(_el.Value._typeid, 0)));
+                        ui.v_passive.insert(Tuple.Create(_el.Value._typeid, new UsedItem.Passive(_el.Value._typeid, 0u)));
                     }
                 });
                 // Ball Equiped 
                 if (_session.m_pi.ei.comet._typeid != DEFAULT_COMET_TYPEID && (!_session.m_pi.m_cap.premium_user || _session.m_pi.ei.comet._typeid != sPremiumSystem.getInstance().getPremiumBallByTicket(_session.m_pi.pt._typeid)))
                 {
-                    ui.v_passive.insert(Tuple.Create((uint32_t)_session.m_pi.ei.comet._typeid, new UsedItem.Passive(_session.m_pi.ei.comet._typeid, 0)));
+                    ui.v_passive.insert(Tuple.Create((uint32_t)_session.m_pi.ei.comet._typeid, new UsedItem.Passive(_session.m_pi.ei.comet._typeid, 0u)));
                 }
 
                 // AuxParts
-                for (var i = 0u; i < (_session.m_pi.ei.char_info.auxparts.Length); ++i)
+                for (var i = 0; i < (_session.m_pi.ei.char_info.auxparts.Length); ++i)
                 {
                     if (_session.m_pi.ei.char_info.auxparts[i] >= 0x70000000 && _session.m_pi.ei.char_info.auxparts[i] < 0x70010000)
                     {
-                        ui.v_passive.insert(Tuple.Create((uint32_t)_session.m_pi.ei.char_info.auxparts[i], new UsedItem.Passive(_session.m_pi.ei.char_info.auxparts[i], 0)));
+                        ui.v_passive.insert(Tuple.Create((uint32_t)_session.m_pi.ei.char_info.auxparts[i], new UsedItem.Passive(_session.m_pi.ei.char_info.auxparts[i], 0u)));
                     }
                 }
 
                 // Item Active Slot 
                 for (var i = 0; i < (_session.m_pi.ue.item_slot.Length); ++i)
-                {
+                { 
                     // Diferente de 0 item está equipado
                     if (_session.m_pi.ue.item_slot[i] != 0)
                     {
@@ -2555,7 +2649,7 @@ namespace Pangya_GameServer.Game.Base
                 // Aux parts tem seus próprios valores de rate no iff
                 foreach (var _el in _session.m_pi.ei.char_info.auxparts)
                 {
-                    if (_el != 0 && sIff.getInstance().getItemGroupIdentify(_el) == PangyaAPI.IFF.JP.Models.Flags.IFF_GROUP.AUX_PART)
+                    if (_el != 0 && sIff.getInstance().getItemGroupIdentify(_el) == sIff.getInstance().AUX_PART)
                     {
                         var auxpart = sIff.getInstance().findAuxPart(_el);
                         if (auxpart != null)
@@ -2646,25 +2740,25 @@ namespace Pangya_GameServer.Game.Base
 
                 /// ********** Premium User +10% EXP and PANG *********************
 
-                //if (_pgi.premium_flag)
-                //{
-                //    var rate_premium = sPremiumSystem.getInstance().getExpPangRateByTicket(_session.m_pi.pt._typeid);
-                //    ui.rate.exp += rate_premium;
-                //    ui.rate.pang += rate_premium;
-                //}
+                if (_pgi.premium_flag)
+                {
+                    var rate_premium = sPremiumSystem.getInstance().getExpPangRateByTicket(_session.m_pi.pt._typeid);
+                    ui.rate.exp += rate_premium;
+                    ui.rate.pang += rate_premium;
+                }
 
                 /// ********** Itens Exp/Pang Rate **********
             }
         }
 
-        public virtual void requestSendTreasureHunterItem(Player _session)
+        protected virtual void requestSendTreasureHunterItem(Player _session)
         {
 
             var pgi = getPlayerInfo((_session));
 
             if (pgi == null)
             {
-                throw new exception("[GameBase::" + "requestSendTreasureHunterItem][Error] PLAYER[UID=" + Convert.ToString((_session).m_pi.uid) + "] " + "tentou enviar os itens ganho no Treasure Hunter do jogo" + ", mas o game nao tem o info dele guardado. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME,
+                throw new exception("[GameBase::" + "requestSendTreasureHunterItem" + "][Error] PLAYER[UID=" + Convert.ToString((_session).m_pi.uid) + "] " + "tentou enviar os itens ganho no Treasure Hunter do jogo" + ", mas o game nao tem o info dele guardado. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME,
                     1, 4));
             }
 
@@ -2700,7 +2794,7 @@ namespace Pangya_GameServer.Game.Base
                 {
 
                     var rai = ItemManager.addItem(v_item,
-                        _session.getUID(), 0, 0);
+                        _session, 0, 0);
 
                     if (rai.fails.Count > 0 && rai.type != ItemManager.RetAddItem.T_SUCCESS_PANG_AND_EXP_AND_CP_POUCH)
                     {
@@ -2731,7 +2825,7 @@ namespace Pangya_GameServer.Game.Base
                 _session, 1);
         }
 
-        public virtual byte checkCharMotionItem(Player _session)
+        protected virtual byte checkCharMotionItem(Player _session)
         {
 
             // Characters Equip
@@ -2760,7 +2854,7 @@ namespace Pangya_GameServer.Game.Base
 
         // Atualiza o Info do usuario, Info Trofel e Map Statistics do Course
         // Opt 0 Envia tudo, -1 não envia o map statistics
-        public virtual void sendUpdateInfoAndMapStatistics(Player _session, int _option)
+        protected virtual void sendUpdateInfoAndMapStatistics(Player _session, int _option)
         {
 
             PangyaBinaryWriter p = new PangyaBinaryWriter((ushort)0x45);
@@ -2885,7 +2979,7 @@ namespace Pangya_GameServer.Game.Base
             var pgi = getPlayerInfo((_session));
             if (pgi == null)
             {
-                throw new exception("[GameBase::" + "sendFinishMessage][Error] PLAYER[UID=" + Convert.ToString((_session).m_pi.uid) + "] " + "tentou enviar message no chat que o player terminou o jogo" + ", mas o game nao tem o info dele guardado. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME,
+                throw new exception("[GameBase::" + "sendFinishMessage" + "][Error] PLAYER[UID=" + Convert.ToString((_session).m_pi.uid) + "] " + "tentou enviar message no chat que o player terminou o jogo" + ", mas o game nao tem o info dele guardado. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME,
                     1, 4));
             }
 
@@ -2904,7 +2998,7 @@ namespace Pangya_GameServer.Game.Base
                 p.GetBytes, 1);
         }
 
-        public virtual void requestCalculeRankPlace()
+        protected virtual void requestCalculeRankPlace()
         {
             if (m_player_order.Count > 0)
             {
@@ -2931,7 +3025,7 @@ namespace Pangya_GameServer.Game.Base
         }
 
         // Set Flag Game and finish_game flag
-        public virtual void setGameFlag(PlayerGameInfo _pgi, PlayerGameInfo.eFLAG_GAME _fg)
+        protected virtual void setGameFlag(PlayerGameInfo _pgi, PlayerGameInfo.eFLAG_GAME _fg)
         {
 
             if (_pgi == null)
@@ -2945,7 +3039,7 @@ namespace Pangya_GameServer.Game.Base
             _pgi.flag = _fg;
         }
 
-        public virtual void setFinishGameFlag(PlayerGameInfo _pgi, byte _finish_game)
+        protected virtual void setFinishGameFlag(PlayerGameInfo _pgi, byte _finish_game)
         {
 
             if (_pgi == null)
@@ -2959,7 +3053,7 @@ namespace Pangya_GameServer.Game.Base
         }
 
         // Check And Clear
-        public virtual bool AllCompleteGameAndClear()
+        protected virtual bool AllCompleteGameAndClear()
         {
             uint32_t count = 0;
             // Da error Aqui
@@ -2972,7 +3066,7 @@ namespace Pangya_GameServer.Game.Base
                     var pgi = getPlayerInfo((el));
                     if (pgi == null)
                     {
-                        throw new exception("[GameBase::" + "PlayersCompleteGameAndClear][Error] PLAYER[UID=" + Convert.ToString((el).m_pi.uid) + "] " + "tentou verificar se o player terminou o jogo" + ", mas o game nao tem o info dele guardado. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME,
+                        throw new exception("[GameBase::" + "PlayersCompleteGameAndClear" + "][Error] PLAYER[UID=" + Convert.ToString((el).m_pi.uid) + "] " + "tentou verificar se o player terminou o jogo" + ", mas o game nao tem o info dele guardado. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME,
                             1, 4));
                     }
 
@@ -3005,7 +3099,7 @@ namespace Pangya_GameServer.Game.Base
                     var pgi = getPlayerInfo(el);
                     if (pgi == null)
                     {
-                        throw new exception("[GameBase::" + "PlayersCompleteGameAndClear][Error] PLAYER[UID=" + Convert.ToString((el).m_pi.uid) + "] " + "tentou verificar se o player terminou o jogo" + ", mas o game nao tem o info dele guardado. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME,
+                        throw new exception("[GameBase::" + "PlayersCompleteGameAndClear" + "][Error] PLAYER[UID=" + Convert.ToString((el).m_pi.uid) + "] " + "tentou verificar se o player terminou o jogo" + ", mas o game nao tem o info dele guardado. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME,
                             1, 4));
                     }
 
@@ -3032,7 +3126,7 @@ namespace Pangya_GameServer.Game.Base
             var pgi = getPlayerInfo((_session));
             if (pgi == null)
             {
-                throw new exception("[GameBase::" + "checkEndGame][Error] PLAYER[UID=" + Convert.ToString((_session).m_pi.uid) + "] " + "tentou verificar se eh o final do jogo" + ", mas o game nao tem o info dele guardado. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME,
+                throw new exception("[GameBase::" + "checkEndGame" + "][Error] PLAYER[UID=" + Convert.ToString((_session).m_pi.uid) + "] " + "tentou verificar se eh o final do jogo" + ", mas o game nao tem o info dele guardado. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME,
                 1, 4));
             }
 
@@ -3040,7 +3134,7 @@ namespace Pangya_GameServer.Game.Base
         }
 
         // Retorna todos os player que entrou no jogo, exceto os que quitaram
-        public virtual uint32_t getCountPlayersGame()
+        protected virtual uint32_t getCountPlayersGame()
         {
 
             size_t count = 0;
@@ -3052,13 +3146,13 @@ namespace Pangya_GameServer.Game.Base
 
             return (uint32_t)count;
         }
-        public virtual void initAchievement(Player _session)
+        protected virtual void initAchievement(Player _session)
         {
 
             var pgi = getPlayerInfo((_session));
             if (pgi == null)
             {
-                throw new exception("[GameBase::" + "initAchievement][Error] PLAYER[UID=" + Convert.ToString((_session).m_pi.uid) + "] " + "tentou inicializar o achievemento do player no jogo" + ", mas o game nao tem o info dele guardado. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME,
+                throw new exception("[GameBase::" + "initAchievement" + "][Error] PLAYER[UID=" + Convert.ToString((_session).m_pi.uid) + "] " + "tentou inicializar o achievemento do player no jogo" + ", mas o game nao tem o info dele guardado. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME,
                     1, 4));
             }
 
@@ -3069,14 +3163,14 @@ namespace Pangya_GameServer.Game.Base
                 // Initialize Achievement Player
                 pgi.sys_achieve.incrementCounter(0x6C400002u/*Normal Game*/);
 
-                if (m_ri.special_flag_mod.short_game)
+                if (m_ri.natural.short_game.IsTrue()/* & 2 /*Short Game*/)
                     pgi.sys_achieve.incrementCounter(0x6C4000BBu/*Short Game*/);
 
                 if (m_ri.master == _session.m_pi.uid)
                 {
                     pgi.sys_achieve.incrementCounter(0x6C400098u/*Master da Sala*/);
 
-                    if (m_ri.typeid_artefatic > 0)
+                    if (m_ri.artefato > 0)
                         pgi.sys_achieve.incrementCounter(0x6C400099u/*Master da Sala com Artefact*/);
                 }
 
@@ -3314,7 +3408,7 @@ namespace Pangya_GameServer.Game.Base
                 int count = 0;
                 for (var i = 0; i < m_ri.qntd_hole; ++i)
                 {
-                    score = AchievementSystem.getScoreNum(pgi.progress.tacada[i], pgi.progress.par_hole[i]);
+                    score = AchievementSystem.getScoreNum(pgi.progress.tacada[i], (uint)pgi.progress.par_hole[i]);
 
                     // Change Score, Soma o Count do Score
                     if ((score != last_score || i == (m_ri.qntd_hole - 1)/*Ultimo hole*/) && last_score != -2/*Primeiro Hole*/)
@@ -3374,6 +3468,7 @@ namespace Pangya_GameServer.Game.Base
 
         public virtual void rain_count(Player _session)
         {
+
             try
             {
 
@@ -3403,12 +3498,15 @@ namespace Pangya_GameServer.Game.Base
 
         public virtual void setEffectActiveInShot(Player _session, uint64_t _effect)
         {
+            //CHECK_SESSION("setEffectActiveInShot");
+
             try
             {
 
                 INIT_PLAYER_INFO("setEffectActiveInShot", "tentou setar o efeito ativado na tacada", _session, out PlayerGameInfo pgi);
 
-                pgi.effect_flag_shot.ullFlag |= _effect; // Ativa o efeito na tacada
+                pgi.effect_flag_shot.ullFlag |= _effect;
+
             }
             catch (exception e)
             {
@@ -3416,7 +3514,6 @@ namespace Pangya_GameServer.Game.Base
                 _smp.message_pool.getInstance().push(new message("[GameBase::setEffectActiveInShot][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
-
         // Limpa os dados que são usados para cada tacada, reseta ele para usar na próxima tacada 
         public virtual void clearDataEndShot(PlayerGameInfo _pgi)
         {
@@ -3657,34 +3754,161 @@ namespace Pangya_GameServer.Game.Base
         public virtual void requestInitShotSended(Player _session, packet _packet)
         {
 
-        } 
+        }
 
+        public void CreateRoomLogSql(RoomInfoLog _info)
+        {
+            m_room_log = _info;
+            //insert to room log
+            var _session = findSessionByUID(_info.uid);
+          
+            if (!gs.getInstance().getActiveRoomLog())//nao vai logar os dados, melhor reiniciar 
+            {
+                _smp.message_pool.getInstance().push(new message("[RoomGrandPrix::UpdateRoomLogSql][Log] not actived", type_msg.CL_ONLY_CONSOLE_DEBUG));
+                return;
+            }
+
+            snmdb.NormalManagerDB.getInstance().add(43, new CmdInsertOrUpdateRoomLog(_info), SQLDBResponse, _session);
+        }
+
+        public void ClearRoomLogInfo()
+        {
+            m_room_log.clear();
+            //seta como default aqui
+            m_room_log.roomId = Guid.Empty;
+        }
 
         //somente atualiza no banco de dados
         // Atualiza as informações do jogador no log da sala
         public void UpdateRoomLogSql(Player _session)
-        { 
+        {
+            try
+            {
+                if (!gs.getInstance().getActiveRoomLog())//nao vai logar os dados, melhor reiniciar 
+                {
+                    _smp.message_pool.getInstance().push(new message("[RoomGrandPrix::UpdateRoomLogSql][Log] not actived", type_msg.CL_ONLY_CONSOLE_DEBUG));
+                    return;
+                }
+
+                if (m_room_log == null)//nao vai logar os dados, melhor reiniciar 
+                {
+                    _smp.message_pool.getInstance().push(new message("[RoomGrandPrix::UpdateRoomLogSql][Error] m_room_log is null", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                    return;
+                }
+
+                //foreach (var _session in m_players)
+                //{
+                // Obtém as informações do jogador
+                var pgi = getPlayerInfo(_session);
+
+                if (pgi == null)
+                    return; // Se não encontrou, sai da função
+
+                //evento do world tour...
+                if (sWorldTourSystem.getInstance().isLoad() &&
+     sgs.gs.getInstance().getInfo().rate.world_tour_event == 1 &&
+     m_ri.qntd_hole == 18 &&
+     m_ri.natural.short_game == 0 &&
+     (m_ri.tipo == 2 || m_ri.tipo == 4) && pgi.finish_game == 1)
+                {
+                    sWorldTourSystem.getInstance().MarkCourseCompleted((int)_session.m_pi.uid, (int)m_ri.course);
+                }
+
+                // Obtém o buraco atual no campo (se existir)
+                var hole = (m_course != null) ? m_course.findHole(pgi.hole) : null;
+
+                // Se achou o buraco, pega o par dele; senão, define como 0
+                sbyte par = (sbyte)((hole != null) ? hole.getPar().par : 0);
+
+                // Referência para as informações do jogador
+                var ei = _session.m_pi.ei;
+
+                // Pega os typeids de cada item do jogador (ou 0 se não existir)
+                int char_info_typeid = (int)((ei.char_info != null) ? ei.char_info._typeid : 0);
+                int clubset_typeid = (int)((ei.clubset != null) ? ei.clubset._typeid : 0u);
+                int mascot_info_typeid = (int)((ei.mascot_info != null) ? ei.mascot_info._typeid : 0);
+                int cad_info_typeid = (int)((ei.cad_info != null) ? ei.cad_info._typeid : 0);
+
+                // Se o sistema de log de sala estiver desativado, sai
+                //if (!sgs.gs.getInstance().getActiveRoomLog())
+                //    return;
+
+                var tacada_num = pgi.data.tacada_num;
+
+                // Converte o número de tacadas em uma string de pontuação (ex: BIRDIE, PAR, etc.)
+                var score_str = getScoreStr(tacada_num, par);
+
+                // Verifica se o jogador passou do limite de 7 tacadas
+                bool isOver7 = (getScore(tacada_num, par) > 7);
+                // Preenche as informações do jogador no objeto de log da sala
+                m_room_log.UpdateInfo(
+                    _session.m_pi.uid,                      // UID do jogador
+                    char_info_typeid,                        // Tipo do personagem
+                    clubset_typeid,                          // Tipo do taco
+                    mascot_info_typeid,                      // Tipo do mascote
+                    cad_info_typeid,                         // Tipo do caddie
+                    pgi.hole,                               // Número do buraco
+                    pgi.data.score,                         // Pontuação
+                    pgi.data.exp,                           // EXP ganha
+                    pgi.data.pang,                          // Pang ganho
+                    pgi.data.bonus_pang,                    // Bonus Pang
+                    pgi.data.tacada_num,                    // Número de tacadas
+                    pgi.data.total_tacada_num,              // Total de tacadas
+                    pgi.shot_data.special_shot.ulSpecialShot, // Tipo de tacada especial
+                    _session.m_pi.pt.id > 0,                 // é premium?
+                    isOver7 ? (uint)1 : 0,                                 // Is giveUp
+                    pgi.data.time_out,                      // Estourou tempo
+                    pgi.enter_after_started,                // Entrou após início?
+                    pgi.finish_game,                        // Terminou o jogo?
+                    pgi.assist_flag,                        // Usou assistência?
+                    pgi.trofel,                             // Ganhou troféu?
+                                                            //outro log
+                    Tools.IfCompare<uint>(score_str == "HIO", 1, 0),                      // Hole In One?
+                    score_str == "ALBATROSS" ? (uint)1 : 0,                // Albatross?
+                    score_str == "EAGLE" ? (uint)1 : 0,                    // Eagle?
+                    score_str == "BIRDIE" ? (uint)1 : 0,                   // Birdie?
+                    score_str == "PAR" ? (uint)1 : 0,                      // Par?
+                    score_str == "BOGEY" ? (uint)1 : 0,                    // Bogey?
+                    score_str == "DOUBLE BOGEY" ? (uint)1 : 0,             // Duplo Bogey?
+                    score_str == "TRIPLE BOGEY" ? (uint)1 : 0              // Triplo Bogey?
+                    , m_ri
+                );
+
+                // Se o ID do log ainda estiver vazio, gera um GUID
+                if (m_room_log.roomId == Guid.Empty)
+                    generateRoomLogGuid();
+
+                // Se o tipo da sala for de interesse, salva no banco de dados
+                if (isLoggableRoomType(m_ri.tipo))
+                    snmdb.NormalManagerDB.getInstance().add(44, new CmdInsertOrUpdateRoomLog(m_room_log, CmdInsertOrUpdateRoomLog.TYPE.UPDATE), SQLDBResponse, _session);
+                //   }
+
+            }
+            catch (Exception e)
+            {
+                _smp.message_pool.getInstance().push(new message("[GameBase::UpdateRoomLogSql][ErrorSystem] Exceção capturada: " + (e.Message), type_msg.CL_FILE_LOG_AND_CONSOLE));
+            }
         }
 
         bool isLoggableRoomType(byte tipo)
         {
 
-            switch ((RoomInfo.ROOM_INFO_TYPE)tipo)
+            switch ((RoomInfo.TIPO)tipo)
             {
-                case RoomInfo.ROOM_INFO_TYPE.GUILD_BATTLE:
-                case RoomInfo.ROOM_INFO_TYPE.TOURNEY_TEAM:
-                case RoomInfo.ROOM_INFO_TYPE.STROKE:
-                case RoomInfo.ROOM_INFO_TYPE.MATCH:
-                case RoomInfo.ROOM_INFO_TYPE.PANG_BATTLE:
-                case RoomInfo.ROOM_INFO_TYPE.APPROCH:
-                case RoomInfo.ROOM_INFO_TYPE.TOURNEY:
-                case RoomInfo.ROOM_INFO_TYPE.SPECIAL_SHUFFLE_COURSE:
+                case RoomInfo.TIPO.GUILD_BATTLE:
+                case RoomInfo.TIPO.TOURNEY_TEAM:
+                case RoomInfo.TIPO.STROKE:
+                case RoomInfo.TIPO.MATCH:
+                case RoomInfo.TIPO.PANG_BATTLE:
+                case RoomInfo.TIPO.APPROCH:
+                case RoomInfo.TIPO.TOURNEY:
+                case RoomInfo.TIPO.SPECIAL_SHUFFLE_COURSE:
                 //aqui deve ser outro tipo de log, identificado por 1 ou 0
-                case RoomInfo.ROOM_INFO_TYPE.GRAND_ZODIAC_INT:
-                case RoomInfo.ROOM_INFO_TYPE.GRAND_ZODIAC_ADV:
-                case RoomInfo.ROOM_INFO_TYPE.GRAND_PRIX:
-                case RoomInfo.ROOM_INFO_TYPE.GRAND_ZODIAC_PRACTICE:
-                case RoomInfo.ROOM_INFO_TYPE.PRACTICE:
+                case RoomInfo.TIPO.GRAND_ZODIAC_INT:
+                case RoomInfo.TIPO.GRAND_ZODIAC_ADV:
+                case RoomInfo.TIPO.GRAND_PRIX:
+                case RoomInfo.TIPO.GRAND_ZODIAC_PRACTICE:
+                case RoomInfo.TIPO.PRACTICE:
                     return true;
                 default:
                     return false;
@@ -3701,54 +3925,54 @@ namespace Pangya_GameServer.Game.Base
 
         string getNameMap(uint map)
         {
-            switch ((RoomInfo.ROOM_INFO_COURSE)map)
+            switch ((RoomInfo.eCOURSE)map)
             {
-                case RoomInfo.ROOM_INFO_COURSE.BLUE_LAGOON:
+                case RoomInfo.eCOURSE.BLUE_LAGOON:
                     return "Blue Lagoon";
-                case RoomInfo.ROOM_INFO_COURSE.BLUE_WATER:
+                case RoomInfo.eCOURSE.BLUE_WATER:
                     return "Blue Water";
-                case RoomInfo.ROOM_INFO_COURSE.SEPIA_WIND:
+                case RoomInfo.eCOURSE.SEPIA_WIND:
                     return "Sepia Wind";
-                case RoomInfo.ROOM_INFO_COURSE.WIND_HILL:
+                case RoomInfo.eCOURSE.WIND_HILL:
                     return "Wind Hill";
-                case RoomInfo.ROOM_INFO_COURSE.WIZ_WIZ:
+                case RoomInfo.eCOURSE.WIZ_WIZ:
                     return "Wiz Wiz";
-                case RoomInfo.ROOM_INFO_COURSE.WEST_WIZ:
+                case RoomInfo.eCOURSE.WEST_WIZ:
                     return "West Wiz";
-                case RoomInfo.ROOM_INFO_COURSE.BLUE_MOON:
+                case RoomInfo.eCOURSE.BLUE_MOON:
                     return "Blue Moon";
-                case RoomInfo.ROOM_INFO_COURSE.SILVIA_CANNON:
+                case RoomInfo.eCOURSE.SILVIA_CANNON:
                     return "Silvia Cannon";
-                case RoomInfo.ROOM_INFO_COURSE.ICE_CANNON:
+                case RoomInfo.eCOURSE.ICE_CANNON:
                     return "Ice Cannon";
-                case RoomInfo.ROOM_INFO_COURSE.WHITE_WIZ:
+                case RoomInfo.eCOURSE.WHITE_WIZ:
                     return "White Wiz";
-                case RoomInfo.ROOM_INFO_COURSE.SHINNING_SAND:
+                case RoomInfo.eCOURSE.SHINNING_SAND:
                     return "Shinning Sand";
-                case RoomInfo.ROOM_INFO_COURSE.PINK_WIND:
+                case RoomInfo.eCOURSE.PINK_WIND:
                     return "Pink Wind";
-                case RoomInfo.ROOM_INFO_COURSE.DEEP_INFERNO:
+                case RoomInfo.eCOURSE.DEEP_INFERNO:
                     return "Deep Inferno";
-                case RoomInfo.ROOM_INFO_COURSE.ICE_SPA:
+                case RoomInfo.eCOURSE.ICE_SPA:
                     return "Ice Spa";
-                case RoomInfo.ROOM_INFO_COURSE.LOST_SEAWAY:
+                case RoomInfo.eCOURSE.LOST_SEAWAY:
                     return "Lost Seaway";
-                case RoomInfo.ROOM_INFO_COURSE.EASTERN_VALLEY:
+                case RoomInfo.eCOURSE.EASTERN_VALLEY:
                     return "Eastern Valley";
-                case RoomInfo.ROOM_INFO_COURSE.ICE_INFERNO:
+                case RoomInfo.eCOURSE.ICE_INFERNO:
                     return "Ice Inferno";
-                case RoomInfo.ROOM_INFO_COURSE.WIZ_CITY:
+                case RoomInfo.eCOURSE.WIZ_CITY:
                     return "Wiz City";
-                case RoomInfo.ROOM_INFO_COURSE.ABBOT_MINE:
+                case RoomInfo.eCOURSE.ABBOT_MINE:
                     return "Abbot Mine";
-                case RoomInfo.ROOM_INFO_COURSE.MYSTIC_RUINS:
+                case RoomInfo.eCOURSE.MYSTIC_RUINS:
                     return "Mystic Ruins";
                 default:
                     return "Unknown";
             }
         }
         //retorna o tipo da tacada = 0(HIO), 1(ALBA), 2(EAGLE),3(BIRDIE), 4(PAR), -1(tacadas não feitas )
-        public int getScore(int _tacada_num, int _par_hole)
+        public int getScore(uint _tacada_num, sbyte _par_hole)
         {
             int tipo = Convert.ToInt32(_tacada_num - _par_hole);
             if (_tacada_num == 1) // HIO
@@ -3808,7 +4032,7 @@ namespace Pangya_GameServer.Game.Base
             }
         }
 
-        string getScoreStr(int _tacada_num, sbyte _par_hole)
+        string getScoreStr(uint _tacada_num, sbyte _par_hole)
         {
 
             var tipo = getScore(_tacada_num, _par_hole);
@@ -3859,47 +4083,40 @@ namespace Pangya_GameServer.Game.Base
             }
 
         }
-
-        protected void LogDestruction()
-        {
-            string className = this.GetType().Name;
-            int roomNum = (m_ri != null) ? m_ri.numero : -1;
-
-            string fullMsg = $"[{className}::Destruction][Warning] Destroyed on Room[Number={roomNum}]";
-
-            _smp.message_pool.getInstance().push(new message(fullMsg, type_msg.CL_FILE_LOG_AND_CONSOLE));
-        }
-
         /// <summary>
         /// GameBase.cs precisa ser chamado por ultimo(remove o conflito de dados)
         /// </summary>
         /// <param name="disposing">limpe agora = true</param>
-        public virtual void Dispose(bool disposing)
+        protected virtual void Dispose(bool disposing)
         {
-            if (disposedValue) return;
-
-            if (disposing)
+            if (!disposedValue)
             {
-                if (m_course != null)
-                    m_course.Dispose();
+                if (disposing)
+                {
+                    _smp.message_pool.getInstance().push(new message("[GameBase::Dispose][Log] GameBase destroyed on Room[Number=" + (m_ri.numero) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
-                clear_player_order();
+                    if (m_course != null)
+                        m_course.Dispose();
 
-                clearAllPlayerInfo();
+                    clear_player_order();
 
-                clear_time();
+                    clearAllPlayerInfo();
 
-                if (!m_player_report_game.empty())
-                    m_player_report_game.Clear();
+                    clear_time();
+
+                    if (!m_player_report_game.empty())
+                        m_player_report_game.Clear();
+                }
+                disposedValue = true;
             }
-            disposedValue = true;
         }
 
         public void Dispose()
         {
             // Não altere este código. Coloque o código de limpeza no método 'Dispose(bool disposing)'
-            Dispose(true);
+            Dispose(disposing: true);
             GC.SuppressFinalize(this);
-        } 
+        }
+
     }
 }

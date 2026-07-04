@@ -10,10 +10,9 @@ using Pangya_GameServer.UTIL;
 using PangyaAPI.IFF.JP.Extensions;
 using PangyaAPI.SQL;
 using PangyaAPI.Utilities;
-using PangyaAPI.Utilities.Models;
+using PangyaAPI.Utilities.BinaryModels;
 using PangyaAPI.Utilities.Log;
 using static Pangya_GameServer.Models.DefineConstants;
-using PangyaAPI.IFF.JP.Models.Flags;
 namespace Pangya_GameServer.Game
 {
     public class PersonalShop
@@ -25,6 +24,7 @@ namespace Pangya_GameServer.Game
         public uint CARD_RARE_LIMIT_PRICE = 400000u;
         public uint CARD_SUPER_RARE_LIMIT_PRICE = 1000000u;
         public uint CARD_SECRET_LIMIT_PRICE = 2000000u;
+
         // Shop min and max price item
         public uint ITEM_MIN_PRICE = 1u;
         public uint ITEM_MAX_PRICE = 9999999u;
@@ -39,19 +39,24 @@ namespace Pangya_GameServer.Game
         {
             lock (_lockObj)
             {
-                var m_reader_ini = new IniHandle("config/personal_config.ini");
-                 
+                var cmd_psc = new CmdPersonalShopConfig(true);    // Waiter
+
+                snmdb.NormalManagerDB.getInstance().add(0, cmd_psc, null, null);
+
+                if (cmd_psc.getException().getCodeError() != 0)
+                    throw cmd_psc.getException();
+
                 // Card limit price
-                CARD_NORMAL_LIMIT_PRICE = m_reader_ini.ReadUInt32("CONFIG", "CARD_NORMAL_LIMIT_PRICE");//cmd_psc.getPrice(1);
-                CARD_RARE_LIMIT_PRICE = m_reader_ini.ReadUInt32("CONFIG", "CARD_RARE_LIMIT_PRICE");//cmd_psc.getPrice(2);
-                CARD_SUPER_RARE_LIMIT_PRICE = m_reader_ini.ReadUInt32("CONFIG", "CARD_SUPER_RARE_LIMIT_PRICE");//cmd_psc.getPrice(3);
-                CARD_SECRET_LIMIT_PRICE = m_reader_ini.ReadUInt32("CONFIG", "CARD_SECRET_LIMIT_PRICE");//cmd_psc.getPrice(4);
+                CARD_NORMAL_LIMIT_PRICE = cmd_psc.getPrice(1);
+                CARD_RARE_LIMIT_PRICE = cmd_psc.getPrice(2);
+                CARD_SUPER_RARE_LIMIT_PRICE = cmd_psc.getPrice(3);
+                CARD_SECRET_LIMIT_PRICE = cmd_psc.getPrice(4);
                 // Shop min and max price item
-                ITEM_MIN_PRICE = m_reader_ini.ReadUInt32("CONFIG", "ITEM_MIN_PRICE");//cmd_psc.getPrice(5);
-                ITEM_MAX_PRICE = m_reader_ini.ReadUInt32("CONFIG", "ITEM_MAX_PRICE");//cmd_psc.getPrice(6);
+                ITEM_MIN_PRICE = cmd_psc.getPrice(5);
+                ITEM_MAX_PRICE = cmd_psc.getPrice(6);
                 this.m_owner = _session;
                 this.m_name = "";
-                this.m_visit_count = 0;
+                this.m_visit_count = 0u;
                 this.m_pang_sale = 0Ul;
                 this.m_state = STATE.OPEN_EDIT;
             }
@@ -155,7 +160,7 @@ namespace Pangya_GameServer.Game
             }
 
             // Card pre�o controle
-            if (sIff.getInstance().getItemGroupIdentify(_psi.item._typeid) == IFF_GROUP.CARD)
+            if (sIff.getInstance().getItemGroupIdentify(_psi.item._typeid) == sIff.getInstance().CARD)
             {
 
                 var card = sIff.getInstance().findCard(_psi.item._typeid);
@@ -197,7 +202,7 @@ namespace Pangya_GameServer.Game
                         }
                         break;
                     default: // Unknown Type
-                        throw new exception("[PersonalShop::pushItem][Error] PLAYER[UID=" + Convert.ToString(m_owner.m_pi.uid) + "] tentou colocar um card[TYPEID=" + Convert.ToString(_psi.item._typeid) + ", TYPE=" + Convert.ToString((ushort)card.Rarity) + "] que o tipo é desconhecido. (N,R,SR e SC) Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PERSONAL_SHOP, 22, 0));
+                        throw new exception("[PersonalShop::pushItem][Error] PLAYER[UID=" + Convert.ToString(m_owner.m_pi.uid) + "] tentou colocar um card[TYPEID=" + Convert.ToString(_psi.item._typeid) + ", TYPE=" + Convert.ToString((ushort)card.Rarity) + "] que o tipo eh desconhecido. (N,R,SR e SC) Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PERSONAL_SHOP, 22, 0));
                 }
             }
 
@@ -401,90 +406,87 @@ namespace Pangya_GameServer.Game
         /// <exception cref="exception">retorna um erro em caso</exception>
         public void buyItem(Player _session, PersonalShopItem _psi)
         {
-            // 1. SEGURANÇA: Verifica se o comprador não é o próprio dono (Anti-Exploit de Achievements/Pangs)
-            if (_session.m_pi.uid == m_owner.m_pi.uid)
-            {
-                throw new exception("[PersonalShop::buyItem][HACK] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou comprar de si mesmo no próprio Shop. Hacker detectado.",
-                    ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PERSONAL_SHOP, 50, 0));
-            }
 
-            // 2. ESTADO DO SHOP: Verifica se a loja ainda está aberta
             if (m_state != STATE.OPEN)
             {
-                throw new exception("[PersonalShop::buyItem][Error] client[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou comprar no shop do PLAYER[UID=" + Convert.ToString(m_owner.m_pi.uid) + "], mas a loja foi fechada. Hacker ou Bug.",
-                    ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PERSONAL_SHOP, 25, 0));
+                throw new exception("[PersonalShop::buyItem][Error] client[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou comprar no shop do PLAYER[UID=" + Convert.ToString(m_owner.m_pi.uid) + "], mas ele nao esta aberto no momento. Hacker ou Bug.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PERSONAL_SHOP,
+                    25, 0));
             }
 
-            // 3. EXISTÊNCIA DO CLIENTE: Verifica se o comprador está visualizando a loja
             if (findClientByUID(_session.m_pi.uid) == null)
             {
-                throw new exception("[PersonalShop::buyItem][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou comprar sem estar na lista de visualização da loja.",
-                    ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PERSONAL_SHOP, 10, 0));
+                throw new exception("[PersonalShop::buyItem][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou comprar item[TYPEID=" + Convert.ToString(_psi.item._typeid) + ", ID=" + Convert.ToString(_psi.item.id) + "] no Shop[Owner UID=" + Convert.ToString(m_owner.m_pi.uid) + "], mas ele nao esta no shop do player. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PERSONAL_SHOP,
+                    10, 0));
             }
 
-            // 4. INTEGRIDADE DO ITEM: Localiza o item na memória do SERVIDOR (Vendedor)
-            // NUNCA usamos o preço ou dados que vêm do pacote do comprador (_psi) como verdade.
-            var item_real_vendedor = findItemById(_psi.item.id);
-            if (item_real_vendedor == null)
+            var psi_owner = new PersonalShopItem(findItemById(_psi.item.id));
+
+            if (psi_owner == null || psi_owner.index != _psi.index)
             {
-                throw new exception("[PersonalShop::buyItem][HACK] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou comprar um Item ID[" + _psi.item.id + "] que não existe nesta loja.",
-                    ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PERSONAL_SHOP, 11, 0));
+                throw new exception("[PersonalShop::buyItem][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou comprar item[TYPEID=" + Convert.ToString(_psi.item._typeid) + ", ID=" + Convert.ToString(_psi.item.id) + "] que nao tem no Shop[Owner UID=" + Convert.ToString(m_owner.m_pi.uid) + "]. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PERSONAL_SHOP,
+                    11, 0));
             }
 
-            var psi_owner = new PersonalShopItem(item_real_vendedor);
-
-            // 5. VERIFICAÇÃO DE QUANTIDADE (Anti-Overflow e Valores Negativos)
-            if (_psi.item.qntd <= 0 || _psi.item.qntd > 30000)
+            if (psi_owner.item._typeid == 0)
             {
-                throw new exception("[PersonalShop::buyItem][HACK] Quantidade de compra inválida enviada pelo cliente: " + _psi.item.qntd,
-                    ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PERSONAL_SHOP, 26, 0));
+                throw new exception("[PersonalShop::buyItem][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou comprar item[TYPEID=" + Convert.ToString(psi_owner.item._typeid) + ", ID=" + Convert.ToString(psi_owner.item.id) + "] invalido no Shop[Owner UID=" + Convert.ToString(m_owner.m_pi.uid) + "]. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PERSONAL_SHOP,
+                    12, 0));
+            }
+
+            if (_psi.item.qntd == 0u)
+            {
+                _psi.item.qntd = 1;
+
+                _smp.message_pool.getInstance().push(new message("[PersonalShop::buyItem][Warning] PLAYER[UID=" + (_session.m_pi.uid) + "] tentou comprar item[TYPEID="
+                             + (psi_owner.item._typeid) + ", ID=" + (psi_owner.item.id) + "] com a quantidade de zero no _psi, no Shop[Owner UID="
+                             + (m_owner.m_pi.uid) + "]", 0));
+            }
+
+            var @base = sIff.getInstance().findCommomItem(psi_owner.item._typeid);
+
+            if (@base == null)
+            {
+                throw new exception("[PersonalShop::buyItem][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou comprar item[TYPEID=" + Convert.ToString(psi_owner.item._typeid) + ", ID=" + Convert.ToString(psi_owner.item.id) + "] invalido que nao tem no IFF_STRUCT do server, no Shop[Owner UID=" + Convert.ToString(m_owner.m_pi.uid) + "]. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PERSONAL_SHOP,
+                    13, 0));
+            }
+
+            if (!@base.Shop.flag_shop.can_send_mail_and_personal_shop)
+            {
+                throw new exception("[PersonalShop::buyItem][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou comprar item[TYPEID=" + Convert.ToString(psi_owner.item._typeid) + ", ID=" + Convert.ToString(psi_owner.item.id) + "] que nao pode ser vendido no Personal Shop, no Shop[Owner UID=" + Convert.ToString(m_owner.m_pi.uid) + "]. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PERSONAL_SHOP,
+                    14, 0));
+            }
+
+            if (_session.m_pi.ui.pang < (psi_owner.item.pang * (ulong)_psi.item.qntd))
+            {
+                throw new exception("[PersonalShop::buyItem][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou comprar item[TYPEID=" + Convert.ToString(psi_owner.item._typeid) + ", ID=" + Convert.ToString(psi_owner.item.id) + "] mas ele nao tem pangs suficiente, no Shop[Owner UID=" + Convert.ToString(m_owner.m_pi.uid) + "]. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PERSONAL_SHOP,
+                    15, 0));
+            }
+
+            if (!@base.Level.GoodLevel((byte)_session.m_pi.level))
+            {
+                throw new exception("[PersonalShop::buyItem][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou comprar item[TYPEID=" + Convert.ToString(psi_owner.item._typeid) + ", ID=" + Convert.ToString(psi_owner.item.id) + "] mas ele nao tem level suficiente, no Shop[Owner UID=" + Convert.ToString(m_owner.m_pi.uid) + "]. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PERSONAL_SHOP,
+                    16, 0));
             }
 
             if (_psi.item.qntd > psi_owner.item.qntd)
             {
-                throw new exception("[PersonalShop::buyItem][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou comprar QNTD[" + _psi.item.qntd + "], mas o estoque é apenas [" + psi_owner.item.qntd + "].",
-                    ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PERSONAL_SHOP, 26, 1));
+                throw new exception("[PersonalShop::buyItem][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou comprar item[TYPEID=" + Convert.ToString(psi_owner.item._typeid) + ", ID=" + Convert.ToString(psi_owner.item.id) + ", QNTD=" + Convert.ToString(psi_owner.item.qntd) + "] mas ele quer comprar uma quantidade(" + Convert.ToString(_psi.item.qntd) + ") do item maior do que esta a venda. ", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PERSONAL_SHOP,
+                    26, 0));
             }
 
-            // 6. VALIDAÇÃO DO IFF: Verifica se o item ainda é válido no servidor
-            var @base = sIff.getInstance().findCommomItem(psi_owner.item._typeid);
-            if (@base == null || psi_owner.item._typeid == 0)
-            {
-                throw new exception("[PersonalShop::buyItem][Error] Item TYPEID[" + psi_owner.item._typeid + "] inválido ou não existe no IFF.",
-                    ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PERSONAL_SHOP, 13, 0));
-            }
+            // Depois o Personal Shop vai poder vender card, ent�o tem que procurar nos card tbm
 
-            // 7. PERMISSÕES DO ITEM: Verifica se o item pode ser vendido em Personal Shop
-            if (!@base.Shop.flag_shop.can_send_mail_and_personal_shop)
-            {
-                throw new exception("[PersonalShop::buyItem][HACK] Item TYPEID[" + psi_owner.item._typeid + "] não é permitido em Personal Shop.",
-                    ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PERSONAL_SHOP, 14, 0));
-            }
+            ulong pang = psi_owner.item.pang * (ulong)_psi.item.qntd;
 
-            // 8. CÁLCULO DE CUSTO SEGURO: Usamos o preço definido pelo DONO da loja
-            ulong total_pang_cost = (ulong)psi_owner.item.pang * (ulong)_psi.item.qntd;
+            // c�pia do personalshopitem, para enviar para o Player que comprou que muda o id, quando compra card ou item, part e clubset ele so transfere msm,
+            // mas pode ser que no pangya original ele cria um novo e s� transferi os dados
+            var psi_r = new PersonalShopItem(_psi);
 
-            // 9. SALDO DO COMPRADOR
-            if (_session.m_pi.ui.pang < total_pang_cost)
-            {
-                throw new exception("[PersonalShop::buyItem][Error] Comprador não possui Pangs suficientes. Requerido: " + total_pang_cost,
-                    ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PERSONAL_SHOP, 15, 0));
-            }
-
-            // 10. REQUISITO DE NÍVEL
-            if (!@base.Level.GoodLevel((byte)_session.m_pi.level))
-            {
-                throw new exception("[PersonalShop::buyItem][Error] Level insuficiente para este item.",
-                    ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PERSONAL_SHOP, 16, 0));
-            }
-
-            // --- INÍCIO DA TRANSFERÊNCIA ---
-            var psi_r = new PersonalShopItem(_psi); // Cópia para o comprador
             object pWi = null;
 
-            if ((pWi = ItemManager.transferItem(m_owner, _session, _psi, psi_r)) != null)
+            if ((pWi = ItemManager.transferItem(m_owner,
+                _session, _psi, psi_r)) != null)
             {
-                // Atualiza o estoque do vendedor
                 if (psi_owner.item.qntd == _psi.item.qntd)
                 {
                     deleteItem(psi_owner);
@@ -492,92 +494,171 @@ namespace Pangya_GameServer.Game
                 else
                 {
                     psi_owner.item.qntd -= _psi.item.qntd;
-                    UpdateItemList(psi_owner);
+
+                    UpdateItemList(psi_owner);//atualiza logo
                 }
 
-                // Executa a transação financeira
-                _session.m_pi.consomePang(total_pang_cost);
+                // ATUALIZA OS PANGS DO PLAYER NO DB, CHAMNANDO AS FUN��ES QUE J� CRIEI, MAS POR HORA S� VOU MEXER NO SERVER
+                _session.m_pi.consomePang(pang);
 
-                // Vendedor recebe 95% (Taxa de 5% do servidor)
-                ulong pang_to_owner = (ulong)Math.Round(total_pang_cost * 0.95f);
-                m_owner.m_pi.addPang(pang_to_owner);
+                // Tira os 5% dos pangs
+                m_owner.m_pi.addPang(pang = (ulong)Math.Round(pang * 0.95f));
 
-                m_pang_sale += pang_to_owner;
+                // Pang(s) do Personal Shop
+                m_pang_sale += pang;
 
-                // --- ATUALIZAÇÃO DE PACOTES (0xEC / 0xED) ---
+                // Att no Jogo
                 var p = new PangyaBinaryWriter();
-                IFF_GROUP group = sIff.getInstance().getItemGroupIdentify(_psi.item._typeid);
 
-                // Lógica de pacotes para Cartões ou Itens Normais
-                if (group == IFF_GROUP.CARD)
+                // Card
+                if (sIff.getInstance().getItemGroupIdentify(_psi.item._typeid) == sIff.getInstance().CARD)
                 {
-                    var ci_r = (CardInfo)pWi;
-                    // Pacote para o Vendedor (Remover Item)
-                    p.init_plain(0xEC);
-                    p.WriteUInt32(1); p.WriteByte(1); p.WriteUInt64(pang_to_owner);
-                    p.WriteBytes(_psi.ToArray());
-                    p.WriteByte(5); // Card Group
-                    ci_r.id = _psi.item.id; ci_r.qntd = _psi.item.qntd;
-                    p.WriteBytes(ci_r.ToArray());
-                    packet_func.session_send(p, m_owner, 1);
 
-                    // Pacote para o Comprador (Adicionar Item)
-                    p.init_plain(0xEC);
-                    p.WriteUInt32(1); p.WriteByte(0); p.WriteUInt64(_session.m_pi.ui.pang);
-                    p.WriteBytes(psi_r.ToArray());
-                    p.WriteByte(5);
-                    ci_r.id = psi_r.item.id; ci_r.qntd = psi_r.item.qntd;
-                    p.WriteBytes(ci_r.ToArray());
-                    packet_func.session_send(p, _session, 1);
-                }
-                else
-                {
-                    var wi_source = new WarehouseItemEx(pWi as WarehouseItemEx) { id = _psi.item.id, STDA_C_ITEM_QNTD = (short)_psi.item.qntd };
-                    var wi_dest = new WarehouseItemEx(pWi as WarehouseItemEx) { id = psi_r.item.id, STDA_C_ITEM_QNTD = (short)psi_r.item.qntd };
 
-                    byte itemGroupByte = (byte)(group == IFF_GROUP.ITEM ? 1 : 3);
+                    var ci_r = (CardInfo)(pWi);
 
                     // Tira de quem vendeu
                     p.init_plain(0xEC);
-                    p.WriteUInt32(1); p.WriteByte(1); p.WriteUInt64(pang_to_owner);
-                    p.WriteBytes(_psi.ToArray());
-                    p.WriteByte(itemGroupByte);
-                    p.WriteBytes(wi_source.ToArray());
-                    packet_func.session_send(p, m_owner, 1);
 
-                    // Add para quem comprou
+                    p.WriteUInt32(1); // OK
+
+                    p.WriteByte(1); // 1 Tira Item
+
+                    p.WriteUInt64(pang);
+
+                    p.WriteBytes(_psi.ToArray());
+
+                    p.WriteByte(5/*Card*/);
+
+                    // Att id por que esta o novo item do Player que vai receber o item
+                    ci_r.id = _psi.item.id;
+                    ci_r.qntd = _psi.item.qntd;
+
+                    p.WriteBytes(ci_r.ToArray());
+
+                    packet_func.session_send(p,
+                        m_owner, 1);
+
+                    // Esse Pacote � o de add ele soma, n�o atualiza do zero como o que tira do player
+                    ci_r.id = psi_r.item.id;
+                    ci_r.qntd = psi_r.item.qntd;
+
+                    // Add para quem comprou, aqui � s� para mostrar a tela que comprou e liberar o player
                     p.init_plain(0xEC);
-                    p.WriteUInt32(1); p.WriteByte(0); p.WriteUInt64(_session.m_pi.ui.pang);
+
+                    p.WriteUInt32(1); // OK
+
+                    p.WriteByte(0); // 0 Add Item
+
+                    p.WriteUInt64(_session.m_pi.ui.pang);
+
                     p.WriteBytes(psi_r.ToArray());
-                    p.WriteByte(itemGroupByte);
-                    p.WriteBytes(wi_dest.ToArray());
-                    packet_func.session_send(p, _session, 1);
+
+                    p.WriteByte(5);
+
+                    p.WriteBytes(ci_r.ToArray());
+
+                    packet_func.session_send(p,
+                        _session, 1);
+
+                }
+                else
+                {
+
+                    // WarehouseItem
+
+                    var wi_s = new WarehouseItemEx(pWi as WarehouseItemEx)
+                    {
+                        // Att id por que esta o novo item do Player que vai receber o item
+                        id = _psi.item.id,
+                        STDA_C_ITEM_QNTD = (short)_psi.item.qntd//quando vende, todos aqui são iguais, pode zerar
+                    };
+
+                    var wi_r = new WarehouseItemEx(pWi as WarehouseItemEx)
+                    {
+                        // Esse Pacote � o de add ele soma, n�o atualiza do zero como o que tira do player
+                        id = psi_r.item.id,
+                        STDA_C_ITEM_QNTD = (short)psi_r.item.qntd//quando recebe, todos aqui são iguais, pode aumentar
+                    };
+
+                    // Tira de quem vendeu
+                    p.init_plain(0xEC);
+
+                    p.WriteUInt32(1); // OK
+
+                    p.WriteByte(1); // 1 Tira Item
+
+                    p.WriteUInt64(pang);
+
+                    p.WriteBytes(_psi.ToArray());
+                    p.WriteByte((sIff.getInstance().getItemGroupIdentify(psi_owner.item._typeid) == sIff.getInstance().ITEM) ? 1 : 3);
+                    p.WriteBytes(wi_s.ToArray());
+
+                    packet_func.session_send(p, m_owner, 1);
+                    //----------------------
+
+                    // Add para quem comprou 
+                    p.init_plain(0xEC);
+
+                    p.WriteUInt32(1); // OK
+
+                    p.WriteByte(0); // 0 Add Item
+
+                    p.WriteUInt64(_session.m_pi.ui.pang);
+
+                    p.WriteBytes(psi_r.ToArray());
+
+                    p.WriteByte((sIff.getInstance().getItemGroupIdentify(psi_r.item._typeid) == sIff.getInstance().ITEM) ? 1 : 3);
+
+                    p.WriteBytes(wi_r.ToArray());
+
+                    packet_func.session_send(p,
+                        _session, 1);
                 }
 
-                // Notifica todos na loja que o item foi vendido
+                // Atualiza no Shop os Itens que foram comprado
                 p.init_plain(0xED);
+
                 p.WritePStr(m_owner.m_pi.nickname);
+
                 p.WriteUInt32(m_owner.m_pi.uid);
-                p.WriteBytes(_psi.ToArray());
+
+                p.WriteBytes(_psi.ToArray());//
+
                 p.WriteInt32(v_item.Count() == 0 ? 3 : 1);
+
                 shop_broadcast(p, _session, 1);
 
-                // Mensagem de Sucesso para o Vendedor
-                p.init_plain(0x40);
+                // Send Message
+                p.init_plain(0x40); // Msg to Chat of player
+
                 p.WriteByte(7); // Notice
+
                 p.WriteString("@INI3");
-                p.WriteString("\\c0xff00ff00\\cParabéns, sua venda foi um sucesso!.");
+                p.WriteString("\\c0xff00ff00\\cCongratulations, your sale was a success!.");
+
                 packet_func.session_send(p, m_owner, 1);
 
-                // Atualiza Conquista (Achievement)
+                //// Update Achievement ON SERVER, DB and GAME
                 AchievementSystem sys_achieve = new AchievementSystem();
+
                 sys_achieve.incrementCounter(0x6C400083u);
+
                 sys_achieve.finish_and_update(_session);
+
             }
             else
             {
-                throw new exception("[PersonalShop::buyItem][Error] Falha crítica no ItemManager.transferItem.",
-                    ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PERSONAL_SHOP, 19, 0));
+                throw new exception("[PersonalShop::buyItem][Error] nao conseguiu transferir o item[TYPEID=" + Convert.ToString(_psi.item._typeid) + ", ID=" + Convert.ToString(_psi.item.id) + "] da venda do personal shop, do PLAYER[UID=" + Convert.ToString(m_owner.m_pi.uid) + "] para o PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "]", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PERSONAL_SHOP,
+                    19, 0));
+            }
+        }
+
+        private void destroy()
+        { 
+            if (v_open_shop_visit.Any())
+            {
+                v_open_shop_visit.Clear();
             }
         }
 

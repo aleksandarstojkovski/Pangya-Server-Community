@@ -12,7 +12,7 @@ namespace Pangya_GameServer.Repository
 
         public CmdUpdateCookie()
         {
-            this.m_uid = 0;
+            this.m_uid = 0u;
             this.m_cookie = 0Ul;
             this.m_type_update = T_UPDATE_COOKIE.INCREASE;
         }

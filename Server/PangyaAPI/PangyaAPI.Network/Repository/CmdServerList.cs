@@ -32,7 +32,7 @@ namespace PangyaAPI.Network.Repository
 
         protected override void lineResult(ctx_res _result, uint _index_result)
         {
-            checkColumnNumber(13, _result.cols);//melhorar depois
+            checkColumnNumber(13);//melhorar depois
             try
             {
                 ServerInfo si = new ServerInfo();

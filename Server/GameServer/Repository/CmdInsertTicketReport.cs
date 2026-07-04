@@ -9,7 +9,7 @@ namespace Pangya_GameServer.Repository
         public CmdInsertTicketReport(bool _waiter = false) : base(_waiter)
         {
             this.m_id = -1;
-            this.m_trofel = 0;
+            this.m_trofel = 0u;
             this.m_type = 0;
         }
 

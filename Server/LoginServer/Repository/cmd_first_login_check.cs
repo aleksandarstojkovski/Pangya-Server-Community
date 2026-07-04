@@ -1,9 +1,9 @@
-﻿using Pangya_LoginServer.Models;
+﻿using LoginServer.Models;
 using PangyaAPI.SQL;
 using PangyaAPI.Utilities;
 using System;
 
-namespace Pangya_LoginServer.Repository
+namespace LoginServer.Repository
 {
 	public class CmdFirstLoginCheck : Pangya_DB
 	{

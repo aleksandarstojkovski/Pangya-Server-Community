@@ -1,9 +1,9 @@
 ﻿using System;
 using System.Text;
-using Pangya_AuthServer.Models;
+using AuthServer.Models;
 using PangyaAPI.SQL;
 using PangyaAPI.Utilities;
-namespace Pangya_AuthServer.Repository
+namespace AuthServer.Repository
 {
     public class CmdTickerInfo : Pangya_DB
     {
@@ -40,22 +40,25 @@ namespace Pangya_AuthServer.Repository
 
         protected override void lineResult(ctx_res _result, uint _index_result)
         {
+
             checkColumnNumber(2);
             if (is_valid_c_string(_result.data[0]))
             {
-                m_ti.msg = (_result.GetString(0));
+                var msgbytes = Encoding.GetEncoding("Shift_JIS").GetBytes(_result.GetString(0));
+                m_ti.msg = Encoding.GetEncoding("Shift_JIS").GetString(msgbytes);
             }
 
-            if (is_valid_c_string(_result.data[1]))
+            if (is_valid_c_string(_result.data[2]))
             {
-                m_ti.nick = (_result.GetString(1));
+                var msgbytes = Encoding.GetEncoding("Shift_JIS").GetBytes(_result.GetString(1));
+                m_ti.nick = Encoding.GetEncoding("Shift_JIS").GetString(msgbytes);
             }
         }
 
         protected override Response prepareConsulta()
         {
 
-            if (m_id == 0 || m_id <= 0)
+            if (m_id == 0)
             {
                 throw new exception("[CmdTickerInfo::prepareConsulta][Error] m_id is invalid(zero).", STDA_MAKE_ERROR(PangyaAPI.Utilities.STDA_ERROR_TYPE.PANGYA_DB,
                     4, 0));

@@ -6,14 +6,14 @@ namespace PangyaAPI.SQL
     public class ctx_res
     {
         public object[] data { get; set; }
-        public object[] data_row;
+        public DataRow data_row;
         public uint cols { get; set; }
         public ctx_res next;
 
-        //public T ConvertToClass<T>() where T : new()
-        //{
-        //    return data_row.ToObject<T>();
-        //}
+        public T ConvertToClass<T>() where T : new()
+        {
+            return data_row.ToObject<T>();
+        }
 
         public bool IsNotNull(int column)
         {
@@ -132,7 +132,7 @@ namespace PangyaAPI.SQL
             this.m_cols = _cols;
         }
 
-        public Result_Set(uint _state, uint _lines_affected, uint _cols, object[] row) : this(_state, _cols, (int)_lines_affected)
+        public Result_Set(uint _state, uint _lines_affected, uint _cols, DataRow row) : this(_state, _cols, (int)_lines_affected)
         {
             addLine();   // Adiciona linha
             if (row != null)
@@ -271,9 +271,9 @@ namespace PangyaAPI.SQL
             return m_curr_data;
         }
 
-        public void setRow(object[] dataRow)
+        public void setRow(DataRow dataRow)
         {
-            var data = dataRow;
+            var data = dataRow.ItemArray;
             for (int i = 0; i < data.Length; i++)
             {
                 if (data[i] is DBNull)

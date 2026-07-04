@@ -98,7 +98,7 @@ namespace Pangya_GameServer.Repository
                 item.tempo_qntd = IFNULL(_result.data[10]);
                 item.pang = IFNULL(_result.data[11]);
                 item.cookie = IFNULL(_result.data[12]);
-                item.gm_id = IFNULL<int>(_result.data[13]);
+                item.gm_id = IFNULL(_result.data[13]);
                 item.flag_gift = IFNULL(_result.data[14]);
                 if (is_valid_c_string(_result.data[15]))
                 {
@@ -131,7 +131,8 @@ namespace Pangya_GameServer.Repository
 
             m_ei.clear();
 
-            var r = procedure(m_szConsulta,
+            var r = procedure(
+                m_szConsulta,
                 Convert.ToString(_uid) + ", " + Convert.ToString(m_email_id));
 
             checkResponse(r, "nao conseguiu pegar o Email[ID=" + Convert.ToString(m_email_id) + "] information do PLAYER[UID=" + Convert.ToString(_uid) + "]");

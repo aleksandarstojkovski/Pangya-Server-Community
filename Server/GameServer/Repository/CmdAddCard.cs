@@ -10,7 +10,7 @@ namespace Pangya_GameServer.Repository
     {
         public CmdAddCard(bool _waiter = false) : base(_waiter)
         {
-            this.m_uid = 0;
+            this.m_uid = 0u;
             this.m_gift_flag = 0;
             this.m_purchase = 0;
             this.m_ci = new CardInfo();
@@ -83,7 +83,8 @@ namespace Pangya_GameServer.Repository
             }
 
             // Ignora as flags purchase e gift por hora, para usar a tabela antiga que eu fiz de card
-            var r = procedure(m_szConsulta,
+            var r = procedure(
+                m_szConsulta,
                 Convert.ToString(m_uid) + ", " + Convert.ToString(m_ci._typeid) + ", " + Convert.ToString(m_ci.qntd) + ", " + Convert.ToString((ushort)m_ci.type));
 
             checkResponse(r, "nao conseguiu adicionar o card[TYPEID=" + Convert.ToString(m_ci._typeid) + "] para o PLAYER[UID=" + Convert.ToString(m_uid) + "]");

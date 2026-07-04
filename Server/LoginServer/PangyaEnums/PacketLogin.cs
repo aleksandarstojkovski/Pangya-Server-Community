@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Pangya_LoginServer.PangyaEnums
+namespace LoginServer.PangyaEnums
 {
     public enum PacketIDClient
     {

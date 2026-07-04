@@ -121,9 +121,19 @@ namespace Pangya_GameServer.Repository
 
             m_id = -1;
             m_counter_item_id = -1;
- 
-            var r = procedure(m_szConsulta, (m_uid) + ", " + makeText(m_quest.Name) + ", " + (m_achievement_id)
-                + ", " + (m_quest.ID) + ", " + ((m_include_counter ? m_quest.counter_item._typeid[0] : 0)));
+
+            string[] @params = { "@IDUSER", "@NOME", "@ID_ACHIEVEMENT", "@QUEST_TYPEID", "@COUNTERITEM_TYPEID" };
+            SqlDbType[] tipos = { SqlDbType.Int, SqlDbType.NVarChar, SqlDbType.Int, SqlDbType.Int, SqlDbType.Int };
+            string[] valores_param = new string[]
+            {
+    m_uid.ToString(),
+    m_quest.Name,
+    m_achievement_id.ToString(),
+    m_quest.ID.ToString(),
+    (m_include_counter ? m_quest.counter_item._typeid[0] : 0).ToString()
+            };
+
+            var r = procedureWithParams(m_szConsulta, @params, tipos, valores_param);
 
             checkResponse(r, "nao conseguiu adicionar Quest para o player: " + Convert.ToString(m_uid));
 

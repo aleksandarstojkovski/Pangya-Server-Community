@@ -121,11 +121,11 @@ namespace Pangya_GameServer.Game.System
 
             bool isLoad = false;
 
-            //Monitor.Exit(m_cs);
+            Monitor.Enter(m_cs);
 
             isLoad = m_load;
 
-            //Monitor.Exit(m_cs);
+            Monitor.Exit(m_cs);
             return isLoad;
         }
 
@@ -136,7 +136,7 @@ namespace Pangya_GameServer.Game.System
             DropItem di = new DropItem();
 
 
-            uint pang = 0;
+            uint pang = 0u;
 
             switch (_ci.artefact)
             {
@@ -170,7 +170,10 @@ namespace Pangya_GameServer.Game.System
 
                 di.qntd = (short)pang;
                 di.type = DropItem.eTYPE.QNTD_MULTIPLE_500;
-                 
+
+#if DEBUG
+                _smp.message_pool.getInstance().push(new message("[DropSystem::drawArtefactPang][Log] Dropou Item[TYPEID=" + Convert.ToString(di._typeid) + ", QNTD=" + Convert.ToString(di.qntd) + ", COURSE=" + Convert.ToString((ushort)_ci.course & 0x7F) + ", HOLE=" + Convert.ToString((ushort)_ci.hole) + ", TIPO=" + Convert.ToString(di.type) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
+#endif // DEBUG
             }
             return di;
         }
@@ -253,13 +256,13 @@ namespace Pangya_GameServer.Game.System
                     }
 
                     // S� coloca outro pra sortear se a probabilidade for menor que 1000(100%)
-                    if ((lottery.getLimitProbilidade() * rate) < 1000u)
+                    if ((lottery.GetLimitProbilidade() * rate) < 1000u)
                     {
-                        lottery.Push((uint)(1000 - (lottery.getLimitProbilidade() * rate)), 0u);
+                        lottery.Push((uint)(1000 - (lottery.GetLimitProbilidade() * rate)), 0u);
                     }
 
                     // Sorteia
-                    ctx = lottery.spinRoleta();
+                    ctx = lottery.SpinRoleta();
 
                     if (ctx == null)
                     {
@@ -282,7 +285,7 @@ namespace Pangya_GameServer.Game.System
 
                         di.type = DropItem.eTYPE.NORMAL_QNTD;
 
-                        for (var i = 0; i < qntd; ++i)
+                        for (var i = 0u; i < qntd; ++i)
                         {
                             v_item.Add(di);
                         }
@@ -311,7 +314,7 @@ namespace Pangya_GameServer.Game.System
                 }
             });
 
-            var limit = lottery.getLimitProbilidade();
+            var limit = lottery.GetLimitProbilidade();
 
             if (limit <= 0)
             {
@@ -337,7 +340,7 @@ namespace Pangya_GameServer.Game.System
 
             lottery.Push((uint)limit, 0);
 
-            var ctx = lottery.spinRoleta();
+            var ctx = lottery.SpinRoleta();
 
             if (ctx == null)
             {
@@ -402,7 +405,7 @@ namespace Pangya_GameServer.Game.System
                     lottery.Push(200, GRAND_PRIX_TICKET);
                     lottery.Push(400, 0);
 
-                    var ctx = lottery.spinRoleta();
+                    var ctx = lottery.SpinRoleta();
 
                     if (ctx == null)
                     {
@@ -421,7 +424,11 @@ namespace Pangya_GameServer.Game.System
 
                         di.type = DropItem.eTYPE.NORMAL_QNTD;
                     }
-                } 
+                }
+
+#if DEBUG
+                _smp.message_pool.getInstance().push(new message("[DropSystem::drawGrandPrixTicket][Log] Dropou Item[TYPEID=" + Convert.ToString(di._typeid) + ", QNTD=" + Convert.ToString(di.qntd) + ", COURSE=" + Convert.ToString((ushort)_ci.course & 0x7F) + ", HOLE=" + Convert.ToString((ushort)_ci.hole) + ", TIPO=" + Convert.ToString(di.type) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
+#endif // DEBUG
             }
 
             return di;
@@ -451,7 +458,7 @@ namespace Pangya_GameServer.Game.System
 
             lottery.Push(200, SSC_TICKET);
 
-            var limit = lottery.getLimitProbilidade();
+            var limit = lottery.GetLimitProbilidade();
 
             float rate = (float)((m_config.rate_SSC_ticket > 0) ? m_config.rate_SSC_ticket / 100.0f : 1.0f);
 
@@ -472,7 +479,7 @@ namespace Pangya_GameServer.Game.System
             lottery.Push((uint)limit, 0);
             lottery.Push((uint)limit, 0);
 
-            var ctx = lottery.spinRoleta();
+            var ctx = lottery.SpinRoleta();
 
             if (ctx == null)
             {
@@ -493,7 +500,7 @@ namespace Pangya_GameServer.Game.System
 
                 di.type = DropItem.eTYPE.NORMAL_QNTD;
 
-                for (var i = 0; i < qntd; ++i)
+                for (var i = 0u; i < qntd; ++i)
                 {
                     v_item.Add(di);
                 }
@@ -561,7 +568,7 @@ namespace Pangya_GameServer.Game.System
         protected void clear()
         {
 
-            //Monitor.Exit(m_cs);
+            Monitor.Enter(m_cs);
 
             if (m_course.Count > 0)
             {
@@ -570,7 +577,7 @@ namespace Pangya_GameServer.Game.System
 
             m_load = false;
 
-            //Monitor.Exit(m_cs);
+            Monitor.Exit(m_cs);
         }
 
         private void CHECK_DROP(string _method, stDropCourse _dc)

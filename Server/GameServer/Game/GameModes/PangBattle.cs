@@ -9,7 +9,7 @@ using Pangya_GameServer.PacketFunc;
 using Pangya_GameServer.UTIL;
 using PangyaAPI.Network.PangyaPacket;
 using PangyaAPI.Utilities;
-using PangyaAPI.Utilities.Models;
+using PangyaAPI.Utilities.BinaryModels;
 using PangyaAPI.Utilities.Log;
 using static Pangya_GameServer.Models.DefineConstants;
 namespace Pangya_GameServer.Game.GameModes
@@ -65,18 +65,11 @@ namespace Pangya_GameServer.Game.GameModes
             m_pang_battle_state = init_game();
         }
 
-        ~PangBattle()
+        protected override void Dispose(bool disposing)
         {
-            Dispose(false);
-        }
-
-        public override void Dispose(bool disposing)
-        {
-            if (disposedValue) return;
-
             if (disposing)
             {
-                m_pang_battle_state = false;
+
                 // Para o tempo do player Turn
                 stopTime();
 
@@ -94,11 +87,8 @@ namespace Pangya_GameServer.Game.GameModes
                 {
                     m_player_order_pb.Clear();
                 }
-
-                LogDestruction();
-
+                base.Dispose(disposing);
             }
-            base.Dispose(true);
         }
 
         public override bool deletePlayer(Player _session, int _option)
@@ -106,7 +96,7 @@ namespace Pangya_GameServer.Game.GameModes
 
             if (_session == null)
             {
-                throw new exception("[PangBattle::deletePlayer][Error] tentou deletar um player, mas o seu endereco é nullptr.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.VERSUS,
+                throw new exception("[PangBattle::deletePlayer][Error] tentou deletar um player, mas o seu endereco eh nullptr.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.VERSUS,
                     50, 0));
             }
 
@@ -275,7 +265,14 @@ namespace Pangya_GameServer.Game.GameModes
                 else
                 {
                     _smp.message_pool.getInstance().push(new message("[PangBattle::deletePlayer][Warning] player ja foi excluido do game.", type_msg.CL_FILE_LOG_AND_CONSOLE));
-                } 
+                }
+
+#if _WIN32
+			
+#elif __linux__
+			
+#endif
+
                 // Evitar deadlock com a thread checkVersusTurn - Libera
                 m_state_vs.unlock();
 
@@ -284,7 +281,14 @@ namespace Pangya_GameServer.Game.GameModes
             {
 
                 _smp.message_pool.getInstance().push(new message("[PangBattle::deletePlayer][Error] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
-                 
+
+                // Libera Critical Section
+#if _WIN32
+			
+#elif __linux__
+			
+#endif
+
                 // Evitar deadlock com a thread checkVersusTurn - Libera
                 m_state_vs.unlock();
             }
@@ -293,21 +297,13 @@ namespace Pangya_GameServer.Game.GameModes
         }
         public void deleteAllPlayer()
         {
-            // Percorre de trás para frente
-            for (int i = m_players.Count - 1; i >= 0; i--)
-            {
-                var player = m_players[i];
-                if (player != null)
-                {
-                    var pgi = getPlayerInfo(player);
-                    if (pgi != null)
-                    {
-                        deletePlayer(player, 0);
-                    }
-                }
-            }
-        }
 
+            while (m_players.Any())
+            {
+                deletePlayer(m_players.begin(), 0);
+            }
+
+        }
         public override void requestInitHole(Player _session, packet _packet)
         {
             //REQUEST_BEGIN("InitHole");
@@ -548,7 +544,7 @@ namespace Pangya_GameServer.Game.GameModes
                 _smp.message_pool.getInstance().push(new message("[PangBattle::timeIsOver][Warning] time is over executed without _quem, _quem is invalid(nullptr). Bug", type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
-        public override bool init_game()
+        protected override bool init_game()
         {
 
             var lixo = base.init_game();
@@ -625,13 +621,12 @@ namespace Pangya_GameServer.Game.GameModes
         {
 
             var pgi = INIT_PLAYER_INFO("checkEndGame",
-                "tentou verificar se é o final do jogo",
+                "tentou verificar se eh o final do jogo",
                 _session);
 
             return ((/*m_course.findHoleSeq(pgi.hole) == m_ri.qntd_hole && */m_pbd.m_count_finish_hole >= m_ri.qntd_hole && (m_pbd.m_hole <= 0 || m_pbd.v_player_win[m_pbd.m_hole - 1].player_win >= 0)) || m_players.Count == 1);
         }
-
-        public override void requestSaveInfo(Player _session, int option)
+        protected override void requestSaveInfo(Player _session, int option)
         {
 
             var pgi = INIT_PLAYER_INFO("requestSaveInfo",
@@ -873,7 +868,7 @@ namespace Pangya_GameServer.Game.GameModes
             // Resposta terminou game - Placar
             sendPlacar(_session);
         }
-        public override void requestFinishHole(Player _session, int option)
+        protected override void requestFinishHole(Player _session, int option)
         {
 
             var pgi = INIT_PLAYER_INFO("requestFinishHole",
@@ -888,8 +883,8 @@ namespace Pangya_GameServer.Game.GameModes
                     20, 0));
             }
 
-            int score_hole = 0;
-            int tacada_hole = 0;
+            sbyte score_hole = 0;
+            uint tacada_hole = 0;
 
             // Finish Hole Dados
             if (option == 0)
@@ -898,13 +893,13 @@ namespace Pangya_GameServer.Game.GameModes
                 pgi.data.total_tacada_num += pgi.data.tacada_num;
 
                 // Score do hole
-                score_hole = (pgi.data.tacada_num - hole.getPar().par);
+                score_hole = (sbyte)(pgi.data.tacada_num - hole.getPar().par);
 
                 // Tacadas do hole
                 tacada_hole = pgi.data.tacada_num;
 
                 // Achievement Score
-                var tmp_counter_typeid = AchievementSystem.getScoreCounterTypeId(tacada_hole, hole.getPar().par);
+                var tmp_counter_typeid = AchievementSystem.getScoreCounterTypeId(tacada_hole, (uint)hole.getPar().par);
 
                 if (tmp_counter_typeid > 0)
                 {
@@ -936,7 +931,7 @@ namespace Pangya_GameServer.Game.GameModes
                     if (it.Key > m_ri.qntd_hole)
                         break;
 
-                    pgi.data.total_tacada_num += it.Value.getPar().total_shot;
+                    pgi.data.total_tacada_num += (uint)it.Value.getPar().total_shot;
 
                     pgi.data.score += it.Value.getPar().range_score[1]; // Max Score
                 }
@@ -987,7 +982,7 @@ namespace Pangya_GameServer.Game.GameModes
                     pgi.progress.finish_hole[kv.Key - 1] = 0;
                     pgi.progress.par_hole[kv.Key - 1] = kv.Value.getPar().par;
                     pgi.progress.score[kv.Key - 1] = kv.Value.getPar().range_score[1]; // Max Score
-                    pgi.progress.tacada[kv.Key - 1] = kv.Value.getPar().total_shot;
+                    pgi.progress.tacada[kv.Key - 1] = (uint)kv.Value.getPar().total_shot;
                 }
             }
         }
@@ -1108,7 +1103,7 @@ namespace Pangya_GameServer.Game.GameModes
         {
 
             bool draw = false;
-            int best_shot = 100; // Melhor tacada de quem n o fez o hole ou deu giveup
+            uint best_shot = 100; // Melhor tacada de quem n o fez o hole ou deu giveup
             PlayerGameInfo p = null;
 
             // Verifica se esse hola j  tem um vencedor ou se empatou, que pode chamar esse fun  o mais de uma vez quando o player sai no primeiro hole
@@ -1466,7 +1461,7 @@ namespace Pangya_GameServer.Game.GameModes
             p.WriteByte(wind.wind + wind_flag);
             p.WriteByte(1); // Flag de card de vento, aqui   a qnd diminui o vento, 1 Vento azul, no Pang Battle n o tem card de vento, mas toda hora ele troca o vento e o angulo
             p.WriteUInt16(m_player_turn.degree);
-            p.WriteByte(0); // Flag do vento, 1 Reseta o Vento, 0 soma o vento que nem o comando gm \wind do pangya original, , Tamb m   type para trocar o vento no Pang Battle se mandar o valor 0
+            p.WriteByte(0); // Flag do vento, 1 Reseta o Vento, 0 soma o vento que nem o comando gm \wind do pangya original, , Tamb m   flag para trocar o vento no Pang Battle se mandar o valor 0
 
             packet_func.game_broadcast(this,
                 p, 1);
@@ -1626,8 +1621,7 @@ namespace Pangya_GameServer.Game.GameModes
             packet_func.session_send(p,
                 _session, 1);
         }
-
-        public override void requestCalculeRankPlace()
+        protected override void requestCalculeRankPlace()
         {
 
             if (m_player_order.Any())

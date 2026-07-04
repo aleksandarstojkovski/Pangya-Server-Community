@@ -1,6 +1,6 @@
 ﻿using System.Runtime.InteropServices;
 using System.Text;
-using PangyaAPI.Utilities.Models;
+using PangyaAPI.Utilities.BinaryModels;
 namespace PangyaAPI.IFF.JP.Models.Data
 {
     [StructLayout(LayoutKind.Sequential, Pack = 4)]

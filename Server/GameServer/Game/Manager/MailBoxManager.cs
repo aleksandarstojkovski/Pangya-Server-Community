@@ -259,7 +259,7 @@ namespace Pangya_GameServer.Game.Manager
                     8, 0));
             }
 
-            for (var i = 0; i < _count; ++i)
+            for (var i = 0u; i < _count; ++i)
             {
                 try
                 {

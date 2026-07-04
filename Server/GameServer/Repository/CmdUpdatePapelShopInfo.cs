@@ -70,10 +70,11 @@ namespace Pangya_GameServer.Repository
 
             if (!m_last_update.IsEmpty)
             {
-                last_update_dt = makeText(_formatDate(m_last_update.ConvertTime()));
+                last_update_dt = (_formatDate(m_last_update.ConvertTime()));
             }
 
-            var r = procedure(m_szConsulta,
+            var r = procedure(
+                m_szConsulta,
                 Convert.ToString(m_uid) + ", " + Convert.ToString(m_ppsi.current_count) + ", " + Convert.ToString(m_ppsi.remain_count) + ", " + Convert.ToString(m_ppsi.limit_count) + ", " + last_update_dt);
 
             checkResponse(r, "nao conseguiu atualizar o Papel Shop Info[current_cnt=" + Convert.ToString(m_ppsi.current_count) + ", remain_cnt=" + Convert.ToString(m_ppsi.remain_count) + ", limit_cnt=" + Convert.ToString(m_ppsi.limit_count) + ", last_update=" + last_update_dt + "] do PLAYER[UID=" + Convert.ToString(m_uid) + "]");

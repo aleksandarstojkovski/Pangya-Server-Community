@@ -7,7 +7,7 @@ namespace Pangya_GameServer.Repository
     {
         public CmdUpdateCardQntd()
         {
-            this.m_uid = 0;
+            this.m_uid = 0u;
             this.m_id = -1;
             this.m_qntd = 0;
         }

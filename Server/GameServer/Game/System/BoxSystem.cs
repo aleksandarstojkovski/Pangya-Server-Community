@@ -111,7 +111,7 @@ namespace Pangya_GameServer.Game.System
                     {
 
                         // S� pode add os itens que o player n�o tem ou pode ter duplicada
-                        if (!(!(el.duplicar == 1) && (!sIff.getInstance().IsCanOverlapped(el._typeid) || sIff.getInstance().getItemGroupIdentify(el._typeid) == PangyaAPI.IFF.JP.Models.Flags.IFF_GROUP.CAD_ITEM) && _session.m_pi.ownerItem(el._typeid)))
+                        if (!(!(el.duplicar == 1) && (!sIff.getInstance().IsCanOverlapped(el._typeid) || sIff.getInstance().getItemGroupIdentify(el._typeid) == sIff.getInstance().CAD_ITEM) && _session.m_pi.ownerItem(el._typeid)))
                         {
                             lottery.Push(el.probabilidade, el);
                         }
@@ -122,7 +122,7 @@ namespace Pangya_GameServer.Game.System
             }
 
             // Player j� tem todos os raros da o Lucky reward para ele
-            if (_ctx_b.tipo == BOX_TYPE.ALL_RARE_OR_LUCKY_REWARD && lottery.getCountItem() == 0)
+            if (_ctx_b.tipo == BOX_TYPE.ALL_RARE_OR_LUCKY_REWARD && lottery.GetCountItem() == 0)
             {
 
                 foreach (var el in _ctx_b.item)
@@ -133,7 +133,7 @@ namespace Pangya_GameServer.Game.System
                     {
 
                         // S� pode add os itens que o player n�o tem ou pode ter duplicada
-                        if (!(!el.duplicar.IsTrue() && (!sIff.getInstance().IsCanOverlapped(el._typeid) || sIff.getInstance().getItemGroupIdentify(el._typeid) == PangyaAPI.IFF.JP.Models.Flags.IFF_GROUP.CAD_ITEM) && _session.m_pi.ownerItem(el._typeid)))
+                        if (!(!el.duplicar.IsTrue() && (!sIff.getInstance().IsCanOverlapped(el._typeid) || sIff.getInstance().getItemGroupIdentify(el._typeid) == sIff.getInstance().CAD_ITEM) && _session.m_pi.ownerItem(el._typeid)))
                         {
                             lottery.Push(el.probabilidade, el);
                         }
@@ -143,7 +143,7 @@ namespace Pangya_GameServer.Game.System
             }
 
             // Verifica se o tem algum item para o player ganhar raro ou Lucky reward
-            if (lottery.getCountItem() == 0)
+            if (lottery.GetCountItem() == 0)
             {
                 throw new exception("[BoxSystem::drawBox][Error] player ja tem todos os itens e a Box[Typeid=" + Convert.ToString(_ctx_b._typeid) + ", ID=" + Convert.ToString(_ctx_b.id) + "] nao tem o Lucky reward ou ele nao pode ter duplicata.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.BOX_SYSTEM,
                     8, 0));
@@ -165,7 +165,7 @@ namespace Pangya_GameServer.Game.System
                     }
                 };
 
-                lc = lottery.spinRoleta(); // Remove o item sorteado para n�o sortear ele novamente
+                lc = lottery.SpinRoleta(); // Remove o item sorteado para n�o sortear ele novamente
 
                 if (lc == null)
                 {
@@ -214,7 +214,7 @@ namespace Pangya_GameServer.Game.System
         protected void clear()
         {
 
-            //Monitor.Exit(m_cs);
+            Monitor.Enter(m_cs);
 
             if (!m_box.empty())
             {
@@ -223,7 +223,7 @@ namespace Pangya_GameServer.Game.System
 
             m_load = false;
 
-            //Monitor.Exit(m_cs);
+            Monitor.Exit(m_cs);
         }
 
         /*static*/

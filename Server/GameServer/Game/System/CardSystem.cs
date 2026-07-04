@@ -13,16 +13,6 @@ namespace Pangya_GameServer.Game.System
 {
     public class CardSystem
     {
-
-        
-        private List<Card> m_card = new List<Card>(); // Todos os Card
-        
-        private Dictionary<uint, CardPack> m_card_pack = new Dictionary<uint, CardPack>(); // Todos os Card Pack
-        
-        private Dictionary<uint, CardPack> m_box_card_pack = new Dictionary<uint, CardPack>(); // Todos os Box Card Pack
-
-        
-        private bool m_load; // Load CardSystem 
         public CardSystem()
         {
             this.m_load = false;
@@ -32,7 +22,7 @@ namespace Pangya_GameServer.Game.System
 
 
         // Load
-        
+        /*static*/
         public void load()
         {
 
@@ -44,14 +34,14 @@ namespace Pangya_GameServer.Game.System
             initialize();
         }
 
-        
+        /*static*/
         public bool isLoad()
         {
             return (m_load && m_card_pack.Count > 0 && m_box_card_pack.Count > 0);
         }
 
         // finders
-        
+        /*static*/
         public CardPack findCardPack(uint _typeid)
         {
 
@@ -70,7 +60,7 @@ namespace Pangya_GameServer.Game.System
             return m_card_pack.FirstOrDefault(c => c.Key == _typeid).Value;
         }
 
-        
+        /*static*/
         public CardPack findBoxCardPack(uint _typeid)
         {
 
@@ -88,7 +78,7 @@ namespace Pangya_GameServer.Game.System
             return m_box_card_pack.FirstOrDefault(c => c.Key == _typeid).Value;
         }
 
-        
+        /*static*/
         public Card findCard(uint _typeid)
         {
 
@@ -104,17 +94,13 @@ namespace Pangya_GameServer.Game.System
                     1, 0));
             }
 
-            return m_card.FirstOrDefault(c => c._typeid == _typeid); 
+            return m_card.FirstOrDefault(c => c._typeid == _typeid);
+
         }
 
-        
+        /*static*/
         public List<Card> draws(CardPack _cp)
         {
-            if (_cp == null)
-            {
-                throw new exception("[CardSystem::findCardPack][Error] CardPack is invalid", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CARD_SYSTEM,
-                    1, 0));
-            }
 
             if (_cp._typeid == 0
                 || _cp.num == 0
@@ -130,12 +116,12 @@ namespace Pangya_GameServer.Game.System
 
             foreach (var el in _cp.card)
             {
-                lottery.Push((uint)(el.prob * (double)((el.tipo > CARD_TYPE.T_SECRET ? 10.0f : _cp.rate.value[(int)el.tipo] / 100.0f))), el);
+                lottery.Push((uint)(el.prob * (double)((el.tipo > CARD_TYPE.T_SECRET ? 1.0f : _cp.rate.value[(int)el.tipo] / 100.0f))), el);
             }
 
-            for (var i = 0; i < _cp.num; ++i)
+            for (var i = 0u; i < _cp.num; ++i)
             {
-                var lc = lottery.spinRoleta(true);
+                var lc = lottery.SpinRoleta(true);
 
                 if (lc == null)
                 {
@@ -143,9 +129,9 @@ namespace Pangya_GameServer.Game.System
                         2, 0));
                 }
 
-                if (((Card)lc.Value) == null)
+                if ((Card)lc.Value == null)
                 {
-                    throw new exception("[CardSystem::draws][ErrorSystem] valor retornado do sorteio é invalido(null)", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CARD_SYSTEM,
+                    throw new exception("[CardSystem::draws][ErrorSystem] valor retornado do sorteio eh invalido(null)", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CARD_SYSTEM,
                         3, 0));
                 }
 
@@ -155,7 +141,7 @@ namespace Pangya_GameServer.Game.System
             return v_card;
         }
 
-        
+        /*static*/
         public Card drawsLoloCardCompose(LoloCardComposeEx _lcc)
         {
 
@@ -164,9 +150,9 @@ namespace Pangya_GameServer.Game.System
 
             Lottery lottery = new Lottery();
 
-            uint prob = 0;
+            uint prob = 0u;
 
-            for (var i = 0; i < (_lcc._typeid.Length); ++i)
+            for (var i = 0u; i < (_lcc._typeid.Length); ++i)
             {
                 prob += (uint)((_lcc.tipo + 1) * 20);
             }
@@ -185,7 +171,7 @@ namespace Pangya_GameServer.Game.System
                 }
             }
 
-            var lc = lottery.spinRoleta();
+            var lc = lottery.SpinRoleta();
 
             if (lc == null)
             {
@@ -195,7 +181,7 @@ namespace Pangya_GameServer.Game.System
 
             if ((Card)lc.Value == null)
             {
-                throw new exception("[CardSystem::drawsLoloCardCompose][ErrorSystem] valor retornado do sorteio é invalido(null)", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CARD_SYSTEM,
+                throw new exception("[CardSystem::drawsLoloCardCompose][ErrorSystem] valor retornado do sorteio eh invalido(null)", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CARD_SYSTEM,
                     3, 0));
             }
 
@@ -204,7 +190,7 @@ namespace Pangya_GameServer.Game.System
             return card;
         }
 
-        
+        /*static*/
         protected void initialize()
         {
             // Load Card from IFF_STRUCT
@@ -222,7 +208,8 @@ namespace Pangya_GameServer.Game.System
                         break;
                     case 4: // Box Card Pack
                         {
-                            m_box_card_pack[el.ID] = new CardPack(el.ID, 3, (byte)el.Volumn);
+                            m_box_card_pack[el.ID] = new CardPack(el.ID,
+                                    3, (byte)el.Volumn);
                             break;
                         }
                     case 3: // Card Pack
@@ -259,15 +246,15 @@ namespace Pangya_GameServer.Game.System
             // Carregado com sucesso
             m_load = true;
             if (m_card.Count == 0 || m_card_pack.Count == 0 || m_box_card_pack.Count == 0)
-                _smp.message_pool.getInstance().push(new message("[CardSystem::initialize][Warning] Not Loaded!", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                _smp.message_pool.getInstance().push(new message("[CardSystem::initialize][Warning] Not Loaded.", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
         }
 
-        
+        /*static*/
         protected void clear()
         {
 
-            //Monitor.Exit(m_cs);
+            Monitor.Enter(m_cs);
 
             if (m_card.Count > 0)
             {
@@ -279,8 +266,20 @@ namespace Pangya_GameServer.Game.System
                 m_card_pack.Clear();
             }
 
-            m_load = false; 
+            m_load = false;
+
+            Monitor.Exit(m_cs);
         }
+        /*static*/
+        private List<Card> m_card = new List<Card>(); // Todos os Card
+        /*static*/
+        private Dictionary<uint, CardPack> m_card_pack = new Dictionary<uint, CardPack>(); // Todos os Card Pack
+        /*static*/
+        private Dictionary<uint, CardPack> m_box_card_pack = new Dictionary<uint, CardPack>(); // Todos os Box Card Pack
+
+        /*static*/
+        private bool m_load; // Load CardSystem
+        private object m_cs = new object();
     }
     public class sCardSystem : Singleton<CardSystem>
     {

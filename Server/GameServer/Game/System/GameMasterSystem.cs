@@ -1,14 +1,14 @@
-﻿using Pangya_GameServer.Game.Manager;
+﻿using System;
+using Pangya_GameServer.Game.Manager;
 using Pangya_GameServer.Models;
 using Pangya_GameServer.PacketFunc;
 using Pangya_GameServer.PangyaEnums;
-using Pangya_GameServer.Repository;
+
 using PangyaAPI.IFF.JP.Extensions;
 using PangyaAPI.Network.PangyaPacket;
 using PangyaAPI.Utilities;
-using PangyaAPI.Utilities.Models;
+using PangyaAPI.Utilities.BinaryModels;
 using PangyaAPI.Utilities.Log;
-using System;
 
 namespace Pangya_GameServer.Game.System
 {
@@ -16,7 +16,7 @@ namespace Pangya_GameServer.Game.System
     {
         public static void requestCommonCmdGM(this Player _session, packet _packet)
         {
-            if (_session.m_gi.visible > 0)
+            if (_session.m_gi.visible)
             {
                 _session.m_pi.mi.capability = new uCapability();
             }
@@ -29,7 +29,7 @@ namespace Pangya_GameServer.Game.System
 
                 // Verifica se o valor de cmd é válido no enum PacketIDClient
                 if (Enum.IsDefined(typeof(COMMON_CMD_GM), cmd))
-                    _smp.message_pool.getInstance().push($"[GameMasterSystem.requestCommonCmdGM][Log]: PLAYER[UID: {_session.m_pi.uid}, COMMAND: {Enum.GetName(typeof(COMMON_CMD_GM), cmd).Replace("CCG_", "")}]", type_msg.CL_FILE_LOG_AND_CONSOLE);
+                    _smp.message_pool.getInstance().push($"[GameMasterSystem.requestCommonCmdGM][Log]: PLAYER[UID: {_session.m_pi.uid}, COMMAND: {Enum.GetName(typeof(COMMON_CMD_GM), cmd).Replace("CCG_", "")}]", type_msg.CL_ONLY_CONSOLE);
 
 
                 switch (cmd)
@@ -37,7 +37,7 @@ namespace Pangya_GameServer.Game.System
                     case COMMON_CMD_GM.CCG_VISIBLE:
                         {
                             if (!(_session.m_pi.m_cap.game_master/* & 4*/))
-                                throw new exception("[GameMasterSystem.requestCommonCmdGM][VISIBLE][Error] PLAYER[UID=" + (_session.m_pi.uid) + "] nao é GM mas tentou executar comando GM. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 1, 0x5700100));
+                                throw new exception("[GameMasterSystem.requestCommonCmdGM][VISIBLE][Error] PLAYER[UID=" + (_session.m_pi.uid) + "] nao eh GM mas tentou executar comando GM. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 1, 0x5700100));
 
                             var c = sgs.gs.getInstance().findChannel(_session.m_pi.channel);
 
@@ -53,12 +53,12 @@ namespace Pangya_GameServer.Game.System
                             ushort whisper = _packet.ReadUInt16();
 
                             if (!(_session.m_pi.m_cap.game_master/* & 4*/))
-                                throw new exception("[GameMasterSystem.requestCommonCmdGM][WHISPER][Error] PLAYER[UID=" + (_session.m_pi.uid) + "] nao é GM mas tentou executar comando GM. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 1, 0x5700100));
+                                throw new exception("[GameMasterSystem.requestCommonCmdGM][WHISPER][Error] PLAYER[UID=" + (_session.m_pi.uid) + "] nao eh GM mas tentou executar comando GM. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 1, 0x5700100));
 
-                            _session.m_gi.whisper = _session.m_pi.mi.state_flag.whisper = (byte)whisper;
+                            _session.m_gi.whisper = _session.m_pi.mi.state_flag.whisper = Convert.ToBoolean((whisper & 2) >> 1);
 
                             // Se Whisper ON, Channel OFF
-                            _session.m_gi.channel = _session.m_gi.whisper;
+                            _session.m_gi.channel = !_session.m_gi.whisper;
                         }
                         break;
                     case COMMON_CMD_GM.CCG_CHANNEL:
@@ -66,12 +66,12 @@ namespace Pangya_GameServer.Game.System
                             ushort channel = _packet.ReadUInt16();
 
                             if (!(_session.m_pi.m_cap.game_master/* & 4*/))
-                                throw new exception("[GameMasterSystem.requestCommonCmdGM][CHANNEL][Error] PLAYER[UID=" + (_session.m_pi.uid) + "] nao é GM mas tentou executar comando GM. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 1, 0x5700100));
+                                throw new exception("[GameMasterSystem.requestCommonCmdGM][CHANNEL][Error] PLAYER[UID=" + (_session.m_pi.uid) + "] nao eh GM mas tentou executar comando GM. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 1, 0x5700100));
 
-                            _session.m_gi.channel = _session.m_pi.mi.state_flag.channel = (byte)channel;
+                            _session.m_gi.channel = _session.m_pi.mi.state_flag.channel = Convert.ToBoolean((channel & 4) >> 2);
 
                             // Se Channel ON, Whisper OFF
-                            _session.m_gi.whisper = _session.m_gi.channel;
+                            _session.m_gi.whisper = !_session.m_gi.channel;
                         }
                         break;
                     case COMMON_CMD_GM.CCG_OPEN_WHISPER_PLAYER_LIST:
@@ -83,7 +83,7 @@ namespace Pangya_GameServer.Game.System
                                         ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 8, 0x5700108));
 
                             if (!(_session.m_pi.m_cap.game_master/* & 4*/))
-                                throw new exception("[GameMasterSystem.requestCommonCmdGM][OPEN_WHISPER_PLAYER_LIST][Error] PLAYER[UID=" + (_session.m_pi.uid) + "] nao é GM mas tentou executar comando GM. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 1, 0x5700100));
+                                throw new exception("[GameMasterSystem.requestCommonCmdGM][OPEN_WHISPER_PLAYER_LIST][Error] PLAYER[UID=" + (_session.m_pi.uid) + "] nao eh GM mas tentou executar comando GM. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 1, 0x5700100));
 
                             var s = (Player)sgs.gs.getInstance().FindSessionByNickname(nickname);
 
@@ -104,7 +104,7 @@ namespace Pangya_GameServer.Game.System
                                     ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 8, 0x5700108));
 
                             if (!(_session.m_pi.m_cap.game_master/* & 4*/))
-                                throw new exception("[GameMasterSystem.requestCommonCmdGM][CLOSE_WHISPER_PLAYER_LIST][Error] PLAYER[UID=" + (_session.m_pi.uid) + "] nao é GM mas tentou executar comando GM. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 1, 0x5700100));
+                                throw new exception("[GameMasterSystem.requestCommonCmdGM][CLOSE_WHISPER_PLAYER_LIST][Error] PLAYER[UID=" + (_session.m_pi.uid) + "] nao eh GM mas tentou executar comando GM. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 1, 0x5700100));
 
                             var s = (Player)sgs.gs.getInstance().FindSessionByNickname(nickname);
 
@@ -117,23 +117,8 @@ namespace Pangya_GameServer.Game.System
                         break;
                     case COMMON_CMD_GM.CCG_KICK:
                         {
-                            CmdVerifyCapability cmd_cap = new CmdVerifyCapability(_session.m_pi.uid);
-
-                            snmdb.NormalManagerDB.getInstance().add(0, cmd_cap, null, null);
-
-                            if (cmd_cap.getException().getCodeError() != 0)
-                            {
-                                throw cmd_cap.getException();
-                            }
-
-                            if (!cmd_cap.IsValid())
-                            {
-                                throw new exception($"[Channel::requestExecCCGIdentity][Error] PLAYER [UID={_session.m_pi.uid}] tentou voltar pra GM/Admin mas não tem permissão no banco.",
-                                    ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL, 15, 0x5700100));
-                            }
-
                             if (!(_session.m_pi.m_cap.game_master/* & 4*/))
-                                throw new exception("[GameMasterSystem.requestCommonCmdGM][KICK][Error] PLAYER[UID=" + (_session.m_pi.uid) + "] nao é GM mas tentou executar comando GM. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 1, 0x5700100));
+                                throw new exception("[GameMasterSystem.requestCommonCmdGM][KICK][Error] PLAYER[UID=" + (_session.m_pi.uid) + "] nao eh GM mas tentou executar comando GM. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 1, 0x5700100));
 
                             var c = sgs.gs.getInstance().findChannel(_session.m_pi.channel);
 
@@ -146,24 +131,8 @@ namespace Pangya_GameServer.Game.System
                         break;
                     case COMMON_CMD_GM.CCG_DISCONNECT:
                         {
-                            CmdVerifyCapability cmd_cap = new CmdVerifyCapability(_session.m_pi.uid);
-
-                            snmdb.NormalManagerDB.getInstance().add(0, cmd_cap, null, null);
-
-                            if (cmd_cap.getException().getCodeError() != 0)
-                            {
-                                throw cmd_cap.getException();
-                            }
-
-                            if (!cmd_cap.IsValid())
-                            {
-                                throw new exception($"[Channel::requestExecCCGIdentity][Error] PLAYER [UID={_session.m_pi.uid}] tentou voltar pra GM/Admin mas não tem permissão no banco.",
-                                    ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL, 15, 0x5700100));
-                            }
-
-
                             if (!(_session.m_pi.m_cap.game_master/* & 4*/))
-                                throw new exception("[GameMasterSystem.requestCommonCmdGM][DISCONNECT][Error] PLAYER[UID=" + (_session.m_pi.uid) + "] nao é GM mas tentou executar comando GM. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 1, 0x5700100));
+                                throw new exception("[GameMasterSystem.requestCommonCmdGM][DISCONNECT][Error] PLAYER[UID=" + (_session.m_pi.uid) + "] nao eh GM mas tentou executar comando GM. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 1, 0x5700100));
 
                             var oid = _packet.ReadUInt32();
 
@@ -182,24 +151,9 @@ namespace Pangya_GameServer.Game.System
                         break;
                     case COMMON_CMD_GM.CCG_CHANGE_WIND_VERSUS:
                         {
-                            CmdVerifyCapability cmd_cap = new CmdVerifyCapability(_session.m_pi.uid);
-
-                            snmdb.NormalManagerDB.getInstance().add(0, cmd_cap, null, null);
-
-                            if (cmd_cap.getException().getCodeError() != 0)
-                            {
-                                throw cmd_cap.getException();
-                            }
-
-                            if (!cmd_cap.IsValid())
-                            {
-                                throw new exception($"[Channel::requestExecCCGIdentity][Error] PLAYER [UID={_session.m_pi.uid}] tentou voltar pra GM/Admin mas não tem permissão no banco.",
-                                    ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL, 15, 0x5700100));
-                            }
-
                             // Troca o Vento só no modo versus
                             if (!(_session.m_pi.m_cap.game_master/* & 4*/))
-                                throw new exception("[GameMasterSystem.requestCommonCmdGM][CHANGE_WIND_VERSUS][Error] PLAYER[UID=" + (_session.m_pi.uid) + "] nao é GM mas tentou executar comando GM. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 1, 0x5700100));
+                                throw new exception("[GameMasterSystem.requestCommonCmdGM][CHANGE_WIND_VERSUS][Error] PLAYER[UID=" + (_session.m_pi.uid) + "] nao eh GM mas tentou executar comando GM. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 1, 0x5700100));
 
                             var c = sgs.gs.getInstance().findChannel(_session.m_pi.channel);
 
@@ -213,25 +167,9 @@ namespace Pangya_GameServer.Game.System
                         break;
                     case COMMON_CMD_GM.CCG_CHANGE_WEATHER:
                         {
-                            CmdVerifyCapability cmd_cap = new CmdVerifyCapability(_session.m_pi.uid);
-
-                            snmdb.NormalManagerDB.getInstance().add(0, cmd_cap, null, null);
-
-                            if (cmd_cap.getException().getCodeError() != 0)
-                            {
-                                throw cmd_cap.getException();
-                            }
-
-                            if (!cmd_cap.IsValid())
-                            {
-                                throw new exception($"[Channel::requestExecCCGIdentity][Error] PLAYER [UID={_session.m_pi.uid}] tentou voltar pra GM/Admin mas não tem permissão no banco.",
-                                    ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL, 15, 0x5700100));
-                            }
-
-
                             // Troca o tempo(Weather) da sala Lounge ou no Jogo(Game, Tourney, VS e etc)
                             if (!(_session.m_pi.m_cap.game_master/* & 4*/))
-                                throw new exception("[GameMasterSystem.requestCommonCmdGM][CHANGE_WEATHER][Error] PLAYER[UID=" + (_session.m_pi.uid) + "] nao é GM mas tentou executar comando GM. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 1, 0x5700100));
+                                throw new exception("[GameMasterSystem.requestCommonCmdGM][CHANGE_WEATHER][Error] PLAYER[UID=" + (_session.m_pi.uid) + "] nao eh GM mas tentou executar comando GM. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 1, 0x5700100));
 
                             var c = sgs.gs.getInstance().findChannel(_session.m_pi.channel);
 
@@ -244,24 +182,9 @@ namespace Pangya_GameServer.Game.System
                         break;
                     case COMMON_CMD_GM.CCG_IDENTITY:
                         {
-                            CmdVerifyCapability cmd_cap = new CmdVerifyCapability(_session.m_pi.uid);
-
-                            snmdb.NormalManagerDB.getInstance().add(0, cmd_cap, null, null);
-
-                            if (cmd_cap.getException().getCodeError() != 0)
-                            {
-                                throw cmd_cap.getException();
-                            }
-
-                            if (!cmd_cap.IsValid())
-                            {
-                                throw new exception($"[Channel::requestExecCCGIdentity][Error] PLAYER [UID={_session.m_pi.uid}] tentou voltar pra GM/Admin mas não tem permissão no banco.",
-                                    ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL, 15, 0x5700100));
-                            }
-
                             // Troca a Capacidade do player
                             if (!(_session.m_pi.m_cap.game_master/* & 4*/))
-                                throw new exception("[GameMasterSystem.requestCommonCmdGM][IDENTITY][Error] PLAYER[UID=" + (_session.m_pi.uid) + "] nao é GM mas tentou executar comando GM. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 1, 0x5700100));
+                                throw new exception("[GameMasterSystem.requestCommonCmdGM][IDENTITY][Error] PLAYER[UID=" + (_session.m_pi.uid) + "] nao eh GM mas tentou executar comando GM. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 1, 0x5700100));
 
                             var c = sgs.gs.getInstance().findChannel(_session.m_pi.channel);
 
@@ -275,23 +198,8 @@ namespace Pangya_GameServer.Game.System
                         break;
                     case COMMON_CMD_GM.CCG_GIVEITEM:
                         {
-                            CmdVerifyCapability cmd_cap = new CmdVerifyCapability(_session.m_pi.uid);
-
-                            snmdb.NormalManagerDB.getInstance().add(0, cmd_cap, null, null);
-
-                            if (cmd_cap.getException().getCodeError() != 0)
-                            {
-                                throw cmd_cap.getException();
-                            }
-
-                            if (!cmd_cap.IsValid())
-                            {
-                                throw new exception($"[Channel::requestExecCCGIdentity][Error] PLAYER [UID={_session.m_pi.uid}] tentou voltar pra GM/Admin mas não tem permissão no banco.",
-                                    ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL, 15, 0x5700100));
-                            }
-
                             if (!(_session.m_pi.m_cap.game_master/* & 4*/))
-                                throw new exception("[GameMasterSystem.requestCommonCmdGM][GIVE_ITEM][Error] PLAYER[UID=" + (_session.m_pi.uid) + "] nao é GM mas tentou executar comando GM. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 1, 0x5700100));
+                                throw new exception("[GameMasterSystem.requestCommonCmdGM][GIVE_ITEM][Error] PLAYER[UID=" + (_session.m_pi.uid) + "] nao eh GM mas tentou executar comando GM. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 1, 0x5700100));
 
                             if (_session.m_pi.m_cap.block_give_item_gm)
                                 throw new exception("[GameMasterSystem.requestCommonCmdGM][GIVE_ITEM][Error] PLAYER[UID=" + (_session.m_pi.uid) + "] esta bloqueado para enviar itens pelo comando giveitem.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 9, 0x5700100));
@@ -308,7 +216,7 @@ namespace Pangya_GameServer.Game.System
 
                             if (item_typeid == 0)
                                 throw new exception("[GameMasterSystem.requestCommonCmdGM][GIVE_ITEM][Error] PLAYER[UID=" + (_session.m_pi.uid) + "] tentou enviar presente para o PLAYER[UID="
-                                        + (s.m_pi.uid) + "] mas o Item[TYPEID=" + (item_typeid) + "QNTD = " + (item_qntd) + "] é invalid. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 3, 0x5700100));
+                                        + (s.m_pi.uid) + "] mas o Item[TYPEID=" + (item_typeid) + "QNTD = " + (item_qntd) + "] eh invalid. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 3, 0x5700100));
 
                             if (item_qntd > 20000u)//so coloquei pra testar o codigo
                                 throw new exception("[GameMasterSystem.requestCommonCmdGM][GIVE_ITEM][Error] PLAYER[UID=" + (_session.m_pi.uid) + "] tentou enviar presente para o PLAYER[UID="
@@ -348,24 +256,9 @@ namespace Pangya_GameServer.Game.System
                         break;
                     case COMMON_CMD_GM.CCG_GOLDENBELL:
                         {
-                            CmdVerifyCapability cmd_cap = new CmdVerifyCapability(_session.m_pi.uid);
-
-                            snmdb.NormalManagerDB.getInstance().add(0, cmd_cap, null, null);
-
-                            if (cmd_cap.getException().getCodeError() != 0)
-                            {
-                                throw cmd_cap.getException();
-                            }
-
-                            if (!cmd_cap.IsValid())
-                            {
-                                throw new exception($"[Channel::requestExecCCGIdentity][Error] PLAYER [UID={_session.m_pi.uid}] tentou voltar pra GM/Admin mas não tem permissão no banco.",
-                                    ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL, 15, 0x5700100));
-                            }
-
                             // Envia item para todos da sala
                             if (!(_session.m_pi.m_cap.game_master/* & 4*/))
-                                throw new exception("[GameMasterSystem.requestCommonCmdGM][GOLDENBELL][Error] PLAYER[UID=" + (_session.m_pi.uid) + "] nao é GM mas tentou executar comando GM. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 1, 0x5700100));
+                                throw new exception("[GameMasterSystem.requestCommonCmdGM][GOLDENBELL][Error] PLAYER[UID=" + (_session.m_pi.uid) + "] nao eh GM mas tentou executar comando GM. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 1, 0x5700100));
 
                             if (_session.m_pi.m_cap.block_give_item_gm)
                                 throw new exception("[GameMasterSystem.requestCommonCmdGM][GOLDENBELL][Error] PLAYER[UID=" + (_session.m_pi.uid) + "] esta bloqueado para enviar itens pelo comando goldenbell.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 9, 0x5700100));

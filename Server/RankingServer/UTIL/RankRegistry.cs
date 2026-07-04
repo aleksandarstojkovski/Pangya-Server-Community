@@ -5,7 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Pangya_RankingServer.Models;
 using PangyaAPI.Network.PangyaPacket;
-using PangyaAPI.Utilities.Models;
+using PangyaAPI.Utilities.BinaryModels;
 
 namespace Pangya_RankingServer.UTIL
 {

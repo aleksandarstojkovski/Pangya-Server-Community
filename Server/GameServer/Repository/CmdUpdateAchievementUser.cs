@@ -12,7 +12,11 @@ namespace Pangya_GameServer.Repository
             this.m_uid = _uid;
             this.m_ai = _ai;
         }
-         
+
+        public virtual void Dispose()
+        {
+        }
+
         public uint getUID()
         {
             return (m_uid);
@@ -49,7 +53,7 @@ namespace Pangya_GameServer.Repository
                     4, 0));
             }
 
-            var r = consulta(m_szConsulta[0] + Convert.ToString(m_ai.status) + m_szConsulta[1] + Convert.ToString(m_uid) + m_szConsulta[2] + Convert.ToString(m_ai.id));
+            var r = _update(m_szConsulta[0] + Convert.ToString(m_ai.status) + m_szConsulta[1] + Convert.ToString(m_uid) + m_szConsulta[2] + Convert.ToString(m_ai.id));
 
             checkResponse(r, "nao conseguiu atualizar achievement[ID=" + Convert.ToString(m_ai.id) + "] do player: " + Convert.ToString(m_uid));
 

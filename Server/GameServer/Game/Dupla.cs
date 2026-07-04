@@ -26,11 +26,11 @@ namespace Pangya_GameServer.Game
             dados = new Dados[][] { Tools.InitializeWithDefaultInstances<Dados>(18), Tools.InitializeWithDefaultInstances<Dados>(18) }; // Dados dos holes, 18 holes: [0] e [1] 
         }
 
-        public int sumScoreP1()
+        public short sumScoreP1()
         {
-            int sum = 0;
+            short sum = 0;
 
-            for (var i = 0; i < 18; ++i)
+            for (var i = 0u; i < 18; ++i)
             {
                 sum += dados[0][i].score;
             }
@@ -38,12 +38,12 @@ namespace Pangya_GameServer.Game
             return sum;
         }
 
-        public int sumScoreP2()
+        public short sumScoreP2()
         {
 
-            int sum = 0;
+            short sum = 0;
 
-            for (var i = 0; i < 18; ++i)
+            for (var i = 0u; i < 18; ++i)
             {
                 sum += dados[1][i].score;
             }

@@ -18,7 +18,10 @@ namespace Pangya_GameServer.Game.System
 
         public ApproachMissionSystem()
         {
-            this.m_mad = new List<mission_approach_dados>(); 
+            this.m_mad = new List<mission_approach_dados>();
+
+            // Inicializa
+            initialize();
         }
 
         public void initialize()
@@ -32,7 +35,12 @@ namespace Pangya_GameServer.Game.System
             {
                 throw cmd_am.getException();
             }
-             
+
+            if (cmd_am.getInfo().empty())
+            {
+                throw new exception("[ApproachMissionSystem::initialize][Error] nao conseguiu pegar as missions do approach na data base.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.APPROACH_MISSION_SYSTEM,
+                    1, 0));
+            }
 
             m_mad = cmd_am.getInfo();
 
@@ -41,12 +49,12 @@ namespace Pangya_GameServer.Game.System
                 _smp.message_pool.getInstance().push(new message("[ApproachMissionSystem::initialize][Warning] Not Loaded!", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
             // Carregado com sucesso
-            m_load = true;  
+            m_load = true;
         }
-
         public void clear()
         {
-            // Limpa a lista de itens do Approach Mission System 
+            // Limpa a lista de itens do Approach Mission System
+            // n o faz o shrink_to_fit por que pode preencher ela novamente
             if (!m_mad.empty())
             {
                 m_mad.Clear();
@@ -84,7 +92,7 @@ namespace Pangya_GameServer.Game.System
                 return ma;
             }
 
-            var RandomNumbers = new Random();
+            var RandomNumbers = new Random(Environment.TickCount * 777);
 
             if (((RandomNumbers.Next() % 1000) / 10) <= 50)
             { // 50% de chance de sair mission
@@ -167,7 +175,10 @@ namespace Pangya_GameServer.Game.System
 
             if (_arg == null)
             {
-                _smp.message_pool.getInstance().push(new message("[ApproachMissionSystem::SQLDBResponse][Warning] _arg is nullptr com msg_id = " + Convert.ToString(_msg_id), type_msg.CL_FILE_LOG_AND_CONSOLE));
+#if _DEBUG
+			// Static class
+			_smp.message_pool.getInstance().push(new message("[ApproachMissionSystem::SQLDBResponse][Warning] _arg is nullptr com msg_id = " + Convert.ToString(_msg_id), type_msg.CL_FILE_LOG_AND_CONSOLE));
+#endif // _DEBUG
                 return;
             }
 
@@ -177,6 +188,9 @@ namespace Pangya_GameServer.Game.System
                 _smp.message_pool.getInstance().push(new message("[ApproachMissionSystem::SQLDBResponse][Error] " + _pangya_db.getException().getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
                 return;
             }
+
+            // C++ TO C# CONVERTER TASK: There is no equivalent to 'reinterpret_cast' in C#:
+            var _channel = (ApproachMissionSystem)(_arg);
 
             switch (_msg_id)
             {

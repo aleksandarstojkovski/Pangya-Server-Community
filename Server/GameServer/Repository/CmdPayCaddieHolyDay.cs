@@ -8,7 +8,7 @@ namespace Pangya_GameServer.Repository
     {
         public CmdPayCaddieHolyDay()
         {
-            this.m_uid = 0;
+            this.m_uid = 0u;
             this.m_id = -1;
             this.m_end_dt = "";
         }
@@ -83,7 +83,8 @@ namespace Pangya_GameServer.Repository
                     4, 0));
             }
 
-            var r = procedure(m_szConsulta,
+            var r = procedure(
+                m_szConsulta,
                 Convert.ToString(m_uid) + ", " + Convert.ToString(m_id) + ", " + m_end_dt);
 
             checkResponse(r, "nao conseguiu atualizar a end date[exntend days of caddie][date=" + m_end_dt + "] do caddie[ID=" + Convert.ToString(m_id) + "] do PLAYER[UID=" + Convert.ToString(m_uid) + "]");

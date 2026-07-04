@@ -18,7 +18,7 @@ namespace Pangya_GameServer
         {
             this.v_players = new List<Player>();
             this.m_team = eTEAM.RED;
-            this.m_uid = 0;
+            this.m_uid = 0u;
             this.m_point = 0;
             this.m_pang = 0Ul;
             this.m_pang_win = 0;
@@ -48,7 +48,7 @@ namespace Pangya_GameServer
             }
 
             m_team = eTEAM.RED;
-            m_uid = 0;
+            m_uid = 0u;
             m_point = 0;
             m_pang = 0Ul;
             m_pang_win = 0;
@@ -64,7 +64,7 @@ namespace Pangya_GameServer
             return m_uid;
         }
 
-        public int getPoint()
+        public short getPoint()
         {
             return m_point;
         }
@@ -89,7 +89,7 @@ namespace Pangya_GameServer
             m_uid = _uid;
         }
 
-        public void setPoint(int _point)
+        public void setPoint(short _point)
         {
             m_point = _point;
         }
@@ -206,7 +206,7 @@ namespace Pangya_GameServer
 
         private eTEAM m_team = new eTEAM(); // Time que a guild está na sala
         private uint m_uid = new uint(); // UID da guild
-        private int m_point; // Pontos da guild
+        private short m_point; // Pontos da guild
         private uint m_pang_win = new uint(); // Pangs ganho no jogo
         private ulong m_pang = new ulong(); // Pangs da guild
 

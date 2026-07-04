@@ -28,18 +28,18 @@ namespace PangyaAPI.Network.PangyaSession
         }
         public void clear()
         {
-            //Monitor.Exit(m_cs);
+            Monitor.Enter(m_cs);
             m_active = 0;
             m_quit = false;
-            //Monitor.Exit(m_cs);
+            Monitor.Exit(m_cs);
         }
         public bool isQuit()
         {
 
             var quit = false;
-            //Monitor.Exit(m_cs);
+            Monitor.Enter(m_cs);
             quit = m_quit;
-            //Monitor.Exit(m_cs);
+            Monitor.Exit(m_cs);
 
             return quit;
         }
@@ -47,17 +47,17 @@ namespace PangyaAPI.Network.PangyaSession
         {
 
             var spin = 0;
-            //Monitor.Exit(m_cs);
+            Monitor.Enter(m_cs);
             spin = ++m_active;
-            //Monitor.Exit(m_cs);
+            Monitor.Exit(m_cs);
 
             return spin;
         }
         public bool devolve()
         {
-            //Monitor.Exit(m_cs);
+            Monitor.Enter(m_cs);
             --m_active;
-            //Monitor.Exit(m_cs);
+            Monitor.Exit(m_cs);
             return m_active <= 0 && m_quit; // pode excluir(limpar) a Session
         }
         // Verifica se pode excluir a Session, se não seta a flag quit para o prox method que devolver excluir ela
@@ -65,7 +65,7 @@ namespace PangyaAPI.Network.PangyaSession
         {
 
             var can = false;
-            //Monitor.Exit(m_cs);
+            Monitor.Enter(m_cs);
 
             if (m_active <= 0)
             {
@@ -76,7 +76,7 @@ namespace PangyaAPI.Network.PangyaSession
                 m_quit = true;
             }
 
-            //Monitor.Exit(m_cs);
+            Monitor.Exit(m_cs);
             return can;
         }
     }
@@ -94,7 +94,8 @@ namespace PangyaAPI.Network.PangyaSession
         // Marca na Session que o socket, levou DC, chegou ao limit de retramission do TCP para transmitir os dados
         // TCP sockets is that the maximum retransmission count and timeout have been reached on a bad(or broken) link
         public bool m_connection_timeout;
-        public TcpClient m_client = new TcpClient();
+        public bool m_is_connected;
+        public TcpClient m_sock = new TcpClient();
         public IPEndPoint m_addr;
         public byte m_key;
 
@@ -108,37 +109,16 @@ namespace PangyaAPI.Network.PangyaSession
         private readonly object m_cs_lock_other = new object(); // Usado para bloquear outras coisas (sincronizar os pacotes, por exemplo)
 
         private bool m_state;
-        public bool m_connected;
+        private bool m_connected;
         private bool m_connected_to_send;
 
-        private stUseCtx m_use_ctx = new stUseCtx();                     
-        public Server Server { get; set; }                                           
-        public NetworkStream Stream
-        {
-            set; get;
-        }
+        private stUseCtx m_use_ctx = new stUseCtx();
 
-        public int ReceiveTimeout
-        {
-            get => m_client.ReceiveTimeout;
-            set => m_client.ReceiveTimeout = value;
-        }
-
-        public int SendTimeout
-        {
-            get => m_client.SendTimeout;
-            set => m_client.SendTimeout = value;
-        }
-
-        //public System.Timers.Timer ReadTimeoutTimer;
-        //public const int READ_TIMEOUT_MS = 90000; // 5 segundos
-
-        public byte[] ReadBuffer = new byte[8192];
-        public PacketBuffer Buffer = new PacketBuffer();
-        public DateTime last_activity;
+        public Server Server { get; set; }
+        public DateTime LastPacketReceived { get; internal set; } = DateTime.Now;
 
         public Session(TcpClient client)
-        { this.m_client = client; }
+        { this.m_sock = client; }
         public Session()
         {
             this.m_use_ctx = new stUseCtx();
@@ -164,41 +144,33 @@ namespace PangyaAPI.Network.PangyaSession
 
         public virtual bool clear()
         {
-            m_key = 0;
-            m_tick = 0;
-            m_time_start = 0;
-            m_oid = -1;
-            m_is_authorized = false;
-            m_connection_timeout = false; 
             m_state = false;
             m_connected = false;
             m_connected_to_send = false;
-            last_activity = DateTime.MinValue;
-			this.m_ip = "0.0.0.0";
-			this.m_ip_maked = false;
-			this.m_addr = new IPEndPoint(IPAddress.Any, 0);
+
+            m_key = 0;
+
+            m_time_start = 0;
+            m_tick = 0;
+            m_tick_bot = 0;
+
+            m_oid = ~0;
+
+            m_is_authorized = false;
+
+            m_connection_timeout = false;
+
+            m_ip = "";
+            m_ip_maked = false;
+
             m_use_ctx.clear();
+
+            m_sock?.Dispose();
+            m_sock = null;   // ✅ RECOMENDADO!
+
             return true;
         }
 
-        public void ClearConnection()
-        {
-            try
-            {
-                Stream?.Dispose();
-                Stream = null;
-            }
-            catch { }
-
-            try
-            {
-                m_client?.Close();
-                m_client = null;
-            }
-            catch { }
-        }
-
-         
         public string getIP()
         {
 
@@ -212,22 +184,22 @@ namespace PangyaAPI.Network.PangyaSession
 
         public void @lock()
         {
-            //Monitor.Exit(m_cs);
+            Monitor.Enter(m_cs);
         }
         public void unlock()
         {
-            //Monitor.Exit(m_cs);
+            Monitor.Exit(m_cs);
         }
 
         // Usando para syncronizar outras coisas da Session, tipo pacotes
         public void lockSync()
         {
-            //Monitor.Exit(m_cs_lock_other);
+            Monitor.Enter(m_cs_lock_other);
         }
 
         public void unlockSync()
         {
-            //Monitor.Exit(m_cs_lock_other);
+            Monitor.Exit(m_cs_lock_other);
         }
 
         public virtual void requestSendBuffer(byte[] _buff, bool _raw = false)
@@ -251,61 +223,7 @@ namespace PangyaAPI.Network.PangyaSession
 
                     var payloadData = _raw ? _buff : Cipher.ServerEncrypt(_buff, m_key, 0);
 
-                    if (!m_client.Send(payloadData, (int)payloadData.Length))
-                    {
-                        @lock();
-                        setConnectedToSend(false);
-                        unlock();
-
-                        try
-                        {
-                            _Packet_Handle_Base.DisconnectSession(this);
-                        }
-                        catch (exception e)
-                        {
-                            _smp.message_pool.getInstance().push(new message("[threadpool::send_new][Error] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
-                        }
-                    }
-                    else
-                    {
-                        //new mode
-                        _Packet_Handle_Base.dispach_packet_sv_same_thread(this, _raw ? new packet(_buff, true) : new packet(_buff));
-                    }
-                }
-                else
-                {
-                    //m_buff_s.releaseWrite();
-                    return;
-                }
-            }
-            finally
-            {
-                // m_buff_s.unlock();
-            }
-        }
-
-        public virtual void requestSendClientBuffer(byte[] _buff, bool _raw = false)
-        {
-
-            if (_buff == null)
-            {
-                throw new exception("Error _buff is null. Session::requestSendBuffer()", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.SESSION,
-                    3, 0));
-            }
-            int _size = _buff.Length;
-            if (_size <= 0)
-            {
-                throw new exception("Error _size is less or equal the zero. Session::requestSendBuffer()", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.SESSION,
-                    4, 0));
-            }
-            try
-            {
-                if (isConnectedToSend())
-                {
-
-                    var payloadData = _raw ? _buff : Cipher.EncryptClient(_buff, m_key, 0);
-
-                    if (!m_client.Send(payloadData, (int)payloadData.Length))
+                    if (!m_sock.Send(payloadData, (int)payloadData.Length))
                     {
                         @lock();
                         setConnectedToSend(false);
@@ -348,7 +266,7 @@ namespace PangyaAPI.Network.PangyaSession
                 @lock();
 
                 // getConnectTime pode lançar exception
-                ret = getConnectTime() == 1/*m_connected && ()*/;//tem comparar com 1
+                ret = m_connected && (getConnectTime() >= 0);
 
                 unlock();
 
@@ -371,26 +289,27 @@ namespace PangyaAPI.Network.PangyaSession
 
         public int getConnectTime()
         {
-            if (m_client != null)
+            if (m_sock != null && m_sock.Connected && getState())
             {
-                if (m_client.IsClientConnected())
+                if (m_sock.Connected)
                 {
-                    return 1;//conectado
+                    return 1;
                 }
                 else
                 {
-                    return 0;//desconectado
+                    throw new exception("[Session::getConnectTime] erro ao pegar optsock SO_CONNECT_TIME.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.SESSION,
+                        50, 0));
                 }
             }
 
-            return -1;//desconhecido porem desconectado...
+            return -1;
         }
 
 
         public int usa()
         {
 
-            if (!m_client.Connected)
+            if (!isConnected())
             {
                 throw new exception("[Session::usa][error] nao pode usa porque o Session nao esta mais conectado.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.SESSION,
                     6, 0));
@@ -470,7 +389,7 @@ namespace PangyaAPI.Network.PangyaSession
                 @lock();
 
                 // getConnectTime pode lançar exception
-                ret = m_connected_to_send && (m_client.Connected);
+                ret = m_connected_to_send && (m_sock.Connected);
 
                 unlock();
             }
@@ -487,7 +406,7 @@ namespace PangyaAPI.Network.PangyaSession
 
         public void Disconnect()
         {
-            _Packet_Handle_Base?.DisconnectSession(this);
-        } 
+            _Packet_Handle_Base.DisconnectSession(this);
+        }
     }
 }

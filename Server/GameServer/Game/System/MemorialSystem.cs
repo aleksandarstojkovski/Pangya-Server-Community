@@ -11,7 +11,10 @@ using PangyaAPI.Utilities.Log;
 namespace Pangya_GameServer.Game.System
 {
     public class MemorialSystem
-    {    protected void initialize()
+    {
+
+        /*static*/
+        protected void initialize()
         {
 
             try
@@ -39,25 +42,18 @@ namespace Pangya_GameServer.Game.System
 
                             if (el.emptyFilter())
                             {
-                                ci = new ctx_coin_item_ex
-                                {
-                                    tipo = (int)el2.RareType,
-                                    _typeid = el2.ID,
-                                    probabilidade = el2.Probabilities,
-                                    gacha_number = (int)el2.gacha.Number,
-                                    qntd = 1
-                                };
-                                //if (el2.RareType == PangyaAPI.IFF.JP.Models.Flags.MemorialRareType.Super_Rare2)
-                                //{
-                                //    _smp.message_pool.getInstance().push(new message($"[MemorialSystem::Test] Raro->{(int)el2.RareType}, ID->{el2.ID} ", type_msg.CL_FILE_LOG_AND_CONSOLE));
-
-                                //}
+                                ci = new ctx_coin_item_ex();
+                                ci.tipo = (int)el2.RareType;
+                                ci._typeid = el2.ID;
+                                ci.probabilidade = el2.Probabilities;
+                                ci.gacha_number = (int)el2.gacha.Number;
+                                ci.qntd = 1;
 
                                 c.item.Add(ci);
                             }
                             else
                             {
-                                for (var i = 0; i < el2.filter.Length; ++i)
+                                for (var i = 0u; i < el2.filter.Length; ++i)
                                 {
                                     if (el.hasFilter(el2.filter[i]))
                                     {
@@ -67,10 +63,7 @@ namespace Pangya_GameServer.Game.System
                                         ci.probabilidade = el2.Probabilities;
                                         ci.gacha_number = (int)el2.gacha.Number;
                                         ci.qntd = 1;
-                                        //if (el2.RareType == PangyaAPI.IFF.JP.Models.Flags.MemorialRareType.Super_Rare2)
-                                        //{
-                                        //    _smp.message_pool.getInstance().push(new message($"[MemorialSystem::Test] Raro->{(int)el2.RareType}, ID->{el2.ID} ", type_msg.CL_FILE_LOG_AND_CONSOLE));
-                                        //}
+
                                         c.item.Add(ci);
 
                                         break;
@@ -117,11 +110,30 @@ namespace Pangya_GameServer.Game.System
 
             m_level = cmd_mli.getInfo();
 
+            //#ifdef DEBUG
+            if (!m_coin.Any() || !m_level.Any() || !(m_level.Count == MEMORIAL_LEVEL_MAX + 1) || !m_consolo_premio.Any())
+                _smp.message_pool.getInstance().push(new message("[MemorialSystem::initialize][Warning] Not Loaded", type_msg.CL_FILE_LOG_AND_CONSOLE));
+            //#else
+            //_smp::message_pool::getInstance().Push(new message("[MemorialSystem::initialize][Warning] Memorial System Not Loaded, type_msg.CL_ONLY_FILE_LOG));
+            //#endif // DEBUG
 
-            m_load = (m_coin.Any() && m_level.Any() && m_level.Count == MEMORIAL_LEVEL_MAX + 1 && m_consolo_premio.Any());  
+            // Carregado com sucesso
+            m_load = true;
+
+            //for (int a = 0; a < 30; a++)
+            //{
+            //    var c = findCoin(436208242);//test of perfomance 
+            //    var result = Test(c);
+
+            //    for (int i = 0; i < result.Count; i++)
+            //    {
+            //        Console.WriteLine("[MemorialSystem::initialize][Warning] Test->" + sIff.getInstance().GetItemName(result[i]._typeid));
+            //    }
+            //    Thread.Sleep(1000);
+            //}
         }
 
-        
+        /*static*/
         public bool isLoad()
         {
             // + 1 no MEMORIAL_LEVEL_MAX por que � do 0 a 24, da 25 Levels
@@ -130,16 +142,17 @@ namespace Pangya_GameServer.Game.System
             return isLoad;
         }
 
-        
+        /*static*/
         public void load()
-        { 
+        {
+
             if (isLoad())
                 clear();
 
             initialize();
         }
 
-        
+        /*static*/
         public ctx_coin findCoin(uint _typeid)
         {
             var it = m_coin.Find(_typeid);
@@ -151,7 +164,7 @@ namespace Pangya_GameServer.Game.System
             return null;
         }
 
-        
+        /*static*/
         protected void clear()
         {
 
@@ -173,7 +186,7 @@ namespace Pangya_GameServer.Game.System
             m_load = false;
         }
 
-        
+        /*static*/
         protected uint calculeMemorialLevel(uint _achievement_pontos)
         {
 
@@ -185,7 +198,7 @@ namespace Pangya_GameServer.Game.System
             var level = ((_achievement_pontos - 1) / 300);
 
             return level > MEMORIAL_LEVEL_MAX ? (uint)MEMORIAL_LEVEL_MAX : level;
-        }
+        }/*static*/
 
 
         public List<ctx_coin_item_ex> Test(ctx_coin _ctx_c)
@@ -238,7 +251,7 @@ namespace Pangya_GameServer.Game.System
             }
 
             // Pega limite de probabilidade e ajusta com o rate
-            ulong limit_prob = lottery.getLimitProbilidade();
+            ulong limit_prob = lottery.GetLimitProbilidade();
 
             // Pega quantidade de itens comuns disponíveis para este tipo de coin
             var count_item = m_consolo_premio.Values.Count(el => el.tipo == (_ctx_c.tipo == MEMORIAL_COIN_TYPE.MCT_PREMIUM ? 1 : 0));
@@ -275,7 +288,7 @@ namespace Pangya_GameServer.Game.System
             int count = 10;
             while (count > 0)
             {
-                var lc = lottery.spinRoleta(true);
+                var lc = lottery.SpinRoleta(true);
                 if (lc == null || lc.Value == null)
                     throw new exception("[MemorialSystem::drawCoin][Error] Falha ao sortear item.",
                         ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.MEMORIAL_SYSTEM, 5, 0));
@@ -301,7 +314,7 @@ namespace Pangya_GameServer.Game.System
             return v_item;
         }
 
-        
+        /*static*/
         public List<ctx_coin_item_ex> drawCoin(Player _session, ctx_coin _ctx_c)
         {
             if (!_session.getState()
@@ -347,10 +360,10 @@ namespace Pangya_GameServer.Game.System
                 switch (_ctx_c.tipo)
                 {
                     case MEMORIAL_COIN_TYPE.MCT_NORMAL:
-                        shouldAdd = true;//el.gacha_number < 0 || (uint)el.gacha_number <= m_level[level].gacha_number;
+                        shouldAdd = el.gacha_number < 0 || (uint)el.gacha_number <= m_level[level].gacha_number;
                         break;
                     case MEMORIAL_COIN_TYPE.MCT_PREMIUM:
-                        shouldAdd = true;//el.gacha_number < 0 || (uint)el.gacha_number <= m_level[MEMORIAL_LEVEL_MAX - 1].gacha_number;
+                        shouldAdd = el.gacha_number < 0 || (uint)el.gacha_number <= m_level[MEMORIAL_LEVEL_MAX - 1].gacha_number;
                         break;
                     case MEMORIAL_COIN_TYPE.MCT_SPECIAL:
                         shouldAdd = true;
@@ -370,12 +383,12 @@ namespace Pangya_GameServer.Game.System
             }
 
             // Pega limite de probabilidade e ajusta com o rate
-            ulong limit_prob = lottery.getLimitProbilidade();
+            ulong limit_prob = lottery.GetLimitProbilidade();
 
             // Pega quantidade de itens comuns disponíveis para este tipo de coin
             var count_item = m_consolo_premio.Values.Count(el => el.tipo == (_ctx_c.tipo == MEMORIAL_COIN_TYPE.MCT_PREMIUM ? 1 : 0));
 
-            // Calcula rate memorial
+            // Calcula rate memorial (exemplo seu)
             var rate_memorial = sgs.gs.getInstance().getInfo().rate.memorial_shop / 100.0f;
 
             if (_ctx_c.probabilidade > 0)
@@ -401,8 +414,11 @@ namespace Pangya_GameServer.Game.System
 
             Lottery.LotteryCtx lc = null;
             uint count = 1; // Qntd de pr�mios sorteados
-	
-            while (count > 0)
+
+            const int max_attempts = 50;
+            int attempts = 0;
+
+            while (count > 0 && attempts++ < max_attempts)
             {
                 if (!_session.getState() || !_session.isConnected())
                 {
@@ -410,7 +426,7 @@ namespace Pangya_GameServer.Game.System
                         ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.MEMORIAL_SYSTEM, 1, 0));
                 }
 
-                lc = lottery.spinRoleta(true);
+                lc = lottery.SpinRoleta(true);
 
                 if (lc == null || lc.Value == null)
                 {
@@ -425,8 +441,9 @@ namespace Pangya_GameServer.Game.System
 
                     foreach (var el in csi.item)
                     {
-                        // Contianua que o player j� tem esse item, e n�o pode ter duplicatas dele 
-                        if ((!sIff.getInstance().IsCanOverlapped(el._typeid, true) || sIff.getInstance().getItemGroupIdentify(el._typeid) == PangyaAPI.IFF.JP.Models.Flags.IFF_GROUP.CAD_ITEM) && !_session.m_pi.ownerItem(el._typeid))
+                        // Contianua que o player j� tem esse item, e n�o pode ter duplicatas dele
+
+                        if ((!sIff.getInstance().IsCanOverlapped(el._typeid, true) || sIff.getInstance().getItemGroupIdentify(el._typeid) == sIff.getInstance().CAD_ITEM) && !_session.m_pi.ownerItem(el._typeid))
                             continue;
 
                         v_item.Add(el);
@@ -438,7 +455,7 @@ namespace Pangya_GameServer.Game.System
                     ci = (ctx_coin_item_ex)lc.Value;
 
                     if ((!sIff.getInstance().IsCanOverlapped(ci._typeid, true) ||
-                         sIff.getInstance().getItemGroupIdentify(ci._typeid) == PangyaAPI.IFF.JP.Models.Flags.IFF_GROUP.CAD_ITEM)
+                         sIff.getInstance().getItemGroupIdentify(ci._typeid) == sIff.getInstance().CAD_ITEM)
                         && _session.m_pi.ownerItem(ci._typeid))
                     {
                         continue; // Item não elegível, tenta novamente
@@ -452,7 +469,7 @@ namespace Pangya_GameServer.Game.System
 
             if (v_item.Count == 0)
             {
-                throw new exception("[MemorialSystem::drawCoin][Error] não conseguiu sortear item elegível.",
+                throw new exception("[MemorialSystem::drawCoin][Error] não conseguiu sortear item elegível após " + max_attempts + " tentativas.",
                     ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.MEMORIAL_SYSTEM, 5, 2));
             }
 
@@ -466,7 +483,7 @@ namespace Pangya_GameServer.Game.System
 
         uint MEMORIAL_LEVEL_MAX = 24;
 
-        
+        /*static*/
         private bool m_load = false;
     }
 

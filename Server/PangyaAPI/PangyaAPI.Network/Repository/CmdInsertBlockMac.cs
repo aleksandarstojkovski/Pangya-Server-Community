@@ -22,7 +22,7 @@ namespace PangyaAPI.Network.Repository
             if (string.IsNullOrEmpty(m_mac_address))
                 throw new Exception("[CmdInsertBlockMAC::prepareConsulta][Error] m_mac_address is empty.");
 
-            var r = procedure("pangya.ProcInsertBlockMAC", makeText(m_mac_address));
+            var r = procedure("pangya.ProcInsertBlockMAC", m_mac_address);
 
             checkResponse(r, "nao conseguiu inserir o MAC ADDRESS[" + m_mac_address + "] para a lista de MAC bloqueado");
             return r;

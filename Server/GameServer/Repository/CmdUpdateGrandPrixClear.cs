@@ -8,7 +8,7 @@ namespace Pangya_GameServer.Repository
     {
         public CmdUpdateGrandPrixClear()
         {
-            this.m_uid = 0;
+            this.m_uid = 0u;
             this.m_gpc = new GrandPrixClear();
         }
 

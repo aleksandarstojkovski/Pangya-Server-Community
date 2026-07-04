@@ -21,13 +21,12 @@ namespace Pangya_GameServer.Repository
 
             checkColumnNumber(5, _result.cols);
 
-            mission_approach_dados mad = new mission_approach_dados
-            {
-                numero = IFNULL(_result.data[0]),
-                tipo = (eMISSION_TYPE)(IFNULL(_result.data[1])),
-                reward_tipo = IFNULL(_result.data[2]),
-                box = IFNULL(_result.data[3])
-            };
+            mission_approach_dados mad = new mission_approach_dados();
+
+            mad.numero = IFNULL(_result.data[0]);
+            mad.tipo = (eMISSION_TYPE)(IFNULL(_result.data[1]));
+            mad.reward_tipo = IFNULL(_result.data[2]);
+            mad.box = IFNULL(_result.data[3]);
             mad.flag.flag = IFNULL(_result.data[4]);
 
             m_missions.Add(mad);

@@ -44,7 +44,8 @@ namespace Pangya_GameServer.Repository
                 Convert.ToString(m_ci.target) + ", " +
                 Convert.ToString(m_ci.flag) + ", " +
                 Convert.ToString((ushort)m_ci.valid) + ", " + reserveDate);
-            var r = procedure(m_szConsulta,
+            var r = procedure(
+                m_szConsulta,
                 _params);
 
             checkResponse(r, "nao conseguiu adicionar o Comando[" + m_ci.ToString() + "]");

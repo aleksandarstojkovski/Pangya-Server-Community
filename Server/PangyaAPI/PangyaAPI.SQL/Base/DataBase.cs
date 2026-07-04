@@ -4,7 +4,6 @@ using System;
 using System.Data;
 using System.Data.SqlClient;
 using response = PangyaAPI.SQL.Response;
-using System.Runtime.InteropServices;
 
 namespace PangyaAPI.SQL
 {
@@ -46,7 +45,7 @@ namespace PangyaAPI.SQL
         /// <returns></returns>    
         public void init()
         {
-
+ 
             if (m_ctx_db == null || string.IsNullOrEmpty(m_ctx_db.engine))
                 throw new ArgumentNullException(nameof(m_ctx_db), "ctx_db ou engine não informado");
 
@@ -55,7 +54,7 @@ namespace PangyaAPI.SQL
                 case "MSSQL":
                 case "SQLSERVER":
                     {
-                        m_ctx_db._mssql = new ctx_db._MSSQL();
+                        m_ctx_db._mssql = new ctx_db.SQL();
                     }
                     break;
                 case "MYSQL":
@@ -73,7 +72,7 @@ namespace PangyaAPI.SQL
                     throw new NotSupportedException($"Engine '{m_ctx_db.engine}' não suportada");
             }
             m_state = true;
-        } 
+        }
 
         public bool is_connected()
         {
@@ -87,10 +86,9 @@ namespace PangyaAPI.SQL
         public abstract void disconnect();
 
         public abstract response ExecQuery(string _query);
-        public abstract response ExecProc(string _proc_name, string values = null);
-        public abstract response ExecQueryWithParams(string _proc_name, string values = null/*, SqlDbType[] tipo = null, object[] valor = null, ParameterDirection Direcao = ParameterDirection.Input*/);
-        public abstract response ExecProcWithParams(string _proc_name, string values = null/*, SqlDbType[] tipo = null, object[] valor = null, ParameterDirection Direcao = ParameterDirection.Input*/);
-        public abstract response ExecProcWithParams(string _proc_name, object[] values = null/*, SqlDbType[] tipo = null, object[] valor = null, ParameterDirection Direcao = ParameterDirection.Input*/);
+        public abstract response ExecProc(string _proc_name, string valor = null);
+        public abstract response ExecQueryWithParams(string _proc_name, string[] parameter = null, SqlDbType[] tipo = null, object[] valor = null, ParameterDirection Direcao = ParameterDirection.Input);
+        public abstract response ExecProcWithParams(string _proc_name, string[] parameter = null, SqlDbType[] tipo = null, object[] valor = null, ParameterDirection Direcao = ParameterDirection.Input); 
         public abstract string makeEscapeKeyword(string _value);
 
         public bool m_error = false;

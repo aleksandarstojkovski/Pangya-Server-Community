@@ -60,7 +60,7 @@ namespace Pangya_GameServer.Repository
 
             if (course != m_course)
             {
-                throw new exception("[CmdCoinCubeLocationInfo::lineResult][Error] course retornado é diferento do requisitado[REQ=" + Convert.ToString((byte)m_course) + ", RET=" + Convert.ToString(course) + "].", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PANGYA_DB,
+                throw new exception("[CmdCoinCubeLocationInfo::lineResult][Error] course retornado eh diferento do requisitado[REQ=" + Convert.ToString((byte)m_course) + ", RET=" + Convert.ToString(course) + "].", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PANGYA_DB,
                     3, 0));
             }
 
@@ -99,7 +99,7 @@ namespace Pangya_GameServer.Repository
                 m_coin_cube.Clear();
             }
 
-            var r = consulta($"SELECT {makeEscapeKeyword("index")}, course, hole, tipo, tipo_location, rate, x, y, z FROM pangya.pangya_coin_cube_location WHERE course = {m_course} ORDER BY course, hole");
+            var r = consulta($"SELECT [index], course, hole, tipo, tipo_location, rate, x, y, z FROM pangya.pangya_coin_cube_location WHERE course = {m_course} ORDER BY course, hole");
 
             checkResponse(r, "nao conseguiu pegar os coin, cube do course[ID=" + Convert.ToString((ushort)m_course) + "]");
 

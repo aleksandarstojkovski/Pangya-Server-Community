@@ -4,9 +4,8 @@ using Pangya_GameServer.Game.Manager;
 using Pangya_GameServer.Game.System;
 using Pangya_GameServer.PacketFunc;
 using Pangya_GameServer.PangyaEnums;
-using PangyaAPI.Utilities.Models;
+using PangyaAPI.Utilities.BinaryModels;
 using PangyaAPI.Utilities.Log;
-using PangyaAPI.Network.Repository;
 
 namespace Pangya_GameServer.Game
 {
@@ -63,14 +62,12 @@ namespace Pangya_GameServer.Game
                 var pi = m_session.m_pi;
 
                 //// Check All Character All Item Equiped is on Warehouse Item of Player
-                lock (pi.mp_ce)
+                foreach (var el in pi.mp_ce)
                 {
-                    foreach (var el in pi.mp_ce)
-                    {
-                        // Check Parts of Character e Check Aux Part of Character
-                        m_session.checkCharacterAllItemEquiped(el.Value);
-                    } 
+                    // Check Parts of Character e Check Aux Part of Character
+                    m_session.checkCharacterAllItemEquiped(el.Value);
                 }
+
                 // Check All Item Equiped
                 m_session.checkAllItemEquiped(pi.ue);
 
@@ -102,10 +99,9 @@ namespace Pangya_GameServer.Game
                 //call messenger server
                 packet_func.session_send(packet_func.pacote0F1(), m_session);
 
-                packet_func.session_send(packet_func.pacote135(), m_session);
-
                 packet_func.session_send(packet_func.pacote144(), m_session);        // Pacote novo do JP
 
+                packet_func.session_send(packet_func.pacote135(), m_session);
                 packet_func.session_send(packet_func.pacote138(pi.v_card_info), m_session);
 
                 packet_func.session_send(packet_func.pacote136(), m_session);
@@ -122,7 +118,14 @@ namespace Pangya_GameServer.Game
                 packet_func.session_send(packet_func.pacote158(pi.uid, pi.ui, 0), m_session);
                 //// Total de season, 5 atual season  
                 packet_func.session_send(packet_func.pacote25D(pi.v_tgp_current_season, 5/*season atual*/), m_session);
-                packet_func.session_send(packet_func.pacote25D(pi.v_tgp_rest_season, 0), m_session); 
+                packet_func.session_send(packet_func.pacote25D(pi.v_tgp_rest_season, 0), m_session);
+
+                p.init_plain(0x1B1);
+                p.WriteUInt64(0x190132DC55);
+                p.WriteUInt64(0x2211000000);
+                p.WriteZeroByte(13);
+                p.WriteUInt32(0x1100);
+                packet_func.session_send(p, m_session, 1);
 
                 if (sgs.gs.getInstance().getInfo().rate.login_reward_event == 1)
                     sLoginRewardSystem.getInstance().checkRewardLoginAndSend(m_session);
@@ -140,7 +143,7 @@ namespace Pangya_GameServer.Game
         {
             var p = new PangyaBinaryWriter(0x44);
             p.WriteByte(eLoginAck.ACK_UPDATE_LOGIN_UNIT);
-            p.WriteInt32(msg_id);
+            p.WriteInt32((int)msg_id);
             packet_func.session_send(p, m_session, 1);
         }
 

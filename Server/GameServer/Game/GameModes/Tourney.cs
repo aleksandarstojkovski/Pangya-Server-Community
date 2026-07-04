@@ -1,20 +1,19 @@
-﻿using Pangya_GameServer.Game.Base;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using Pangya_GameServer.Repository;
+using Pangya_GameServer.Game.Base;
 using Pangya_GameServer.Game.Manager;
 using Pangya_GameServer.Game.System;
 using Pangya_GameServer.Models;
 using Pangya_GameServer.PacketFunc;
 using Pangya_GameServer.PangyaEnums;
-using Pangya_GameServer.Repository;
 using Pangya_GameServer.UTIL;
 using PangyaAPI.IFF.JP.Extensions;
 using PangyaAPI.Network.PangyaPacket;
 using PangyaAPI.Utilities;
-using PangyaAPI.Utilities.Models;
+using PangyaAPI.Utilities.BinaryModels;
 using PangyaAPI.Utilities.Log;
-using snmdb;
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using static Pangya_GameServer.Models.DefineConstants;
 namespace Pangya_GameServer.Game.GameModes
 {
@@ -37,11 +36,11 @@ namespace Pangya_GameServer.Game.GameModes
             }
 
 
-            var course = sTreasureHunterSystem.getInstance().findCourse((byte)(m_ri.course & RoomInfo.ROOM_INFO_COURSE.UNK));
+            var course = sTreasureHunterSystem.getInstance().findCourse((byte)(m_ri.course & RoomInfo.eCOURSE.UNK));
 
             if (course == null)
             {
-                _smp.message_pool.getInstance().push(new message("[Tourney::Tourney][Error] tentou pegar o course do Treasure Hunter System, mas o course[COURSE=" + Convert.ToString((ushort)((byte)(m_ri.course & RoomInfo.ROOM_INFO_COURSE.UNK))) + "] nao existe no sistema", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                _smp.message_pool.getInstance().push(new message("[Tourney::Tourney][Error] tentou pegar o course do Treasure Hunter System, mas o course[COURSE=" + Convert.ToString((ushort)((byte)(m_ri.course & RoomInfo.eCOURSE.UNK))) + "] nao existe no sistema", type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
             else
             {
@@ -67,34 +66,36 @@ namespace Pangya_GameServer.Game.GameModes
             m_state = init_game();
         }
 
-        public override void Dispose(bool disposing)
+        protected override void Dispose(bool disposing)
         {
             if (disposing)
             {
-                LogDestruction();
-                deleteAllPlayer();
+                base.Dispose(disposing);
+
+                _smp.message_pool.getInstance().push(new message("[Tourney::~Tourney][Log] Practice destroyed on Room[Number=" + (m_ri.numero) + "]", 0));
+
             }
-            base.Dispose(true);
         }
-
-        ~Tourney()
-        {
-            Dispose(false);
-        }
-
         public override bool deletePlayer(Player _session, int _option)
         {
 
             if (_session == null)
             {
-                throw new exception("[Tourney::deletePlayer][Error] tentou deletar um player, mas o seu endereco é null.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.TOURNEY,
+                throw new exception("[Tourney::deletePlayer][Error] tentou deletar um player, mas o seu endereco eh null.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.TOURNEY,
                     50, 0));
             }
 
             bool ret = false;
 
             try
-            { 
+            {
+
+#if _WIN32
+			Monitor.Enter(m_cs);
+#elif __linux__
+			pthread_mutex_lock(m_cs);
+#endif
+
                 var it = m_players.FirstOrDefault(c => c == _session);
 
                 if (it != null)
@@ -119,7 +120,7 @@ namespace Pangya_GameServer.Game.GameModes
 
                             requestSaveInfo(it, (_option == 0x800) ? 5 : 1); // Quitou ou tomou DC
 
-                            //pgi->type = PlayerGameInfo::eFLAG_GAME::QUIT;
+                            //pgi->flag = PlayerGameInfo::eFLAG_GAME::QUIT;
                             setGameFlag(pgi, PlayerGameInfo.eFLAG_GAME.QUIT);
 
                             // Resposta Player saiu do Jogo, tira ele do list de score
@@ -174,33 +175,36 @@ namespace Pangya_GameServer.Game.GameModes
                 else
                 {
                     _smp.message_pool.getInstance().push(new message("[Tourney::deletePlayer][Warning] player ja foi excluido do game.", type_msg.CL_FILE_LOG_AND_CONSOLE));
-                } 
+                }
+
+#if _WIN32
+			Monitor.Exit(m_cs);
+#elif __linux__
+			pthread_mutex_unlock(m_cs);
+#endif
 
             }
             catch (exception e)
             {
 
                 _smp.message_pool.getInstance().push(new message("[Tourney::deletePlayer][Error] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
-                 
+
+                // Libera Critical Section
+#if _WIN32
+			Monitor.Exit(m_cs);
+#elif __linux__
+			pthread_mutex_unlock(m_cs);
+#endif
             }
 
             return ret;
         }
-
-        public void deleteAllPlayer()
+        public virtual void deleteAllPlayer()
         {
-            // Percorre de trás para frente
-            for (int i = m_players.Count - 1; i >= 0; i--)
+
+            while (!m_players.empty())
             {
-                var player = m_players[i];
-                if (player != null)
-                {
-                    var pgi = getPlayerInfo(player);
-                    if (pgi != null)
-                    {
-                        deletePlayer(player, 0);
-                    }
-                }
+                deletePlayer(m_players.First(), 0);
             }
         }
         public override bool requestFinishLoadHole(Player _session, packet _packet)
@@ -223,7 +227,7 @@ namespace Pangya_GameServer.Game.GameModes
                 // Come  o o tempo de 5 ou 10min para entra no camp se n o tiver senha
                 if (m_entra_depois_flag != 1
                     && m_ri.senha_flag == 1
-                    && ((byte)(m_ri.course & RoomInfo.ROOM_INFO_COURSE.UNK)) != (byte)RoomInfo.ROOM_INFO_TYPE.SPECIAL_SHUFFLE_COURSE)
+                    && ((byte)(m_ri.course & RoomInfo.eCOURSE.UNK)) != (byte)RoomInfo.TIPO.SPECIAL_SHUFFLE_COURSE)
                 {
 
                     // S  libera se for Tourney Normal, se for GM Event N o libera
@@ -270,11 +274,12 @@ namespace Pangya_GameServer.Game.GameModes
             {
                 requestFinishHole(_session, 0);
 
+                UpdateRoomLogSql(_session);
+
                 requestUpdateItemUsedGame(_session);
             }
         }
-        
-public void finish_tourney(Player _session, int _option)
+        public void finish_tourney(Player _session, int _option)
         {
 
             if (m_players.Count() > 0 && m_game_init_state == 1)
@@ -325,7 +330,7 @@ public void finish_tourney(Player _session, int _option)
                     }
                 }
 
-                //pgi->type = (_option == 0) ? PlayerGameInfo::eFLAG_GAME::FINISH : PlayerGameInfo::eFLAG_GAME::END_GAME;
+                //pgi->flag = (_option == 0) ? PlayerGameInfo::eFLAG_GAME::FINISH : PlayerGameInfo::eFLAG_GAME::END_GAME;
                 setGameFlag(pgi, (_option == 0) ? PlayerGameInfo.eFLAG_GAME.FINISH : PlayerGameInfo.eFLAG_GAME.END_GAME);
 
                 pgi.time_finish.CreateTime();
@@ -344,8 +349,72 @@ public void finish_tourney(Player _session, int _option)
 
             try
             {
+
+                UserInfoEx ui = new UserInfoEx();
                 #region Read Packet
-                UserInfoEx ui = new UserInfoEx().ToRead(p);
+
+                ui.tacada = p.ReadInt32();
+                ui.putt = p.ReadInt32();
+                ui.tempo = p.ReadInt32();
+                ui.tempo_tacada = p.ReadInt32();
+                ui.best_drive = p.ReadSingle();
+                ui.acerto_pangya = p.ReadInt32();
+                ui.timeout = p.ReadInt32();
+                ui.ob = p.ReadInt32();
+                ui.total_distancia = p.ReadInt32();
+                ui.hole = p.ReadInt32();
+                ui.hole_in = p.ReadInt32();
+                ui.hio = p.ReadInt32();
+                ui.bunker = p.ReadInt16();
+                ui.fairway = p.ReadInt32();
+                ui.albatross = p.ReadInt32();
+                ui.mad_conduta = p.ReadInt32();
+                ui.putt_in = p.ReadInt32();
+                ui.best_long_putt = p.ReadSingle();
+                ui.best_chip_in = p.ReadSingle();
+                ui.exp = p.ReadUInt32();
+                ui.level = p.ReadByte();
+                ui.pang = p.ReadUInt64();
+                ui.media_score = p.ReadInt32();
+                ui.best_score = p.ReadBytes(5);
+                ui.event_flag = p.ReadByte();
+                ui.best_pang = new long[5];
+                for (int i = 0; i < 5; i++)
+                    ui.best_pang[i] = p.ReadInt64();
+                ui.sum_pang = p.ReadInt64();
+                ui.jogado = p.ReadInt32();
+                ui.team_hole = p.ReadInt32();
+                ui.team_win = p.ReadInt32();
+                ui.team_game = p.ReadInt32();
+                ui.ladder_point = p.ReadInt32();
+                ui.ladder_hole = p.ReadInt32();
+                ui.ladder_win = p.ReadInt32();
+                ui.ladder_lose = p.ReadInt32();
+                ui.ladder_draw = p.ReadInt32();
+                ui.combo = p.ReadInt32();
+                ui.all_combo = p.ReadInt32();
+                ui.quitado = p.ReadInt32();
+                ui.skin_pang = p.ReadInt64();
+                ui.skin_win = p.ReadInt32();
+                ui.skin_lose = p.ReadInt32();
+                ui.skin_all_in_count = p.ReadInt32();
+                ui.skin_run_hole = p.ReadInt32();
+                ui.skin_strike_point = p.ReadInt32();
+                ui.jogados_disconnect = p.ReadInt32();
+                ui.event_value = p.ReadInt16();
+                ui.disconnect = p.ReadInt32();
+                ui.medal = new stMedal
+                {
+                    lucky = p.ReadInt32(),
+                    fast = p.ReadInt32(),
+                    best_drive = p.ReadInt32(),
+                    best_chipin = p.ReadInt32(),
+                    best_puttin = p.ReadInt32(),
+                    best_recovery = p.ReadInt32(),
+                };
+                ui.sys_school_serie = p.ReadInt32();
+                ui.game_count_season = p.ReadInt32();
+                ui._16bit_nao_sei = p.ReadInt16();
                 #endregion
                 // aqui o cliente passa mad_conduta com o hole_in, trocados, mad_conduto <-> hole_in
 
@@ -431,15 +500,24 @@ public void finish_tourney(Player _session, int _option)
         }
 
         public override void requestStartAfterEnter(Action action)
-        { 
-            uint milliseconds = 0;
+        {
+
+            // Aqui come�a o tempo que os outros player pode entrar se a sala n�o for private
+            // Come��o o tempo de 5 ou 10min para entra no camp se n�o tiver senha
+
+            uint milliseconds = 0u;
 
             if (m_ri.qntd_hole == 18)
                 milliseconds = 10 * 60000; // 10min
             else if (m_ri.qntd_hole == 9)
                 milliseconds = 5 * 60000; // 5min 
 
-            m_pTimer_after_enter = sgs.gs.getInstance().MakeTime(milliseconds, () => action()); 
+            m_pTimer_after_enter = sgs.gs.getInstance().MakeTime(milliseconds, () => action());
+
+
+#if DEBUG
+            _smp.message_pool.getInstance().push(new message("[Tourney::requestStartAfterEnter][Log] Criou o Timer[Tempo=" + Convert.ToString((milliseconds > 0) ? milliseconds / 60000 : 0) + "min, STATE=" + Convert.ToString(m_timer.getState()) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
+#endif // DEBUG
         }
 
         public override void requestEndAfterEnter()
@@ -457,7 +535,11 @@ public void finish_tourney(Player _session, int _option)
             p.WriteByte((byte)m_player_info.Count());
 
             packet_func.game_broadcast(this,
-                p, 1); 
+                p, 1);
+
+#if DEBUG
+            _smp.message_pool.getInstance().push(new message("[Tourney::requestEndAfterEnter][Log] Tempo Acabou (After Enter) no Tourney. na sala[NUMERO=" + Convert.ToString(m_ri.numero) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
+#endif // DEBUG
         }
 
         public override void timeIsOver()
@@ -482,10 +564,15 @@ public void finish_tourney(Player _session, int _option)
                         sendTimeIsOver(_session);
                     }
                 }
+
+#if DEBUG
+                _smp.message_pool.getInstance().push(new message("[Tourney::timeIsOver][Log] Tempo Acabou no Tourney. na sala[NUMERO=" + Convert.ToString(m_ri.numero) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
+#endif // DEBUG
+
             }
         }
 
-        public override bool init_game()
+        protected override bool init_game()
         {
 
             if (m_players.Count() > 0)
@@ -537,25 +624,8 @@ public void finish_tourney(Player _session, int _option)
                 int exp = 0;
                 int hole_seq = 0;
 
-
                 for (var i = 0; i < m_player_order.Count(); ++i)
                 {
-
-// Exp padr�o de hole do Grand Prix
-				switch (m_ri.qntd_hole)
-				{
-				case 9:
-					exp = 4;
-					break;
-				case 18:
-					exp = 6;
-					break;
-				default:
-					exp = 1;
-					break;
-				}
-				
-								exp = (int)(exp * stars);
 
                     hole_seq = (int)m_course.findHoleSeq(m_player_order[i].hole);
 
@@ -577,18 +647,20 @@ public void finish_tourney(Player _session, int _option)
 
                             if (m_player_order[i].level < 70)
                             {
-                                m_player_order[i].data.exp = exp;
+                                m_player_order[i].data.exp = (uint)exp;
                             }
                         }
 
                     }
                     else if (m_player_order[i].flag == PlayerGameInfo.eFLAG_GAME.TICKET_REPORT)
                     {
+
                         exp = (int)(1 * m_player_order.Count() * (hole_seq > 0 ? hole_seq : 0) * stars);
                         exp = (int)(exp * TRANSF_SERVER_RATE_VALUE(m_player_order[i].used_item.rate.exp) * TRANSF_SERVER_RATE_VALUE(m_rv.exp));
                         exp = (int)(exp * (1 - (i / m_player_info.Count())));
 
-                        m_player_order[i].data.exp = exp;
+                        m_player_order[i].data.exp = (uint)exp;
+
                     }
                     else if (m_player_order[i].flag == PlayerGameInfo.eFLAG_GAME.END_GAME)
                     {
@@ -602,10 +674,13 @@ public void finish_tourney(Player _session, int _option)
 
                             if (m_player_order[i].level < 70)
                             {
-                                m_player_order[i].data.exp = exp;
+                                m_player_order[i].data.exp = (uint)exp;
                             }
                         }
                     }
+
+                    _smp.message_pool.getInstance().push(new message("[Tourney::requestFinishExpGame][Log] PLAYER[UID=" + Convert.ToString(m_player_order[i].uid) + "] ganhou " + Convert.ToString(m_player_order[i].data.exp) + " de experience.", type_msg.CL_FILE_LOG_AND_CONSOLE));
+
                 }
             }
         }
@@ -664,7 +739,7 @@ public void finish_tourney(Player _session, int _option)
                 PlayerGameInfo pgi = null;
 
                 // Active Item que o player ganha
-                for (var i = 0; i < 15u; ++i)
+                for (var i = 0u; i < 15u; ++i)
                 {
                     lot_active_item.Push(200, (sIff.getInstance().ITEM << 26) + i);
                 }
@@ -682,7 +757,7 @@ public void finish_tourney(Player _session, int _option)
                 }
 
                 // 1 Medalha da sorte
-                var ctx = lottery.spinRoleta();
+                var ctx = lottery.SpinRoleta();
 
                 if (ctx == null)
                 {
@@ -694,7 +769,7 @@ public void finish_tourney(Player _session, int _option)
 
                     m_medal[0].oid = (int)pgi.oid;
 
-                    if ((ctx_lot = lot_active_item.spinRoleta()) == null)
+                    if ((ctx_lot = lot_active_item.SpinRoleta()) == null)
                     {
                         _smp.message_pool.getInstance().push(new message("[Tourney::requestMakeMedal][Error] nao conseguiu sortear um active commun item da medalha da sorte", type_msg.CL_FILE_LOG_AND_CONSOLE));
                     }
@@ -713,7 +788,7 @@ public void finish_tourney(Player _session, int _option)
 
                 m_medal[1].oid = (int)pgi.oid;
 
-                if ((ctx_lot = lot_active_item.spinRoleta()) == null)
+                if ((ctx_lot = lot_active_item.SpinRoleta()) == null)
                 {
                     _smp.message_pool.getInstance().push(new message("[Tourney::requestMakeMedal][Error] nao conseguiu sortear um active commun item da medalha de speediest", type_msg.CL_FILE_LOG_AND_CONSOLE));
                 }
@@ -731,7 +806,7 @@ public void finish_tourney(Player _session, int _option)
 
                 m_medal[2].oid = (int)pgi.oid;
 
-                if ((ctx_lot = lot_active_item.spinRoleta()) == null)
+                if ((ctx_lot = lot_active_item.SpinRoleta()) == null)
                 {
                     _smp.message_pool.getInstance().push(new message("[Tourney::requestMakeMedal][Error] nao conseguiu sortear um active commun item da medalha de best drive", type_msg.CL_FILE_LOG_AND_CONSOLE));
                 }
@@ -749,7 +824,7 @@ public void finish_tourney(Player _session, int _option)
 
                 m_medal[3].oid = (int)pgi.oid;
 
-                if ((ctx_lot = lot_active_item.spinRoleta()) == null)
+                if ((ctx_lot = lot_active_item.SpinRoleta()) == null)
                 {
                     _smp.message_pool.getInstance().push(new message("[Tourney::requestMakeMedal][Error] nao conseguiu sortear um active commun item da medalha de best chipin", type_msg.CL_FILE_LOG_AND_CONSOLE));
                 }
@@ -767,7 +842,7 @@ public void finish_tourney(Player _session, int _option)
 
                 m_medal[4].oid = (int)pgi.oid;
 
-                if ((ctx_lot = lot_active_item.spinRoleta()) == null)
+                if ((ctx_lot = lot_active_item.SpinRoleta()) == null)
                 {
                     _smp.message_pool.getInstance().push(new message("[Tourney::requestMakeMedal][Error] nao conseguiu sortear um active commun item da medalha de best long puttin", type_msg.CL_FILE_LOG_AND_CONSOLE));
                 }
@@ -787,7 +862,7 @@ public void finish_tourney(Player _session, int _option)
 
                     m_medal[5].oid = (int)pgi.oid;
 
-                    if ((ctx_lot = lot_active_item.spinRoleta()) == null)
+                    if ((ctx_lot = lot_active_item.SpinRoleta()) == null)
                     {
                         _smp.message_pool.getInstance().push(new message("[Tourney::requestMakeMedal][Error] nao conseguiu sortear um active commun item da medalha de best recovery", type_msg.CL_FILE_LOG_AND_CONSOLE));
                     }
@@ -915,7 +990,7 @@ public void finish_tourney(Player _session, int _option)
 
                         m_medal[i].oid = (int)trofeus[i - 6].oid;
 
-                        if ((ctx = lottery.spinRoleta()) == null)
+                        if ((ctx = lottery.SpinRoleta()) == null)
                         {
                             _smp.message_pool.getInstance().push(new message("[Tourney::requestMakeTrofel][Error] nao conseguiu sortear um active commun item do trofel", type_msg.CL_FILE_LOG_AND_CONSOLE));
                         }
@@ -981,7 +1056,7 @@ public void finish_tourney(Player _session, int _option)
 
                         m_medal[i].oid = (int)trofeus[i - 6].oid;
 
-                        if ((ctx = lottery.spinRoleta()) == null)
+                        if ((ctx = lottery.SpinRoleta()) == null)
                         {
                             _smp.message_pool.getInstance().push(new message("[Tourney::requestMakeTrofel][Error] nao conseguiu sortear um active commun item do trofel", type_msg.CL_FILE_LOG_AND_CONSOLE));
                         }
@@ -1260,7 +1335,7 @@ public void finish_tourney(Player _session, int _option)
                     {
 
                         var rai = ItemManager.addItem(el.Value,
-                            _session.getUID(), 0, 0);
+                            _session, 0, 0);
 
                         if (rai.fails.Count() > 0 && rai.type != ItemManager.RetAddItem.T_SUCCESS_PANG_AND_EXP_AND_CP_POUCH)
                         {
@@ -1398,11 +1473,11 @@ public void finish_tourney(Player _session, int _option)
                             MapSystem.getInstance().load();
                         }
 
-                        var map = MapSystem.getInstance().getMap((byte)(m_ri.course & RoomInfo.ROOM_INFO_COURSE.UNK));
+                        var map = MapSystem.getInstance().getMap((byte)(m_ri.course & RoomInfo.eCOURSE.UNK));
 
                         if (map == null)
                         {
-                            _smp.message_pool.getInstance().push(new message("[TourneyBase::checkEndShotOfHole][Error][Warning] tentou pegar o Map dados estaticos do course[COURSE=" + Convert.ToString((ushort)((byte)(m_ri.course & RoomInfo.ROOM_INFO_COURSE.UNK))) + "], mas nao conseguiu encontra na classe do Server.", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                            _smp.message_pool.getInstance().push(new message("[TourneyBase::checkEndShotOfHole][Error][Warning] tentou pegar o Map dados estaticos do course[COURSE=" + Convert.ToString((ushort)((byte)(m_ri.course & RoomInfo.eCOURSE.UNK))) + "], mas nao conseguiu encontra na classe do Server.", type_msg.CL_FILE_LOG_AND_CONSOLE));
                         }
                         else
                         {
@@ -1427,7 +1502,7 @@ public void finish_tourney(Player _session, int _option)
             {
 
                 // S  calcula se n o for short game
-                if (!(m_ri.special_flag_mod.short_game))
+                if (!(m_ri.natural.short_game == 1))
                 {
                     calcule_shot_to_spinning_cube(_session, _ssd);
                 }
@@ -1448,7 +1523,7 @@ public void finish_tourney(Player _session, int _option)
             {
 
                 // S  calcula se n o for short game
-                if (!(m_ri.special_flag_mod.short_game))
+                if (!(m_ri.natural.short_game == 1))
                 {
                     calcule_shot_to_coin(_session, _ssd);
                 }

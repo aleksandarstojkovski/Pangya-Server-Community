@@ -1,6 +1,19 @@
 ﻿using PangyaAPI.SQL;
- 
-namespace Pangya_AuthServer.Repository
+
+// Arquivo cmd_update_guild_ranking.cpp
+// Criado em 29/12/2019 as 15:47 por Acrisio
+// Implementa��o da classe CmdUpdateGuildRanking
+
+
+
+// Arquivo cmd_update_guild_ranking.hpp
+// Criado em 29/12/2019 as 15:43 por Acrisio
+// Defini��o da classe CmdUpdateGuildRanking
+
+
+
+
+namespace AuthServer.Repository
 {
 	public class CmdUpdateGuildRanking : Pangya_DB
 	{

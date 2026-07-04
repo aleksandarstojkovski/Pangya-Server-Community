@@ -50,7 +50,8 @@ namespace Pangya_GameServer.Repository
                     4, 0));
             }
 
-            var r = procedure(m_szConsulta,
+            var r = procedure(
+                m_szConsulta,
                 Convert.ToString(m_uid) + ", " + Convert.ToString(m_ci.id) + ", " + Convert.ToString(m_ci._typeid) + ", " + Convert.ToString((ushort)m_gift_flag) + ", " + Convert.ToString((ushort)m_purchase) + ", " + Convert.ToString((ushort)m_ci.rent_flag) + ", " + Convert.ToString(m_ci.end_date_unix));
 
             checkResponse(r, "nao conseguiu adicionar o caddie[TYPEID=" + Convert.ToString(m_ci._typeid) + "] para o player: " + Convert.ToString(m_uid));

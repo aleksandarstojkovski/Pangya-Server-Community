@@ -11,18 +11,18 @@ namespace Pangya_GameServer.Models
         {
             m_uid = 0;
 
-            visible = 0;   /*Deixa o GM invis�vel, depois ele fica vis�vel se ele quiser com o comando*/
-            whisper = 1;
-            channel = 0;
+            visible = false;   /*Deixa o GM invis�vel, depois ele fica vis�vel se ele quiser com o comando*/
+            whisper = true;
+            channel = false;
             map_open = new SortedDictionary<uint, bool>();
         }
         public void clear()
         {
             m_uid = 0;
 
-            visible = 0;   /*Deixa o GM invis�vel, depois ele fica vis�vel se ele quiser com o comando*/
-            whisper = 1;
-            channel = 0;
+            visible = false;   /*Deixa o GM invis�vel, depois ele fica vis�vel se ele quiser com o comando*/
+            whisper = true;
+            channel = false;
 
             map_open.Clear();
         }
@@ -31,7 +31,7 @@ namespace Pangya_GameServer.Models
         {
             if (_uid == 0)
                 throw new exception("[GMInfo::openPlayerWhisper][Error] GM[UID=" + m_uid + "] tentou adicionar PLAYER[UID="
-                        + _uid + "] a lista de whisper, mas o _uid é invalido. Hacker ou Bug.");
+                        + _uid + "] a lista de whisper, mas o _uid eh invalido. Hacker ou Bug.");
 
 
             var it = map_open.Where(c => c.Key == _uid);
@@ -47,7 +47,7 @@ namespace Pangya_GameServer.Models
         {
             if (_uid == 0)
                 throw new exception("[GMInfo::openPlayerWhisper][Error] GM[UID=" + (m_uid) + "] tentou excluir PLAYER[UID="
-            + (_uid) + "] da lista de whisper, mas o _uid é invalido. Hacker ou Bug.");
+            + (_uid) + "] da lista de whisper, mas o _uid eh invalido. Hacker ou Bug.");
 
 
             var it = map_open.Where(c => c.Key == _uid);
@@ -79,14 +79,14 @@ namespace Pangya_GameServer.Models
         {
             if (_uid == 0)
                 throw new exception("[GMInfo::setGMUID][Error] GM[UID=" + (m_uid) + "] tentou setar o UID do GM para UID[value="
-                        + (_uid) + "], mas o m_uid é invalido. Hacker ou Bug.");
+                        + (_uid) + "], mas o m_uid eh invalido. Hacker ou Bug.");
 
             m_uid = _uid;
         }
 
-        public byte visible = 1; // 0 ou 1, Visible
-        public byte whisper = 1; // 0 ou 1, Whisper Geral
-        public byte channel = 1; // 0 ou 1, Whisper do Canal
+        public bool visible = false; // 0 ou 1, Visible
+        public bool whisper = true; // 0 ou 1, Whisper Geral
+        public bool channel = false; // 0 ou 1, Whisper do Canal
 
         public uint m_uid;
 

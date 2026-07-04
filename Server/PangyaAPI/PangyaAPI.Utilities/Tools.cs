@@ -7,54 +7,11 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.RegularExpressions;
 
 namespace PangyaAPI.Utilities
 {
     public static class Tools
     {
-
-        public static IntPtr INVALID_HANDLE_VALUE = IntPtr.Zero;
-        public const UInt32 INFINITE = 0xFFFFFFFF;
-        public const UInt32 WAIT_ABANDONED = 0x00000080;
-        public const UInt32 WAIT_OBJECT_0 = 0x00000000;
-        public const UInt32 WAIT_TIMEOUT = 0x00000102;
-        public const uint CREATE_SUSPENDED = 0x00000004;
-
-        [DllImport("kernel32.dll")]
-        public static extern uint WaitForMultipleObjects(uint nCount, IntPtr[] lpHandles, bool bWaitAll, uint dwMilliseconds);
-        // Source - https://stackoverflow.com/q
-        // Posted by Pavel Durov, modified by community. See post 'Timeline' for change history
-        // Retrieved 2025-12-29, License - CC BY-SA 3.0
-
-        [DllImport("kernel32.dll", SetLastError = true, CallingConvention = CallingConvention.Winapi, CharSet = CharSet.Auto)]
-        public static extern IntPtr CreateEvent(IntPtr lpEventAttributes, [In, MarshalAs(UnmanagedType.Bool)] bool bManualReset, [In, MarshalAs(UnmanagedType.Bool)] bool bIntialState, [In, MarshalAs(UnmanagedType.BStr)] string lpName);
-        [DllImport("kernel32.dll", SetLastError = true)]
-        public static extern UInt32 WaitForSingleObject(IntPtr hHandle, UInt32 dwMilliseconds);
-
-        [DllImport("kernel32.dll", SetLastError = true)]
-        public static extern bool SetEvent(IntPtr hHandle);
-
-        [DllImport("kernel32.dll", SetLastError = true)]
-        public static extern bool ResetEvent(IntPtr hHandle);
-        [DllImport("kernel32.dll", SetLastError = true)]
-        public static extern bool CloseHandle(IntPtr hHandle);
-
-        [DllImport("kernel32.dll", SetLastError = true)]
-        public static extern uint GetLastError();
-
-        public delegate void ThreadRoutine(object lpThreadParameter);
-        public static float Clamp(float value, float min, float max)
-        {
-            if (value < min)
-                return min;
-
-            if (value > max)
-                return max;
-
-            return value;
-        }
-
         public static T IfCompare<T>(bool expression, T trueValue, T falseValue)
         {
             if (expression)
@@ -65,58 +22,6 @@ namespace PangyaAPI.Utilities
             {
                 return falseValue;
             }
-        }
-
-        public static bool Sanitize(string input)
-        {
-            if (string.IsNullOrWhiteSpace(input))
-                return true;
-
-            if (input.Length > 256)
-                return false;
-
-            string[] blacklist =
-            {
-        "--",
-        ";--",
-        "/*",
-        "*/",
-        "@@",
-        "char",
-        "nchar",
-        "varchar",
-        "nvarchar",
-        "alter",
-        "begin",
-        "cast",
-        "create",
-        "cursor",
-        "declare",
-        "delete",
-        "drop",
-        "exec",
-        "execute",
-        "fetch",
-        "insert",
-        "kill",
-        "open",
-        "select",
-        "sys",
-        "sysobjects",
-        "syscolumns",
-        "table",
-        "update"
-    };
-
-            var lower = input.ToLower();
-
-            foreach (var item in blacklist)
-            {
-                if (input.IndexOf(item, StringComparison.OrdinalIgnoreCase) >= 0)
-                    return false;
-            }
-
-            return true;
         }
 
         public static KeyValuePair<TKey, TValue> insert<TKey, TValue>(this Dictionary<TKey, TValue> pairs, TKey key, TValue value)
@@ -151,19 +56,18 @@ namespace PangyaAPI.Utilities
 
         public static bool empty<TKey, TValue>(this Dictionary<TKey, TValue> pairs)
         {
-            return pairs == null || !pairs.Any(); // Retorna true se o dicionário estiver vazio
+            return !pairs.Any(); // Retorna true se o dicionário estiver vazio
         }
         public static bool empty<TKey, TValue>(this Dictionary<TKey, List<TValue>> pairs)
         {
-            return pairs == null || !pairs.Any(); // Retorna true se o dicionário estiver vazio
+            return !pairs.Any(); // Retorna true se o dicionário estiver vazio
         }
-
         public static KeyValuePair<TKey, TValue> end<TKey, TValue>(this Dictionary<TKey, TValue> pairs)
         {
             try
             {
                 if (pairs.Count > 0)
-                    return pairs.LastOrDefault(); // Retorna true se o dicionário estiver vazio
+                    return pairs.Last(); // Retorna true se o dicionário estiver vazio
                 else
                     return new KeyValuePair<TKey, TValue>();
             }

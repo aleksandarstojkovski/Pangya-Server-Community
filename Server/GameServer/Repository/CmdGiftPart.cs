@@ -9,7 +9,7 @@ namespace Pangya_GameServer.Repository
     {
         public CmdGiftPart(bool _waiter = false) : base(_waiter)
         {
-            this.m_uid = 0;
+            this.m_uid = 0u;
             this.m_id = -1;
         }
 

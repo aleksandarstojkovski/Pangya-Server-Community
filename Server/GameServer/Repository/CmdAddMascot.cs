@@ -10,7 +10,7 @@ namespace Pangya_GameServer.Repository
     {
         public CmdAddMascot()
         {
-            this.m_uid = 0;
+            this.m_uid = 0u;
             this.m_purchase = 0;
             this.m_gift_flag = 0;
             this.m_time = 0;
@@ -96,9 +96,10 @@ namespace Pangya_GameServer.Repository
                     4, 0));
             }
 
-            // Ignora as PCBangMascot gift e purchase para usar minha nova proc de add mascot
-            var r = procedure(m_szConsulta,
-                Convert.ToString(m_uid) + ", " + Convert.ToString(m_mi._typeid) + ", " + Convert.ToString(m_mi.tipo) + ", " + Convert.ToString((ushort)m_mi.is_cash) + ", " + Convert.ToString(m_time) + ", " + makeText(m_mi.message) + ", " + Convert.ToString(m_mi.price));
+            // Ignora as flag gift e purchase para usar minha nova proc de add mascot
+            var r = procedure(
+                m_szConsulta,
+                Convert.ToString(m_uid) + ", " + Convert.ToString(m_mi._typeid) + ", " + Convert.ToString(m_mi.tipo) + ", " + Convert.ToString((ushort)m_mi.is_cash) + ", " + Convert.ToString(m_time) + ", " + m_mi.message + ", " + Convert.ToString(m_mi.price));
 
             checkResponse(r, "nao conseguiu adicionar o Mascot[TYPEID=" + Convert.ToString(m_mi._typeid) + "] para o PLAYER[UID=" + Convert.ToString(m_uid) + "]");
 

@@ -14,14 +14,14 @@ namespace Pangya_GameServer.Game.Manager
     public class RoomManager
     {
         // Member 
-        private Dictionary<ushort, bool> m_map_index = new Dictionary<ushort, bool>(ushort.MaxValue); 
+        private Dictionary<ushort, bool> m_map_index = new Dictionary<ushort, bool>(ushort.MaxValue);
+        private byte m_channel_id;
         private readonly object _lock = new object(); // se ainda não tiver 
         ushort m_next_index;
         protected List<Room> v_rooms = new List<Room>();
-        private object m_room_lock = new object();
-
-        public RoomManager()
-        { 
+        public RoomManager(byte _channel_id)
+        {
+            this.m_channel_id = _channel_id;
             if (m_map_index.Count == 0)
             {
                 for (ushort i = 0; i < ushort.MaxValue; i++)
@@ -47,7 +47,8 @@ namespace Pangya_GameServer.Game.Manager
                 }
             }
 
-            v_rooms.Clear(); 
+            v_rooms.Clear();
+            m_channel_id = 255;
         }
 
         public Room makeRoom(byte _channel_owner,
@@ -126,64 +127,67 @@ namespace Pangya_GameServer.Game.Manager
         }
 
 
-        public bool addRoom(Room r)
+        public void addRoom(Room r)
         {
             // Adiciona a sala no Vector
             v_rooms.Add(r);
-            return v_rooms.Any(c => c.getNumero() == r.getNumero());
-         }
+
+            // Log
+            _smp.message_pool.getInstance().push(new message("[RoomManager::addRoom][Sucess] Channel[ID=" + Convert.ToString((ushort)m_channel_id) + "] Maked Room[TIPO=" + Convert.ToString((ushort)r.getInfo().tipo) + ", NUMERO=" + Convert.ToString(r.getNumero()) + ", MASTER=" + Convert.ToString((int)r.getMaster()) + ", NOME=" + r.getInfo().nome + ", SENHA=" + r.getInfo().senha + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
+        }
 
         public void destroyRoom(Room _room)
         {
-            if (_room == null) return;
 
-            lock (m_room_lock) // CRITICAL: Você PRECISA de um lock aqui para não crashar o servidor
+            if (_room == null)
             {
-                try
+                throw new exception("[RoomManager::destroyRoom][Error] _room is nullptr.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.ROOM_MANAGER,
+                    4, 0));
+            }
+
+            int index = findIndexRoom(_room);
+
+            if (index == -1)
+            {
+                throw new exception("[RoomManager::destroyRoom][Error] room nao existe no vector de salas.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.ROOM_MANAGER,
+                    5, 0));
+            }
+
+            try
+            {
+                // Sala vai ser deletada
+                _room.setDestroying();
+                // Vai destruir(excluir) a sala, libera a sala
+                _room.unlock();
+                //limpa tudo
+                _room.Dispose();
+
+                _smp.message_pool.getInstance().push(new message($"[DEBUG][RoomManager] destroyRoom chamado para sala {(_room?.getNumero())}.", type_msg.CL_ONLY_CONSOLE_DEBUG));
+
+                clearIndex((ushort)index);
+
+                v_rooms.RemoveAt(index);
+            }
+            catch (exception e)
+            {
+                if (_room != null)
                 {
-                    // 1. Verificar se a sala ainda está na lista (evita duplicidade de destruição)
-                    if (v_rooms.Any(c=> c.getNumero() == _room.getNumero()))
-                    {
 
-                        // 2. Log antes de limpar os dados
-                        _smp.message_pool.getInstance().push(new message(
-                            $"[RoomManager::destroyRoom][Log] Destruindo Sala [ID={_room.getNumero()}, Nome={_room.getInfo().name}]",
-                            type_msg.CL_FILE_LOG_AND_CONSOLE));
+                    _room.setDestroying();
 
-                        // 3. Marcar como destruindo para as threads de rede pararem de processar pacotes nela
-                        _room.setDestroying();
+                    _room.unlock();
 
-                        // 4. Se a sala tem um OID (Owner ID) ou Index no seu sistema de slots
-                        // Limpa o índice no seu array de controle (se você usa um)
-                        clearIndex(_room.getNumero());
+                    _room = null;
 
-                        // 5. REMOVE DA LISTA
-                        v_rooms.Remove(_room);
-
-                        // 6. LIBERA MEMÓRIA E RECURSOS
-                        // IMPORTANTE: O Dispose deve ser a última coisa, pois ele limpa os dados da sala
-                        _room.Dispose();
-                    }
-                    else
-                    {
-                        // 2. Log antes de limpar os dados
-                        _smp.message_pool.getInstance().push(new message(
-                            $"[RoomManager::destroyRoom][Log] nao encontrada",
-                            type_msg.CL_FILE_LOG_AND_CONSOLE));
-
-                        return;
-                    }
+                    _room = null;
                 }
-                catch (Exception e)
-                {
-                    _smp.message_pool.getInstance().push(new message(
-                        "[RoomManager::destroy][ErrorSystem] " + e.Message,
-                        type_msg.CL_FILE_LOG_AND_CONSOLE));
-                }
+
+                _smp.message_pool.getInstance().push(new message("[RoomManager::destroy][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
 
         // Make room Grand Zodiac Event
+        // Make room Grand Prix
         public RoomGrandPrix makeRoomGrandPrix(byte _channel_owner,
             RoomInfoEx _ri,
         Player _session,
@@ -225,13 +229,14 @@ namespace Pangya_GameServer.Game.Manager
                         130, 0));
                 }
 
-                r.trylock();
-
                 if (_session != null)
                 {
                     r.enter(_session);
                 }
- 
+
+                // Log
+                _smp.message_pool.getInstance().push(new message("[RoomManager::makeRoomGrandPrix][Info] Channel[ID=" + Convert.ToString((ushort)m_channel_id) + "] Maked Room[TIPO=" + Convert.ToString((ushort)r.getInfo().tipo) + ", NUMERO=" + Convert.ToString(r.getNumero()) + ", MASTER=" + Convert.ToString((int)r.getMaster()) + ", PLAYER_REQUEST_CREATE=" + (_session != null ? Convert.ToString(_session.m_pi.uid) : "NENHUMA-SYSTEM") + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
+
             }
             catch (exception e)
             {
@@ -267,7 +272,7 @@ namespace Pangya_GameServer.Game.Manager
 
 
         // Make room Grand Zodiac Event
-        public RoomGrandZodiacEvent makeRoomGrandZodiacEvent(byte _channel_owner, RoomInfoEx _ri, TimeSpan End)
+        public RoomGrandZodiacEvent makeRoomGrandZodiacEvent(byte _channel_owner, RoomInfoEx _ri)
         {
 
             RoomGrandZodiacEvent r = null;
@@ -289,6 +294,9 @@ namespace Pangya_GameServer.Game.Manager
                     throw new exception("[RoomManager::makeRoomGrandZodiacEvent][Error] tentou criar a sala[TIPO=" + Convert.ToString((ushort)_ri.tipo) + "] Grand Zodiac Event, mas nao conseguiu criar o objeto da classe room. Bug.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.ROOM_MANAGER,
                         130, 0));
                 }
+                // Log
+                _smp.message_pool.getInstance().push(new message("[RoomManager::makeRoomGrandZodiacEvent][Info] Channel[ID=" + Convert.ToString((ushort)m_channel_id) + "] Maked Room[TIPO=" + Convert.ToString((ushort)r.getInfo().tipo) + ", NUMERO=" + Convert.ToString(r.getNumero()) + ", MASTER=" + Convert.ToString((int)r.getMaster()) + "] Grand Zodiac Event.", type_msg.CL_FILE_LOG_AND_CONSOLE));
+
             }
             catch (exception e)
             {
@@ -348,9 +356,10 @@ namespace Pangya_GameServer.Game.Manager
                     throw new exception("[RoomManager::makeRoomBotGMEvent][Error] tentou criar a sala[TIPO=" + Convert.ToString((ushort)_ri.tipo) + "] Bot GM Event, mas nao conseguiu criar o objeto da classe room. Bug.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.ROOM_MANAGER,
                         130, 0));
                 }
+                // Log
+                _smp.message_pool.getInstance().push(new message("[RoomManager::makeRoomBotGMEvent][Info] Channel[ID=" + Convert.ToString((ushort)m_channel_id) + "] Maked Room[TIPO=" + Convert.ToString((ushort)r.getInfo().tipo) + ", NUMERO=" + Convert.ToString(r.getNumero()) + ", MASTER=" + Convert.ToString((int)r.getMaster()) + "] Bot GM Event.", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
-                r.trylock();
-             }
+            }
             catch (exception e)
             {
 
@@ -391,7 +400,7 @@ namespace Pangya_GameServer.Game.Manager
             }
             catch (exception e)
             {
-                _smp.message_pool.getInstance().push(new message("[RoomManager::findRoom][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
+                _smp.message_pool.getInstance().push(new message("[RoomManager::findRoom][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_ONLY_CONSOLE));
             }
             return 0;
         }
@@ -408,7 +417,6 @@ namespace Pangya_GameServer.Game.Manager
 
             try
             {
-
                 for (var i = 0; i < v_rooms.Count; ++i)
                 {
                     if (v_rooms[i].getNumero() == _numero)
@@ -435,13 +443,14 @@ namespace Pangya_GameServer.Game.Manager
 
                     r = null;
                 }
-                _smp.message_pool.getInstance().push(new message("[RoomManager::findRoom][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
+                _smp.message_pool.getInstance().push(new message("[RoomManager::findRoom][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_ONLY_CONSOLE));
 
             }
 
             return r;
         }
-           
+
+
         public RoomGrandPrix findRoomGrandPrix(uint _typeid)
         {
 
@@ -466,7 +475,7 @@ namespace Pangya_GameServer.Game.Manager
 
                         break;
                     }
-                } 
+                }
             }
             catch (exception e)
             {
@@ -496,9 +505,9 @@ namespace Pangya_GameServer.Game.Manager
 
             for (var i = 0; i < v_rooms.Count; ++i)
             {
-                if (v_rooms[i] != null && (!_without_practice_room || (v_rooms[i].getInfo().getTipo() != RoomInfo.ROOM_INFO_TYPE.PRACTICE && v_rooms[i].getInfo().getTipo() != RoomInfo.ROOM_INFO_TYPE.GRAND_ZODIAC_PRACTICE)))
+                if (v_rooms[i] != null && (!_without_practice_room || (v_rooms[i].getInfo().getTipo() != RoomInfo.TIPO.PRACTICE && v_rooms[i].getInfo().getTipo() != RoomInfo.TIPO.GRAND_ZODIAC_PRACTICE)))
                 {
-                    v_ri.Add(v_rooms[i].getInfo());
+                    v_ri.Add((RoomInfoEx)v_rooms[i].getInfo());
                 }
             }
             return v_ri;
@@ -511,7 +520,9 @@ namespace Pangya_GameServer.Game.Manager
 
             foreach (var el in v_rooms)
             {
-                if (el != null && (int)el.getMaster() == -2 && (el.getInfo().getTipo() == RoomInfo.ROOM_INFO_TYPE.GRAND_ZODIAC_ADV || el.getInfo().getTipo() == RoomInfo.ROOM_INFO_TYPE.GRAND_ZODIAC_INT))
+                if (el != null
+                    && (int)el.getMaster() == -2
+                    && (el.getInfo().getTipo() == RoomInfo.TIPO.GRAND_ZODIAC_ADV || el.getInfo().getTipo() == RoomInfo.TIPO.GRAND_ZODIAC_INT))
                 {
                     v_r.Add((RoomGrandZodiacEvent)(el));
                 }
@@ -526,9 +537,13 @@ namespace Pangya_GameServer.Game.Manager
 
             foreach (var el in v_rooms)
             {
-                if (el != null && (RoomInfo.ROOM_INFO_TYPE)el.getInfo().tipo == RoomInfo.ROOM_INFO_TYPE.TOURNEY && el.getInfo().flag_gm == 1 && el.getInfo().state_flag == 0x100 && el.getInfo().trofel == TROFEL_GM_EVENT_TYPEID)
+                if (el != null
+                    && (int)el.getMaster() == -2
+                    && (RoomInfo.TIPO)el.getInfo().tipo == RoomInfo.TIPO.TOURNEY
+                    && el.getInfo().flag_gm == 1
+                    && el.getInfo().trofel == TROFEL_GM_EVENT_TYPEID)
                 {
-                    v_r.Add((el) as RoomBotGMEvent);
+                    v_r.Add((RoomBotGMEvent)(el));
                 }
             }
             return v_r;
@@ -612,12 +627,378 @@ namespace Pangya_GameServer.Game.Manager
         }
 
         private void clearIndex(ushort _index)
-        { 
-            // Removi a trava do short.MaxValue, usamos o limite do ushort (65535)
-            if (m_map_index.ContainsKey(_index))
+        {
+
+            if (_index >= short.MaxValue)
             {
-                m_map_index[_index] = false; // Agora o slot está livre para getNewIndex()
+                throw new exception("[RoomManager::clearIndex][Error] _index maior que o limite do mapa de indexes.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.ROOM_MANAGER,
+                    3, 0));
             }
-        } 
+
+            m_map_index[_index] = false; // Livre 
+        }
+
+        public void FilterHackRoom(Player session, RoomInfoEx ri, ChannelInfo m_ci)
+        {
+            if (session.m_pi.m_cap.game_master)
+                return; // GM pode criar qualquer coisa
+
+            ValidateRoomName(session, ri, m_ci);//verifica o nome da sala  
+            ValidateRoomPass(session, ri, m_ci);//verifica a senha da sala  
+            ValidateRoomCreate(session, ri, m_ci);//verifica o tipos que o jogador pode criar
+            ValidateMaxPlayers(session, ri, m_ci);//verifica a quantidade de jogadores
+            ValidateRoomTime(session, ri, m_ci);// tempo do torneio
+            ValidateHoleCount(session, ri, m_ci);//verifica a quantidade de holes
+            ValidateForbiddenModes(session, ri, m_ci);
+        }
+
+        private void ValidateRoomTime(Player session, RoomInfoEx ri, ChannelInfo m_ci)
+        {
+            switch (ri.getTipo())
+            {
+                case RoomInfo.TIPO.STROKE:
+                    if (ri.qntd_hole == 3)
+                        ValidateTimeVs(session, ri, m_ci, 40, 60, 120, 300);
+                    else if (ri.qntd_hole == 6)
+                        ValidateTimeVs(session, ri, m_ci, 40, 60, 120, 300);
+                    else if (ri.qntd_hole == 9)
+                        ValidateTimeVs(session, ri, m_ci, 40, 60, 120, 300);
+                    else if (ri.qntd_hole == 18)
+                        ValidateTimeVs(session, ri, m_ci, 40, 60, 120, 300);
+                    else
+                        ThrowHackException(session, ri, m_ci, $"time_vs inválido: {ri.time_vs}");
+                    break;
+                case RoomInfo.TIPO.MATCH:
+                    if (ri.qntd_hole == 6)
+                        ValidateTimeVs(session, ri, m_ci, 40, 60, 120, 300);
+                    else if (ri.qntd_hole == 9)
+                        ValidateTimeVs(session, ri, m_ci, 40, 60, 120, 300);
+                    else if (ri.qntd_hole == 18)
+                        ValidateTimeVs(session, ri, m_ci, 40, 60, 120, 300);
+                    else
+                        ThrowHackException(session, ri, m_ci, $"time_vs inválido: {ri.time_vs}");
+                    break;
+                case RoomInfo.TIPO.PANG_BATTLE:
+                    if (ri.qntd_hole == 6)
+                        ValidateTimeVs(session, ri, m_ci, 40, 60, 120, 300);
+                    else if (ri.qntd_hole == 9)
+                        ValidateTimeVs(session, ri, m_ci, 40, 60, 120, 300);
+                    else if (ri.qntd_hole == 18)
+                        ValidateTimeVs(session, ri, m_ci, 40, 60, 120, 300);
+                    else
+                        ThrowHackException(session, ri, m_ci, $"time_30s inválido: {ri.time_30s}");
+                    break;
+                case RoomInfo.TIPO.TOURNEY:
+                    if (ri.natural.short_game == 1)//verifica se e short game
+                    {
+                        if (ri.qntd_hole == 9)
+                            ValidateTime30s(session, ri, m_ci, 15, 20, 25, 30);
+                        else if (ri.qntd_hole == 18)
+                            ValidateTime30s(session, ri, m_ci, 35, 40, 45, 50, 55);
+                        else
+                            ThrowHackException(session, ri, m_ci, $"time_30s inválido: {ri.time_30s}");
+                    }
+                    else if (ri.natural.natural == 1) // natural wind
+                    {
+                        if (ri.qntd_hole == 9)
+                            ValidateTime30s(session, ri, m_ci, 15, 20, 25, 30);
+                        else if (ri.qntd_hole == 18)
+                            ValidateTime30s(session, ri, m_ci, 35, 40, 45, 50, 55);
+                        else
+                            ThrowHackException(session, ri, m_ci, $"time_30s inválido: {ri.time_30s}");
+                    }
+                    else //normal aqui
+                    {
+                        if (ri.qntd_hole == 9)
+                            ValidateTime30s(session, ri, m_ci, 15, 20, 25, 30);
+                        else if (ri.qntd_hole == 18)
+                            ValidateTime30s(session, ri, m_ci, 35, 40, 45, 50, 55);
+                        else
+                            ThrowHackException(session, ri, m_ci, $"time_30s inválido: {ri.time_30s}");
+                    }
+                    break;
+                case RoomInfo.TIPO.GUILD_BATTLE:
+                    if (ri.qntd_hole == 9)
+                        ValidateTime30s(session, ri, m_ci, 15, 20, 25, 30);
+                    else if (ri.qntd_hole == 18)
+                        ValidateTime30s(session, ri, m_ci, 35, 40, 45, 50, 55);
+                    else
+                        ThrowHackException(session, ri, m_ci, $"time_30s inválido: {ri.time_30s}");
+                    break;
+                case RoomInfo.TIPO.PRACTICE:
+                    { }
+                    break;
+                case RoomInfo.TIPO.APPROCH:
+                    if (ri.qntd_hole == 3)
+                        ValidateTime30s(session, ri, m_ci, 40);
+                    else if (ri.qntd_hole == 6)
+                        ValidateTime30s(session, ri, m_ci, 40);
+                    else if (ri.qntd_hole == 9)
+                        ValidateTime30s(session, ri, m_ci, 40);
+                    else
+                        ThrowHackException(session, ri, m_ci, $"time_30s inválido: {ri.time_30s}");
+                    break;
+                case RoomInfo.TIPO.SPECIAL_SHUFFLE_COURSE:
+                    if (ri.qntd_hole == 18)
+                        ValidateTime30s(session, ri, m_ci, 40);
+                    else
+                        ThrowHackException(session, ri, m_ci, $"time_30s inválido: {ri.time_30s}");
+                    break;
+                default:
+                    break;
+            }
+        }
+
+
+
+        private void ValidateRoomName(Player session, RoomInfoEx ri, ChannelInfo m_ci)
+        {
+            bool _check = true;
+            //
+            switch (ri.getTipo())
+            {
+                case RoomInfo.TIPO.STROKE:
+                case RoomInfo.TIPO.MATCH:
+                case RoomInfo.TIPO.TOURNEY:
+                case RoomInfo.TIPO.TOURNEY_TEAM:
+                case RoomInfo.TIPO.GUILD_BATTLE:
+                case RoomInfo.TIPO.APPROCH:
+                case RoomInfo.TIPO.PANG_BATTLE:
+                case RoomInfo.TIPO.GRAND_ZODIAC_PRACTICE:
+                case RoomInfo.TIPO.SPECIAL_SHUFFLE_COURSE:
+                case RoomInfo.TIPO.LOUNGE:
+                    if (string.IsNullOrEmpty(ri.nome))//se o nome da sala practice for diferente
+                        _check = false;
+                    break;
+                case RoomInfo.TIPO.PRACTICE:
+                    if (!string.IsNullOrEmpty(ri.nome) && ri.nome.CompareTo("Single Player Practice Mode") != 0)
+                        _check = false;
+                    break;
+
+                default:
+                    _check = false;
+                    break;
+            }
+
+            if (!_check)
+                ThrowHackException(session, ri, m_ci, "Nome da sala inválido: " + ri.getTipo());
+        }
+
+        private void ValidateRoomPass(Player session, RoomInfoEx ri, ChannelInfo m_ci)
+        {
+
+            if (ri.getTipo() == RoomInfo.TIPO.PRACTICE || ri.getTipo() == RoomInfo.TIPO.GRAND_ZODIAC_PRACTICE)
+            {
+                if (!string.IsNullOrEmpty(ri.senha) && ri.senha.Length < 8 && !ri.senha.Contains("MDA"))//string padrao
+                    ThrowHackException(session, ri, m_ci, "tamanho da str da senha na sala inválida: " + ri.getTipo());
+            } 
+            else
+            {
+                if (!string.IsNullOrEmpty(ri.senha) && ri.senha.Length > 14)
+                    ThrowHackException(session, ri, m_ci, "tamanho da str da senha na sala inválida: " + ri.getTipo());
+            }
+        }
+
+
+        private void ValidateRoomCreate(Player session, RoomInfoEx ri, ChannelInfo m_ci)
+        {
+            bool _check;
+
+            switch (ri.getTipo())//tipos de salas que jogadores normais podem criar
+            {
+                case RoomInfo.TIPO.STROKE:
+                case RoomInfo.TIPO.MATCH:
+                case RoomInfo.TIPO.TOURNEY:
+                case RoomInfo.TIPO.TOURNEY_TEAM:
+                case RoomInfo.TIPO.GUILD_BATTLE:
+                case RoomInfo.TIPO.APPROCH:
+                case RoomInfo.TIPO.PANG_BATTLE:
+                case RoomInfo.TIPO.GRAND_PRIX:
+                case RoomInfo.TIPO.GRAND_ZODIAC_PRACTICE:
+                case RoomInfo.TIPO.PRACTICE:
+                case RoomInfo.TIPO.SPECIAL_SHUFFLE_COURSE:
+                case RoomInfo.TIPO.LOUNGE:
+                    _check = true;
+                    break;
+
+                default:
+                    _check = false;
+                    break;
+            }
+
+            if (!_check)
+                ThrowHackException(session, ri, m_ci, "Tipo de jogo inválido: " + ri.getTipo());
+        }
+
+        private void ValidateMaxPlayers(Player session, RoomInfoEx ri, ChannelInfo m_ci)
+        {
+            int[] allowedPlayers;
+
+            switch (ri.getTipo())
+            {
+                case RoomInfo.TIPO.STROKE:
+                    allowedPlayers = new[] { 2, 3, 4 }; // confirmado pelo cliente
+                    break;
+
+                case RoomInfo.TIPO.MATCH:
+                    allowedPlayers = new[] { 2, 4 }; // confirmado pelo cliente
+                    break;
+
+                case RoomInfo.TIPO.TOURNEY:
+                case RoomInfo.TIPO.TOURNEY_TEAM:
+                case RoomInfo.TIPO.GUILD_BATTLE:
+                    allowedPlayers = new[] { 10, 20, 30 };
+                    if (ri.IsShotGame())//criar o modo shot game
+                    {
+                        allowedPlayers = new[] { 10, 20, 30 };
+                    }
+                    break;
+                case RoomInfo.TIPO.APPROCH:
+                    allowedPlayers = new[] { 6, 20, 30 };
+                    break;
+                case RoomInfo.TIPO.PANG_BATTLE:
+                    allowedPlayers = new[] { 2, 4 };
+                    break;
+
+                case RoomInfo.TIPO.GRAND_ZODIAC_PRACTICE:
+                case RoomInfo.TIPO.GRAND_ZODIAC_ADV:
+                case RoomInfo.TIPO.GRAND_ZODIAC_INT:
+                    allowedPlayers = new[] { 1 };
+                    break;
+                case RoomInfo.TIPO.PRACTICE:
+                    allowedPlayers = new[] { 1 };//maximo de players
+                    break;
+                case RoomInfo.TIPO.SPECIAL_SHUFFLE_COURSE:
+                    allowedPlayers = new[] { 30 };
+                    break;
+                case RoomInfo.TIPO.LOUNGE:
+                    allowedPlayers = new[] { 10, 20, 30 };
+                    break;
+
+                default:
+                    allowedPlayers = new int[0];
+                    break;
+            }
+
+            if (allowedPlayers.Length > 0 && Array.IndexOf(allowedPlayers, ri.max_player) == -1)
+                ThrowHackException(session, ri, m_ci, "max_player inválido: " + ri.max_player);
+        }
+
+        private void ValidateHoleCount(Player session, RoomInfoEx ri, ChannelInfo m_ci)
+        {
+            int[] allowedHoles;
+
+            switch (ri.getTipo())
+            {
+                case RoomInfo.TIPO.STROKE:
+                    allowedHoles = new[] { 3, 6, 9, 18 };
+                    break;
+
+                case RoomInfo.TIPO.MATCH:
+                    allowedHoles = new[] { 6, 9, 18 };
+                    break;
+
+
+                case RoomInfo.TIPO.TOURNEY:
+                case RoomInfo.TIPO.TOURNEY_TEAM:
+                case RoomInfo.TIPO.GUILD_BATTLE:
+                    allowedHoles = new[] { 9, 18 };
+                    if (ri.IsShotGame())//criar o modo shot game
+                    {
+                        allowedHoles = new[] { 9, 18 };
+                    }
+                    break;
+                case RoomInfo.TIPO.APPROCH:
+                    allowedHoles = new[] { 3, 6, 9 };
+                    break;
+                case RoomInfo.TIPO.PANG_BATTLE:
+                    allowedHoles = new[] { 6, 9, 18 };
+                    break;
+                case RoomInfo.TIPO.SPECIAL_SHUFFLE_COURSE:
+                    allowedHoles = new[] { 18 };
+                    break;
+                case RoomInfo.TIPO.GRAND_ZODIAC_PRACTICE:
+                case RoomInfo.TIPO.GRAND_ZODIAC_ADV:
+                case RoomInfo.TIPO.GRAND_ZODIAC_INT:
+                    allowedHoles = new[] { 1 };
+                    break;
+                case RoomInfo.TIPO.PRACTICE:
+                    allowedHoles = new[] { 1, 9, 18 };
+                    break;
+
+                case RoomInfo.TIPO.LOUNGE:
+                    allowedHoles = new[] { 1 };
+                    break;
+
+                default:
+                    allowedHoles = new int[0];
+                    break;
+            }
+
+            if (allowedHoles.Length > 0 && Array.IndexOf(allowedHoles, ri.qntd_hole) == -1)
+                ThrowHackException(session, ri, m_ci, "qntd_hole inválido: " + ri.qntd_hole);
+        }
+
+        private void ValidateForbiddenModes(Player session, RoomInfoEx ri, ChannelInfo m_ci)
+        {
+            if (ri.getTipo() == RoomInfo.TIPO.GRAND_ZODIAC_INT || ri.getTipo() == RoomInfo.TIPO.GRAND_ZODIAC_ADV)
+            {
+                ThrowHackException(session, ri, m_ci, "tentou criar modo proibido");
+            }
+        }
+
+        private void ValidateTime30s(Player session, RoomInfoEx ri, ChannelInfo m_ci, params uint[] allowedMinutes)
+        {
+            if (ri.getTipo() == RoomInfo.TIPO.APPROCH)
+            {
+                if (ri.time_30s < (15 * 1000)) // Passa em Minutos
+                {
+                    ThrowHackException(session, ri, m_ci, $"time_30s inválido: {ri.time_30s}");
+                }
+
+                // ri.time_minutes seria a propriedade do RoomInfoEx com o tempo em minutos
+                if (!allowedMinutes.Contains(ri.time_30s / 1000))
+                {
+                    ThrowHackException(session, ri, m_ci, $"time_30s inválido: {ri.time_30s}");
+                }
+            }
+            else
+            {
+                if (ri.time_30s < (15 * 60000)) // Passa em Minutos
+                {
+                    ThrowHackException(session, ri, m_ci, $"time_30s inválido: {ri.time_30s}");
+                }
+
+                // ri.time_minutes seria a propriedade do RoomInfoEx com o tempo em minutos
+                if (!allowedMinutes.Contains(ri.time_30s / 60000))
+                {
+                    ThrowHackException(session, ri, m_ci, $"time_30s inválido: {ri.time_30s}");
+                }
+            }
+        }
+
+        private void ValidateTimeVs(Player session, RoomInfoEx ri, ChannelInfo m_ci, params uint[] allowedMinutes)
+        {
+            if ((ri.getTipo() == RoomInfo.TIPO.STROKE || ri.getTipo() == RoomInfo.TIPO.MATCH)
+               && ri.time_vs < (40 * 1000)) // Passa em segundos
+            {
+                ThrowHackException(session, ri, m_ci, $"time_vs inválido: {ri.time_vs}");
+            }
+
+            // ri.time_minutes seria a propriedade do RoomInfoEx com o tempo em minutos
+            if (!allowedMinutes.Contains(ri.time_vs / 1000))
+            {
+                ThrowHackException(session, ri, m_ci, $"time_vs inválido: {ri.time_vs}");
+            }
+        }
+
+        private void ThrowHackException(Player session, RoomInfoEx ri, ChannelInfo m_ci, string motivo)
+        {
+            string msg = $"[channel::requestMakeRoom][Error] PLAYER [UID={session.m_pi.uid}] " +
+                         $"Channel[ID={m_ci.id}] tentou criar sala [Nome={ri.nome}, PWD={ri.senha}, TIPO={ri.tipo}], {motivo}. Hacker ou Bug";
+
+            throw new exception(msg, ExceptionError.STDA_MAKE_ERROR_TYPE(
+                STDA_ERROR_TYPE.CHANNEL, 10, 0x770001));
+        }
     }
 }

@@ -17,16 +17,13 @@ namespace PangyaAPI.Network.Repository
 
         protected override Response prepareConsulta()
         {
-            var str = (m_si.uid) + ", " + makeText(m_si.nome) + ", " + makeText(m_si.ip)
-                + ", " + (m_si.port) + ", " + (m_si.tipo) + ", " + (m_si.max_user)
-                + ", " + (m_si.curr_user) + ", " + (m_si.rate.pang) + ", " + makeText(m_si.version)
-                + ", " + makeText(m_si.version_client) + ", " + (m_si.propriedade.ulProperty) + ", " + (m_si.angelic_wings_num)
-                + ", " + (m_si.event_flag.usEventFlag) + ", " + (m_si.rate.exp) + ", " + (m_si.img_no)
-                + ", " + (m_si.rate.scratchy) + ", " + (m_si.rate.club_mastery) + ", " + (m_si.rate.treasure)
-                + ", " + (m_si.rate.papel_shop_rare_item) + ", " + (m_si.rate.papel_shop_cookie_item) + ", " + (m_si.rate.chuva);
-            var r = procedure("pangya.ProcRegServer_New",str );
-
-           
+            var r = procedure("pangya.ProcRegServer_New", (m_si.uid).ToString() + ", " + (m_si.nome).ToString() + ", " + (m_si.ip).ToString()
+               + ", " + (m_si.port).ToString() + ", " + (m_si.tipo).ToString() + ", " + (m_si.max_user).ToString()
+               + ", " + (m_si.curr_user).ToString() + ", " + (m_si.rate.pang).ToString() + ", " + (m_si.version).ToString()
+               + ", " + (m_si.version_client).ToString() + ", " + (m_si.propriedade.ulProperty).ToString() + ", " + (m_si.angelic_wings_num).ToString()
+               + ", " + (m_si.event_flag.usEventFlag).ToString() + ", " + (m_si.rate.exp).ToString() + ", " + (m_si.img_no).ToString()
+               + ", " + (m_si.rate.scratchy).ToString() + ", " + (m_si.rate.club_mastery).ToString() + ", " + (m_si.rate.treasure).ToString()
+               + ", " + (m_si.rate.papel_shop_rare_item).ToString() + ", " + (m_si.rate.papel_shop_cookie_item).ToString() + ", " + (m_si.rate.chuva).ToString());
 
             checkResponse(r, "nao conseguiu registrar o server[GUID=" + (m_si.uid) + ", PORT=" + (m_si.port) + ", NOME=" + (m_si.nome) + "] no banco de dados");
             return r;

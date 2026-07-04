@@ -11,7 +11,7 @@ namespace Pangya_GameServer.Repository
 
         public CmdUpdateGoldenTime()
         {
-            this.m_id = 0;
+            this.m_id = 0u;
             this.m_is_end = false;
         }
 

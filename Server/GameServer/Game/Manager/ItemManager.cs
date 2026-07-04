@@ -1,22 +1,24 @@
 ﻿//Convertion By LuisMK
-using Pangya_GameServer.Game.System;
-using Pangya_GameServer.Models;
-using Pangya_GameServer.PacketFunc;
-using Pangya_GameServer.Repository;
-using PangyaAPI.IFF.JP.Extensions;
-using PangyaAPI.IFF.JP.Models.Data;
-using PangyaAPI.IFF.JP.Models.Flags;
-using PangyaAPI.IFF.JP.Models.General;
-using PangyaAPI.Network.Models;
-using PangyaAPI.Network.Repository;
-using PangyaAPI.SQL;
-using PangyaAPI.Utilities;
-using PangyaAPI.Utilities.Models;
-using PangyaAPI.Utilities.Log;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
+using Pangya_GameServer.Repository;
+using Pangya_GameServer.Game.System;
+using Pangya_GameServer.Models;
+using Pangya_GameServer.PacketFunc;
+
+using PangyaAPI.IFF.JP.Extensions;
+using PangyaAPI.IFF.JP.Models.Data;
+using PangyaAPI.IFF.JP.Models.Flags;
+using PangyaAPI.IFF.JP.Models.General;
+using PangyaAPI.Network.Repository;
+using PangyaAPI.Network.Models;
+using PangyaAPI.SQL;
+using PangyaAPI.Utilities;
+using PangyaAPI.Utilities.BinaryModels;
+using PangyaAPI.Utilities.Log;
 using static Pangya_GameServer.Models.DefineConstants;
 
 namespace Pangya_GameServer.Game.Manager
@@ -81,7 +83,7 @@ namespace Pangya_GameServer.Game.Manager
 #endif
 
             _smp.message_pool.getInstance().push(new message(
-                $"[ItemManager::{func}][Sucess] PLAYER[UID={_session.m_pi.uid}] {log} [Typeid={_item._typeid}, ID={_item.id}, QNTD={(_item.STDA_C_ITEM_QNTD > 0 && _item.qntd <= 0xFFu ? _item.STDA_C_ITEM_QNTD : _item.qntd)}]",
+                $"[ItemManager::{func}][Sucess] PLAYER[UID={_session.m_pi.uid}] {log} [Typeid={_item._typeid}, ID={_item.id}, QNTD={(_item.STDA_C_ITEM_QNTD > 0 && _item.qntd <= 0xFFu ? _item.STDA_C_ITEM_QNTD32 : _item.qntd)}]",
                 MSG_ACTIVE_DEBUG));
         }
 
@@ -113,7 +115,7 @@ namespace Pangya_GameServer.Game.Manager
                 INIT_COMMOM_BUYITEM(ref _item, _bi, item);
             }
             else
-                _smp.message_pool.getInstance().push(new message($"[ItemManager::BEGIN_INIT_BUYITEM][Error] UID={_pi.uid}, TID={_bi._typeid}] ITEM NOT FOUND", type_msg.CL_FILE_LOG_AND_CONSOLE));
+             _smp.message_pool.getInstance().push(new message($"[ItemManager::BEGIN_INIT_BUYITEM][Error] PLAYER[UID={_pi.uid}] [ID={_bi._typeid}] ITEM NOT FOUND", type_msg.CL_FILE_LOG_AND_CONSOLE));      
         }
 
         static void CHECK_LEVEL_ITEM(PlayerInfo _pi, ref stItem _item, bool _gift_opt, bool _chk_lvl, IFFCommon item)
@@ -219,7 +221,7 @@ namespace Pangya_GameServer.Game.Manager
                     {
                         var item = sIff.getInstance().findCharacter(_bi._typeid);
 
-                        BEGIN_INIT_BUYITEM(_pi, ref _item, _bi, _gift_opt.IsTrue(), _chk_lvl.IsTrue(), (item != null && item.ID == 0) ? null : item);
+                        BEGIN_INIT_BUYITEM(_pi, ref _item, _bi, _gift_opt.IsTrue(), _chk_lvl.IsTrue(), (item != null && item.ID == 0) ? null : item );
 
 
                         break;
@@ -228,7 +230,7 @@ namespace Pangya_GameServer.Game.Manager
                     {
                         var item = sIff.getInstance().findPart(_bi._typeid);
 
-                        BEGIN_INIT_BUYITEM(_pi, ref _item, _bi, _gift_opt.IsTrue(), _chk_lvl.IsTrue(), (item != null && item.ID == 0) ? null : item);
+                        BEGIN_INIT_BUYITEM(_pi, ref _item, _bi, _gift_opt.IsTrue(), _chk_lvl.IsTrue(), (item != null && item.ID == 0) ? null : item );
 
                         if (_option == 1 && item.valor_rental > 0)
                         {
@@ -244,7 +246,7 @@ namespace Pangya_GameServer.Game.Manager
 
                             if (item.Shop.flag_shop.time_shop.active)
                             {
-                                _smp.message_pool.getInstance().push(new message("[item_manager::initItemFromBuyItem][WARNIG] PLAYER[UID=" + Convert.ToString(_pi.uid) + "] inicializou Part[TYPEID=" + Convert.ToString(_bi._typeid) + "] com tempo[VALUE=" + Convert.ToString(_bi.time) + "], mas no IFF_STRUCT do server ele nao é um item por tempo. Hacker ou Bug", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                                _smp.message_pool.getInstance().push(new message("[item_manager::initItemFromBuyItem][WARNIG] PLAYER[UID=" + Convert.ToString(_pi.uid) + "] inicializou Part[TYPEID=" + Convert.ToString(_bi._typeid) + "] com tempo[VALUE=" + Convert.ToString(_bi.time) + "], mas no IFF_STRUCT do server ele nao eh um item por tempo. Hacker ou Bug", type_msg.CL_FILE_LOG_AND_CONSOLE));
                             }
 
                             _item.STDA_C_ITEM_TIME = (short)_bi.time;
@@ -269,7 +271,7 @@ namespace Pangya_GameServer.Game.Manager
                     {
                         var item = sIff.getInstance().findClubSet(_bi._typeid);
 
-                        BEGIN_INIT_BUYITEM(_pi, ref _item, _bi, _gift_opt.IsTrue(), _chk_lvl.IsTrue(), (item != null && item.ID == 0) ? null : item);
+                        BEGIN_INIT_BUYITEM(_pi, ref _item, _bi, _gift_opt.IsTrue(), _chk_lvl.IsTrue(), (item != null && item.ID == 0) ? null : item );
 
                         if (_bi.time > 0)
                         {
@@ -287,7 +289,7 @@ namespace Pangya_GameServer.Game.Manager
                     {
                         var item = sIff.getInstance().findBall(_bi._typeid);
 
-                        BEGIN_INIT_BUYITEM(_pi, ref _item, _bi, _gift_opt.IsTrue(), _chk_lvl.IsTrue(), (item != null && item.ID == 0) ? null : item);
+                        BEGIN_INIT_BUYITEM(_pi, ref _item, _bi, _gift_opt.IsTrue(), _chk_lvl.IsTrue(), (item != null && item.ID == 0) ? null : item );
 
                         for (int i = 0; i < _item.c.Length; i++)
                         {
@@ -326,21 +328,17 @@ namespace Pangya_GameServer.Game.Manager
                     {
                         var item = sIff.getInstance().findItem(_bi._typeid);
 
-                        BEGIN_INIT_BUYITEM(_pi, ref _item, _bi, _gift_opt.IsTrue(), _chk_lvl.IsTrue(), (item != null && item.ID == 0) ? null : item);
-
-                        //antes esse codigo, estava abaixo da verificacao, por isso estava
-                        //vindo zerado, o objeto, precisa ser carregado, se nao dar bug
-                        // Copia C[] do IFF::Item para o _item
-                        for (int i = 0; i < _item.c.Length; i++)
-                        {
-                            _item.c[i] = (short)item.Stats.getSlot[i];
-                        }
-
+                        BEGIN_INIT_BUYITEM(_pi, ref _item, _bi, _gift_opt.IsTrue(), _chk_lvl.IsTrue(), (item != null && item.ID == 0) ? null : item );
 
                         // essa regra é para os itens que é 1 item, mas tem mais quantidade que vai ser add, 1 item normal, mas ele vem 10, fica no STDA_C_ITEM_QNTD
                         if (_item.qntd > 0 && _item.STDA_C_ITEM_QNTD != 0 && (_item.STDA_C_ITEM_QNTD == 1 || _item.STDA_C_ITEM_QNTD == _item.qntd))
                             _item.qntd /= (int)_item.STDA_C_ITEM_QNTD;
 
+                        // Copia C[] do IFF::Item para o _item
+                        for (int i = 0; i < _item.c.Length; i++)
+                        {
+                            _item.c[i] = (short)item.Stats.getSlot[i];
+                        }
 
                         // Tem preço de tempo
                         var empty_price = sIff.getInstance().EMPTY_ARRAY_PRICE(_item.c);
@@ -390,10 +388,10 @@ namespace Pangya_GameServer.Game.Manager
                                         break;
                                 }
 
-                                _item.qntd = 1; //item->Shop.flag_shop.time_shop.uc_time_start;
+                                _item.qntd = (int)1; //item->Shop.flag_shop.time_shop.uc_time_start;
                                 _item.flag = 0x20;
                                 _item.flag_time = 2;
-                                _item.STDA_C_ITEM_TIME = (_bi.time * 24); // Premium Ticket
+                                _item.STDA_C_ITEM_TIME = (short)(_bi.time * 24); // Premium Ticket
 
                                 if (_bi.time > 365)
                                 {
@@ -498,7 +496,7 @@ namespace Pangya_GameServer.Game.Manager
                     {
                         var item = sIff.getInstance().findCaddie(_bi._typeid);
 
-                        BEGIN_INIT_BUYITEM(_pi, ref _item, _bi, _gift_opt.IsTrue(), _chk_lvl.IsTrue(), (item != null && item.ID == 0) ? null : item);
+                        BEGIN_INIT_BUYITEM(_pi, ref _item, _bi, _gift_opt.IsTrue(), _chk_lvl.IsTrue(), (item != null && item.ID == 0) ? null : item );
 
                         if (item.valor_mensal > 0)
                         {
@@ -520,7 +518,7 @@ namespace Pangya_GameServer.Game.Manager
                     {
                         var item = sIff.getInstance().findCaddieItem(_bi._typeid);
 
-                        BEGIN_INIT_BUYITEM(_pi, ref _item, _bi, _gift_opt.IsTrue(), _chk_lvl.IsTrue(), (item != null && item.ID == 0) ? null : item);
+                        BEGIN_INIT_BUYITEM(_pi, ref _item, _bi, _gift_opt.IsTrue(), _chk_lvl.IsTrue(), (item != null && item.ID == 0) ? null : item );
 
                         // Aqui não precisa ver se tem time_limit e time_start, so tem que verificar se tem o item->price[0~4]
                         var empty_price = sIff.getInstance().EMPTY_ARRAY_PRICE(item.price);
@@ -589,7 +587,7 @@ namespace Pangya_GameServer.Game.Manager
                             // Qntd tem que ser 1 por que o item é por tempo
                             if (_bi.qntd > 1)
                             {
-                                _item.qntd = (int)(_bi.qntd = 1);
+                               _item.qntd = (int)(_bi.qntd = 1);
                             }
 
                             switch (_bi.time)
@@ -646,7 +644,7 @@ namespace Pangya_GameServer.Game.Manager
                     {
                         var item = sIff.getInstance().findSetItem(_bi._typeid);
 
-                        BEGIN_INIT_BUYITEM(_pi, ref _item, _bi, _gift_opt.IsTrue(), _chk_lvl.IsTrue(), (item != null && item.ID == 0) ? null : item);
+                        BEGIN_INIT_BUYITEM(_pi, ref _item, _bi, _gift_opt.IsTrue(), _chk_lvl.IsTrue(), (item != null && item.ID == 0) ? null : item );
 
                         //END_INIT_BUYITEM; nao é nada, so um log simples
                         break;
@@ -655,7 +653,7 @@ namespace Pangya_GameServer.Game.Manager
                     {
                         var item = sIff.getInstance().findSkin(_bi._typeid);
 
-                        BEGIN_INIT_BUYITEM(_pi, ref _item, _bi, _gift_opt.IsTrue(), _chk_lvl.IsTrue(), (item != null && item.ID == 0) ? null : item);
+                        BEGIN_INIT_BUYITEM(_pi, ref _item, _bi, _gift_opt.IsTrue(), _chk_lvl.IsTrue(), (item != null && item.ID == 0) ? null : item );
 
                         // ESSE AQUI É ONDE COMEÇA OS TEMPO, [1] É DO 1 A 365 DIAS, [7] É DO 7 A 365 DIAS
                         //item->Shop.flag_shop.time_shop.uc_time_start //---- AS SKINS É DO 7
@@ -717,7 +715,7 @@ namespace Pangya_GameServer.Game.Manager
                             // Qntd tem que ser 1 por que o item é por tempo
                             if (_bi.qntd > 1)
                             {
-                                _item.qntd = (int)(_bi.qntd = 1);
+                               _item.qntd = (int)(_bi.qntd = 1);
                             }
 
                             _item.STDA_C_ITEM_QNTD = 1; // item->Shop.flag_shop.time_shop.uc_time_start;
@@ -736,7 +734,7 @@ namespace Pangya_GameServer.Game.Manager
                             // Qntd tem que ser 1 por que o item é por tempo
                             if (_bi.qntd > 1)
                             {
-                                _item.qntd = (int)(_bi.qntd = 1);
+                               _item.qntd = (int)(_bi.qntd = 1);
                             }
 
                             switch (_bi.time)
@@ -799,7 +797,7 @@ namespace Pangya_GameServer.Game.Manager
                     {
                         var item = sIff.getInstance().findHairStyle(_bi._typeid);
 
-                        BEGIN_INIT_BUYITEM(_pi, ref _item, _bi, _gift_opt.IsTrue(), _chk_lvl.IsTrue(), (item != null && item.ID == 0) ? null : item);
+                        BEGIN_INIT_BUYITEM(_pi, ref _item, _bi, _gift_opt.IsTrue(), _chk_lvl.IsTrue(), (item != null && item.ID == 0) ? null : item );
 
                         //END_INIT_BUYITEM; nao é nada, so um log simples
                         break;
@@ -808,7 +806,7 @@ namespace Pangya_GameServer.Game.Manager
                     {
                         var item = sIff.getInstance().findMascot(_bi._typeid);
 
-                        BEGIN_INIT_BUYITEM(_pi, ref _item, _bi, _gift_opt.IsTrue(), _chk_lvl.IsTrue(), (item != null && item.ID == 0) ? null : item);
+                        BEGIN_INIT_BUYITEM(_pi, ref _item, _bi, _gift_opt.IsTrue(), _chk_lvl.IsTrue(), (item != null && item.ID == 0) ? null : item );
 
                         // Dias
                         // Aqui não precisa ver se tem time_limit e time_start, so tem que verificar se tem o item->price[0~4]
@@ -870,7 +868,7 @@ namespace Pangya_GameServer.Game.Manager
                             // Qntd tem que ser 1 por que o item é por tempo
                             if (_bi.qntd > 1)
                             {
-                                _item.qntd = (int)(_bi.qntd = 1);
+                               _item.qntd = (int)(_bi.qntd = 1);
                             }
 
                             _item.STDA_C_ITEM_QNTD = 1; // item->Shop.flag_shop.time_shop.uc_time_start;
@@ -889,7 +887,7 @@ namespace Pangya_GameServer.Game.Manager
                             // Qntd tem que ser 1 por que o item é por tempo
                             if (_bi.qntd > 1)
                             {
-                                _item.qntd = (int)(_bi.qntd = 1);
+                               _item.qntd = (int)(_bi.qntd = 1);
                             }
 
                             switch (_bi.time)
@@ -952,7 +950,7 @@ namespace Pangya_GameServer.Game.Manager
                     {
                         var item = sIff.getInstance().findFurniture(_bi._typeid);
 
-                        BEGIN_INIT_BUYITEM(_pi, ref _item, _bi, _gift_opt.IsTrue(), _chk_lvl.IsTrue(), (item != null && item.ID == 0) ? null : item);
+                        BEGIN_INIT_BUYITEM(_pi, ref _item, _bi, _gift_opt.IsTrue(), _chk_lvl.IsTrue(), (item != null && item.ID == 0) ? null : item );
 
                         if (_item.STDA_C_ITEM_QNTD == 0)
                         {
@@ -966,7 +964,7 @@ namespace Pangya_GameServer.Game.Manager
                     {
                         var item = sIff.getInstance().findAuxPart(_bi._typeid);
 
-                        BEGIN_INIT_BUYITEM(_pi, ref _item, _bi, _gift_opt.IsTrue(), _chk_lvl.IsTrue(), (item != null && item.ID == 0) ? null : item);
+                        BEGIN_INIT_BUYITEM(_pi, ref _item, _bi, _gift_opt.IsTrue(), _chk_lvl.IsTrue(), (item != null && item.ID == 0) ? null : item );
 
                         if (_item.STDA_C_ITEM_QNTD == 0)
                         {
@@ -980,7 +978,7 @@ namespace Pangya_GameServer.Game.Manager
                     {
                         var item = sIff.getInstance().findCard(_bi._typeid);
 
-                        BEGIN_INIT_BUYITEM(_pi, ref _item, _bi, _gift_opt.IsTrue(), _chk_lvl.IsTrue(), (item != null && item.ID == 0) ? null : item);
+                        BEGIN_INIT_BUYITEM(_pi, ref _item, _bi, _gift_opt.IsTrue(), _chk_lvl.IsTrue(), (item != null && item.ID == 0) ? null : item );
 
                         if (_item.STDA_C_ITEM_QNTD <= 0)
                         {
@@ -993,10 +991,26 @@ namespace Pangya_GameServer.Game.Manager
                 default: // Não tem esse item para vender no shop
                     _smp.message_pool.getInstance().push(new message("PLAYER[UID=" + Convert.ToString(_pi.uid) + "] Tentou comprar um item que nao tem no shop para vender. typeid: " + Convert.ToString(_bi._typeid), type_msg.CL_FILE_LOG_AND_CONSOLE));
 
+                    //if (item != null) {
+                    //	strcpy_s(_item.name, item->name);
+                    //	strcpy_s(_item.icon, item->icon);
+                    //	_item.id = _bi.id;
+                    //	_item._typeid = _bi._typeid;
+                    //	_item.date = *(stItem::stDate*)&item->date;
+                    //	_item.price = item->shop.price;
+                    //	_item.desconto = item->shop.desconto;
+                    //	_item.qntd = (unsigned short)_bi.qntd;
+                    //	_item.is_cash = item->shop.flag_shop.uFlagShop.IFF_cash;
+
+                    //	if (_bi.time > 0) {
+                    //		_item.STDA_C_ITEM_TIME = _bi.time;
+                    //		_item.type = 0x20;		// Temporário, tenho que ver o tipo direito da hora, minuto, segundo e etc
+                    //	}else
+                    //		_item.type = 2;
+                    //}
                     break;
             }
         }
-
         public static void initItemFromEmailItem(PlayerInfo _pi, stItem _item, EmailInfo.item _ei_item)
         {
 
@@ -1035,7 +1049,7 @@ namespace Pangya_GameServer.Game.Manager
                     {
 
                         foreach (var el in v_item)
-                            _ei.itens.Add(new EmailInfo.item(-1, el._typeid, el.flag_time, (uint)el.qntd, (ushort)el.STDA_C_ITEM_TIME, 0, 0, 0/*type GM*/, 0, "", 0));
+                            _ei.itens.Add(new EmailInfo.item(-1, el._typeid, el.flag_time, (uint)el.qntd, (ushort)el.STDA_C_ITEM_TIME, 0, 0, 0/*flag GM*/, 0, "", 0));
 
                         _ei.itens.RemoveAt(i--);
                     }
@@ -1135,7 +1149,7 @@ namespace Pangya_GameServer.Game.Manager
                             if (_item.date_reserve > 0)
                             {
                                 ci.rent_flag = 2;
-                                ci.end_date_unix = (ushort)_item.date_reserve; //(_item.type == 0x20) ? _item.STDA_C_ITEM_TIME : (_item.type == 0x40) ? _item.STDA_C_ITEM_TIME * 60 * 60 : _item.STDA_C_ITEM_TIME;
+                                ci.end_date_unix = (ushort)_item.date_reserve; //(_item.flag == 0x20) ? _item.STDA_C_ITEM_TIME : (_item.flag == 0x40) ? _item.STDA_C_ITEM_TIME * 60 * 60 : _item.STDA_C_ITEM_TIME;
                             }
 
                             CmdAddCaddie cmd_ac = new CmdAddCaddie(_uid, // Waitable
@@ -1299,7 +1313,7 @@ namespace Pangya_GameServer.Game.Manager
                                 }
 
                                 var cmd_am = new CmdAddMascot(_uid, // Waiter
-                                    mi, _item.STDA_C_ITEM_TIME,
+                                    mi, _item.STDA_C_ITEM_TIME32,
                                     _purchase, 0);
 
                                 snmdb.NormalManagerDB.getInstance().add(0,
@@ -1360,18 +1374,18 @@ namespace Pangya_GameServer.Game.Manager
                             if ((pWi.id > 0))
                             { // já tem atualiza quantidade
 
-                                _item.stat.qntd_ant = pWi.STDA_C_ITEM_QNTD;
+                                _item.stat.qntd_ant = pWi.STDA_C_ITEM_QNTD32;
 
                                 pWi.STDA_C_ITEM_QNTD += _item.STDA_C_ITEM_QNTD;
 
-                                _item.stat.qntd_dep = pWi.STDA_C_ITEM_QNTD;
+                                _item.stat.qntd_dep = pWi.STDA_C_ITEM_QNTD32;
 
                                 _item.id = pWi.id;
                                 ret_id = RetAddItem.T_SUCCESS;//pWi.id;
 
                                 snmdb.NormalManagerDB.getInstance().add(7,
                                     new CmdUpdateBallQntd(_uid,
-                                        pWi.id, pWi.STDA_C_ITEM_QNTD),
+                                        pWi.id, pWi.STDA_C_ITEM_QNTD32),
                                     SQLDBResponse,
                                     null);
                             }
@@ -1693,7 +1707,7 @@ namespace Pangya_GameServer.Game.Manager
                             }
 
                             _item.stat.qntd_ant = 0;
-                            _item.stat.qntd_dep = _item.STDA_C_ITEM_QNTD;
+                            _item.stat.qntd_dep = _item.STDA_C_ITEM_QNTD32;
 
                             ret_id = RetAddItem.T_SUCCESS;//mri.id;
 
@@ -1715,18 +1729,18 @@ namespace Pangya_GameServer.Game.Manager
                                         10, 0));
                                 }
 
-                                _item.stat.qntd_ant = pWi.STDA_C_ITEM_QNTD;
+                                _item.stat.qntd_ant = pWi.STDA_C_ITEM_QNTD32;
 
                                 pWi.STDA_C_ITEM_QNTD += _item.STDA_C_ITEM_QNTD;
 
-                                _item.stat.qntd_dep = pWi.STDA_C_ITEM_QNTD;
+                                _item.stat.qntd_dep = pWi.STDA_C_ITEM_QNTD32;
 
                                 _item.id = pWi.id;
                                 ret_id = RetAddItem.T_SUCCESS;//pWi.id;
 
                                 snmdb.NormalManagerDB.getInstance().add(9,
                                     new CmdUpdateItemQntd(_uid,
-                                        pWi.id, pWi.STDA_C_ITEM_QNTD),
+                                        pWi.id, pWi.STDA_C_ITEM_QNTD32),
                                     SQLDBResponse,
                                     null);
                             }
@@ -1788,7 +1802,7 @@ namespace Pangya_GameServer.Game.Manager
                                 }
 
                                 _item.stat.qntd_ant = 0;
-                                _item.stat.qntd_dep = wi.STDA_C_ITEM_QNTD;
+                                _item.stat.qntd_dep = wi.STDA_C_ITEM_QNTD32;
 
                                 ret_id = RetAddItem.T_SUCCESS;//wi.id;
 
@@ -1803,21 +1817,23 @@ namespace Pangya_GameServer.Game.Manager
                             {
 
                                 // Pang Pouch para o player
-                                PlayerInfo.addPang(_uid, (uint)((_item.qntd > 0xFFu) ? _item.qntd : _item.STDA_C_ITEM_QNTD));
-                                 
+                                PlayerInfo.addPang(_uid, (uint)((_item.qntd > 0xFFu) ? _item.qntd : _item.STDA_C_ITEM_QNTD32));
+
+                                _smp.message_pool.getInstance().push(new message("[Pangya Shop][Log] PLAYER[UID=" + Convert.ToString(_uid) + "] Adicionou Pang Pouch. item[TYPEID=" + Convert.ToString(_item._typeid) + "] Qntd[value=" + Convert.ToString((_item.qntd > 0xFFu) ? _item.qntd : _item.STDA_C_ITEM_QNTD32) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
+
                                 // Libera Block memória para o UID, previne de add mais de um item simuntaneamente, para não gerar valores errados
                                 BlockMemoryManager.unblockUID(_uid);
 
-                                return RetAddItem.T_SUCCESS_PANG_AND_EXP_AND_CP_POUCH;
+                                return ItemManager.RetAddItem.T_SUCCESS_PANG_AND_EXP_AND_CP_POUCH;
 
                             }
                             else if (_item._typeid == EXP_POUCH_TYPEID)
                             {
 
                                 // Exp Pouch para o player
-                                Player.addExp(_uid, (int)((_item.qntd > 0xFFu) ? _item.qntd : _item.STDA_C_ITEM_QNTD));
+                                Player.addExp(_uid, (uint)((_item.qntd > 0xFFu) ? _item.qntd : _item.STDA_C_ITEM_QNTD32));
 
-                                _smp.message_pool.getInstance().push(new message("[Pangya Shop][Log] PLAYER[UID=" + Convert.ToString(_uid) + "] Adicionou Exp Pouch. item[TYPEID=" + Convert.ToString(_item._typeid) + "] Qntd[value=" + Convert.ToString((_item.qntd > 0xFFu) ? _item.qntd : _item.STDA_C_ITEM_QNTD) + "]", type_msg.CL_ONLY_FILE_LOG));
+                                _smp.message_pool.getInstance().push(new message("[Pangya Shop][Log] PLAYER[UID=" + Convert.ToString(_uid) + "] Adicionou Exp Pouch. item[TYPEID=" + Convert.ToString(_item._typeid) + "] Qntd[value=" + Convert.ToString((_item.qntd > 0xFFu) ? _item.qntd : _item.STDA_C_ITEM_QNTD32) + "]", type_msg.CL_ONLY_FILE_LOG));
 
                                 // Libera Block memória para o UID, previne de add mais de um item simuntaneamente, para não gerar valores errados
                                 BlockMemoryManager.unblockUID(_uid);
@@ -1833,15 +1849,15 @@ namespace Pangya_GameServer.Game.Manager
 
                                 cp_log.setType(CPLog.TYPE.CP_POUCH);
 
-                                cp_log.setCookie((ulong)((_item.qntd > 0xFFu) ? _item.qntd : _item.STDA_C_ITEM_QNTD));
+                                cp_log.setCookie((ulong)((_item.qntd > 0xFFu) ? _item.qntd : _item.STDA_C_ITEM_QNTD32));
 
                                 // Cookie Point(CP) Pouch para o player
-                                PlayerInfo.addCookie(_uid, (ulong)((_item.qntd > 0xFFu) ? _item.qntd : _item.STDA_C_ITEM_QNTD));
+                                PlayerInfo.addCookie(_uid, (ulong)((_item.qntd > 0xFFu) ? _item.qntd : _item.STDA_C_ITEM_QNTD32));
 
                                 // Log de Ganhos de CP
                                 Player.saveCPLog(_uid, cp_log);
 
-                                _smp.message_pool.getInstance().push(new message("[Pangya Shop][Log] PLAYER[UID=" + Convert.ToString(_uid) + "] Adicionou CP Pouch. item[TYPEID=" + Convert.ToString(_item._typeid) + "] Qntd[value=" + Convert.ToString((_item.qntd > 0xFFu) ? _item.qntd : _item.STDA_C_ITEM_QNTD) + "]", type_msg.CL_ONLY_FILE_LOG));
+                                _smp.message_pool.getInstance().push(new message("[Pangya Shop][Log] PLAYER[UID=" + Convert.ToString(_uid) + "] Adicionou CP Pouch. item[TYPEID=" + Convert.ToString(_item._typeid) + "] Qntd[value=" + Convert.ToString((_item.qntd > 0xFFu) ? _item.qntd : _item.STDA_C_ITEM_QNTD32) + "]", type_msg.CL_ONLY_FILE_LOG));
 
                                 // Libera Block memória para o UID, previne de add mais de um item simuntaneamente, para não gerar valores errados
                                 BlockMemoryManager.unblockUID(_uid);
@@ -1862,18 +1878,18 @@ namespace Pangya_GameServer.Game.Manager
                                         15, 0));
                                 }
 
-                                _item.stat.qntd_ant = pWi.STDA_C_ITEM_QNTD;
+                                _item.stat.qntd_ant = pWi.STDA_C_ITEM_QNTD32;
 
                                 pWi.STDA_C_ITEM_QNTD += _item.STDA_C_ITEM_QNTD;
 
-                                _item.stat.qntd_dep = pWi.STDA_C_ITEM_QNTD;
+                                _item.stat.qntd_dep = pWi.STDA_C_ITEM_QNTD32;
 
                                 _item.id = pWi.id;
                                 ret_id = RetAddItem.T_SUCCESS;//pWi.id;
 
                                 snmdb.NormalManagerDB.getInstance().add(9,
                                     new CmdUpdateItemQntd(_uid,
-                                        pWi.id, pWi.STDA_C_ITEM_QNTD),
+                                        pWi.id, pWi.STDA_C_ITEM_QNTD32),
                                     SQLDBResponse,
                                     null);
 
@@ -1935,7 +1951,7 @@ namespace Pangya_GameServer.Game.Manager
                                 }
 
                                 _item.stat.qntd_ant = 0;
-                                _item.stat.qntd_dep = wi.STDA_C_ITEM_QNTD;
+                                _item.stat.qntd_dep = wi.STDA_C_ITEM_QNTD32;
 
                                 ret_id = RetAddItem.T_SUCCESS;//wi.id;
                             }
@@ -2176,7 +2192,7 @@ namespace Pangya_GameServer.Game.Manager
 
                                     _item.stat.qntd_ant = tsi.qntd;
 
-                                    tsi.qntd += _item.STDA_C_ITEM_QNTD;
+                                    tsi.qntd += _item.STDA_C_ITEM_QNTD32;
 
                                     _item.stat.qntd_dep = tsi.qntd;
 
@@ -2197,7 +2213,7 @@ namespace Pangya_GameServer.Game.Manager
                                     TrofelEspecialInfo ts = new TrofelEspecialInfo();
                                     ts.id = _item.id;
                                     ts._typeid = _item._typeid;
-                                    ts.qntd = _item.STDA_C_ITEM_QNTD;
+                                    ts.qntd = _item.STDA_C_ITEM_QNTD32;
 
                                     CmdAddTrofelEspecial cmd_ts = new CmdAddTrofelEspecial(_uid, // Waiter
                                         ts,
@@ -2238,7 +2254,7 @@ namespace Pangya_GameServer.Game.Manager
 
                                     _item.stat.qntd_ant = tsi.qntd;
 
-                                    tsi.qntd += _item.STDA_C_ITEM_QNTD;
+                                    tsi.qntd += _item.STDA_C_ITEM_QNTD32;
 
                                     _item.stat.qntd_dep = tsi.qntd;
 
@@ -2258,7 +2274,7 @@ namespace Pangya_GameServer.Game.Manager
                                     TrofelEspecialInfo ts = new TrofelEspecialInfo();
                                     ts.id = _item.id;
                                     ts._typeid = _item._typeid;
-                                    ts.qntd = _item.STDA_C_ITEM_QNTD;
+                                    ts.qntd = _item.STDA_C_ITEM_QNTD32;
 
                                     CmdAddTrofelEspecial cmd_ts = new CmdAddTrofelEspecial(_uid, // Waiter
                                         ts,
@@ -2311,29 +2327,27 @@ namespace Pangya_GameServer.Game.Manager
             return ret_id;
         }
 
-        public static RetAddItem addItem(List<stItem> _v_item, uint _uid, byte _gift_flag, byte _purchase, bool _dup = false)
+        public static RetAddItem addItem(List<stItem> _v_item, uint _uid,/*era byte*/ byte _gift_flag, byte _purchase, bool _dup = false)
         {
+
             RetAddItem rai = new RetAddItem();
             int type = RetAddItem.T_INIT_VALUE;
-
-            Player _session = sgs.gs.getInstance().findPlayer(_uid) ?? null;
-
-            // Percorremos de trás para frente para poder remover itens com segurança
-            for (int i = _v_item.Count - 1; i >= 0; i--)
+            var list = _v_item;
+            for (int i = 0; i < list.Count; i++)
             {
                 var it = _v_item[i];
-                if (_session != null) 
-                type = addItem(it,  _session, _gift_flag, _purchase, _dup);
-else
-                    type = addItem(it, _uid, _gift_flag, _purchase, _dup);
 
-                if (type <= 0)
+                if ((type = addItem(it,
+
+                    _uid, _gift_flag, _purchase,
+                    _dup)) <= 0)
                 {
-                    // LOG DE ERRO
+
                     _smp.message_pool.getInstance().push(new message("[item_manager::addItem][Log] PLAYER[UID=" + Convert.ToString(_uid) + "] tentou adicionar o item[TYPEID=" + Convert.ToString(it._typeid) + ", ID=" + Convert.ToString(it.id) + "], " + ((type == RetAddItem.T_SUCCESS_PANG_AND_EXP_AND_CP_POUCH) ? "mas era pang, exp ou CP pouch" : "mas nao conseguiu.Bug"), type_msg.CL_FILE_LOG_AND_CONSOLE));
 
                     rai.fails.Add(it);
-                    _v_item.RemoveAt(i);  
+
+                    _v_item.Remove(it);
 
                     if (rai.type == RetAddItem.T_INIT_VALUE)
                     {
@@ -2341,23 +2355,41 @@ else
                     }
                     else if (type == RetAddItem.T_ERROR)
                     {
+
                         if (rai.type == RetAddItem.T_SUCCESS_PANG_AND_EXP_AND_CP_POUCH)
+                        {
                             rai.type = RetAddItem.TR_SUCCESS_PANG_AND_EXP_AND_CP_POUCH_WITH_ERROR;
+                        }
                         else if (rai.type == RetAddItem.T_SUCCESS)
+                        {
                             rai.type = RetAddItem.TR_SUCCESS_WITH_ERROR;
+                        }
                         else if (rai.type != RetAddItem.TR_SUCCESS_WITH_ERROR && rai.type != RetAddItem.TR_SUCCESS_PANG_AND_EXP_AND_CP_POUCH_WITH_ERROR)
+                        {
                             rai.type = type;
+                        }
+
                     }
                     else if (type == RetAddItem.T_SUCCESS_PANG_AND_EXP_AND_CP_POUCH)
                     {
+
                         if (rai.type == RetAddItem.T_ERROR || rai.type == RetAddItem.TR_SUCCESS_WITH_ERROR)
+                        {
                             rai.type = RetAddItem.TR_SUCCESS_PANG_AND_EXP_AND_CP_POUCH_WITH_ERROR;
+                        }
                         else if (rai.type == RetAddItem.T_SUCCESS)
+                        {
                             rai.type = RetAddItem.T_SUCCESS_PANG_AND_EXP_AND_CP_POUCH;
+                        }
                     }
+
                 }
                 else
-                { 
+                {
+
+                    // Incrementa(????)
+                    ++i;
+
                     if (rai.type == RetAddItem.T_INIT_VALUE)
                     {
                         rai.type = RetAddItem.T_SUCCESS;
@@ -2372,6 +2404,83 @@ else
             return rai;
         }
 
+        public static RetAddItem addItem(List<stItemEx> _v_item, uint _uid, /*era byte*/ byte _gift_flag, byte _purchase, bool _dup = false)
+        {
+
+            RetAddItem rai = new RetAddItem();
+            int type = RetAddItem.T_INIT_VALUE;
+            var list = _v_item;
+            for (int i = 0; i < list.Count; /*incrementa só no else*/)
+            {
+                var it = _v_item[i];
+                if ((type = addItem(it,
+
+                    _uid, _gift_flag, _purchase,
+                    _dup)) <= 0)
+                {
+
+                    _smp.message_pool.getInstance().push(new message("[item_manager::addItem][Log] PLAYER[UID=" + Convert.ToString(_uid) + "] tentou adicionar o item[TYPEID=" + Convert.ToString(it._typeid) + ", ID=" + Convert.ToString(it.id) + "], " + ((type == RetAddItem.T_SUCCESS_PANG_AND_EXP_AND_CP_POUCH) ? "mas era pang, exp ou CP pouch" : "mas nao conseguiu.Bug"), type_msg.CL_FILE_LOG_AND_CONSOLE));
+
+                    rai.fails.Add(it);
+
+                    _v_item.Remove(it);
+
+                    if (rai.type == RetAddItem.T_INIT_VALUE)
+                    {
+                        rai.type = type;
+                    }
+                    else if (type == RetAddItem.T_ERROR)
+                    {
+
+                        if (rai.type == RetAddItem.T_SUCCESS_PANG_AND_EXP_AND_CP_POUCH)
+                        {
+                            rai.type = RetAddItem.TR_SUCCESS_PANG_AND_EXP_AND_CP_POUCH_WITH_ERROR;
+                        }
+                        else if (rai.type == RetAddItem.T_SUCCESS)
+                        {
+                            rai.type = RetAddItem.TR_SUCCESS_WITH_ERROR;
+                        }
+                        else if (rai.type != RetAddItem.TR_SUCCESS_WITH_ERROR && rai.type != RetAddItem.TR_SUCCESS_PANG_AND_EXP_AND_CP_POUCH_WITH_ERROR)
+                        {
+                            rai.type = type;
+                        }
+
+                    }
+                    else if (type == RetAddItem.T_SUCCESS_PANG_AND_EXP_AND_CP_POUCH)
+                    {
+
+                        if (rai.type == RetAddItem.T_ERROR || rai.type == RetAddItem.TR_SUCCESS_WITH_ERROR)
+                        {
+                            rai.type = RetAddItem.TR_SUCCESS_PANG_AND_EXP_AND_CP_POUCH_WITH_ERROR;
+                        }
+                        else if (rai.type == RetAddItem.T_SUCCESS)
+                        {
+                            rai.type = RetAddItem.T_SUCCESS_PANG_AND_EXP_AND_CP_POUCH;
+                        }
+                    }
+
+                }
+                else
+                {
+
+                    // Incrementa(????)
+                    ++i;
+
+                    if (rai.type == RetAddItem.T_INIT_VALUE)
+                    {
+                        rai.type = RetAddItem.T_SUCCESS;
+                    }
+                    else if (rai.type == RetAddItem.T_ERROR)
+                    {
+                        rai.type = RetAddItem.TR_SUCCESS_WITH_ERROR;
+                    }
+                }
+            }
+
+            return rai;
+        }
+
+
         public static int addItem(stItem _item, Player _session, /*era byte*/ byte _gift_flag, byte _purchase, bool _dup = false)
         {
 
@@ -2382,7 +2491,14 @@ else
 
                 // Block Memória para o UID, para garantir que não vai adicionar itens simuntaneamente
                 BlockMemoryManager.blockUID(_session.m_pi.uid);
- 
+
+                // Error Grave lança uma exception
+                if (!_session.getState())
+                {
+                    throw new exception("[item_manager::addItem][Error] session nao esta conectada.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE._ITEM_MANAGER,
+                        8, 0));
+                }
+
                 if (_item._typeid == 0)
                 {
                     throw new exception("[item_manager::addItem][Error] item invalid", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE._ITEM_MANAGER,
@@ -2471,7 +2587,7 @@ else
                             if (_item.date_reserve > 0)
                             {
                                 ci.rent_flag = 2;
-                                ci.end_date_unix = _item.date_reserve; //(_item.type == 0x20) ? _item.STDA_C_ITEM_TIME : (_item.type == 0x40) ? _item.STDA_C_ITEM_TIME * 60 * 60 : _item.STDA_C_ITEM_TIME;
+                                ci.end_date_unix = _item.date_reserve; //(_item.flag == 0x20) ? _item.STDA_C_ITEM_TIME : (_item.flag == 0x40) ? _item.STDA_C_ITEM_TIME * 60 * 60 : _item.STDA_C_ITEM_TIME;
                             }
 
                             CmdAddCaddie cmd_ac = new CmdAddCaddie(_session.m_pi.uid, // Waitable
@@ -2675,7 +2791,7 @@ else
                                 }
 
                                 CmdAddMascot cmd_am = new CmdAddMascot(_session.m_pi.uid, // Waiter
-                                    mi, _item.STDA_C_ITEM_TIME,
+                                    mi, _item.STDA_C_ITEM_TIME32,
                                     _purchase, 0);
 
                                 snmdb.NormalManagerDB.getInstance().add(0,
@@ -2740,21 +2856,21 @@ else
                             if (pWi != null)
                             { // já tem atualiza quantidade
 
-                                _item.stat.qntd_ant = pWi.STDA_C_ITEM_QNTD;
+                                _item.stat.qntd_ant = pWi.STDA_C_ITEM_QNTD32;
 
                                 pWi.STDA_C_ITEM_QNTD += _item.STDA_C_ITEM_QNTD;
 
-                                _item.stat.qntd_dep = pWi.STDA_C_ITEM_QNTD;
+                                _item.stat.qntd_dep = pWi.STDA_C_ITEM_QNTD32;
 
                                 ret_id = RetAddItem.T_SUCCESS;//pWi.id;
                                 _item.id = pWi.id;
                                 snmdb.NormalManagerDB.getInstance().add(7,
                                     new CmdUpdateBallQntd(_session.m_pi.uid,
-                                        pWi.id, pWi.STDA_C_ITEM_QNTD),
+                                        pWi.id, pWi.STDA_C_ITEM_QNTD32),
                                     SQLDBResponse,
                                     null);
 
-                                //  ITEM_MANAGER_LOG("Atualizou Ball", _session, _item);
+                                ITEM_MANAGER_LOG("Atualizou Ball", _session, _item);
 
                             }
                             else
@@ -2791,13 +2907,13 @@ else
                                 }
 
                                 _item.stat.qntd_ant = 0;
-                                _item.stat.qntd_dep = wi.STDA_C_ITEM_QNTD;
+                                _item.stat.qntd_dep = wi.STDA_C_ITEM_QNTD32;
 
                                 // Add List Item ON Server
                                 _session.m_pi.mp_wi.Add(wi.id, wi);
 
                                 ret_id = RetAddItem.T_SUCCESS;//wi.id;
-                                                              //  ITEM_MANAGER_LOG("Adicionou Ball", _session, _item);
+                                ITEM_MANAGER_LOG("Adicionou Ball", _session, _item);
 
                             }
 
@@ -2877,7 +2993,7 @@ else
 
                                     }
                                     // ---- fim do verifica se o ClubSet está no update item ----
-                                    //  ITEM_MANAGER_LOG("Atualizou Tempo do CluSet", _session, _item);
+                                    ITEM_MANAGER_LOG("Atualizou Tempo do CluSet", _session, _item);
 
                                 }
                                 else
@@ -3011,7 +3127,7 @@ else
                                     SQLDBResponse,
                                     null);
 
-                                //  ITEM_MANAGER_LOG("Atualizou Card", _session, _item);
+                                ITEM_MANAGER_LOG("Atualizou Card", _session, _item);
 
                             }
                             else
@@ -3049,7 +3165,7 @@ else
                                 _session.m_pi.v_card_info.Add(ci.id, ci);
 
                                 ret_id = RetAddItem.T_SUCCESS;
-                                //  ITEM_MANAGER_LOG("Adicionou Card", _session, _item);
+                                ITEM_MANAGER_LOG("Adicionou Card", _session, _item);
                             }
 
                             break;
@@ -3101,14 +3217,14 @@ else
                             }
 
                             _item.stat.qntd_ant = 0;
-                            _item.stat.qntd_dep = _item.STDA_C_ITEM_QNTD;
+                            _item.stat.qntd_dep = _item.STDA_C_ITEM_QNTD32;
 
                             // Add List Item ON Server
                             _session.m_pi.v_mri.Add(mri);
 
                             ret_id = RetAddItem.T_SUCCESS;//mri.id;
 
-                            //  ITEM_MANAGER_LOG("Adicionou Furniture", _session, _item);
+                            ITEM_MANAGER_LOG("Adicionou Furniture", _session, _item);
 
                             break;
                         }
@@ -3128,22 +3244,22 @@ else
                                         10, 0));
                                 }
 
-                                _item.stat.qntd_ant = pWi.STDA_C_ITEM_QNTD;
+                                _item.stat.qntd_ant = pWi.STDA_C_ITEM_QNTD32;
 
                                 pWi.STDA_C_ITEM_QNTD += _item.STDA_C_ITEM_QNTD;
 
-                                _item.stat.qntd_dep = pWi.STDA_C_ITEM_QNTD;
+                                _item.stat.qntd_dep = pWi.STDA_C_ITEM_QNTD32;
 
                                 _item.id = pWi.id;
                                 ret_id = RetAddItem.T_SUCCESS;//pWi.id;
 
                                 snmdb.NormalManagerDB.getInstance().add(9,
                                     new CmdUpdateItemQntd(_session.m_pi.uid,
-                                        pWi.id, pWi.STDA_C_ITEM_QNTD),
+                                        pWi.id, pWi.STDA_C_ITEM_QNTD32),
                                     SQLDBResponse,
                                     null);
 
-                                //  ITEM_MANAGER_LOG("Atualizou AuxPart", _session, _item);
+                                ITEM_MANAGER_LOG("Atualizou AuxPart", _session, _item);
 
                             }
                             else
@@ -3203,14 +3319,14 @@ else
                                 }
 
                                 _item.stat.qntd_ant = 0;
-                                _item.stat.qntd_dep = wi.STDA_C_ITEM_QNTD;
+                                _item.stat.qntd_dep = wi.STDA_C_ITEM_QNTD32;
 
                                 // Add List Item ON Server
                                 _session.m_pi.mp_wi.Add(wi.id, wi);
 
                                 ret_id = RetAddItem.T_SUCCESS;//wi.id;
 
-                                //  ITEM_MANAGER_LOG("Adicionou AuxPart", _session, _item);
+                                ITEM_MANAGER_LOG("Adicionou AuxPart", _session, _item);
 
                             }
 
@@ -3224,10 +3340,10 @@ else
                             {
 
                                 // Pang Pouch para o player
-                                _session.addPang((ulong)((_item.qntd > 0xFFu) ? _item.qntd : _item.STDA_C_ITEM_QNTD));
+                                _session.addPang((ulong)((_item.qntd > 0xFFu) ? _item.qntd : _item.STDA_C_ITEM_QNTD32));
 
                                 _smp.message_pool.getInstance().push(new message("[Pangya Shop][Log] PLAYER[UID=" + (_session.m_pi.uid) + "] Adicionou Pang Pouch. item[TYPEID="
-                                        + (_item._typeid) + "] Qntd[value=" + ((_item.qntd > 0xFFu) ? _item.qntd : _item.STDA_C_ITEM_QNTD) + "]", type_msg.CL_ONLY_FILE_LOG));
+                                        + (_item._typeid) + "] Qntd[value=" + ((_item.qntd > 0xFFu) ? _item.qntd : _item.STDA_C_ITEM_QNTD32) + "]", type_msg.CL_ONLY_FILE_LOG));
 
                                 // Libera Block memória para o UID, previne de add mais de um item simuntaneamente, para não gerar valores errados
                                 BlockMemoryManager.unblockUID(_session.m_pi.uid);
@@ -3239,10 +3355,10 @@ else
                             {
 
                                 // Exp Pouch para o player
-                                _session.addExp((int)((_item.qntd > 0xFFu) ? _item.qntd : _item.STDA_C_ITEM_QNTD), true/*Send packet for update level and exp in game*/);
+                                _session.addExp((uint)((_item.qntd > 0xFFu) ? _item.qntd : _item.STDA_C_ITEM_QNTD32), true/*Send packet for update level and exp in game*/);
 
                                 _smp.message_pool.getInstance().push(new message("[Pangya Shop][Log] PLAYER[UID=" + (_session.m_pi.uid) + "] Adicionou Exp Pouch. item[TYPEID="
-                                        + (_item._typeid) + "] Qntd[value=" + ((_item.qntd > 0xFFu) ? _item.qntd : _item.STDA_C_ITEM_QNTD) + "]", type_msg.CL_ONLY_FILE_LOG));
+                                        + (_item._typeid) + "] Qntd[value=" + ((_item.qntd > 0xFFu) ? _item.qntd : _item.STDA_C_ITEM_QNTD32) + "]", type_msg.CL_ONLY_FILE_LOG));
 
                                 // Libera Block memória para o UID, previne de add mais de um item simuntaneamente, para não gerar valores errados
                                 BlockMemoryManager.unblockUID(_session.m_pi.uid);
@@ -3258,16 +3374,16 @@ else
 
                                 cp_log.setType(CPLog.TYPE.CP_POUCH);
 
-                                cp_log.setCookie((ulong)((_item.qntd > 0xFFu) ? _item.qntd : _item.STDA_C_ITEM_QNTD));
+                                cp_log.setCookie((ulong)((_item.qntd > 0xFFu) ? _item.qntd : _item.STDA_C_ITEM_QNTD32));
 
                                 // Cookie Point(CP) Pouch para o player
-                                _session.addCookie((ulong)((_item.qntd > 0xFFu) ? _item.qntd : _item.STDA_C_ITEM_QNTD));
+                                _session.addCookie((ulong)((_item.qntd > 0xFFu) ? _item.qntd : _item.STDA_C_ITEM_QNTD32));
 
                                 // Log de Ganhos de CP
                                 _session.saveCPLog(cp_log);
 
                                 _smp.message_pool.getInstance().push(new message("[Pangya Shop][Log] PLAYER[UID=" + (_session.m_pi.uid) + "] Adicionou CP Pouch. item[TYPEID="
-                                        + (_item._typeid) + "] Qntd[value=" + ((_item.qntd > 0xFFu) ? _item.qntd : _item.STDA_C_ITEM_QNTD) + "]", type_msg.CL_ONLY_FILE_LOG));
+                                        + (_item._typeid) + "] Qntd[value=" + ((_item.qntd > 0xFFu) ? _item.qntd : _item.STDA_C_ITEM_QNTD32) + "]", type_msg.CL_ONLY_FILE_LOG));
 
                                 // Libera Block memória para o UID, previne de add mais de um item simuntaneamente, para não gerar valores errados
                                 BlockMemoryManager.unblockUID(_session.m_pi.uid);
@@ -3292,11 +3408,11 @@ else
                                                 + (_item._typeid) + "] 'Premium Ticket' que ele ja possui com tempo, tem que esperar acabar o tempo.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE._ITEM_MANAGER, 15, 0));
                                 }
 
-                                _item.stat.qntd_ant = pWi.STDA_C_ITEM_QNTD;
+                                _item.stat.qntd_ant = pWi.STDA_C_ITEM_QNTD32;
 
                                 pWi.STDA_C_ITEM_QNTD += _item.STDA_C_ITEM_QNTD;
 
-                                _item.stat.qntd_dep = pWi.STDA_C_ITEM_QNTD;
+                                _item.stat.qntd_dep = pWi.STDA_C_ITEM_QNTD32;
 
                                 _item.id = pWi.id;
                                 ret_id = RetAddItem.T_SUCCESS;//pWi.id;
@@ -3366,12 +3482,12 @@ else
 
                                 }
                                 else // Atualiza a quantidade do item normal
-                                    snmdb.NormalManagerDB.getInstance().add(9, new CmdUpdateItemQntd(_session.m_pi.uid, pWi.id, pWi.STDA_C_ITEM_QNTD), SQLDBResponse, null);
+                                    snmdb.NormalManagerDB.getInstance().add(9, new CmdUpdateItemQntd(_session.m_pi.uid, pWi.id, pWi.STDA_C_ITEM_QNTD32), SQLDBResponse, null);
 
                                 // Atualiza Gacha Coupon
                                 if (_item._typeid == 0x1A000080/*Coupon Gacha*/)
                                 {
-                                    _session.m_pi.cg.normal_ticket += _item.STDA_C_ITEM_QNTD;
+                                    _session.m_pi.cg.normal_ticket += _item.STDA_C_ITEM_QNTD32;
 
                                     packet_func.session_send(packet_func.pacote102(_session.m_pi),
                                                                         _session, 1);
@@ -3448,14 +3564,14 @@ else
 
                                 if (_item._typeid == 0x1A000080/*Coupon Gacha*/)
                                 {
-                                    _session.m_pi.cg.normal_ticket += _item.STDA_C_ITEM_QNTD;
+                                    _session.m_pi.cg.normal_ticket += _item.STDA_C_ITEM_QNTD32;
 
                                     packet_func.session_send(packet_func.pacote102(_session.m_pi),
                                      _session, 1);
                                 }
 
                                 _item.stat.qntd_ant = 0;
-                                _item.stat.qntd_dep = wi.STDA_C_ITEM_QNTD;
+                                _item.stat.qntd_dep = wi.STDA_C_ITEM_QNTD32;
 
                                 _session.m_pi.mp_wi.Add(wi.id, wi);
 
@@ -3719,7 +3835,7 @@ else
 
                                     _item.stat.qntd_ant = tsi.qntd;
 
-                                    tsi.qntd += _item.STDA_C_ITEM_QNTD;
+                                    tsi.qntd += _item.STDA_C_ITEM_QNTD32;
 
                                     _item.stat.qntd_dep = tsi.qntd;
                                     ret_id = RetAddItem.T_SUCCESS;//tsi.id;
@@ -3739,7 +3855,7 @@ else
                                     TrofelEspecialInfo ts = new TrofelEspecialInfo();
                                     ts.id = _item.id;
                                     ts._typeid = _item._typeid;
-                                    ts.qntd = _item.STDA_C_ITEM_QNTD;
+                                    ts.qntd = _item.STDA_C_ITEM_QNTD32;
 
                                     CmdAddTrofelEspecial cmd_ts = new CmdAddTrofelEspecial(_session.m_pi.uid, // Waiter
                                         ts,
@@ -3782,7 +3898,7 @@ else
 
                                     _item.stat.qntd_ant = tsi.qntd;
 
-                                    tsi.qntd += _item.STDA_C_ITEM_QNTD;
+                                    tsi.qntd += _item.STDA_C_ITEM_QNTD32;
 
                                     _item.stat.qntd_dep = tsi.qntd;
 
@@ -3802,7 +3918,7 @@ else
                                     TrofelEspecialInfo ts = new TrofelEspecialInfo();
                                     ts.id = _item.id;
                                     ts._typeid = _item._typeid;
-                                    ts.qntd = _item.STDA_C_ITEM_QNTD;
+                                    ts.qntd = _item.STDA_C_ITEM_QNTD32;
 
                                     CmdAddTrofelEspecial cmd_ts = new CmdAddTrofelEspecial(_session.m_pi.uid, // Waiter
                                         ts,
@@ -3857,7 +3973,311 @@ else
             return ret_id;
         }
 
-         
+
+        public static RetAddItem addItem(List<stItem> _v_item, Player _session, byte _gift_flag, byte _purchase, bool _dup = false)
+        {
+
+            RetAddItem rai = new RetAddItem();
+            int type = RetAddItem.T_INIT_VALUE;
+
+            var list = _v_item;
+            for (int i = 0; i < list.Count; /*incrementa só no else*/)
+            {
+                var it = _v_item[i];
+
+                if ((type = addItem(it,
+                    _session, _gift_flag,
+                    _purchase, _dup)) <= 0)
+                {
+
+                    _smp.message_pool.getInstance().push(new message("[item_manager::addItem][Log] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou adicionar o item[TYPEID=" + Convert.ToString(it._typeid) + ", ID=" + Convert.ToString(it.id) + "], " + ((type == RetAddItem.T_SUCCESS_PANG_AND_EXP_AND_CP_POUCH) ? "mas era pang, exp ou CP pouch" : "mas nao conseguiu. Bug"), type_msg.CL_FILE_LOG_AND_CONSOLE));
+
+                    rai.fails.Add(it);
+
+                    _v_item.Remove(it);
+
+                    if (rai.type == RetAddItem.T_INIT_VALUE)
+                    {
+                        rai.type = type;
+                    }
+                    else if (type == RetAddItem.T_ERROR)
+                    {
+
+                        if (rai.type == RetAddItem.T_SUCCESS_PANG_AND_EXP_AND_CP_POUCH)
+                        {
+                            rai.type = RetAddItem.TR_SUCCESS_PANG_AND_EXP_AND_CP_POUCH_WITH_ERROR;
+                        }
+                        else if (rai.type == RetAddItem.T_SUCCESS)
+                        {
+                            rai.type = RetAddItem.TR_SUCCESS_WITH_ERROR;
+                        }
+                        else if (rai.type != RetAddItem.TR_SUCCESS_WITH_ERROR && rai.type != RetAddItem.TR_SUCCESS_PANG_AND_EXP_AND_CP_POUCH_WITH_ERROR)
+                        {
+                            rai.type = type;
+                        }
+
+                    }
+                    else if (type == RetAddItem.T_SUCCESS_PANG_AND_EXP_AND_CP_POUCH)
+                    {
+
+                        if (rai.type == RetAddItem.T_ERROR || rai.type == RetAddItem.TR_SUCCESS_WITH_ERROR)
+                        {
+                            rai.type = RetAddItem.TR_SUCCESS_PANG_AND_EXP_AND_CP_POUCH_WITH_ERROR;
+                        }
+                        else if (rai.type == RetAddItem.T_SUCCESS)
+                        {
+                            rai.type = RetAddItem.T_SUCCESS_PANG_AND_EXP_AND_CP_POUCH;
+                        }
+                    }
+
+                }
+                else
+                {
+                    ++i;
+
+                    if (rai.type == RetAddItem.T_INIT_VALUE)
+                    {
+                        rai.type = RetAddItem.T_SUCCESS;
+                    }
+                    else if (rai.type == RetAddItem.T_ERROR)
+                    {
+                        rai.type = RetAddItem.TR_SUCCESS_WITH_ERROR;
+                    }
+                }
+            }
+
+            return rai;
+        }
+
+        public static RetAddItem addItem(List<stItemEx> _v_item, Player _session, byte _gift_flag, byte _purchase, bool _dup = false)
+        {
+
+            RetAddItem rai = new RetAddItem();
+            int type = RetAddItem.T_INIT_VALUE;
+
+            var list = _v_item;
+            for (int i = 0; i < list.Count; /*incrementa só no else*/)
+            {
+                var it = _v_item[i];
+
+                if ((type = addItem(it,
+                    _session, _gift_flag,
+                    _purchase, _dup)) <= 0)
+                {
+
+                    _smp.message_pool.getInstance().push(new message("[item_manager::addItem][Log] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou adicionar o item[TYPEID=" + Convert.ToString(it._typeid) + ", ID=" + Convert.ToString(it.id) + "], " + ((type == RetAddItem.T_SUCCESS_PANG_AND_EXP_AND_CP_POUCH) ? "mas era pang, exp ou CP pouch" : "mas nao conseguiu. Bug"), type_msg.CL_FILE_LOG_AND_CONSOLE));
+
+                    rai.fails.Add(it);
+
+                    _v_item.Remove(it);
+
+                    if (rai.type == RetAddItem.T_INIT_VALUE)
+                    {
+                        rai.type = type;
+                    }
+                    else if (type == RetAddItem.T_ERROR)
+                    {
+
+                        if (rai.type == RetAddItem.T_SUCCESS_PANG_AND_EXP_AND_CP_POUCH)
+                        {
+                            rai.type = RetAddItem.TR_SUCCESS_PANG_AND_EXP_AND_CP_POUCH_WITH_ERROR;
+                        }
+                        else if (rai.type == RetAddItem.T_SUCCESS)
+                        {
+                            rai.type = RetAddItem.TR_SUCCESS_WITH_ERROR;
+                        }
+                        else if (rai.type != RetAddItem.TR_SUCCESS_WITH_ERROR && rai.type != RetAddItem.TR_SUCCESS_PANG_AND_EXP_AND_CP_POUCH_WITH_ERROR)
+                        {
+                            rai.type = type;
+                        }
+
+                    }
+                    else if (type == RetAddItem.T_SUCCESS_PANG_AND_EXP_AND_CP_POUCH)
+                    {
+
+                        if (rai.type == RetAddItem.T_ERROR || rai.type == RetAddItem.TR_SUCCESS_WITH_ERROR)
+                        {
+                            rai.type = RetAddItem.TR_SUCCESS_PANG_AND_EXP_AND_CP_POUCH_WITH_ERROR;
+                        }
+                        else if (rai.type == RetAddItem.T_SUCCESS)
+                        {
+                            rai.type = RetAddItem.T_SUCCESS_PANG_AND_EXP_AND_CP_POUCH;
+                        }
+                    }
+
+                }
+                else
+                {
+                    ++i;
+
+                    if (rai.type == RetAddItem.T_INIT_VALUE)
+                    {
+                        rai.type = RetAddItem.T_SUCCESS;
+                    }
+                    else if (rai.type == RetAddItem.T_ERROR)
+                    {
+                        rai.type = RetAddItem.TR_SUCCESS_WITH_ERROR;
+                    }
+                }
+            }
+
+            return (rai);
+        }
+
+
+        public static RetAddItem addItem(Dictionary<uint, stItem> _v_item, Player _session, byte _gift_flag, byte _purchase, bool _dup = false)
+        {
+
+            RetAddItem rai = new RetAddItem();
+            int type = RetAddItem.T_INIT_VALUE;
+
+            var list = _v_item;
+            for (uint i = 0; i < list.Count; /*incrementa só no else*/)
+            {
+                var it = _v_item[i];
+                if ((type = addItem(it,
+                    _session, _gift_flag,
+                    _purchase, _dup)) <= 0)
+                {
+
+                    _smp.message_pool.getInstance().push(new message("[item_manager::addItem][Log] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou adicionar o item[TYPEID=" + Convert.ToString(it._typeid) + ", ID=" + Convert.ToString(it.id) + "], " + ((type == RetAddItem.T_SUCCESS_PANG_AND_EXP_AND_CP_POUCH) ? "mas era pang, exp ou CP pouch" : "mas nao conseguiu.Bug"), type_msg.CL_FILE_LOG_AND_CONSOLE));
+
+                    rai.fails.Add(it);
+
+                    _v_item.Remove((uint)it.id);
+
+                    if (rai.type == RetAddItem.T_INIT_VALUE)
+                    {
+                        rai.type = type;
+                    }
+                    else if (type == RetAddItem.T_ERROR)
+                    {
+
+                        if (rai.type == RetAddItem.T_SUCCESS_PANG_AND_EXP_AND_CP_POUCH)
+                        {
+                            rai.type = RetAddItem.TR_SUCCESS_PANG_AND_EXP_AND_CP_POUCH_WITH_ERROR;
+                        }
+                        else if (rai.type == RetAddItem.T_SUCCESS)
+                        {
+                            rai.type = RetAddItem.TR_SUCCESS_WITH_ERROR;
+                        }
+                        else if (rai.type != RetAddItem.TR_SUCCESS_WITH_ERROR && rai.type != RetAddItem.TR_SUCCESS_PANG_AND_EXP_AND_CP_POUCH_WITH_ERROR)
+                        {
+                            rai.type = type;
+                        }
+
+                    }
+                    else if (type == RetAddItem.T_SUCCESS_PANG_AND_EXP_AND_CP_POUCH)
+                    {
+
+                        if (rai.type == RetAddItem.T_ERROR || rai.type == RetAddItem.TR_SUCCESS_WITH_ERROR)
+                        {
+                            rai.type = RetAddItem.TR_SUCCESS_PANG_AND_EXP_AND_CP_POUCH_WITH_ERROR;
+                        }
+                        else if (rai.type == RetAddItem.T_SUCCESS)
+                        {
+                            rai.type = RetAddItem.T_SUCCESS_PANG_AND_EXP_AND_CP_POUCH;
+                        }
+                    }
+
+                }
+                else
+                {
+
+                    // Incrementa
+                    ++i;
+
+                    if (rai.type == RetAddItem.T_INIT_VALUE)
+                    {
+                        rai.type = RetAddItem.T_SUCCESS;
+                    }
+                    else if (rai.type == RetAddItem.T_ERROR)
+                    {
+                        rai.type = RetAddItem.TR_SUCCESS_WITH_ERROR;
+                    }
+                }
+            }
+
+            return (rai);
+        }
+
+        public static RetAddItem addItem(Dictionary<uint, stItemEx> _v_item, Player _session,  /*era byte*/ byte _gift_flag, byte _purchase, bool _dup = false)
+        {
+
+            RetAddItem rai = new RetAddItem();
+            int type = RetAddItem.T_INIT_VALUE;
+
+            var list = _v_item;
+            for (uint i = 0; i < list.Count; /*incrementa só no else*/)
+            {
+                var it = _v_item[i];
+                if ((type = addItem(it,
+                    _session, _gift_flag,
+                    _purchase, _dup)) <= 0)
+                {
+
+                    _smp.message_pool.getInstance().push(new message("[item_manager::addItem][Log] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou adicionar o item[TYPEID=" + Convert.ToString(it._typeid) + ", ID=" + Convert.ToString(it.id) + "], " + ((type == RetAddItem.T_SUCCESS_PANG_AND_EXP_AND_CP_POUCH) ? "mas era pang, exp ou CP pouch" : "mas nao conseguiu.Bug"), type_msg.CL_FILE_LOG_AND_CONSOLE));
+
+                    rai.fails.Add(it);
+
+                    _v_item.Remove((uint)it.id);
+
+                    if (rai.type == RetAddItem.T_INIT_VALUE)
+                    {
+                        rai.type = type;
+                    }
+                    else if (type == RetAddItem.T_ERROR)
+                    {
+
+                        if (rai.type == RetAddItem.T_SUCCESS_PANG_AND_EXP_AND_CP_POUCH)
+                        {
+                            rai.type = RetAddItem.TR_SUCCESS_PANG_AND_EXP_AND_CP_POUCH_WITH_ERROR;
+                        }
+                        else if (rai.type == RetAddItem.T_SUCCESS)
+                        {
+                            rai.type = RetAddItem.TR_SUCCESS_WITH_ERROR;
+                        }
+                        else if (rai.type != RetAddItem.TR_SUCCESS_WITH_ERROR && rai.type != RetAddItem.TR_SUCCESS_PANG_AND_EXP_AND_CP_POUCH_WITH_ERROR)
+                        {
+                            rai.type = type;
+                        }
+
+                    }
+                    else if (type == RetAddItem.T_SUCCESS_PANG_AND_EXP_AND_CP_POUCH)
+                    {
+
+                        if (rai.type == RetAddItem.T_ERROR || rai.type == RetAddItem.TR_SUCCESS_WITH_ERROR)
+                        {
+                            rai.type = RetAddItem.TR_SUCCESS_PANG_AND_EXP_AND_CP_POUCH_WITH_ERROR;
+                        }
+                        else if (rai.type == RetAddItem.T_SUCCESS)
+                        {
+                            rai.type = RetAddItem.T_SUCCESS_PANG_AND_EXP_AND_CP_POUCH;
+                        }
+                    }
+
+                }
+                else
+                {
+
+                    // Incrementa
+                    ++i;
+
+                    if (rai.type == RetAddItem.T_INIT_VALUE)
+                    {
+                        rai.type = RetAddItem.T_SUCCESS;
+                    }
+                    else if (rai.type == RetAddItem.T_ERROR)
+                    {
+                        rai.type = RetAddItem.TR_SUCCESS_WITH_ERROR;
+                    }
+                }
+            }
+
+            return rai;
+        }
+
+        // Give Itens
         public static int giveItem(stItem _item, Player _session,  /*era byte*/ byte _gift_flag)
         {
 
@@ -3893,7 +4313,7 @@ else
 
                         _item.stat.qntd_ant = pCi.qntd;
 
-                        pCi.qntd -= _item.STDA_C_ITEM_QNTD;
+                        pCi.qntd -= _item.STDA_C_ITEM_QNTD32;
 
                         _item.stat.qntd_dep = pCi.qntd;
 
@@ -3975,11 +4395,11 @@ else
                                 22, 0));
                         }
 
-                        _item.stat.qntd_ant = pWi.STDA_C_ITEM_QNTD;
+                        _item.stat.qntd_ant = pWi.STDA_C_ITEM_QNTD32;
 
                         pWi.STDA_C_ITEM_QNTD -= _item.STDA_C_ITEM_QNTD;
 
-                        _item.stat.qntd_dep = pWi.STDA_C_ITEM_QNTD;
+                        _item.stat.qntd_dep = pWi.STDA_C_ITEM_QNTD32;
 
                         _item.STDA_C_ITEM_QNTD *= short.MaxValue; // deixa negativo para tirar no pangya
 
@@ -4005,7 +4425,7 @@ else
                         {
                             snmdb.NormalManagerDB.getInstance().add(7, // Update
                                 new CmdUpdateBallQntd(_session.m_pi.uid,
-                                    pWi.id, pWi.STDA_C_ITEM_QNTD),
+                                    pWi.id, pWi.STDA_C_ITEM_QNTD32),
                                 SQLDBResponse,
                                 null);
                         }
@@ -4034,11 +4454,11 @@ else
                                 22, 0));
                         }
 
-                        _item.stat.qntd_ant = pWi.STDA_C_ITEM_QNTD;
+                        _item.stat.qntd_ant = pWi.STDA_C_ITEM_QNTD32;
 
                         pWi.STDA_C_ITEM_QNTD -= _item.STDA_C_ITEM_QNTD;
 
-                        _item.stat.qntd_dep = pWi.STDA_C_ITEM_QNTD;
+                        _item.stat.qntd_dep = pWi.STDA_C_ITEM_QNTD32;
 
                         _item.STDA_C_ITEM_QNTD *= short.MaxValue; // deixa negativo para tirar no pangya
 
@@ -4064,7 +4484,7 @@ else
                         {
                             snmdb.NormalManagerDB.getInstance().add(9, // Update
                                 new CmdUpdateItemQntd(_session.m_pi.uid,
-                                    pWi.id, pWi.STDA_C_ITEM_QNTD),
+                                    pWi.id, pWi.STDA_C_ITEM_QNTD32),
                                 SQLDBResponse,
                                 null);
                         }
@@ -4134,6 +4554,23 @@ else
             return (int)i;
         }
 
+        public static int giveItem(List<stItemEx> _v_item, Player _session,  /*era byte*/ byte _gift_flag)
+        {
+            int i = 0;
+            var list = _v_item;
+            for (i = 0; i < list.Count(); ++i)
+            {
+                if (giveItem(list[i],
+                    _session, _gift_flag) <= 0)
+                {
+                    _v_item.Remove(list[i]);
+                }
+            }
+
+            return (int)i;
+        }
+
+        // Remove Item
         public static int removeItem(stItem _item, Player _session)
         {
 
@@ -4161,13 +4598,13 @@ else
                         if (pWi.STDA_C_ITEM_QNTD <= (short)_item.qntd)
                         { // Exclui o Item[AxuPart]
 
-                            _item.stat.qntd_ant = pWi.STDA_C_ITEM_QNTD;
+                            _item.stat.qntd_ant = pWi.STDA_C_ITEM_QNTD32;
 
                             _item.STDA_C_ITEM_QNTD = (short)(pWi.STDA_C_ITEM_QNTD * ushort.MaxValue);
 
                             pWi.STDA_C_ITEM_QNTD = 0;
 
-                            _item.stat.qntd_dep = pWi.STDA_C_ITEM_QNTD;
+                            _item.stat.qntd_dep = pWi.STDA_C_ITEM_QNTD32;
 
                             snmdb.NormalManagerDB.getInstance().add(0,
                                 new CmdDeleteItem(_session.m_pi.uid, pWi.id),
@@ -4228,15 +4665,15 @@ else
                         else
                         { // Att quantidade do Item
 
-                            _item.stat.qntd_ant = pWi.STDA_C_ITEM_QNTD;
+                            _item.stat.qntd_ant = pWi.STDA_C_ITEM_QNTD32;
 
                             pWi.STDA_C_ITEM_QNTD -= (short)_item.qntd;
 
-                            _item.stat.qntd_dep = pWi.STDA_C_ITEM_QNTD;
+                            _item.stat.qntd_dep = pWi.STDA_C_ITEM_QNTD32;
 
                             snmdb.NormalManagerDB.getInstance().add(0,
                                 new CmdUpdateItemQntd(_session.m_pi.uid,
-                                    pWi.id, pWi.STDA_C_ITEM_QNTD),
+                                    pWi.id, pWi.STDA_C_ITEM_QNTD32),
                                 SQLDBResponse,
                                 null);
 
@@ -4260,13 +4697,13 @@ else
                         if (pWi.STDA_C_ITEM_QNTD <= (short)_item.qntd)
                         { // Exclui o Item[Ball]
 
-                            _item.stat.qntd_ant = pWi.STDA_C_ITEM_QNTD;
+                            _item.stat.qntd_ant = pWi.STDA_C_ITEM_QNTD32;
 
                             _item.STDA_C_ITEM_QNTD = (short)(pWi.STDA_C_ITEM_QNTD * ushort.MaxValue);
 
                             pWi.STDA_C_ITEM_QNTD = 0;
 
-                            _item.stat.qntd_dep = pWi.STDA_C_ITEM_QNTD;
+                            _item.stat.qntd_dep = pWi.STDA_C_ITEM_QNTD32;
 
                             // Passa o typeid do Warehouse para o _item para garantir, se não tiver colocado o typeid, na estrutura
                             _item._typeid = pWi._typeid;
@@ -4327,15 +4764,15 @@ else
                         else
                         { // Att quantidade do Item
 
-                            _item.stat.qntd_ant = pWi.STDA_C_ITEM_QNTD;
+                            _item.stat.qntd_ant = pWi.STDA_C_ITEM_QNTD32;
 
                             pWi.STDA_C_ITEM_QNTD -= (short)(_item.qntd);
 
-                            _item.stat.qntd_dep = pWi.STDA_C_ITEM_QNTD;
+                            _item.stat.qntd_dep = pWi.STDA_C_ITEM_QNTD32;
 
                             snmdb.NormalManagerDB.getInstance().add(0,
                                 new CmdUpdateBallQntd(_session.m_pi.uid,
-                                    pWi.id, pWi.STDA_C_ITEM_QNTD),
+                                    pWi.id, pWi.STDA_C_ITEM_QNTD32),
                                 SQLDBResponse,
                                 null);
 
@@ -4394,7 +4831,7 @@ else
                             return -1;
                         }
 
-                        if (pCi.qntd <= _item.qntd)
+                        if (pCi.qntd <= (int)_item.qntd)
                         { // Exclui Item[Card]
 
 
@@ -4531,19 +4968,20 @@ else
                         if (pWi.STDA_C_ITEM_QNTD <= (short)_item.qntd)
                         { // Exclui o Item[Item]
 
-                            _item.stat.qntd_ant = pWi.STDA_C_ITEM_QNTD;
+                            _item.stat.qntd_ant = pWi.STDA_C_ITEM_QNTD32;
 
                             _item.STDA_C_ITEM_QNTD = (short)(pWi.STDA_C_ITEM_QNTD * -1);
 
                             pWi.STDA_C_ITEM_QNTD = 0;
 
-                            _item.stat.qntd_dep = pWi.STDA_C_ITEM_QNTD;
+                            _item.stat.qntd_dep = pWi.STDA_C_ITEM_QNTD32;
 
                             snmdb.NormalManagerDB.getInstance().add(0,
                                 new CmdDeleteItem(_session.m_pi.uid, pWi.id),
                                 SQLDBResponse,
                                 null);
 
+                            //auto it = VECTOR_FIND_ITEM(_session.m_pi.v_wi, id, == , pWi->id);
                             var it = _session.m_pi.findWarehouseItemById(pWi.id);
 
                             if (it.id != 0)
@@ -4553,20 +4991,20 @@ else
 
                             ret_id = _item.id;
 
-                            //  ITEM_MANAGER_LOG("Deletou Item", _session, _item);
+
                         }
                         else
                         { // Att quantidade do Item
 
-                            _item.stat.qntd_ant = (int)pWi.STDA_C_ITEM_QNTD;
+                            _item.stat.qntd_ant = (int)pWi.STDA_C_ITEM_QNTD32;
 
                             pWi.STDA_C_ITEM_QNTD -= (short)(_item.qntd);
 
-                            _item.stat.qntd_dep = (int)pWi.STDA_C_ITEM_QNTD;
+                            _item.stat.qntd_dep = (int)pWi.STDA_C_ITEM_QNTD32;
 
                             snmdb.NormalManagerDB.getInstance().add(0,
                                 new CmdUpdateItemQntd(_session.m_pi.uid,
-                                    pWi.id, pWi.STDA_C_ITEM_QNTD),
+                                    pWi.id, pWi.STDA_C_ITEM_QNTD32),
                                 SQLDBResponse,
                                 null);
 
@@ -4720,7 +5158,7 @@ else
         {
             int i = 0;
             var list = _v_item;
-            for (; i < list.Count(); ++i)
+            for (i = 0; i < list.Count(); ++i)
             {
                 if (removeItem(list[i], _session) <= 0)
                 {
@@ -4742,7 +5180,7 @@ else
                 {
                     _v_item.Remove(list[i]);
                 }
-            }
+            } 
             return i;
         }
 
@@ -4790,7 +5228,7 @@ else
                             snmdb.NormalManagerDB.getInstance().add(9,
                                 new CmdUpdateItemQntd(_s_rcv.m_pi.uid,
                                     pWi_r.id,
-                                    pWi_r.STDA_C_ITEM_QNTD),
+                                    pWi_r.STDA_C_ITEM_QNTD32),
                                 SQLDBResponse,
                                 null);
 
@@ -4859,7 +5297,7 @@ else
                             snmdb.NormalManagerDB.getInstance().add(9, // Update
                                 new CmdUpdateItemQntd(_s_snd.m_pi.uid,
                                     pWi_s.id,
-                                    pWi_s.STDA_C_ITEM_QNTD),
+                                    pWi_s.STDA_C_ITEM_QNTD32),
                                 SQLDBResponse,
                                 null);
                         }
@@ -5087,7 +5525,7 @@ else
 
                         if (_qntd != 1u)
                         {
-                            _smp.message_pool.getInstance().push(new message("[item_manager::exchangeCadieMagicBox][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] Caddie[TYPEID=" + Convert.ToString(_typeid) + ", ID=" + Convert.ToString(_id) + "] quantidade[value=" + Convert.ToString(_qntd) + "] de caddie é errado, nao pode mais que 1. Hacker ou Bug", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                            _smp.message_pool.getInstance().push(new message("[item_manager::exchangeCadieMagicBox][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] Caddie[TYPEID=" + Convert.ToString(_typeid) + ", ID=" + Convert.ToString(_id) + "] quantidade[value=" + Convert.ToString(_qntd) + "] de caddie eh errado, nao pode mais que 1. Hacker ou Bug", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
                             return -1;
                         }
@@ -5103,7 +5541,7 @@ else
 
                         if (caddie.valor_mensal > 0)
                         {
-                            _smp.message_pool.getInstance().push(new message("[item_manager::exchangeCadieMagicBox][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou trocar um caddie[TYPEID=" + Convert.ToString(_typeid) + ", ID=" + Convert.ToString(_id) + "] que é por tempo, isso nao é permitido pelo server", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                            _smp.message_pool.getInstance().push(new message("[item_manager::exchangeCadieMagicBox][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou trocar um caddie[TYPEID=" + Convert.ToString(_typeid) + ", ID=" + Convert.ToString(_id) + "] que eh por tempo, isso nao eh permitido pelo server", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
                             return -1;
                         }
@@ -5125,7 +5563,7 @@ else
 
                         if (_qntd != 1u)
                         {
-                            _smp.message_pool.getInstance().push(new message("[item_manager::exchangeCadieMagicBox][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] Mascot[TYPEID=" + Convert.ToString(_typeid) + ", ID=" + Convert.ToString(_id) + "] quantidade[value=" + Convert.ToString(_qntd) + "] de mascot é errado, nao pode mais que 1. Hacker ou Bug", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                            _smp.message_pool.getInstance().push(new message("[item_manager::exchangeCadieMagicBox][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] Mascot[TYPEID=" + Convert.ToString(_typeid) + ", ID=" + Convert.ToString(_id) + "] quantidade[value=" + Convert.ToString(_qntd) + "] de mascot eh errado, nao pode mais que 1. Hacker ou Bug", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
                             return -1;
                         }
@@ -5141,7 +5579,7 @@ else
 
                         if (mascot.Shop.flag_shop.time_shop.dia > 0 && mascot.Shop.flag_shop.time_shop.active)
                         {
-                            _smp.message_pool.getInstance().push(new message("[item_manager::exchangeCadieMagicBox][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou trocar um Mascot[TYPEID=" + Convert.ToString(_typeid) + ", ID=" + Convert.ToString(_id) + "] que nao é permitido[de tempo] trocar. Hacker ou Bug", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                            _smp.message_pool.getInstance().push(new message("[item_manager::exchangeCadieMagicBox][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou trocar um Mascot[TYPEID=" + Convert.ToString(_typeid) + ", ID=" + Convert.ToString(_id) + "] que nao eh permitido[de tempo] trocar. Hacker ou Bug", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
                             return -1;
                         }
@@ -5288,7 +5726,7 @@ else
 
                         if (_qntd != 1u)
                         {
-                            _smp.message_pool.getInstance().push(new message("[item_manager::exchangeCadieMagicBox][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] ClubSet[TYPEID=" + Convert.ToString(_typeid) + ", ID=" + Convert.ToString(_id) + "] quantidade[value=" + Convert.ToString(_qntd) + "] de clubset é errado, nao pode mais que 1. Hacker ou Bug", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                            _smp.message_pool.getInstance().push(new message("[item_manager::exchangeCadieMagicBox][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] ClubSet[TYPEID=" + Convert.ToString(_typeid) + ", ID=" + Convert.ToString(_id) + "] quantidade[value=" + Convert.ToString(_qntd) + "] de clubset eh errado, nao pode mais que 1. Hacker ou Bug", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
                             return -1;
                         }
@@ -5319,7 +5757,7 @@ else
 
                         if (_qntd != 1u)
                         {
-                            _smp.message_pool.getInstance().push(new message("[item_manager::exchangeCadieMagicBox][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] Part[TYPEID=" + Convert.ToString(_typeid) + ", ID=" + Convert.ToString(_id) + "] quantidade[value=" + Convert.ToString(_qntd) + "] de part é errado, nao pode mais que 1. Hacker ou Bug", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                            _smp.message_pool.getInstance().push(new message("[item_manager::exchangeCadieMagicBox][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] Part[TYPEID=" + Convert.ToString(_typeid) + ", ID=" + Convert.ToString(_id) + "] quantidade[value=" + Convert.ToString(_qntd) + "] de part eh errado, nao pode mais que 1. Hacker ou Bug", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
                             return -1;
                         }
@@ -5350,7 +5788,7 @@ else
 
                         if (_qntd != 1u)
                         {
-                            _smp.message_pool.getInstance().push(new message("[item_manager::exchangeCadieMagicBox][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] Skin[TYPEID=" + Convert.ToString(_typeid) + ", ID=" + Convert.ToString(_id) + "] quantidade[value=" + Convert.ToString(_qntd) + "] de skin é errado, nao pode mais que 1. Hacker ou Bug", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                            _smp.message_pool.getInstance().push(new message("[item_manager::exchangeCadieMagicBox][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] Skin[TYPEID=" + Convert.ToString(_typeid) + ", ID=" + Convert.ToString(_id) + "] quantidade[value=" + Convert.ToString(_qntd) + "] de skin eh errado, nao pode mais que 1. Hacker ou Bug", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
                             return -1;
                         }
@@ -5388,6 +5826,7 @@ else
             }
 
             List<stItem> v_item = new List<stItem>();
+            stItem item = new stItem();
 
             switch ((IFF_GROUP)sIff.getInstance().getItemGroupIdentify(_typeid))
             {
@@ -5421,12 +5860,12 @@ else
 
                         if (caddie.valor_mensal > 0)
                         {
-                            _smp.message_pool.getInstance().push(new message("[item_manager::exchangeTikiShop][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou trocar um caddie[TYPEID=" + Convert.ToString(_typeid) + ", ID=" + Convert.ToString(_id) + "] que é por tempo, isso nao é permitido pelo server", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                            _smp.message_pool.getInstance().push(new message("[item_manager::exchangeTikiShop][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou trocar um caddie[TYPEID=" + Convert.ToString(_typeid) + ", ID=" + Convert.ToString(_id) + "] que eh por tempo, isso nao eh permitido pelo server", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
                             return new List<stItem>();
                         }
 
-                        var item = new stItem();
+                        item.clear();
 
                         item.type = 2;
                         item.id = pCi.id;
@@ -5458,7 +5897,7 @@ else
 
                         if (_qntd != 1)
                         {
-                            _smp.message_pool.getInstance().push(new message("[item_manager::exchangeTikiShop][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] quantidade[value=" + Convert.ToString(_qntd) + "] de mascot é errado, nao pode mais que 1. Hacker ou Bug", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                            _smp.message_pool.getInstance().push(new message("[item_manager::exchangeTikiShop][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] quantidade[value=" + Convert.ToString(_qntd) + "] de mascot eh errado, nao pode mais que 1. Hacker ou Bug", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
                             return new List<stItem>();
                         }
@@ -5474,12 +5913,12 @@ else
 
                         if (mascot.Shop.flag_shop.time_shop.dia > 0 && mascot.Shop.flag_shop.time_shop.active)
                         {
-                            _smp.message_pool.getInstance().push(new message("[item_manager::exchangeTikiShop][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou trocar um Mascot[TYPEID=" + Convert.ToString(_typeid) + ", ID=" + Convert.ToString(_id) + "] que nao é permitido[de tempo] trocar. Hacker ou Bug", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                            _smp.message_pool.getInstance().push(new message("[item_manager::exchangeTikiShop][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou trocar um Mascot[TYPEID=" + Convert.ToString(_typeid) + ", ID=" + Convert.ToString(_id) + "] que nao eh permitido[de tempo] trocar. Hacker ou Bug", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
                             return new List<stItem>();
                         }
 
-                        var item = new stItem();
+                        item.clear();
 
                         item.type = 2;
                         item.id = pMi.id;
@@ -5518,7 +5957,7 @@ else
                             return new List<stItem>();
                         }
 
-                        var item = new stItem();
+                        item.clear();
 
                         item.type = 2;
                         item.id = pCi.id;
@@ -5574,7 +6013,7 @@ else
                             return new List<stItem>();
                         }
 
-                        var item = new stItem();
+                        item.clear();
 
                         item.type = 2;
                         item.id = pWi.id;
@@ -5622,7 +6061,7 @@ else
                             return new List<stItem>();
                         }
 
-                        var item = new stItem();
+                        item.clear();
 
                         item.type = 2;
                         item.id = pWi.id;
@@ -5670,7 +6109,7 @@ else
                             return new List<stItem>();
                         }
 
-                        var item = new stItem();
+                        item.clear();
 
                         item.type = 2;
                         item.id = pWi.id;
@@ -5719,7 +6158,7 @@ else
                             return new List<stItem>();
                         }
 
-                        var item = new stItem();
+                        item.clear();
 
                         item.type = 2;
                         item.id = pWi.id;
@@ -5773,7 +6212,7 @@ else
                                     return new List<stItem>();
                                 }
 
-                                var item = new stItem();
+                                item.clear();
 
                                 item.type = 2;
                                 item.id = pWi.id;
@@ -5787,7 +6226,7 @@ else
                             {
                                 for (var i = 0; i < _qntd; ++i)
                                 {
-                                    var item = new stItem();
+                                    item.clear();
 
                                     item.type = 2;
                                     item.id = pWi_all[i].id;
@@ -5838,7 +6277,7 @@ else
                             return new List<stItem>();
                         }
 
-                        var item = new stItem();
+                        item.clear();
 
                         item.type = 2;
                         item.id = pWi.id;
@@ -5857,114 +6296,171 @@ else
                     } // End Default
             } // End Switch
 
-            return v_item;
+            return new List<stItem>(v_item);
         }
 
         public static void openTicketReportScroll(Player _session, int _ticket_scroll_item_id, int _ticket_scroll_id, bool _upt_on_game = false)
         {
-            if (_session == null || !_session.getState()) return;
+
+            if (!_session.getState())
+            {
+                throw new exception("[item_manager::openTicketReportScrool][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + ", OID=" + Convert.ToString(_session.m_oid) + "] mas a session is invalid.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE._ITEM_MANAGER,
+                    2550, 0));
+            }
 
             var p = new PangyaBinaryWriter();
 
             try
             {
+
                 if (_ticket_scroll_item_id < 0 || _ticket_scroll_id < 0)
                 {
-                    throw new exception("[item_manager::openTicketReportScroll][Error] ITEM_ID ou ID inválido.",
-                        ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE._ITEM_MANAGER, 2500, 0));
+                    throw new exception("[item_manager::openTicketReportScroll][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou abrir Ticket Teport Scroll[ITEM_ID=" + Convert.ToString(_ticket_scroll_item_id) + ", ID=" + Convert.ToString(_ticket_scroll_id) + "], mas o ticket_scroll item ou id is invalid. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE._ITEM_MANAGER,
+                        2500, 0));
                 }
 
                 var pWi = _session.m_pi.findWarehouseItemById(_ticket_scroll_item_id);
+
                 if (pWi == null)
                 {
-                    throw new exception("[item_manager::openTicketReportScroll][Error] Player não tem o item.",
-                        ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE._ITEM_MANAGER, 2501, 0));
+                    throw new exception("[item_manager::openTicketReportScroll][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou abrir Ticket Teport Scroll[ITEM_ID=" + Convert.ToString(_ticket_scroll_item_id) + ", ID=" + Convert.ToString(_ticket_scroll_id) + "], mas ele nao tem o ticket_scroll item. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE._ITEM_MANAGER,
+                        2501, 0));
                 }
 
-                // Validação C1/C2 (Bitmask)
-                uint expectedId = (uint)(pWi.c[1] * 0x800) | (uint)(ushort)pWi.c[2];
-                if (expectedId != (uint)_ticket_scroll_id)
+                if (((pWi.c[1] * 0x800) | pWi.c[2]) != _ticket_scroll_id)
                 {
-                    throw new exception("[item_manager::openTicketReportScroll][Error] ID do Ticket não bate. Esperado: " + expectedId,
-                        ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE._ITEM_MANAGER, 2502, 0));
+                    throw new exception("[item_manager::openTicketReportScroll][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou abrir Ticket Teport Scroll[ITEM_ID=" + Convert.ToString(_ticket_scroll_item_id) + ", ID=" + Convert.ToString(_ticket_scroll_id) + "], mas ticket_scroll id nao bate com o do item[VALUE=" + Convert.ToString((pWi.c[1] * 0x800) | pWi.c[2]) + "]", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE._ITEM_MANAGER,
+                        2502, 0));
                 }
 
-                // Busca dados no Banco
-                CmdTicketReportDadosInfo cmd_trdi = new CmdTicketReportDadosInfo(_ticket_scroll_id);
-                snmdb.NormalManagerDB.getInstance().add(0, cmd_trdi, null, null);
+                CmdTicketReportDadosInfo cmd_trdi = new CmdTicketReportDadosInfo(_ticket_scroll_id); // Waiter
+
+                snmdb.NormalManagerDB.getInstance().add(0,
+                    cmd_trdi, null, null);
 
                 if (cmd_trdi.getException().getCodeError() != 0)
+                {
                     throw cmd_trdi.getException();
+                }
 
                 var trsi = cmd_trdi.getInfo();
-                if (trsi == null) throw new Exception("Dados do ticket retornaram nulos.");
 
-                // 1. Calcular EXP ANTES de remover o item
-                var playerStat = trsi.v_players.FirstOrDefault(_el => _el.uid == _session.m_pi.uid);
-                int expToGain = (playerStat != null && playerStat.exp > 0) ? (int)playerStat.exp : 0;
+                // Remove o Ticket Report Scroll Item
+                stItem item = new stItem();
 
-                // 2. Remover o Item
-                stItem itemRem = new stItem();
-                itemRem.type = 2;
-                itemRem.id = pWi.id;
-                itemRem._typeid = pWi._typeid;
-                itemRem.STDA_C_ITEM_QNTD = (short)(pWi.STDA_C_ITEM_QNTD * -1);
+                item.type = 2;
+                item.id = pWi.id;
+                item._typeid = pWi._typeid;
+                item.qntd = (int)pWi.STDA_C_ITEM_QNTD32;
+                item.STDA_C_ITEM_QNTD = (short)(item.qntd * -1);
 
-                if (removeItem(itemRem, _session) <= 0)
+                if (removeItem(item, _session) <= 0)
                 {
-                    throw new exception("[item_manager::openTicketReportScroll][Error] Falha ao deletar item.",
-                        ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE._ITEM_MANAGER, 2503, 0));
+                    throw new exception("[item_manager::openTicketReportScroll][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou abrir Ticket Teport Scroll[ITEM_ID=" + Convert.ToString(_ticket_scroll_item_id) + ", ID=" + Convert.ToString(_ticket_scroll_id) + "], mas nao conseguiu deletar Ticket Report Scroll item. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE._ITEM_MANAGER,
+                        2503, 0));
                 }
 
-                // 3. Checar se o item estava expirado (UpdateItem)
+                // Check if it is on Update Item Map
                 var ui_it = _session.m_pi.findUpdateItemByTypeidAndType((uint)_ticket_scroll_item_id, UpdateItem.UI_TYPE.WAREHOUSE);
 
-                // CORREÇÃO DO CRASH: Checar se ui_it não é nulo antes do Count
-                if (ui_it != null && ui_it.Count > 0)
+                // Add Experiencia se ele ganhou
+                var it = trsi.v_players.FirstOrDefault(_el =>
                 {
-                    // Se expirou, remove do mapa de updates
+                    return _el.uid == _session.m_pi.uid;
+                });
+
+                uint exp = 0u;
+
+                // Guarda exp para enviar depois que enviar o pacote do ticker report open
+                if (it != trsi.v_players.end() && it.exp > 0)
+                {
+                    exp = it.exp;
+                }
+
+                // Tempo do Item Acabou, Exclui ele do Server, DB and Game, e manda a resposta de erro para o Game(player)
+                if (ui_it.FirstOrDefault().Key != _session.m_pi.mp_ui.end().Key)
+                {
+
+                    if (_upt_on_game)
+                    {
+                        // Exclui do Game
+                        p.init_plain(0x216);
+
+                        p.WriteUInt32((uint)UtilTime.GetSystemTimeAsUnix());
+                        p.WriteUInt32(1); // Count
+
+                        p.WriteByte(item.type);
+                        p.WriteUInt32(item._typeid);
+                        p.WriteInt32(item.id);
+                        p.WriteUInt32(item.flag_time);
+                        p.WriteBytes(item.stat.ToArray());
+                        p.WriteInt32((item.STDA_C_ITEM_TIME > 0) ? item.STDA_C_ITEM_TIME32 : item.STDA_C_ITEM_QNTD32);
+                        p.WriteZeroByte(25);
+
+                        packet_func.session_send(p,
+                            _session, 1);
+                    }
+
+                    // Exclui Update Item
                     _session.m_pi.mp_ui.Remove(ui_it.First().Key);
 
-                    // Se expirou, damos a exp e paramos por aqui com erro de expiração
-                    if (expToGain > 0) _session.addExp(expToGain, _upt_on_game);
+                    // Add experiência do player e enviar o pacote de experiência
+                    if (exp > 0u)
+                    {
+                        _session.addExp(exp, _upt_on_game);
+                    }
 
-                    throw new exception("Item expirado, mas EXP concedida.",
-                        ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE._ITEM_MANAGER, 2504, 0));
+                    // Resposta para o cliente
+                    throw new exception("[item_manager::openTicketReportScroll][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou abrir Ticket Report Scroll[ITEM_ID=" + Convert.ToString(_ticket_scroll_item_id) + ", ID=" + Convert.ToString(_ticket_scroll_id) + ", END_DATE=" + UtilTime.FormatDateLocal(pWi.end_date_unix_local) + ", EXP=" + Convert.ToString(exp) + "], mas o tempo do item expirou. Da so a exp para o player.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE._ITEM_MANAGER,
+                        2504, 0));
                 }
+                // End Check Time Item Ticket Scroll
 
-                // 4. Fluxo Normal (Sucesso)
-                _smp.message_pool.getInstance().push(new message("[item_manager::openTicketReportScroll][Log] Player " + _session.m_pi.uid + " abriu ticket com sucesso.", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                // Log
+                _smp.message_pool.getInstance().push(new message("[item_manager::openTicketReportScroll][Log] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] abriu Ticket Report Scroll[ITEM_ID=" + Convert.ToString(_ticket_scroll_item_id) + ", ID=" + Convert.ToString(_ticket_scroll_id) + ", EXP=" + Convert.ToString(exp) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
-                // Envia pacote de resposta do Ticket
+                // Reposta para o cliente
                 p.init_plain(0x11A);
+
                 p.WriteUInt32((uint)trsi.v_players.Count());
-                p.WriteTime(trsi.date);
+
+                p.WriteStruct(trsi.date, 16);
                 foreach (var el in trsi.v_players)
-                    p.WriteBytes(el.ToArray());
-
-                packet_func.session_send(p, _session, 1);
-
-                // 5. Adiciona EXP por ÚLTIMO (para o visual do Pangya não bugar)
-                if (expToGain > 0)
                 {
-                    _session.addExp(expToGain, _upt_on_game);
+                    p.WriteBytes(el.ToArray());
                 }
+
+                packet_func.session_send(p,
+                    _session, 1);
+
+                // Tem que add exp aqui depois do pacote11A por que att antes e depois o pacote11A começa a contar a experiência do exp já atualizado, 
+                // aí o visual fica errado, mas no info fica tudo certo
+                // Add experiência do player e enviar o pacote de experiência
+                if (exp > 0u)
+                {
+                    _session.addExp(exp, _upt_on_game);
+                }
+
             }
             catch (exception e)
             {
+
                 _smp.message_pool.getInstance().push(new message("[item_manager::openTicketReportScroll][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
 
-                // Resposta de Erro para o Cliente (Packet 0x11A com erro)
+                // Reposta Error;
                 p.init_plain(0x11A);
-                p.WriteInt32(-1); // Código de Erro
-                p.WriteZeroByte(16); // Data vazia
-                packet_func.session_send(p, _session, 1);
+
+                p.WriteInt32(-1); // Error
+                p.WriteZeroByte(16); // Date
+
+                packet_func.session_send(p,
+                    _session, 1);
             }
         }
 
         public static bool isSetItem(uint _typeid)
         {
-            return sIff.getInstance().getItemGroupIdentify(_typeid) == PangyaAPI.IFF.JP.Models.Flags.IFF_GROUP.SET_ITEM;
+            return sIff.getInstance().getItemGroupIdentify(_typeid) == sIff.getInstance().SET_ITEM;
         }
 
         public static bool isTimeItem(stItem.stDate _date)
@@ -5983,7 +6479,7 @@ else
             bool ret = false;
 
             // Procura primeiro no Dolfini Locker o item, se for diferente de SetItem
-            if (sIff.getInstance().getItemGroupIdentify(_typeid) != IFF_GROUP.SET_ITEM)
+            if (sIff.getInstance().getItemGroupIdentify(_typeid) != sIff.getInstance().SET_ITEM)
             {
 
                 var cmd_dli = new CmdFindDolfiniLockerItem(_uid, // Waiter
@@ -6123,11 +6619,11 @@ else
 
             if (set != null)
             {
-                for (var i = 0; i < (set.packege.item_typeid.Length); ++i)
+                for (var i = 0u; i < (set.packege.item_typeid.Length); ++i)
                 {
                     // Eleminar a verificação do character que ele só inclui se o player não tiver ele
                     // se ele tiver não faz diferença não anula o verificação do set
-                    if (set.packege.item_typeid[i] != 0 && sIff.getInstance().getItemGroupIdentify(set.packege.item_typeid[i]) != IFF_GROUP.CHARACTER)
+                    if (set.packege.item_typeid[i] != 0 && sIff.getInstance().getItemGroupIdentify(set.packege.item_typeid[i]) != sIff.getInstance().CHARACTER)
                     {
                         if (ownerItem(_uid, set.packege.item_typeid[i])) // se tiver 1 item que seja não pode ganhar o set se não vai duplicar os itens, que ele tem
                         {
@@ -6358,41 +6854,59 @@ else
             return false;
         }
 
-        public static bool IsBetween(SYSTEMTIME start, SYSTEMTIME end, SYSTEMTIME current)
-        {
-            // Converte SYSTEMTIME para DateTime (ou null se Year for 0)
-            DateTime dtStart = (start.Year > 0) ? UtilTime.ToDateTime(start) : DateTime.MaxValue;
-            DateTime dtEnd = (end.Year > 0) ? UtilTime.ToDateTime(end) : DateTime.MaxValue;
-            DateTime dtCurrent = UtilTime.ToDateTime(current);
-
-            if (dtStart != DateTime.MaxValue)
-            {
-                if (!(dtEnd != DateTime.MaxValue))
-                    return dtCurrent >= dtStart; // Só tem início (a2 <= a4)
-
-                // Tem ambos (a2 <= a4 <= a3)
-                return dtCurrent >= dtStart && dtCurrent <= dtEnd;
-            }
-            else if (dtEnd != DateTime.MaxValue)
-            {
-                return dtCurrent <= dtEnd; // Só tem fim (a4 <= a3)
-            }
-
-            return true; // Ambos nulos (Igual ao return 1 do assembly)
-        }
+        [Obsolete]
         public static bool betweenTimeSystem(ref stItem.stDate _date)
         {
 
             if (!isTimeItem(_date))
                 throw new Exception("[item_manager::betweenTimeSystem][Error] Item nao e um item de tempo.");
 
+            FILETIME ft1 = new FILETIME();
+            FILETIME ft2 = new FILETIME();
+            FILETIME ft3 = new FILETIME();
 
-            SYSTEMTIME st = new SYSTEMTIME();//gerar o datetime now
+            SYSTEMTIME st = new SYSTEMTIME();
             UtilTime.GetLocalTime(ref st);
 
-            return IsBetween(_date.date.sysDate[0], _date.date.sysDate[1], st);
+            var sysDate0 = new SYSTEMTIME
+            {
+                Year = _date.date.sysDate[0].Year,
+                Day = _date.date.sysDate[0].Day,
+                Hour = _date.date.sysDate[0].Hour,
+                Minute = _date.date.sysDate[0].Minute,
+                MilliSecond = _date.date.sysDate[0].MilliSecond,
+                Second = _date.date.sysDate[0].Second,
+                Month = _date.date.sysDate[0].Month,
+                DayOfWeek = _date.date.sysDate[0].DayOfWeek,
+            };
+
+            var sysDate1 = new PangyaAPI.Utilities.SYSTEMTIME
+            {
+                Year = _date.date.sysDate[1].Year,
+                Day = _date.date.sysDate[1].Day,
+                Hour = _date.date.sysDate[1].Hour,
+                Minute = _date.date.sysDate[1].Minute,
+                MilliSecond = _date.date.sysDate[1].MilliSecond,
+                Second = _date.date.sysDate[1].Second,
+                Month = _date.date.sysDate[1].Month,
+                DayOfWeek = _date.date.sysDate[1].DayOfWeek,
+            };
+            UtilTime.SystemTimeToFileTime(ref sysDate0, ref ft1);
+            UtilTime.SystemTimeToFileTime(ref sysDate1, ref ft2);
+            UtilTime.SystemTimeToFileTime(ref st, ref ft3);
+
+            // Data de término é 0, então passa a do LocalTime, porque ele só tem a data de quando começa
+            if (ft2.dwHighDateTime == 0 && ft2.dwLowDateTime == 0)
+                ft2 = ft3;
+
+            ulong ft1Quad = ((ulong)ft1.dwHighDateTime << 32) | (uint)ft1.dwLowDateTime;
+            ulong ft2Quad = ((ulong)ft2.dwHighDateTime << 32) | (uint)ft2.dwLowDateTime;
+            ulong ft3Quad = ((ulong)ft3.dwHighDateTime << 32) | (uint)ft3.dwLowDateTime;
+
+            return (ft1Quad <= ft3Quad && ft3Quad <= ft2Quad);
         }
 
+        [Obsolete]
         public static bool betweenTimeSystem(IFFDate _date)
         {
             var date = new stItem.stDate();
@@ -6417,6 +6931,7 @@ else
             return betweenTimeSystem(ref date);
         }
 
+        [Obsolete]
         public static bool betweenTimeSystem(stItem.stDate.stDateSys _date)
         {
             stItem.stDate date = new stItem.stDate(0, _date);
@@ -6547,113 +7062,6 @@ else
                 case 0:
                 default:
                     break;
-            }
-        }
-
-        public static uint CalculateSafeExchangeCount(
-        Player session,
-        CadieExchangeItem cost,
-        uint clientRequested,
-        uint hardLimit
-    )
-        {
-            if (clientRequested == 0)
-                throw new exception(
-                    $"[CHEAT] clientRequested = 0",
-                    ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL, 900, 0xDEAD0001)
-                );
-
-            if (cost.QtyPerExchange == 0)
-                throw new exception(
-                    $"[Error] QtyPerExchange = 0 (server config inválido)",
-                    ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL, 901, 0xDEAD0002)
-                );
-
-            uint playerHas = getItemQuantity(
-                session,
-                cost._typeid,
-                cost.id
-            );
-
-            uint maxPossible = playerHas / cost.QtyPerExchange;
-
-            if (maxPossible == 0)
-                throw new exception(
-                    $"[Error] player não possui itens suficientes",
-                    ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL, 902, 0xDEAD0003)
-                );
-
-            if (clientRequested > maxPossible)
-            {
-                throw new exception(
-                    $"[CHEAT] UID={session.m_pi.uid} RequestCount ={clientRequested}, RequestMax={maxPossible} quantidade inválida",
-                    ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.CHANNEL, 903, 0xDEAD0004)
-                );
-            }
-
-            if (clientRequested > hardLimit)
-            {
-                _smp.message_pool.getInstance().push(
-                    new message(
-                        $"[WARN] UID={session.m_pi.uid} limitado de {clientRequested} para {hardLimit}",
-                        type_msg.CL_FILE_LOG_AND_CONSOLE
-                    )
-                );
-
-                return hardLimit;
-            }
-
-            return clientRequested;
-        }
-
-        public static uint getItemQuantity(Player session, uint typeid, int itemId)
-        {
-            var type = (IFF_GROUP)sIff.getInstance().getItemGroupIdentify(typeid);
-            switch (type)
-            {
-                case IFF_GROUP.CARD:
-                    {
-                        var item = session.m_pi.findCardById(itemId);
-                        if (item == null)
-                        {
-                            return 0;
-                        }
-                        return (uint)item.qntd;
-                    }
-                case IFF_GROUP.CADDIE:
-                case IFF_GROUP.PART:
-                case IFF_GROUP.AUX_PART:
-                case IFF_GROUP.CLUBSET:
-                case IFF_GROUP.ITEM:
-                    {
-                        if (type == IFF_GROUP.PART || type == IFF_GROUP.CLUBSET)
-                        {
-                            var item = session.m_pi.findWarehouseItemById(itemId);
-
-                            // Se o item não existe no warehouse, retorna 0
-                            if (item == null) return 0; 
-
-                            return (uint)((item != null) ? (uint)item.STDA_C_ITEM_QNTD == 0 ? 1 : item.STDA_C_ITEM_QNTD : 0);
-                        }
-                        else
-                        {
-                            if (type == IFF_GROUP.CADDIE)
-                            {
-                                var item = session.m_pi.findCaddieById(itemId);
-
-                                // Se o item não existe no warehouse, retorna 0
-                                if (item == null) return 0;
-                                 
-                                return 1;
-                            }
-                        }
-
-                        // Para outros itens (Consumíveis), retorna a quantidade real
-                        var warehouseItem = session.m_pi.findWarehouseItemById(itemId);
-                        return (uint)((warehouseItem != null) ? (uint)warehouseItem.STDA_C_ITEM_QNTD == 0? 1: warehouseItem.STDA_C_ITEM_QNTD : 0);
-                    }
-                default:
-                    return 0;
             }
         }
     }

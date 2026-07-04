@@ -16,7 +16,7 @@ namespace Pangya_GameServer.Game
     {
         public HoleManager(byte _course,
             ushort _numero, byte _pin,
-            ROOM_INFO_MODO _modo, byte _hole_repeat,
+            eMODO _modo, byte _hole_repeat,
             byte _weather, byte _wind,
             ushort _degree,
             uCubeCoinFlag _cube_coin)
@@ -149,7 +149,7 @@ namespace Pangya_GameServer.Game
             return (m_cube_coin);
         }
 
-        public ROOM_INFO_MODO getModo()
+        public eMODO getModo()
         {
             return m_modo;
         }
@@ -213,7 +213,7 @@ namespace Pangya_GameServer.Game
             // Modo hole repeat, tem que pegar o n�mero certo do hole
             byte numero = (byte)m_numero;
 
-            if (m_modo == ROOM_INFO_MODO.M_REPEAT)
+            if (m_modo == eMODO.M_REPEAT)
             {
                 numero = m_hole_repeat;
             }
@@ -231,13 +231,19 @@ namespace Pangya_GameServer.Game
                 throw new exception("[Hole::init_cube_coin][Error] course\"" + Convert.ToString((ushort)(m_course & 0x7F)) + "\" nao existe no Cube Coin System. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.HOLE,
                     20, 0));
             }
-            if (m_course == (byte)RoomInfo.ROOM_INFO_COURSE.WIZ_CITY) // Aqui s� tem cube nos holes 3 12 14 18
+
+            // Isso s� desativa os cube, se o course e hole tiver coin � para colocar elas s� n�o o cube se ele estiver desativado
+            if (course.IsActive())
             {
-                cube = (numero == 3 || numero == 12 || numero == 14 || numero == 18) && (m_modo != ROOM_INFO_MODO.M_REPEAT || m_numero % 3 == 0); // Modo Hole Repeat s� de 3 em 3 holes que tem cube, mesmo em Wiz City
-            }
-            else
-            {
-                cube = m_cube_coin.enable_cube == 1u;
+
+                if (m_course == (byte)RoomInfo.eCOURSE.WIZ_CITY) // Aqui s� tem cube nos holes 3 12 14 18
+                {
+                    cube = (numero == 3 || numero == 12 || numero == 14 || numero == 18) && (m_modo != eMODO.M_REPEAT || m_numero % 3 == 0); // Modo Hole Repeat s� de 3 em 3 holes que tem cube, mesmo em Wiz City
+                }
+                else
+                {
+                    cube = m_cube_coin.enable_cube == 1u;
+                }
             }
 
             var hole = course.FindHole(numero);
@@ -249,7 +255,7 @@ namespace Pangya_GameServer.Game
             }
 
             //   Wiz City usa a fun��o dela e o resto usa outra fun��o generica
-            var all_coin_cube = (m_course == (byte)RoomInfo.ROOM_INFO_COURSE.WIZ_CITY) ? hole.getAllCoinCubeWizCity(cube) : hole.getAllCoinCube(cube);
+            var all_coin_cube = (m_course == (byte)RoomInfo.eCOURSE.WIZ_CITY) ? hole.getAllCoinCubeWizCity(cube) : hole.getAllCoinCube(cube);
 
             m_cube.AddRange(
             all_coin_cube);
@@ -268,7 +274,7 @@ namespace Pangya_GameServer.Game
 
             var numero = m_numero;
 
-            if (m_modo == ROOM_INFO_MODO.M_REPEAT)
+            if (m_modo == eMODO.M_REPEAT)
             {
                 numero = m_hole_repeat;
             }
@@ -282,7 +288,7 @@ namespace Pangya_GameServer.Game
             // !!!!@@@@@@------------===
             // Os Valores do Par dos Holes Mysthic Ruins est�o errados no IFF STRUCT,
             // eles colocaram os valores do Abbot Mine, tenho que trocar depois isso
-            if ((course.ID & 0xFF) == (uint)RoomInfo.ROOM_INFO_COURSE.CHRONICLE_1_CHAOS)
+            if ((course.ID & 0xFF) == (uint)RoomInfo.eCOURSE.CHRONICLE_1_CHAOS)
             {
                 m_par.par = 4;
 
@@ -318,7 +324,7 @@ namespace Pangya_GameServer.Game
 
         protected uCubeCoinFlag m_cube_coin = new uCubeCoinFlag();
 
-        protected ROOM_INFO_MODO m_modo;
+        protected eMODO m_modo;
         protected byte m_hole_repeat;
 
         protected bool m_good;

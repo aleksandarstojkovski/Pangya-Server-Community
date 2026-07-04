@@ -38,9 +38,10 @@ namespace Pangya_GameServer.Repository
             if (!m_updated)
             { // Não atualizou, pega os valores atualizados do banco de dados
 
-                for (var i = 0; i < 3u; ++i)
+                for (var i = 0u; i < 3u; ++i)
                 {
-                    m_dqi._typeid[i] = IFNULL<uint>(_result.data[1u + i]); 
+                    m_dqi._typeid[i] = IFNULL<uint>(_result.data[1u + i]);
+                    m_dqi._typeid[i] = IFNULL(_result.data[1u + i]); // 1 + 3
                 }
 
                 if (_result.data[4] != null)
@@ -57,14 +58,21 @@ namespace Pangya_GameServer.Repository
             string reg_date = "NULL";
 
             if (!m_dqi.date.IsEmpty)
-            reg_date = makeText(_formatDate(m_dqi.date.ConvertTime()));
+                reg_date = _formatDate(m_dqi.date.ConvertTime());
 
             if (m_dqi._typeid.Length < 3)
-                throw new InvalidOperationException("m_dqi._typeid deve conter pelo menos 3 elementos."); 
+                throw new InvalidOperationException("m_dqi._typeid deve conter pelo menos 3 elementos.");
 
-            var r = procedure(m_szConsulta, (m_dqi._typeid[0]) + ", " + (m_dqi._typeid[1])
-            + ", " + (m_dqi._typeid[2]) + ", " + reg_date
-    );
+            string[] paramNames = { "@achieve_quest_1_in", "@achieve_quest_2_in", "@achieve_quest_3_in", "@REG_DT" };
+            SqlDbType[] paramTypes = { SqlDbType.Int, SqlDbType.Int, SqlDbType.Int, SqlDbType.DateTime2 };
+            string[] paramValues = {
+        m_dqi._typeid[0].ToString(),
+        m_dqi._typeid[1].ToString(),
+        m_dqi._typeid[2].ToString(),
+        reg_date.ToString()
+    };
+
+            var r = procedureWithParams(m_szConsulta, paramNames, paramTypes, paramValues);
 
             checkResponse(r, "Não conseguiu atualizar o sistema de Daily Quest [" + m_dqi + "] no banco de dados.");
 

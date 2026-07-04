@@ -1,4 +1,4 @@
-﻿using Pangya_MessengerServer.Models;
+﻿using MessengerServer.Models;
 using PangyaAPI.SQL;
 using PangyaAPI.Utilities.Log;
 using PangyaAPI.Utilities;
@@ -9,9 +9,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using PangyaAPI.SQL.Manager;
-using Pangya_MessengerServer.Repository;
+using MessengerServer.Repository;
 
-namespace Pangya_MessengerServer.Manager
+namespace MessengerServer.Manager
 {
     public class FriendManager
     {
@@ -70,8 +70,8 @@ namespace Pangya_MessengerServer.Manager
             {
                 m_friend.Clear();
             }
-
-            m_pi = new player_info();
+           
+            m_pi.clear();
 
             m_state = false;
         }

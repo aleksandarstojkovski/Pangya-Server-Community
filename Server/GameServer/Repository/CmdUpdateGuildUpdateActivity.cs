@@ -40,10 +40,8 @@ namespace Pangya_GameServer.Repository
                 throw new exception("[CmdUpdateGuildUpdateActivity::prepareConsulta][Error] m_index is invalid(zero).", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PANGYA_DB,
                     4, 0));
             }
-			
-           string m_szConsulta = $"UPDATE pangya.pangya_guild_update_activity SET STATE = 1 WHERE {makeEscapeKeyword("index")} = {m_index}";
 
-            var r = consulta(m_szConsulta);
+            var r = consulta(m_szConsulta + Convert.ToString(m_index));
 
             checkResponse(r, "nao conseguiu atualizar o guild update activity[INDEX=" + Convert.ToString(m_index) + "]");
 
@@ -53,5 +51,6 @@ namespace Pangya_GameServer.Repository
 
         private ulong m_index = new ulong();
 
+        private const string m_szConsulta = "UPDATE pangya.pangya_guild_update_activity SET STATE = 1 WHERE [INDEX] = ";
     }
 }

@@ -57,7 +57,8 @@ namespace Pangya_GameServer.Repository
                     4, 0));
             }
 
-            var r = procedure(m_szConsulta, makeText(m_message) + ", " + Convert.ToString((ushort)m_opt));
+            var r = procedure(
+                m_szConsulta, $"N'{m_message}'" + ", " + Convert.ToString((ushort)m_opt));
 
             checkResponse(r, "nao conseguiu inserir Spinning Cube Super Rare Win Broadcast[MSG=" + m_message + ", OPT=" + Convert.ToString((ushort)m_opt) + "]");
 

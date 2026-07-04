@@ -7,7 +7,7 @@ namespace Pangya_GameServer.Repository
     {
         public CmdDeleteAchievement()
         {
-            this.m_uid = 0;
+            this.m_uid = 0u;
             this.m_id = -1;
         }
 

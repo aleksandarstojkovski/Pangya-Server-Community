@@ -8,7 +8,7 @@ namespace Pangya_GameServer.Repository
     {
         public CmdUpdateMascotInfo()
         {
-            this.m_uid = 0;
+            this.m_uid = 0u;
         }
 
         public CmdUpdateMascotInfo(uint _uid,
@@ -70,10 +70,11 @@ namespace Pangya_GameServer.Repository
                     4, 1));
             }
 
-            var end_dt = makeText(_formatDate(m_mi.data.ConvertTime()));
+            var end_dt = _formatDate(m_mi.data.ConvertTime());
 
-            var r = procedure(m_szConsulta,
-                Convert.ToString(m_uid) + ", " + Convert.ToString(m_mi.id) + ", " + Convert.ToString(m_mi._typeid) + ", " + Convert.ToString((ushort)m_mi.level) + ", " + Convert.ToString(m_mi.exp) + ", " + Convert.ToString((ushort)m_mi.flag) + ", " + Convert.ToString(m_mi.tipo) + ", " + Convert.ToString((ushort)m_mi.is_cash) + ", " + Convert.ToString(m_mi.price) + ", " + makeText(m_mi.message) + ", " + makeText(end_dt));
+            var r = procedure(
+                m_szConsulta,
+                Convert.ToString(m_uid) + ", " + Convert.ToString(m_mi.id) + ", " + Convert.ToString(m_mi._typeid) + ", " + Convert.ToString((ushort)m_mi.level) + ", " + Convert.ToString(m_mi.exp) + ", " + Convert.ToString((ushort)m_mi.flag) + ", " + Convert.ToString(m_mi.tipo) + ", " + Convert.ToString((ushort)m_mi.is_cash) + ", " + Convert.ToString(m_mi.price) + ", " + (m_mi.message) + ", " + (end_dt));
 
             checkResponse(r, "PLAYER[UID=" + Convert.ToString(m_uid) + "] nao conseguiu Atualizar Mascot Info[TYPEID=" + Convert.ToString(m_mi._typeid) + ", ID=" + Convert.ToString(m_mi.id) + ", LEVEL=" + Convert.ToString((ushort)m_mi.level) + ", EXP=" + Convert.ToString(m_mi.exp) + ", FLAG=" + Convert.ToString((ushort)m_mi.flag) + ", TIPO=" + Convert.ToString(m_mi.tipo) + ", IS_CASH=" + Convert.ToString((ushort)m_mi.is_cash) + ", PRICE=" + Convert.ToString(m_mi.price) + ", MESSAGE=" + (m_mi.message) + ", END_DT=" + end_dt + "]");
 

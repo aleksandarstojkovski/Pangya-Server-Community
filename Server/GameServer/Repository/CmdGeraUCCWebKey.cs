@@ -10,7 +10,7 @@ namespace Pangya_GameServer.Repository
     {
         public CmdGeraUCCWebKey(bool _waiter = false) : base(_waiter)
         {
-            this.m_uid = 0;
+            this.m_uid = 0u;
             this.m_ucc_id = -1;
             this.m_key = "";
         }
@@ -80,7 +80,8 @@ namespace Pangya_GameServer.Repository
                     4, 0));
             }
 
-            var r = procedure(m_szConsulta,
+            var r = procedure(
+                m_szConsulta,
                 Convert.ToString(m_uid) + ", " + Convert.ToString(m_ucc_id));
 
             checkResponse(r, "nao conseguiu gerar um UCC[ID=" + Convert.ToString(m_ucc_id) + "] Web Key para o PLAYER[UID=" + Convert.ToString(m_uid) + "]");

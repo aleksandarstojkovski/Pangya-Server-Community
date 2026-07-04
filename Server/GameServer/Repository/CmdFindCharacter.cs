@@ -11,8 +11,8 @@ namespace Pangya_GameServer.Repository
     {
         public CmdFindCharacter(bool _waiter = false) : base(_waiter)
         {
-            this.m_uid = 0;
-            this.m_typeid = 0;
+            this.m_uid = 0u;
+            this.m_typeid = 0u;
             this.m_ci = new CharacterInfo();
         }
 
@@ -110,7 +110,7 @@ namespace Pangya_GameServer.Repository
         protected override Response prepareConsulta()
         {
 
-            if (m_typeid == 0 && sIff.getInstance().getItemGroupIdentify(m_typeid) != PangyaAPI.IFF.JP.Models.Flags.IFF_GROUP.CHARACTER)
+            if (m_typeid == 0 && sIff.getInstance().getItemGroupIdentify(m_typeid) != sIff.getInstance().CHARACTER)
             {
                 throw new exception("[CmdFindCharacter::prepareConsulta][Error] typeid character invalid", STDA_MAKE_ERROR(STDA_ERROR_TYPE.PANGYA_DB,
                     4, 0));

@@ -5,7 +5,14 @@ using PangyaAPI.Utilities;
 namespace Pangya_GameServer.Repository
 {
     public class CmdUpdateMascotTime : Pangya_DB
-    { 
+    {
+        public CmdUpdateMascotTime()
+        {
+            this.m_uid = 0u;
+            this.m_id = -1;
+            this.m_time = "";
+        }
+
         public CmdUpdateMascotTime(uint _uid,
             int _id, string _time)
         {
@@ -65,8 +72,9 @@ namespace Pangya_GameServer.Repository
                     4, 0));
             }
 
-            var r = procedure(m_szConsulta,
-                Convert.ToString(m_uid) + ", " + Convert.ToString(m_id) + ", " + makeText(m_time));
+            var r = procedure(
+                m_szConsulta,
+                Convert.ToString(m_uid) + ", " + Convert.ToString(m_id) + ", " + m_time);
 
             checkResponse(r, "nao conseguiu atualizar o tempo do mascot[ID=" + Convert.ToString(m_id) + "] do PLAYER[UID=" + Convert.ToString(m_uid) + "]");
 

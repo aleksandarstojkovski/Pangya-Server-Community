@@ -82,7 +82,7 @@ namespace Pangya_GameServer.Models
 
         public stLoginReward(uint _ul = 0u)
         {
-            this.id = 0;
+            this.id = 0u;
             this.type = eTYPE.N_TIME;
             this.name = "";
             this.is_end = false;
@@ -116,7 +116,7 @@ namespace Pangya_GameServer.Models
         public void clear()
         {
 
-            id = 0;
+            id = 0u;
             is_end = false;
             type = eTYPE.N_TIME;
             name = "";

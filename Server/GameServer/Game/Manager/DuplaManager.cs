@@ -5,7 +5,7 @@ using Pangya_GameServer.Models;
 
 using PangyaAPI.SQL;
 using PangyaAPI.Utilities;
-using PangyaAPI.Utilities.Models;
+using PangyaAPI.Utilities.BinaryModels;
 using PangyaAPI.Utilities.Log;
 
 
@@ -143,7 +143,7 @@ namespace Pangya_GameServer.Game.Manager
         public uint getNumPlayersQuit()
         {
 
-            uint count = 0;
+            uint count = 0u;
 
             foreach (var _el in v_duplas)
             {
@@ -191,7 +191,7 @@ namespace Pangya_GameServer.Game.Manager
         public void updateGuildDados(Guild _g1, Guild _g2)
         {
 
-            int[] score = { 0, 0 };
+            short[] score = { 0, 0 };
             ulong[] pang = { 0Ul, new ulong() };
             uint[] pang_win = { 0u, new uint() };
 

@@ -177,6 +177,29 @@ namespace Pangya_RankingServer.UTIL
                 st.Hour, st.Minute, st.Second, st.MilliSecond,
                 DateTimeKind.Local);
         }
-         
+
+        private static FILETIME _toFileTimeUtc(DateTime utc)
+        {
+            long ft = utc.Kind == DateTimeKind.Utc ? utc.ToFileTimeUtc() : utc.ToUniversalTime().ToFileTimeUtc();
+            return new FILETIME
+            {
+                dwLowDateTime = (uint)(ft & 0xFFFFFFFF),
+                dwHighDateTime = (uint)((ft >> 32) & 0xFFFFFFFF)
+            };
+        }
+
+        private static DateTime _fromFileTimeUtc(FILETIME ft)
+        {
+            long value = ((long)ft.dwHighDateTime << 32) | ft.dwLowDateTime;
+            if (value <= 0) return DateTime.MinValue;
+            try
+            {
+                return DateTime.FromFileTimeUtc(value);
+            }
+            catch
+            {
+                return DateTime.MinValue;
+            }
+        }
     }
 }

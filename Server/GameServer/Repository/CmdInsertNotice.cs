@@ -50,8 +50,28 @@ namespace Pangya_GameServer.Repository
             }
             reserveDate_in = DateTime.Now;
 
-            var str_date = makeText(_formatDate(reserveDate_in));
-            var r = procedure(m_szConsulta, makeText(m_msg) + ", " +  replay_count_in + ", " +  refresh_time_min_in + ", " +  target_in + ", " +  str_date);
+            var str_date = _formatDate(reserveDate_in);
+            var r = procedureWithParams(m_szConsulta, new string[] {
+    "@msg_in",
+    "@replay_count_in",
+    "@refresh_time_min_in",
+    "@target_in",
+    "@reserveDate_in"
+}, new SqlDbType[] {
+    SqlDbType.NVarChar,
+    SqlDbType.Int,
+    SqlDbType.Int,
+    SqlDbType.Int,
+    SqlDbType.DateTime2
+}, new object[] {
+    m_msg,                                // Ex: "retreev（ちょき）（むふ）"
+    replay_count_in,           // Ex: "1"
+    refresh_time_min_in,       // Ex: "5"
+    target_in,                 // Ex: "1"
+    str_date                             // Ex: "2025-06-20 14:32:00"
+},
+ParameterDirection.Input // <- Aqui o mais importante!
+);
 
             checkResponse(r, "nao conseguiu adicionar um Notice[MESSAGE=" + m_msg + "] para o server[UID=" + Convert.ToString(target_in) + "]");
 

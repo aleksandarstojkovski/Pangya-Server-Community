@@ -34,12 +34,12 @@ namespace Pangya_GameServer.Models
 
         public void @lock()
         {
-            //Monitor.Exit(m_cs);
+            Monitor.Enter(m_cs);
         }
 
         public void unlock()
         {
-            //Monitor.Exit(m_cs);
+            Monitor.Exit(m_cs);
         }
 
         public eSTATE_GRAND_ZODIAC_SYNC getState()
@@ -269,10 +269,11 @@ namespace Pangya_GameServer.Models
 
         public range_time(uint _ul = 0)
         {
-            this.m_start = new TimeSpan();
-            this.m_end = new TimeSpan();
+            this.m_start = new SYSTEMTIME();
+            this.m_end = new SYSTEMTIME();
             this.m_type = eTYPE_MAKE_ROOM.TMR_MAKE_ALL;
             this.m_sended_message = false;
+            RoomID = ushort.MaxValue;
         }
         public range_time(ushort _hour_start,
             ushort _min_start,
@@ -282,15 +283,17 @@ namespace Pangya_GameServer.Models
             ushort _sec_end,
             eTYPE_MAKE_ROOM _type)
         {
-            this.m_start = new TimeSpan(_hour_start,
+            this.m_start = new SYSTEMTIME(0,
+                0, 0, 0, _hour_start,
                 _min_start, _sec_start, 0);
-            this.m_end = new TimeSpan(_hour_end,
+            this.m_end = new SYSTEMTIME(0,
+                0, 0, 0, _hour_end,
                 _min_end, _sec_end, 0);
             this.m_type = _type;
             this.m_sended_message = false;
         }
-        public range_time(TimeSpan _start,
-            TimeSpan _end,
+        public range_time(SYSTEMTIME _start,
+            SYSTEMTIME _end,
             eTYPE_MAKE_ROOM _type)
         {
             this.m_start = _start;
@@ -305,13 +308,20 @@ namespace Pangya_GameServer.Models
         public void clear()
         {
 
-            m_start = new TimeSpan();
-            m_end = new TimeSpan();
+            m_start = new SYSTEMTIME();
+            m_end = new SYSTEMTIME();
             m_sended_message = false;
         }
 
-        public bool isBetweenTime(TimeSpan _st)
-        { 
+        public bool isBetweenTime(SYSTEMTIME _st)
+        {
+
+            // Garante que os dados da data est o zerados, gera eles por preven  o
+            _st.Day = 0;
+            _st.DayOfWeek = 0;
+            _st.Month = 0;
+            _st.Year = 0;
+
             return intoStartTime(_st) && intoEndTime(_st);
         }
 
@@ -320,7 +330,8 @@ namespace Pangya_GameServer.Models
             ushort _milli = 0)
         {
 
-            TimeSpan st = new TimeSpan(_hour, _min, _sec,
+            SYSTEMTIME st = new SYSTEMTIME(0,
+                0, 0, 0, _hour, _min, _sec,
                 _milli);
 
             return isBetweenTime(st);
@@ -331,23 +342,28 @@ namespace Pangya_GameServer.Models
             return timeToMilliseconds(m_end) - timeToMilliseconds(m_start);
         }
 
-        protected bool intoStartTime(TimeSpan _st)
+        protected bool intoStartTime(SYSTEMTIME _st)
         {
             return timeToMilliseconds(m_start) <= timeToMilliseconds(_st);
         }
 
-        protected bool intoEndTime(TimeSpan _st)
+        protected bool intoEndTime(SYSTEMTIME _st)
         {
             return timeToMilliseconds(_st) < timeToMilliseconds(m_end);
         }
 
-        protected uint timeToMilliseconds(TimeSpan _st)
+        protected uint timeToMilliseconds(SYSTEMTIME _st)
         {
-            return (uint)((_st.Hours * 60 * 60 * 1000) + (_st.Minutes * 60 * 1000) + (_st.Seconds * 1000) + _st.Milliseconds);
+            return (uint)((_st.Hour * 60 * 60 * 1000) + (_st.Minute * 60 * 1000) + (_st.Second * 1000) + _st.MilliSecond);
         }
 
-        public bool isPastEnd(TimeSpan _st)
-        {  
+        public bool isPastEnd(SYSTEMTIME _st)
+        {
+            _st.Day = 0;
+            _st.DayOfWeek = 0;
+            _st.Month = 0;
+            _st.Year = 0;
+
             return timeToMilliseconds(_st) > timeToMilliseconds(m_end);
         }
 
@@ -356,9 +372,12 @@ namespace Pangya_GameServer.Models
             return this.MemberwiseClone(); // Faz uma cópia superficial
         }
 
-        public TimeSpan m_start { get; set; } = new TimeSpan();
-        public TimeSpan m_end { get; set; } = new TimeSpan();
-        public eTYPE_MAKE_ROOM m_type { get; set; } 
-        public bool m_sended_message { get; set; } // Flag que guarda se o intervalo j  enviou a mensagem 
+        public SYSTEMTIME m_start { get; set; } = new SYSTEMTIME();
+        public SYSTEMTIME m_end { get; set; } = new SYSTEMTIME();
+        public eTYPE_MAKE_ROOM m_type { get; set; }
+        public ushort RoomID { get; set; } = ushort.MaxValue;
+        public bool m_sended_message { get; set; } // Flag que guarda se o intervalo j  enviou a mensagem
+        public bool m_room_created;
+        public bool m_room_closed;
     }
 }

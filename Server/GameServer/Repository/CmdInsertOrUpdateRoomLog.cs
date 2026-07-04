@@ -71,44 +71,100 @@ namespace Pangya_GameServer.Repository
         {
             var query = m_szConsulta[(int)m_type];
             //para adicionar salas com string em japones!
-            var r = procedure(query, makeText(m_log.name) + ", " +
-            m_log.num_player + ", " +
-            m_log.max_player + ", " +
-            m_log.type_extend + ", " +
-            m_log.uid + ", " +
-            makeText(m_log.roomId.ToString()) + ", " + // deu erro -> Conversão inválida de 'System.String' em 'System.Guid'.
-            m_log.character + ", " +
-            m_log.caddie + ", " +
-            m_log.mascot + ", " +
-            m_log.club + ", " +
-            m_log.tipo + ", " +
-            m_log.modo + ", " +
-            m_log.qntd_hole + ", " +
-            Convert.ToInt32(m_log.course) + ", " +
-            (m_log.hole == 0 ? 1 : m_log.hole) + ", " + //o primeiro hole é zero né
-            m_log.score + ", " +
-            m_log.exp + ", " +
-            m_log.pang + ", " +
-            m_log.bonus_pang + ", " +
-            m_log.tacada_num + ", " +
-            m_log.total_tacada_num + ", " +
-            m_log.giveup + ", " +
-            m_log.timeout + ", " +
-           Convert.ToInt32(m_log.enter_after_started) + ", " +
-           Convert.ToInt32(m_log.finish_game) + ", " +
-            m_log.assist_flag + ", " +
-            m_log.Win_trofeu + ", " +
-            m_log.master + ", " +
-            Convert.ToInt32(m_log.Is_short_game) + ", " +
-            Convert.ToInt32(m_log.Is_natural) + ", " +
-            m_log.HitHio + ", " +
-            m_log.HitAlba + ", " +
-            m_log.HitEagle + ", " +
-            m_log.HitBirdie + ", " +
-            m_log.HitPar + ", " +
-            m_log.HitBogey + ", " +
-            m_log.Hit_x2_Bogey + ", " +
-            m_log.Hit_x3_Bogey);
+            var r = procedureWithParams(
+                query,
+                new string[] {
+            "@NAME", "@PLAYERS", "@MAX_PLAYERS", "@TIPO_EX", "@UID",
+            "@ROOMID", "@CHARACTER", "@CADDIE", "@MASCOT", "@CLUB",
+            "@TIPO", "@MODO", "@QNTD_HOLE", "@COURSE", "@HOLE",
+            "@SCORE", "@EXP", "@PANG", "@BONUS_PANG", "@TACADA_NUM",
+            "@TOTAL_TACADA_NUM", "@GIVEUP", "@TIMEOUT", "@ENTER_AFTER_STARTED", "@FINISH_GAME",
+            "@ASSIST_FLAG", "@TROFEU", "@Master", "@Is_ShotGame", "@Is_Natural",
+            "@hit_hio", "@hit_alba", "@hit_eagle", "@hit_birdie", "@hit_par",
+            "@hit_bogey", "@hit_double_bogey", "@hit_triple_bogey"
+                },
+                new SqlDbType[] {
+            SqlDbType.NVarChar,   // @NAME
+            SqlDbType.Int,        // @PLAYERS
+            SqlDbType.Int,        // @MAX_PLAYERS
+            SqlDbType.Int,        // @TIPO_EX
+            SqlDbType.Int,        // @UID
+            SqlDbType.UniqueIdentifier, // @ROOMID
+            SqlDbType.Int,        // @CHARACTER
+            SqlDbType.Int,        // @CADDIE
+            SqlDbType.Int,        // @MASCOT
+            SqlDbType.Int,        // @CLUB
+            SqlDbType.Int,        // @TIPO
+            SqlDbType.Int,        // @MODO
+            SqlDbType.Int,        // @QNTD_HOLE
+            SqlDbType.Int,        // @COURSE
+            SqlDbType.Int,        // @HOLE
+            SqlDbType.Decimal,    // @SCORE
+            SqlDbType.Decimal,    // @EXP
+            SqlDbType.BigInt,     // @PANG
+            SqlDbType.BigInt,     // @BONUS_PANG
+            SqlDbType.Decimal,    // @TACADA_NUM
+            SqlDbType.Decimal,    // @TOTAL_TACADA_NUM
+            SqlDbType.Decimal,    // @GIVEUP
+            SqlDbType.Decimal,    // @TIMEOUT
+            SqlDbType.Decimal,    // @ENTER_AFTER_STARTED
+            SqlDbType.Decimal,    // @FINISH_GAME
+            SqlDbType.Decimal,    // @ASSIST_FLAG
+            SqlDbType.Decimal,    // @TROFEU
+            SqlDbType.Decimal,    // @Master
+            SqlDbType.Decimal,    // @Is_ShotGame
+            SqlDbType.Decimal,    // @Is_Natural
+            SqlDbType.Int,        // @hit_hio
+            SqlDbType.Int,        // @hit_alba
+            SqlDbType.Int,        // @hit_eagle
+            SqlDbType.Int,        // @hit_birdie
+            SqlDbType.Int,        // @hit_par
+            SqlDbType.Int,        // @hit_bogey
+            SqlDbType.Int,        // @hit_double_bogey
+            SqlDbType.Int         // @hit_triple_bogey
+                },
+                new object[] {
+            m_log.nome,
+            m_log.num_player.ToString(),
+            m_log.max_player.ToString(),
+            m_log.tipo_ex.ToString(),
+            m_log.uid.ToString(),
+            m_log.roomId,// deu erro -> Conversão inválida de 'System.String' em 'System.Guid'.
+            m_log.character.ToString(),
+            m_log.caddie.ToString(),
+            m_log.mascot.ToString(),
+            m_log.club.ToString(),
+            m_log.tipo.ToString(),
+            m_log.modo.ToString(),
+            m_log.qntd_hole.ToString(),
+            Convert.ToInt32(m_log.course).ToString(),
+            (m_log.hole == 0? 1: m_log.hole).ToString(),//o primeiro hole é zero né
+            m_log.score.ToString(),
+            m_log.exp.ToString(),
+            m_log.pang.ToString(),
+            m_log.bonus_pang.ToString(),
+            m_log.tacada_num.ToString(),
+            m_log.total_tacada_num.ToString(),
+            m_log.giveup.ToString(),
+            m_log.timeout.ToString(),
+            m_log.enter_after_started.ToString(),
+            m_log.finish_game.ToString(),
+            m_log.assist_flag.ToString(),
+            m_log.Win_trofeu.ToString(),
+            m_log.master.ToString(),
+            m_log.Is_short_game.ToString(),
+            m_log.Is_natural.ToString(),
+            m_log.HitHio.ToString(),
+            m_log.HitAlba.ToString(),
+            m_log.HitEagle.ToString(),
+            m_log.HitBirdie.ToString(),
+            m_log.HitPar.ToString(),
+            m_log.HitBogey.ToString(),
+            m_log.Hit_x2_Bogey.ToString(),
+            m_log.Hit_x3_Bogey.ToString()
+                },
+     ParameterDirection.Input // <- só Input
+            );
 
             checkResponse(r, $"Não foi possível fazer {m_type} log game!");
 

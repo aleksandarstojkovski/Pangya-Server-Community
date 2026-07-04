@@ -1,15 +1,13 @@
-﻿using PangyaAPI.Network.Models;
+﻿using System;
+using System.Runtime.InteropServices;
+using PangyaAPI.Network.Repository;
+using PangyaAPI.Network.Models;
 using PangyaAPI.Network.PangyaPacket;
 using PangyaAPI.Network.PangyaServer;
 using PangyaAPI.Network.PangyaSession;
-using PangyaAPI.Network.Repository;
 using PangyaAPI.Utilities;
-using PangyaAPI.Utilities.Models;
+using PangyaAPI.Utilities.BinaryModels;
 using PangyaAPI.Utilities.Log;
-using System;
-using System.Runtime.InteropServices;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace PangyaAPI.Network.PangyaUnit
 {
@@ -87,49 +85,12 @@ namespace PangyaAPI.Network.PangyaUnit
                 p.WriteUInt32(m_session.m_si.packet_version);
                 packet_func_as.session_send(p,
                     _session, 1);
-                
             }
             catch (exception e)
             {
 
                 _smp.message_pool.getInstance().push(new message("[unit_auth_server_connect::requestFirstPacketKey][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
-        }
-         
-        public async void requestSendKeepLive(object obj)
-        {
-            var args = (object[])obj;
-            var _session = (UnitPlayer)args[0];
-
-            while (_session.m_client != null && _session.m_client.Connected)
-            {
-                try
-                {
-                    var p = new PangyaBinaryWriter(0xFF); // PING
-                    p.WriteInt32(_session.m_si.tipo);
-                    p.WriteInt32(_session.m_si.uid);
-                    p.WriteTime();
-
-                    packet_func_as.session_send(p, _session, 1);
-
-                    _session.last_activity = DateTime.Now;
-                }
-                catch
-                {
-                    break;
-                }
-
-                await Task.Delay(TimeSpan.FromSeconds(5));
-            }
-        }
-        public void requestRecvKeepLive(UnitPlayer _session, packet _packet)
-        {
-#if RELEASE
-            _smp.message_pool.getInstance().push(new message("[unit_auth_server_connect::requestRecvKeepLive][Log] ", type_msg.CL_FILE_LOG_AND_CONSOLE));
-#endif
-
-            _session.last_activity = DateTime.Now;
-
         }
 
         public virtual void requestAskLogin(UnitPlayer _session, packet _packet)
@@ -152,16 +113,14 @@ namespace PangyaAPI.Network.PangyaUnit
 
                 if (oid > -1)
                 {
+
                     _session.m_oid = oid;
-                     
-                    //inicializa o keep live
-                    Thread t = new Thread(new ParameterizedThreadStart(requestSendKeepLive));
-                    t.Start(new object[] { _session, _packet });
                 }
                 else
                 {
                     _smp.message_pool.getInstance().push(new message("[unit_auth_server_connect::requestAskLogin][Log] Nao conseguiu logar com o Auth Server.", type_msg.CL_FILE_LOG_AND_CONSOLE));
-                } 
+                }
+
             }
             catch (exception e)
             {
@@ -591,7 +550,7 @@ namespace PangyaAPI.Network.PangyaUnit
             }
 
             try
-            {
+            { 
                 var p = new PangyaBinaryWriter((ushort)0x2);
 
                 p.WriteUInt32(_player_uid);
@@ -653,7 +612,7 @@ namespace PangyaAPI.Network.PangyaUnit
             }
 
             try
-            {
+            { 
                 var p = new PangyaBinaryWriter((ushort)0x4);
 
                 p.WriteUInt32(_server_uid);
@@ -687,7 +646,7 @@ namespace PangyaAPI.Network.PangyaUnit
 
                 if (_packet.GetSize < 2)
                 {
-                    throw new exception("[unit_auth_server_connect::sendCommandToOtherServer][Error] Tentou enviar o comando[ID=" + Convert.ToString(_packet.getTipo()) + "] para o outro server[UID=" + Convert.ToString(_server_uid) + "] com o Auth Server, mas o packet é invalido nao tem nem o id.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.UNIT_AUTH_SERVER_CONNECT,
+                    throw new exception("[unit_auth_server_connect::sendCommandToOtherServer][Error] Tentou enviar o comando[ID=" + Convert.ToString(_packet.getTipo()) + "] para o outro server[UID=" + Convert.ToString(_server_uid) + "] com o Auth Server, mas o packet eh invalido nao tem nem o id.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.UNIT_AUTH_SERVER_CONNECT,
                         1000, 0));
                 }
 
@@ -709,7 +668,7 @@ namespace PangyaAPI.Network.PangyaUnit
                 }
 
                 cosh.command.buff = _packet.ReadBytes(cosh.command.size);
-
+                 
                 // Envia o comando para o Auth Server enviar para o outro server
                 var p = new PangyaBinaryWriter((ushort)0x06);
                 //WriteBuffer(cosh, Marshal.SizeOf(new CommandOtherServerHeader())) e o toarray
@@ -749,7 +708,7 @@ namespace PangyaAPI.Network.PangyaUnit
 
                 if (_packet.GetSize < 2)
                 {
-                    throw new exception("[unit_auth_server_connect::sendReplyToOtherServer][Error] Tentou enviar a reposta[ID=" + Convert.ToString(_packet.getTipo()) + "] para o outro server[UID=" + Convert.ToString(_server_uid) + "] com o Auth Server, mas o packet é invalido nao tem nem o id.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.UNIT_AUTH_SERVER_CONNECT,
+                    throw new exception("[unit_auth_server_connect::sendReplyToOtherServer][Error] Tentou enviar a reposta[ID=" + Convert.ToString(_packet.getTipo()) + "] para o outro server[UID=" + Convert.ToString(_server_uid) + "] com o Auth Server, mas o packet eh invalido nao tem nem o id.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.UNIT_AUTH_SERVER_CONNECT,
                         1000, 0));
                 }
 
@@ -770,7 +729,7 @@ namespace PangyaAPI.Network.PangyaUnit
                 }
 
                 cosh.command.buff = _packet.ReadBytes(cosh.command.size);
-
+                 
                 // Envia a resposta para o Auth Server enviar para o outro server
                 var p = new PangyaBinaryWriter((ushort)0x07);
 
@@ -794,7 +753,6 @@ namespace PangyaAPI.Network.PangyaUnit
 
         private DateTime _lastReconnectAttempt = DateTime.MinValue;
         private int _retryCount = 0;
-        private DateTime _lastPing = DateTime.MinValue;
 
         protected override void onHeartBeat()
         {
@@ -803,10 +761,11 @@ namespace PangyaAPI.Network.PangyaUnit
                 if (m_state != STATE.INITIALIZED)
                     return;
 
-                if (m_session?.m_client == null || !m_session.m_client.Connected)
+                if (m_session?.m_sock == null || !m_session.m_sock.Connected)
                 {
                     // Calcula quanto esperar antes da próxima tentativa
                     int delaySeconds = Math.Min(30, (int)Math.Pow(2, _retryCount));
+                    // Ex.: 1s, 2s, 4s, 8s... até 30s no máx.
 
                     if ((DateTime.Now - _lastReconnectAttempt).TotalSeconds >= delaySeconds)
                     {
@@ -814,7 +773,9 @@ namespace PangyaAPI.Network.PangyaUnit
                         {
                             _smp.message_pool.getInstance().push(
                                 new message($"[unit_auth_server_connect::onHeartBeat] Tentando reconectar (tentativa {_retryCount + 1})",
-                                type_msg.CL_FILE_LOG_AND_CONSOLE)); 
+                                type_msg.CL_FILE_LOG_AND_CONSOLE));
+
+                            ConnectAndAssoc();
 
                             _retryCount = 0; // Reset se conectou
                         }
@@ -884,8 +845,7 @@ namespace PangyaAPI.Network.PangyaUnit
             AddPacketHandler(0x04, (uc, s, p) => uc.requestBroadcastTicker(m_session, p));
             AddPacketHandler(0x05, (uc, s, p) => uc.requestBroadcastCubeWinRare(m_session, p));
             AddPacketHandler(0x06, (uc, s, p) => uc.requestDisconnectPlayer(m_session, p));
-            AddPacketHandler(0x07, (uc, s, p) => uc.requestConfirmDisconnectPlayer(m_session, p));//
-
+            AddPacketHandler(0x07, (uc, s, p) => uc.requestConfirmDisconnectPlayer(m_session, p));
             AddPacketHandler(0x08, (uc, s, p) => uc.requestNewMailArrivedMailBox(m_session, p));
             AddPacketHandler(0x09, (uc, s, p) => uc.requestNewRate(m_session, p));
             AddPacketHandler(0x0A, (uc, s, p) => uc.requestReloadSystem(m_session, p));
@@ -893,7 +853,7 @@ namespace PangyaAPI.Network.PangyaUnit
             AddPacketHandler(0x0C, (uc, s, p) => uc.requestConfirmSendInfoPlayerOnline(m_session, p));
             AddPacketHandler(0x0D, (uc, s, p) => uc.requestSendCommandToOtherServer(m_session, p));
             AddPacketHandler(0x0E, (uc, s, p) => uc.requestSendReplyToOtherServer(m_session, p));
-            AddPacketHandler(0xFE, (uc, s, p) => uc.requestRecvKeepLive(m_session, p));//server -> auth
+
 
             funcs_sv.addPacketCall((0x1), (object _arg1, ParamDispatch _arg2) =>
             {
@@ -936,11 +896,6 @@ namespace PangyaAPI.Network.PangyaUnit
                 return 0;
             }, this);
 
-            // Pacote005
-            funcs_sv.addPacketCall((0xFF), (object _arg1, ParamDispatch _arg2) =>
-            {
-                return 0;
-            }, this);
         }
         // Método auxiliar reutilizável
         void AddPacketHandler(byte packetId, Action<unit_auth_server_connect, Session, packet> handler)
@@ -965,6 +920,7 @@ namespace PangyaAPI.Network.PangyaUnit
                 return 0;
             }, this);
         }
+
         //
         protected IUnitAuthServer m_owner_server;
     }

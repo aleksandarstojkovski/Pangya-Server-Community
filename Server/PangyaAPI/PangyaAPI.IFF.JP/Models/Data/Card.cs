@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Runtime.InteropServices;
 using PangyaAPI.IFF.JP.Models.General;
-using PangyaAPI.Utilities.Models;
+using PangyaAPI.Utilities.BinaryModels;
 
 namespace PangyaAPI.IFF.JP.Models.Data
 {

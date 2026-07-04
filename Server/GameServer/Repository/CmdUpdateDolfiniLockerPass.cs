@@ -61,7 +61,8 @@ namespace Pangya_GameServer.Repository
                     4, 0));
             }
 
-            var r = procedure(m_szConsulta,
+            var r = procedure(
+                m_szConsulta,
                 Convert.ToString(m_uid) + ", " + (m_pass));
 
             checkResponse(r, "nao conseguiu atualizar a senha[value=" + m_pass + "] do dolfini locker do PLAYER[UID=" + Convert.ToString(m_uid) + "]");

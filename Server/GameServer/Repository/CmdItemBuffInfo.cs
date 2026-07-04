@@ -9,7 +9,7 @@ namespace Pangya_GameServer.Repository
     {
         public CmdItemBuffInfo()
         {
-            this.m_uid = 0;
+            this.m_uid = 0u;
             this.v_ib = new List<ItemBuffEx>();
         }
 

@@ -3,13 +3,12 @@ using PangyaAPI.Utilities.Log;
 using PangyaAPI.Utilities;
 using System;
 using System.Collections.Generic;
-using Pangya_MessengerServer.Session;
+using MessengerServer.Session;
 using PangyaAPI.Network.PangyaSession;
 
 using SessionBase = PangyaAPI.Network.PangyaSession.Session;
-using PangyaAPI.Utilities.Models;
-using sms;
-namespace Pangya_MessengerServer.PacketFunc
+using PangyaAPI.Utilities.BinaryModels;
+namespace MessengerServer.PacketFunc
 {
     public class packet_func : packet_func_base
     {
@@ -18,7 +17,7 @@ namespace Pangya_MessengerServer.PacketFunc
         {
             try
             {                                                                                                                                                                         
-               ms.getInstance().requestLogin(((Player)pd._session), pd._packet);
+                ((MessengerServerTcp.MessengerServer)param).requestLogin(((Player)pd._session), pd._packet);
                 return 0;
             }
             catch (exception e)
@@ -68,7 +67,7 @@ namespace Pangya_MessengerServer.PacketFunc
             try
             {
 
-               ms.getInstance().requestFriendAndGuildMemberList(((Player)pd._session), pd._packet);
+                ((MessengerServerTcp.MessengerServer)param).requestFriendAndGuildMemberList(((Player)pd._session), pd._packet);
 
             }
             catch (exception e)
@@ -90,7 +89,7 @@ namespace Pangya_MessengerServer.PacketFunc
             try
             {
 
-               ms.getInstance().requestUpdatePlayerLogout(((Player)pd._session), pd._packet);
+                ((MessengerServerTcp.MessengerServer)param).requestUpdatePlayerLogout(((Player)pd._session), pd._packet);
 
             }
             catch (exception e)
@@ -112,7 +111,7 @@ namespace Pangya_MessengerServer.PacketFunc
             try
             {
 
-               ms.getInstance().requestCheckNickname(((Player)pd._session), pd._packet);
+                ((MessengerServerTcp.MessengerServer)param).requestCheckNickname(((Player)pd._session), pd._packet);
 
             }
             catch (exception e)
@@ -134,7 +133,7 @@ namespace Pangya_MessengerServer.PacketFunc
             try
             {
 
-               ms.getInstance().requestAddFriend(((Player)pd._session), pd._packet);
+                ((MessengerServerTcp.MessengerServer)param).requestAddFriend(((Player)pd._session), pd._packet);
 
             }
             catch (exception e)
@@ -156,7 +155,7 @@ namespace Pangya_MessengerServer.PacketFunc
             try
             {
 
-               ms.getInstance().requestConfirmFriend(((Player)pd._session), pd._packet);
+                ((MessengerServerTcp.MessengerServer)param).requestConfirmFriend(((Player)pd._session), pd._packet);
 
             }
             catch (exception e)
@@ -178,7 +177,7 @@ namespace Pangya_MessengerServer.PacketFunc
             try
             {
 
-               ms.getInstance().requestBlockFriend(((Player)pd._session), pd._packet);
+                ((MessengerServerTcp.MessengerServer)param).requestBlockFriend(((Player)pd._session), pd._packet);
 
             }
             catch (exception e)
@@ -200,7 +199,7 @@ namespace Pangya_MessengerServer.PacketFunc
             try
             {
 
-               ms.getInstance().requestUnblockFriend(((Player)pd._session), pd._packet);
+                ((MessengerServerTcp.MessengerServer)param).requestUnblockFriend(((Player)pd._session), pd._packet);
 
             }
             catch (exception e)
@@ -222,7 +221,7 @@ namespace Pangya_MessengerServer.PacketFunc
             try
             {
 
-               ms.getInstance().requestDeleteFriend(((Player)pd._session), pd._packet);
+                ((MessengerServerTcp.MessengerServer)param).requestDeleteFriend(((Player)pd._session), pd._packet);
 
             }
             catch (exception e)
@@ -244,7 +243,7 @@ namespace Pangya_MessengerServer.PacketFunc
             try
             {
 
-               ms.getInstance().requestUpdatePlayerState(((Player)pd._session), pd._packet);
+                ((MessengerServerTcp.MessengerServer)param).requestUpdatePlayerState(((Player)pd._session), pd._packet);
 
             }
             catch (exception e)
@@ -266,7 +265,7 @@ namespace Pangya_MessengerServer.PacketFunc
             try
             {
 
-               ms.getInstance().requestChatFriend(((Player)pd._session), pd._packet);
+                ((MessengerServerTcp.MessengerServer)param).requestChatFriend(((Player)pd._session), pd._packet);
 
             }
             catch (exception e)
@@ -288,7 +287,7 @@ namespace Pangya_MessengerServer.PacketFunc
             try
             {
 
-               ms.getInstance().requestAssignApelido(((Player)pd._session), pd._packet);
+                ((MessengerServerTcp.MessengerServer)param).requestAssignApelido(((Player)pd._session), pd._packet);
 
             }
             catch (exception e)
@@ -310,7 +309,7 @@ namespace Pangya_MessengerServer.PacketFunc
             try
             {
 
-               ms.getInstance().requestUpdateChannelPlayerInfo(((Player)pd._session), pd._packet);
+                ((MessengerServerTcp.MessengerServer)param).requestUpdateChannelPlayerInfo(((Player)pd._session), pd._packet);
 
             }
             catch (exception e)
@@ -332,7 +331,7 @@ namespace Pangya_MessengerServer.PacketFunc
             try
             {
 
-               ms.getInstance().requestNotifyPlayerWasInvitedToRoom(((Player)pd._session), pd._packet);
+                ((MessengerServerTcp.MessengerServer)param).requestNotifyPlayerWasInvitedToRoom(((Player)pd._session), pd._packet);
 
             }
             catch (exception e)
@@ -357,7 +356,7 @@ namespace Pangya_MessengerServer.PacketFunc
             try
             {
 
-               ms.getInstance().requestChatGuild(((Player)pd._session), pd._packet);
+                ((MessengerServerTcp.MessengerServer)param).requestChatGuild(((Player)pd._session), pd._packet);
 
             }
             catch (exception e)
@@ -382,7 +381,7 @@ namespace Pangya_MessengerServer.PacketFunc
             try
             {
 
-               ms.getInstance().requestInvitePlayerToGuildBattleRoom(((Player)pd._session), pd._packet);
+                ((MessengerServerTcp.MessengerServer)param).requestInvitePlayerToGuildBattleRoom(((Player)pd._session), pd._packet);
 
             }
             catch (exception e)
@@ -577,7 +576,7 @@ namespace Pangya_MessengerServer.PacketFunc
             try
             {
 
-               ms.getInstance().requestAcceptGuildMember(pd._packet);
+                ((MessengerServerTcp.MessengerServer)param).requestAcceptGuildMember(pd._packet);
 
             }
             catch (exception e)
@@ -599,7 +598,7 @@ namespace Pangya_MessengerServer.PacketFunc
             try
             {
 
-                ms.getInstance().requestMemberExitedFromGuild(pd._packet);
+                 ((MessengerServerTcp.MessengerServer)param).requestMemberExitedFromGuild(pd._packet);
 
             }
             catch (exception e)
@@ -621,7 +620,7 @@ namespace Pangya_MessengerServer.PacketFunc
             try
             {
 
-                ms.getInstance().requestKickGuildMember(pd._packet);
+                 ((MessengerServerTcp.MessengerServer)param).requestKickGuildMember(pd._packet);
 
             }
             catch (exception e)

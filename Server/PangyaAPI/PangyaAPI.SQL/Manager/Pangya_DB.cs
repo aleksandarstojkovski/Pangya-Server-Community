@@ -4,12 +4,10 @@ using PangyaAPI.Utilities.Log;
 using System;
 using System.Collections.Generic;
 using System.Data;
-using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using static PangyaAPI.SQL.ctx_db;
 using response = PangyaAPI.SQL.Response;
 
 namespace PangyaAPI.SQL
@@ -193,17 +191,11 @@ namespace PangyaAPI.SQL
 
                 _db = DbFactory.Create(m_ctx_db);
             }
-            catch (exception ex)
+            catch (Exception ex)
             {
-                throw ex;
+                _smp.message_pool.getInstance().push(new message("[database::loadIni][Error] " + ex.Message + "]", 0));
             }
             return true;
-        }
-
-
-        internal bool Connected()
-        {
-            return _db.is_connected();
         }
         private bool logExecuteCmds(string _name)
         {
@@ -245,12 +237,8 @@ namespace PangyaAPI.SQL
                     var results = r.getResultSet();
                     foreach (var _result in results)
                     {
-                        var line = _result.getFirstLine();
-                        if (line != null)
-                        {
-                            lineResult(_result.getFirstLine(), num_result);
-                            num_result++; 
-                        }
+                        lineResult(_result.getFirstLine(), num_result);
+                        num_result++;
                     }
                     if (results.Count == 0)
                     {
@@ -269,9 +257,9 @@ namespace PangyaAPI.SQL
                 _smp.message_pool.getInstance().push(new message("[pangya_db::" + _getName + "::exec][Error] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
 
-
-            if (logExecuteCmds(_getName))
-                _smp.message_pool.getInstance().push(new message("[" + _getName + "::exec][Sucess] was Executed.", type_msg.CL_ONLY_CONSOLE_DEBUG));
+             
+            if (_db.m_ctx_db.cmd_log && logExecuteCmds(_getName))
+                _smp.message_pool.getInstance().push(new message("[" + _getName + "::exec][Sucess] was Executed.", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
             _db.disconnect();
         }
@@ -283,14 +271,13 @@ namespace PangyaAPI.SQL
         public virtual response _delete(string _query) { return _db.ExecQuery(_query); }
 
         public virtual response consulta(string _query) { return _db.ExecQuery(_query); }
-        // MYSQL USA PARENTESES MAS O MSSQL server não usa
-        //EXEMPLE: L"exec pangya.ProcGetGuildInfo 4218, 1"
+
         public virtual response procedure(string _name, string values = null) { return _db.ExecProc(_name, values); }
-        public virtual response procedureWithParams(string _name, string values = null) { return _db.ExecQueryWithParams(_name, values); }
         //others
-        public virtual response deleteWithParams(string _proc_name, string valor = null) { return _db.ExecQueryWithParams(_proc_name, valor); }
-        public virtual response consultaeWithParams(string _proc_name, string valor = null) { return _db.ExecQueryWithParams(_proc_name, valor); }
-        public virtual response _updateWithParams(string _proc_name, string valor = null) { return _db.ExecQueryWithParams(_proc_name, valor); }
+        public virtual response deleteWithParams(string _proc_name, string[] parameter = null, SqlDbType[] tipo = null, object[] valor = null, ParameterDirection Direcao = ParameterDirection.Input) { return _db.ExecQueryWithParams(_proc_name, parameter, tipo, valor, Direcao); }
+        public virtual response consultaeWithParams(string _proc_name, string[] parameter = null, SqlDbType[] tipo = null, object[] valor = null, ParameterDirection Direcao = ParameterDirection.Input) { return _db.ExecQueryWithParams(_proc_name, parameter, tipo, valor, Direcao); }
+        public virtual response _updateWithParams(string _proc_name, string[] parameter = null, SqlDbType[] tipo = null, object[] valor = null, ParameterDirection Direcao = ParameterDirection.Input) { return _db.ExecQueryWithParams(_proc_name, parameter, tipo, valor, Direcao); }
+        public virtual response procedureWithParams(string _proc_name, string[] parameter = null, SqlDbType[] tipo = null, object[] valor = null, ParameterDirection Direcao = ParameterDirection.Input) { return _db.ExecProcWithParams(_proc_name, parameter, tipo, valor, Direcao); }
 
         public virtual void checkColumnNumber(uint _number_cols1)
         {
@@ -314,10 +301,7 @@ namespace PangyaAPI.SQL
         protected abstract response prepareConsulta();
 
         protected virtual string _getName { get => GetType().Name; }
-        public static string _formatDate(SYSTEMTIME date)
-        {
-            return UtilTime.FormatDate(date);
-        }
+
         public static string _formatDate(DateTime date)
         {
             return UtilTime.FormatDate(date);
@@ -408,96 +392,6 @@ namespace PangyaAPI.SQL
 
             return null;
         }
-
-
-        public string makeEscapeKeyword(string value)
-        {
-            return _db.makeEscapeKeyword(value);
-        }
-
-        public string SQLDATE()
-        {
-            switch (_db.m_ctx_db.engine.ToUpper())
-            {
-                case "MSSQL":
-                    // GETDATE() é uma função.
-                    return "GETDATE()";
-
-                case "MYSQL":
-                    // MySQL usa NOW() para data e hora ou CURDATE() apenas para data.
-                    return "NOW()";
-
-                case "POSTGRESQL":
-                    return "CURRENT_TIMESTAMP";
-
-                default:
-                    return "CURRENT_TIMESTAMP";
-            }
-        }
-
-        public string SQL_LIMIT(string sql, int quantidade)
-        {
-            switch (_db.m_ctx_db.engine.ToUpper())
-            {
-                case "MSSQL":
-                    return sql.Replace("SELECT", $"SELECT TOP {quantidade}");
-                case "MYSQL":
-                case "POSTGRESQL":
-                default:
-                    return $"{sql} LIMIT {quantidade}";
-            }
-        }
-
-        public string makeText(string value)
-        {
-            if (value == null) return "NULL";
-
-            string rawValue = value;
-            // Remove o N' inicial e a ' final se existirem (Padrão MSSQL)
-            if (rawValue.StartsWith("N'") && rawValue.EndsWith("'"))
-            {
-                rawValue = rawValue.Substring(2, rawValue.Length - 3);
-            }
-            // Remove aspas simples iniciais e finais (Padrão Geral)
-            else if (rawValue.StartsWith("'") && rawValue.EndsWith("'"))
-            {
-                rawValue = rawValue.Substring(1, rawValue.Length - 2);
-            }
-
-            // 2. Agora sim, aplicamos o escape padrão ANSI
-            string safeValue = rawValue.Replace("'", "''");
-
-            switch (_db.m_ctx_db.engine.ToUpper())
-            {
-                case "MSSQL":
-                    return $"N'{safeValue}'";
-
-                case "MYSQL":
-                    string mysqlSafe = safeValue.Replace("\\", "\\\\");
-                    return $"'{mysqlSafe}'";
-
-                case "POSTGRESQL":
-                    return $"'{safeValue}'";
-                default:
-                    return $"'{safeValue}'";
-            }
-        }
-
-        public string ToString(float value)
-        {
-            return value.ToString(CultureInfo.InvariantCulture);
-        }
-
-        public string ToString(double value)
-        {
-            return value.ToString(CultureInfo.InvariantCulture);
-        }
-
-        public string makeText(object value)
-        {
-            return $"'{value.ToString()}'";
-        }
-
         protected exception m__exception { get; set; }
         public exception m_exception { get => m__exception; set => m__exception = value; }
     }

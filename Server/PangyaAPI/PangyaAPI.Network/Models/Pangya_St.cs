@@ -7,7 +7,7 @@ using PangyaAPI.IFF.JP.Models.Data;
 using PangyaAPI.IFF.JP.Models.Flags;
 using PangyaAPI.Network.PangyaPacket;
 using PangyaAPI.Utilities;
-using PangyaAPI.Utilities.Models;
+using PangyaAPI.Utilities.BinaryModels;
 using PangyaAPI.Utilities.Log;
 using Part = PangyaAPI.IFF.JP.Models.Data.Part;
 namespace PangyaAPI.Network.Models
@@ -589,24 +589,6 @@ namespace PangyaAPI.Network.Models
                 return p.GetBytes;
             }
         }
-
-        public ServerInfo ToRead(packet p)
-        {
-            this.nome = p.ReadPStr(40);
-            this.uid = p.ReadInt32();
-            this.max_user = p.ReadInt32();
-            this.curr_user = p.ReadInt32();
-            this.ip = p.ReadPStr(18);
-            this.port = p.ReadInt32();
-            this.propriedade.ulProperty = p.ReadUInt32();
-            this.angelic_wings_num = p.ReadInt32();
-            this.event_flag.usEventFlag = p.ReadUInt16();
-            this.event_map = p.ReadInt16();
-            this.app_rate = p.ReadInt16();
-            this.scratch_rate = p.ReadInt16();
-            this.img_no = p.ReadInt16();
-            return this;
-        }
     }
 
     [StructLayout(LayoutKind.Sequential, Pack = 4)]
@@ -918,12 +900,12 @@ namespace PangyaAPI.Network.Models
 
         public bool isEquipedPartSlotThirdCaddieCardSlot()
         {
-            for (var i = 0; i < (parts_typeid.Length); ++i)
+            for (var i = 0u; i < (parts_typeid.Length); ++i)
             {
                 Part part;
                 if (parts_id[i] != 0 && (part = sIff.getInstance().findPart(parts_typeid[i])) != null)
                 {
-                    if (part._CardSlot.CaddieSlot != 0) // Tem um Part que Libera o terceiro Caddie Card Slot
+                    if (((Part)null)._CardSlot.CaddieSlot != 0) // Tem um Part que Libera o terceiro Caddie Card Slot
                     {
                         return true;
                     }
@@ -972,7 +954,7 @@ namespace PangyaAPI.Network.Models
             if (_auxPart_typeid == 0)
                 return false;
 
-            for (var i = 0; i < auxparts.Length; ++i)
+            for (var i = 0u; i < (auxparts.Length); ++i)
             {
                 if (auxparts[i] == _auxPart_typeid)
                 {
@@ -993,7 +975,7 @@ namespace PangyaAPI.Network.Models
 
                 return;
             }
-            for (uint i = 0; i < (parts_typeid.Length); ++i)
+            for (var i = 0u; i < (parts_typeid.Length); ++i)
             {
 
                 if (_part.position_mask.getSlot((int)i))
@@ -1029,7 +1011,7 @@ namespace PangyaAPI.Network.Models
                 Singleton<list_fifo_console_asyc<message>>.getInstance().push(new message("[CharacterInfo::unequipPart][Error][WARNIG] Part[TYPEID=" + Convert.ToString(_typeid) + "], mas ele nao existe no IFF_STRUCT do server, desequipa sem usar a funcao do character. Hacker ou Bug.", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
                 // Não vai pegar todos os Slots que o Part ocupava para desequipar, desequipa o só onde tem o typeid   
-                for (uint i = 0; i < (parts_typeid.Length); ++i)
+                for (var i = 0u; i < (parts_typeid.Length); ++i)
                 {
 
                     // Não vai pergar todos os 
@@ -1057,7 +1039,7 @@ namespace PangyaAPI.Network.Models
             if (_typeid == 0u)
                 return;
 
-            for (var i = 0; i < (auxparts.Length); ++i)
+            for (var i = 0u; i < (auxparts.Length); ++i)
             {
 
                 if (auxparts[i] == _typeid)
@@ -1092,33 +1074,50 @@ namespace PangyaAPI.Network.Models
         }
 
         public sbyte getSlotOfStatsFromCharEquipedPartItem(Stats __stat)
-        {
-            int totalValue = 0; // Use int para evitar problemas de cast durante a soma
+        { // Get Slot of stats from Character equiped item
 
+            sbyte value = 0;
+            Part part = null;
+
+            // Invalid Stats type, Unknown type Stats
             if (__stat > Stats.S_CURVE)
                 return -1;
 
-            for (var i = 0; i < parts_typeid.Length; ++i)
+            for (var i = 0u; i < (parts_typeid.Length); ++i)
             {
-                // Verifica se o slot de equipamento não está vazio
-                if (parts_id[i] != 0)
-                {
-                    var part = sIff.getInstance().findPart(parts_typeid[i]);
-                    if (part != null)
-                    {
-                        short slotAmount = (short)part.SlotStats.getSlot[(ushort)__stat];
-                        totalValue += slotAmount;
 
-                        // Console.WriteLine($"Item {parts_typeid[i]} adicionou {slotAmount} slots de {__stat}");
+                if (parts_id[i] != 0 && (part = sIff.getInstance().findPart(parts_typeid[i])) != null)
+                {
+
+                    switch (__stat)
+                    {
+                        case Stats.S_POWER:
+                            value += (sbyte)part.Stats.Power;
+                            break;
+                        case Stats.S_CONTROL:
+                            value += (sbyte)part.Stats.Control;
+                            break;
+                        case Stats.S_ACCURACY:
+                            value += (sbyte)part.Stats.Impact;
+                            break;
+                        case Stats.S_SPIN:
+                            value += (sbyte)part.Stats.Spin;
+                            break;
+                        case Stats.S_CURVE:
+                            value += (sbyte)part.Stats.Curve;
+                            break;
+                        default:
+                            break;
                     }
                 }
             }
 
-            return (sbyte)totalValue;
+            return value;
         }
 
         public sbyte getSlotOfStatsFromCharEquipedAuxPart(Stats __stat)
-        { 
+        {
+
             sbyte value = 0;
             AuxPart aux_part = null;
 
@@ -1128,15 +1127,11 @@ namespace PangyaAPI.Network.Models
                 return -1;
             }
 
-            for (var i = 0; i < auxparts.Length; ++i)
+            for (var i = 0u; i < (auxparts.Length); ++i)
             {
-                
-                if (auxparts[i] != 0)
-                  {
-                    aux_part = sIff.getInstance().findAuxPart(auxparts[i]);
-                    if (aux_part != null)
-                        value += (sbyte)aux_part.slot[(int)__stat];
-                }
+
+                if (auxparts[i] != 0 && (aux_part = sIff.getInstance().findAuxPart(auxparts[i])) != null)
+                    value += (sbyte)aux_part.slot[(int)__stat];
 
             }
 
@@ -1162,7 +1157,7 @@ namespace PangyaAPI.Network.Models
             }
 
             // Part Item                                                                                     
-            for (var i = 0; i < (parts_typeid.Length); ++i)
+            for (var i = 0u; i < (parts_typeid.Length); ++i)
             {
 
                 if (parts_typeid[i] != 0)
@@ -1173,81 +1168,6 @@ namespace PangyaAPI.Network.Models
                     // O Item no Set Effect Table
                     if (iff_SET != null)
                     {
-                        if (check_id.Count == 0 || !check_id.Contains(iff_SET.Index))
-                        {
-
-                            // add id para o check
-                            check_id.Add(iff_SET.Index);
-
-                            // Verifica sem tem todos os itens da tabela de efeito equipados
-                            ret = 1;
-                            for (var j = 0; j < (iff_SET.item.ID.Length); ++j)
-                            {
-
-                                if (iff_SET.item.ID[j] != 0u)
-                                {
-
-                                    if (sIff.getInstance().getItemGroupIdentify(iff_SET.item.ID[j]) == PangyaAPI.IFF.JP.Models.Flags.IFF_GROUP.PART)
-                                    {
-
-                                        if (!isPartEquiped(iff_SET.item.ID[j]))
-                                        {
-                                            // Não tem o outro item equipado
-                                            ret = 0;
-
-                                            break;
-                                        }
-
-                                    }
-                                    else if (sIff.getInstance().getItemGroupIdentify(iff_SET.item.ID[j]) == IFF_GROUP.AUX_PART)
-                                    {
-
-                                        if (!isAuxPartEquiped(iff_SET.item.ID[j]))
-                                        {
-
-                                            // Não tem o outro item equipado
-                                            ret = 0;
-
-                                            break;
-                                        }
-
-                                    }
-                                }
-                            }
-
-                            // Não tem todos os itens equipados
-                            if (ret == 0)
-                            {
-                                continue;
-                            }
-
-                            // Effect 6 ONE_ALL_STATS
-                            foreach (var _el in iff_SET.effect.effect)
-                            {
-
-                                if (_el == (byte)AbilityEffect.ONE_IN_ALL_STATS)
-                                    value++;
-                            }
-
-                            // Slot
-                            value += (sbyte)iff_SET.Slot[(int)__stat];
-                        }
-                    }
-                }
-            }
-
-            //AUX PART ITEM
-            for (var i = 0; i < (auxparts.Length); ++i)
-            {
-
-                if (auxparts[i] != 0)
-                {
-
-                    iff_SET = sIff.getInstance().findFirstItemInSetEffectTable(auxparts[i]);
-
-                    // O Item no Set Effect Table
-                    if (iff_SET != null)
-                    {
 
                         if (check_id.Count == 0 || !check_id.Contains(iff_SET.Index))
                         {
@@ -1257,14 +1177,13 @@ namespace PangyaAPI.Network.Models
 
                             // Verifica sem tem todos os itens da tabela de efeito equipados
                             ret = 1;
-                             
                             for (var j = 0u; j < (iff_SET.item.ID.Length); ++j)
                             {
 
                                 if (iff_SET.item.ID[j] != 0u)
                                 {
 
-                                    if (sIff.getInstance().getItemGroupIdentify(iff_SET.item.ID[j]) == IFF_GROUP.PART)
+                                    if (sIff.getInstance().getItemGroupIdentify(iff_SET.item.ID[j]) == sIff.getInstance().PART)
                                     {
 
                                         if (!isPartEquiped(iff_SET.item.ID[j]))
@@ -1277,7 +1196,7 @@ namespace PangyaAPI.Network.Models
                                         }
 
                                     }
-                                    else if (sIff.getInstance().getItemGroupIdentify(iff_SET.item.ID[j]) == IFF_GROUP.AUX_PART)
+                                    else if (sIff.getInstance().getItemGroupIdentify(iff_SET.item.ID[j]) == sIff.getInstance().AUX_PART)
                                     {
 
                                         if (!isAuxPartEquiped(iff_SET.item.ID[j]))
@@ -1313,7 +1232,6 @@ namespace PangyaAPI.Network.Models
                     }
                 }
             }
-             
             return value;
         }
 
@@ -1378,15 +1296,17 @@ namespace PangyaAPI.Network.Models
                 p.WriteUInt32(auxparts);
                 p.WriteUInt32(cut_in);
                 p.WriteBytes(pcl);
+
                 p.WriteUInt32(mastery);
                 p.WriteUInt32(Card_Character);
                 p.WriteUInt32(Card_Caddie);
                 p.WriteUInt32(Card_NPC);
+
                 return p.GetBytes;
             }
         }
 
-        public void ToRead(packet r)
+        public CharacterInfo ToRead(packet r)
         {
             _typeid = r.ReadUInt32();
             id = r.ReadInt32();
@@ -1394,16 +1314,42 @@ namespace PangyaAPI.Network.Models
             default_shirts = r.ReadByte();
             gift_flag = r.ReadByte();
             purchase = r.ReadByte();
-            parts_typeid = r.ReadUInt32(24);
-            parts_id = r.ReadUInt32(24);
+
+            parts_typeid = new uint[24];
+            for (int i = 0; i < 24; i++)
+                parts_typeid[i] = r.ReadUInt32();
+
+            parts_id = new uint[24];
+            for (int i = 0; i < 24; i++)
+                parts_id[i] = r.ReadUInt32();
+
             UccIndexList = r.ReadBytes(216);
-            auxparts = r.ReadUInt32(5); 
-            cut_in = r.ReadUInt32(4);
+
+            auxparts = new uint[5];
+            for (int i = 0; i < 5; i++)
+                auxparts[i] = r.ReadUInt32();
+
+            cut_in = new uint[4];
+            for (int i = 0; i < 4; i++)
+                cut_in[i] = r.ReadUInt32();
+
             pcl = r.ReadBytes(5);
+
             mastery = r.ReadUInt32();
-            Card_Character = r.ReadUInt32(4);
-            Card_Caddie = r.ReadUInt32(4);
-            Card_NPC = r.ReadUInt32(4); 
+
+            Card_Character = new uint[4];
+            for (int i = 0; i < 4; i++)
+                Card_Character[i] = r.ReadUInt32();
+
+            Card_Caddie = new uint[4];
+            for (int i = 0; i < 4; i++)
+                Card_Caddie[i] = r.ReadUInt32();
+
+            Card_NPC = new uint[4];
+            for (int i = 0; i < 4; i++)
+                Card_NPC[i] = r.ReadUInt32();
+
+            return this;
         }
 
     }
@@ -1433,10 +1379,11 @@ namespace PangyaAPI.Network.Models
 
         public void Clear()
         {
-            this.uid = 0;
-            this.option = -1; // -1 Geralmente indica "Não Inicializado" ou "Erro"
-            this.id = string.Empty;
-            this.ip = "0.0.0.0";
+            uid = 0;
+            option = -1;
+
+            if (!string.IsNullOrEmpty(id)) id = string.Empty;
+            if (!string.IsNullOrEmpty(ip)) ip = string.Empty;
         }
     }
 
@@ -1452,7 +1399,7 @@ namespace PangyaAPI.Network.Models
             command_id = 0;
         }
 
-        public virtual void Clear()
+        public void Clear()
         {
             send_server_uid_or_type = 0;
             command_id = 0;
@@ -1480,7 +1427,7 @@ namespace PangyaAPI.Network.Models
 
             public StCommand(ushort size = 0)
             {
-                buff = new byte[0];
+                buff = null;
                 this.size = 0;
                 state = false;
 
@@ -1489,7 +1436,7 @@ namespace PangyaAPI.Network.Models
 
             public void Destroy()
             {
-                buff = new byte[0];
+                buff = null;
                 state = false;
             }
 
@@ -1517,32 +1464,16 @@ namespace PangyaAPI.Network.Models
             command = new StCommand(0);
             Clear();
         }
-         
-        public override void Clear()
+
+        ~CommandOtherServerHeaderEx()
+        {
+            Clear();
+        }
+
+        public new void Clear()
         {
             base.Clear();
             command.Destroy();
-        }
-
-        public new byte[] ToArray()
-        {
-            using (var p = new PangyaBinaryWriter())
-            {
-                // 1. Escreve os dados da classe base (send_server_uid_or_type e command_id)
-                p.Write(base.ToArray());
-
-                // 2. Escreve os dados do StCommand
-                if (command != null && command.is_good() && command.buff != null)
-                {
-                    p.WriteUInt16(command.size); // Escreve o tamanho do buffer (ushort)
-                    p.WriteBytes(command.buff); // Escreve o conteúdo binário
-                }
-                else
-                {
-                    p.WriteUInt16(0);    // Se não houver comando, envia tamanho 0
-                } 
-                return p.GetBytes;
-            }
         }
     }
     #region User Info

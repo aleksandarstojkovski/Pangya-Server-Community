@@ -54,9 +54,9 @@ namespace Pangya_GameServer.Models
     [StructLayout(LayoutKind.Sequential, Pack = 4)]
     public class stHolePar
     {
-        public int par;
-        public int[] range_score = new int[2];
-        public int total_shot;
+        public sbyte par;
+        public sbyte[] range_score = new sbyte[2];
+        public sbyte total_shot;
     }
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
     public class stXZLocation

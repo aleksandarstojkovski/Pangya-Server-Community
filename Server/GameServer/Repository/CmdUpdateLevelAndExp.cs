@@ -8,10 +8,10 @@ namespace Pangya_GameServer.Repository
     {
         private uint m_uid = new uint();
         private byte m_level;
-        private int m_exp = new int();
+        private uint m_exp = new uint();
 
         public CmdUpdateLevelAndExp(uint _uid,
-            short _level, int _exp)
+            short _level, uint _exp)
         {
             this.m_uid = _uid;
             this.m_exp = _exp;

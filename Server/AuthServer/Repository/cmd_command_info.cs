@@ -1,9 +1,21 @@
-﻿using Pangya_AuthServer.Models;
+﻿using AuthServer.Models;
 using PangyaAPI.SQL;
 using System;
 using System.Collections.Generic;
- 
-namespace Pangya_AuthServer.Repository
+
+// Arquivo cmd_command_info.cpp
+// Criado em 02/12/2018 as 22:44 por Acrisio
+// Implementa��o da classe CmdCommandInfo
+
+
+
+// Arquivo cmd_command_info.hpp
+// Criado em 02/12/2018 as 22:37 por Acrisio
+// Defini��o da classe CmdCommandInfo
+
+
+
+namespace AuthServer.Repository
 {
 	public class CmdCommandInfo : Pangya_DB
 	{

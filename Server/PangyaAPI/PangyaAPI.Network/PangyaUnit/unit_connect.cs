@@ -9,9 +9,9 @@ using PangyaAPI.Network.Cryptor;
 using PangyaAPI.Network.Models;
 using PangyaAPI.Network.PangyaPacket;
 using PangyaAPI.Network.PangyaSession;
-using PangyaAPI.Utilities; 
+using PangyaAPI.Utilities;
+using PangyaAPI.Utilities.BinaryModels;
 using PangyaAPI.Utilities.Log;
-using PangyaAPI.Utilities.Models;
 
 namespace PangyaAPI.Network.PangyaUnit
 {
@@ -59,8 +59,8 @@ namespace PangyaAPI.Network.PangyaUnit
         public void Connect(string ip, int port)
         {
             m_pi = new player_info();
-            m_client = new TcpClient(ip, port);
-            m_addr = m_client.Client.RemoteEndPoint as IPEndPoint;
+            m_sock = new TcpClient(ip, port);
+            m_addr = m_sock.Client.RemoteEndPoint as IPEndPoint;
             setState(true);
             setConnected(true);
         }
@@ -92,9 +92,9 @@ namespace PangyaAPI.Network.PangyaUnit
                 if (isConnectedToSend())
                 {
 
-                    var payloadData = _raw ? _buff : Cipher.EncryptClient(_buff, m_key, 0);
+                    var payloadData = _raw ? _buff : Cipher.ServerEncrypt(_buff, m_key, 0);
 
-                    if (!m_client.Send(payloadData, payloadData.Length))
+                    if (!m_sock.Send(payloadData, payloadData.Length))
                     {
                         @lock();
                         setConnectedToSend(false);
@@ -171,7 +171,7 @@ namespace PangyaAPI.Network.PangyaUnit
 
         public virtual bool isLive()
         {
-            return m_session.m_client != null && m_session.m_client.Connected;
+            return (m_session.getState() && m_session.isConnected());
         }
 
         protected abstract void onHeartBeat();
@@ -257,7 +257,7 @@ namespace PangyaAPI.Network.PangyaUnit
                         break;
                     }
 
-                    if (recv_client_new(m_session, raw).Result)
+                    if (recv_client_new(m_session, raw))
                     {
                         // Processa o pacote recebido
                         raw = false;//ja leu packet ket
@@ -410,7 +410,7 @@ namespace PangyaAPI.Network.PangyaUnit
 
             _reconnectTimer = new System.Threading.Timer(_ =>
             {
-                if (m_session.m_client.Connected)
+                if (m_session.m_sock.Connected)
                 {
                     _reconnectTimer?.Dispose(); // já conectou, para o timer
                     return;

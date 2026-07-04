@@ -51,7 +51,8 @@ namespace Pangya_GameServer.Repository
         protected override Response prepareConsulta()
         {
 
-            var r = procedure(m_szConsulta,
+            var r = procedure(
+                m_szConsulta,
                 Convert.ToString(m_uid) + ", " + Convert.ToString(m_ue.poster[0]) + ", " + Convert.ToString(m_ue.poster[1]));
 
             checkResponse(r, "nao conseguiu atualizar o poster[ID=" + Convert.ToString(m_ue.poster[0]) + ", " + Convert.ToString(m_ue.poster[1]) + "] equipado do player: " + Convert.ToString(m_uid));

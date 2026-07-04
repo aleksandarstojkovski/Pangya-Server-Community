@@ -73,7 +73,8 @@ namespace Pangya_GameServer.Repository
 
         protected override Response prepareConsulta()
         {
-            var r = procedure(m_szConsulta,
+            var r = procedure(
+                m_szConsulta,
                 Convert.ToString(m_uid));
 
             checkResponse(r, "nao conseguiu pegar attendance reward info do player: " + Convert.ToString(m_uid));

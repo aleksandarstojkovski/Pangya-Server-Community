@@ -10,7 +10,7 @@ namespace Pangya_GameServer.Repository
     {
         public CmdAddClubSet(bool _waiter = false) : base(_waiter)
         {
-            this.m_uid = 0;
+            this.m_uid = 0u;
             this.m_purchase = 0;
             this.m_gift_flag = 0;
             this.m_wi = new WarehouseItemEx();
@@ -90,7 +90,8 @@ namespace Pangya_GameServer.Repository
                     4, 0));
             }
 
-            var r = procedure(m_szConsulta,
+            var r = procedure(
+                m_szConsulta,
                 Convert.ToString(m_uid) + ", " + Convert.ToString((ushort)m_gift_flag) + ", " + Convert.ToString((ushort)m_purchase) + ", " + Convert.ToString(m_wi._typeid) + ", " + Convert.ToString((ushort)m_wi.flag) + ", " + Convert.ToString(m_wi.c[3]) + ", " + Convert.ToString(m_wi.clubset_workshop.level));
 
             checkResponse(r, "nao conseguiu adicionar o clubset[TYPEID=" + Convert.ToString(m_wi._typeid) + "] para o PLAYER[UID=" + Convert.ToString(m_uid) + "]");
