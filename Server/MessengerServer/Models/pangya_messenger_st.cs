@@ -1,57 +1,102 @@
-﻿using MessengerServer.PangyaEnums;
+﻿using Pangya_MessengerServer.PangyaEnums;
 using PangyaAPI.Network.Models;
-using PangyaAPI.Utilities.BinaryModels;
+using PangyaAPI.Network.PangyaPacket;
+using PangyaAPI.Utilities;
+using PangyaAPI.Utilities.Models;
 using System;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Xml.Linq;
-using static MessengerServer.Models.ManyPacket;
+using static Pangya_MessengerServer.Models.ManyPacket;
 
-namespace MessengerServer.Models
-{                 
+namespace Pangya_MessengerServer.Models
+{
     // PlayerInfo
     public class player_info
     {
         public player_info(uint _ul = 0u)
         {
-            clear();
+            // O construtor apenas chama o Clear para garantir consistência
+            this.clear();
+            this.uid = _ul;
         }
-        public void clear()
+
+        /// <summary>
+        /// Reseta todos os dados da classe para o estado inicial (Zera a memória do objeto)
+        /// </summary>
+        public virtual void clear()
         {
-            block_flag = new BlockFlag();
-            guild_name = "";
-            id = "";
-            nickname = "";
+            this.uid = 0;
+            this.m_cap = 0;
+            this.guild_uid = 0;
+            this.server_uid = 0;
+            this.level = 0;
+            this.sex = 0; 
+            // Strings e Objetos
+            this.id = string.Empty;
+            this.nickname = string.Empty;
+            this.guild_name = string.Empty; 
+            this.block_flag = new BlockFlag();
         }
 
         public void set_info(player_info info)
         {
             if (info == null)
-                throw new ArgumentNullException(nameof(info), "O parâmetro 'info' não pode ser nulo.");
+            {
+                this.clear(); // Se vier nulo, limpamos a instância atual por segurança
+                return;
+            }
 
-            uid = info.uid;
-            m_cap = info.m_cap;
-            block_flag = info.block_flag != null ? info.block_flag : new BlockFlag();
-            guild_uid = info.guild_uid;
-            guild_name = info.guild_name;
-            server_uid = info.server_uid;
-            level = info.level;
-            sex = info.sex;
-            id = info.id;
-            nickname = info.nickname;
+            this.uid = info.uid;
+            this.m_cap = info.m_cap;
+            this.block_flag = info.block_flag ?? new BlockFlag();
+            this.guild_uid = info.guild_uid;
+            this.guild_name = info.guild_name ?? string.Empty;
+            this.server_uid = info.server_uid;
+            this.level = info.level;
+            this.sex = info.sex;
+            this.id = info.id ?? string.Empty;
+            this.nickname = info.nickname ?? string.Empty;
         }
+
+        // Propriedades
         public uint uid;
         public uint m_cap;
-        public BlockFlag block_flag = new BlockFlag();
+        public BlockFlag block_flag;
         public uint guild_uid;
-        public string guild_name = "";
+        public string guild_name = string.Empty;
         public uint server_uid;
         public ushort level;
         public byte sex;
-        public string id = "";
-        public string nickname = "";
+        public string id = string.Empty;
+        public string nickname = string.Empty;
     }
 
+    public enum GAMETYPE : int
+    {
+        STROKE,
+        MATCH,
+        LOUNGE,
+        GAME_TYPE,
+        TOURNEY,
+        TOURNEY_TEAM,
+        GUILD_BATTLE,
+        PANG_BATTLE,
+        GAME_TYPE_08,
+        GAME_TYPE_09,//
+        APPROCH,
+        GRAND_ZODIAC_INT,// GM_EVENT = 0x0B,
+        GAME_TYPE_12,
+        GRAND_ZODIAC_ADV,
+        GRAND_ZODIAC_PRACTICE,
+        GAME_TYPE_15,
+        GAME_TYPE_16,
+        GAME_TYPE_17,
+        SPECIAL_SHUFFLE_COURSE,
+        PRACTICE,
+        GRAND_PRIX,  
+        DEFAULT = -1
+    }
     // Canal Player Info
     [StructLayout(LayoutKind.Sequential, Pack = 1, Size = 75)]
     public class ChannelPlayerInfo
@@ -63,8 +108,9 @@ namespace MessengerServer.Models
             room = new Room();
             server_uid = uint.MaxValue;
             id = byte.MaxValue;
-            name = "";
+            sname = new byte[64];
         }
+
         [StructLayout(LayoutKind.Sequential, Pack = 1)]
         public class Room
         {
@@ -88,20 +134,38 @@ namespace MessengerServer.Models
         [MarshalAs(UnmanagedType.Struct)]
         public Room room; 
         public uint server_uid;
-        public byte id;
-        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 64)]
-        public string name = "";
+        public byte id; 
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 64)]
+        public byte[] sname; 
+        public string name { get => sname.GetString(); set => sname.SetString(value); }
 
         public byte[] ToArray()
         {
             using (var p = new PangyaBinaryWriter())
             {
-                p.WriteBytes(room.ToArray());
-                p.Write(server_uid);
-                p.Write(id);
-                p.WriteStr(name, 64);
+                p.WriteBytes(room.ToArray());//info room 
+                p.WriteUInt32(server_uid);//server conected
+                p.WriteByte(id);//channel id
+                p.WriteStr(name, 64);//channel name
                 return p.GetBytes;
             }
+        }
+
+        public ChannelPlayerInfo ToRead(packet _packet)
+        {
+            try
+            {
+                room.number = _packet.ReadUInt16();
+                room.type = _packet.ReadInt32();
+                server_uid = _packet.ReadUInt32();
+                id = _packet.ReadByte();
+                sname = _packet.ReadBytes(64);
+                return this;
+            }
+            catch (Exception e)
+            { 
+                throw e;
+            } 
         }
     }
 

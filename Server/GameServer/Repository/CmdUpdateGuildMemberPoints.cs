@@ -49,8 +49,7 @@ namespace Pangya_GameServer.Repository
                     4, 0));
             }
 
-            var r = procedure(
-                m_szConsulta,
+            var r = procedure(m_szConsulta,
                 Convert.ToString(m_gmp.guild_uid) + ", " + Convert.ToString(m_gmp.member_uid) + ", " + Convert.ToString(m_gmp.point) + ", " + Convert.ToString(m_gmp.pang));
 
             checkResponse(r, "nao conseguiu atualizar o Guild[UID=" + Convert.ToString(m_gmp.guild_uid) + "] POINTS[POINT=" + Convert.ToString(m_gmp.point) + ", PANG=" + Convert.ToString(m_gmp.pang) + "] do PLAYER[UID=" + Convert.ToString(m_gmp.member_uid) + "]");

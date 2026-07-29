@@ -3,7 +3,7 @@ using PangyaAPI.IFF.JP.Models.General;
 namespace PangyaAPI.IFF.JP.Models.Data
 {
     #region Struct AuxPart.iff
-    [StructLayout(LayoutKind.Sequential, Pack = 4)]
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
     public class AuxPart : IFFCommon
     {
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 5)]

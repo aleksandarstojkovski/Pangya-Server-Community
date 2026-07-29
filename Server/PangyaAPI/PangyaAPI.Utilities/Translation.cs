@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Linq;
 using System.Text;
-using PangyaAPI.Utilities.BinaryModels;
+using PangyaAPI.Utilities.Models;
 
 namespace PangyaAPI.Utilities
 {

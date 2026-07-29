@@ -1,5 +1,8 @@
-﻿using System.Runtime.InteropServices;
-using PangyaAPI.Utilities.BinaryModels;
+﻿using PangyaAPI.IFF.JP.Models.Flags;
+using PangyaAPI.Network.PangyaPacket;
+using PangyaAPI.Utilities.Models;
+using System;
+using System.Runtime.InteropServices;
 
 namespace Pangya_GameServer.Models
 {
@@ -10,6 +13,27 @@ namespace Pangya_GameServer.Models
         public void clear()
         {
         }
+
+        public stInitHole ToRead(packet _packet)
+        {
+            numero = _packet.ReadByte();
+            option = _packet.ReadUInt32();
+            ulUnknown = _packet.ReadUInt32();
+            par = _packet.ReadByte();
+            tee = new stXZLocation
+            {
+                x = _packet.ReadSingle(),
+                z = _packet.ReadSingle()
+            };
+            pin = new stXZLocation
+            {
+                x = _packet.ReadSingle(),
+                z = _packet.ReadSingle()
+            };
+
+            return this;
+        }
+
         public byte numero { get; set; }
         public uint option { get; set; }
         public uint ulUnknown { get; set; }
@@ -104,7 +128,7 @@ namespace Pangya_GameServer.Models
         {
             return (ring[0] != 0 && ring[1] != 0);
         }
-        public uint efeito { get; set; }
+        public AbilityEffect efeito { get; set; }
         [MarshalAs(UnmanagedType.ByValArray)]
         public uint[] ring = new uint[2]; // 2 Anel, "Set"(Conjunto)
         public uint option { get; set; }
@@ -168,7 +192,7 @@ namespace Pangya_GameServer.Models
         public void clear()
         {
             oid = -1;
-            item_typeid = 0u;
+            item_typeid = 0;
         }
         public int oid = new int();
         public uint item_typeid = new uint();

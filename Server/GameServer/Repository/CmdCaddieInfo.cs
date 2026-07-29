@@ -71,7 +71,7 @@ namespace Pangya_GameServer.Repository
                     _typeid = _result.GetUInt32(2),
                     parts_typeid = _result.GetUInt32(3),
                     level = _result.GetByte(4),
-                    exp = _result.GetUInt32(5),
+                    exp = _result.GetInt32(5),
                     rent_flag = _result.GetByte(6)
                 };
 

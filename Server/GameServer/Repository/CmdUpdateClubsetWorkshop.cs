@@ -1,6 +1,7 @@
 ﻿using System;
 using Pangya_GameServer.Models;
 using PangyaAPI.IFF.JP.Extensions;
+using PangyaAPI.IFF.JP.Models.Flags;
 using PangyaAPI.SQL;
 using PangyaAPI.Utilities;
 namespace Pangya_GameServer.Repository
@@ -84,15 +85,13 @@ namespace Pangya_GameServer.Repository
                     4, 0));
             }
 
-            if (sIff.getInstance()._getItemGroupIdentify(m_wi._typeid) != PangyaAPI.IFF.JP.Models.Flags.IFF_GROUP.CLUBSET)
+            if (sIff.getInstance().getItemGroupIdentify(m_wi._typeid) != IFF_GROUP.CLUBSET)
             {
-                throw new exception("[CmdUpdateClubSetWorkShop::prepareConsulta][Error] Item[TYPEID=" + Convert.ToString(m_wi._typeid) + ", ID=" + Convert.ToString(m_wi.id) + "] nao eh um ClubSet", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PANGYA_DB,
+                throw new exception("[CmdUpdateClubSetWorkShop::prepareConsulta][Error] Item[TYPEID=" + Convert.ToString(m_wi._typeid) + ", ID=" + Convert.ToString(m_wi.id) + "] nao é um ClubSet", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PANGYA_DB,
                     4, 0));
             }
 
-            var r = procedure(
-                m_szConsulta,
-                Convert.ToString(m_uid) + ", " + Convert.ToString(m_wi.id) + ", " + Convert.ToString(m_wi.clubset_workshop.level) + ", " + Convert.ToString(m_wi.clubset_workshop.c[0]) + ", " + Convert.ToString(m_wi.clubset_workshop.c[1]) + ", " + Convert.ToString(m_wi.clubset_workshop.c[2]) + ", " + Convert.ToString(m_wi.clubset_workshop.c[3]) + ", " + Convert.ToString(m_wi.clubset_workshop.c[4]) + ", " + Convert.ToString(m_wi.clubset_workshop.mastery) + ", " + Convert.ToString(m_wi.clubset_workshop.rank) + ", " + Convert.ToString(m_wi.clubset_workshop.recovery_pts) + ", " + Convert.ToInt32(m_flag));
+            var r = procedure(m_szConsulta, Convert.ToString(m_uid) + ", " + Convert.ToString(m_wi.id) + ", " + Convert.ToString(m_wi.clubset_workshop.level) + ", " + Convert.ToString(m_wi.clubset_workshop.c[0]) + ", " + Convert.ToString(m_wi.clubset_workshop.c[1]) + ", " + Convert.ToString(m_wi.clubset_workshop.c[2]) + ", " + Convert.ToString(m_wi.clubset_workshop.c[3]) + ", " + Convert.ToString(m_wi.clubset_workshop.c[4]) + ", " + Convert.ToString(m_wi.clubset_workshop.mastery) + ", " + Convert.ToString(m_wi.clubset_workshop.rank) + ", " + Convert.ToString(m_wi.clubset_workshop.recovery_pts) + ", " + Convert.ToInt32(m_flag));
 
             checkResponse(r, "nao conseguiu atualizar ClubSet[TYPEID=" + Convert.ToString(m_wi._typeid) + ", ID=" + Convert.ToString(m_wi.id) + "] WorkShop[C0=" + Convert.ToString(m_wi.clubset_workshop.c[0]) + ", C1=" + Convert.ToString(m_wi.clubset_workshop.c[1]) + ", C2=" + Convert.ToString(m_wi.clubset_workshop.c[2]) + ", C3=" + Convert.ToString(m_wi.clubset_workshop.c[3]) + ", C4=" + Convert.ToString(m_wi.clubset_workshop.c[4]) + ", Level=" + Convert.ToString(m_wi.clubset_workshop.level) + ", Mastery=" + Convert.ToString(m_wi.clubset_workshop.mastery) + ", Rank=" + Convert.ToString(m_wi.clubset_workshop.rank) + ", Recovery=" + Convert.ToString(m_wi.clubset_workshop.recovery_pts) + "] Flag=" + Convert.ToString(m_wi.clubset_workshop.flag) + " do PLAYER[UID=" + Convert.ToString(m_uid) + "]");
 

@@ -1,5 +1,6 @@
 ﻿
 using System;
+using System.Runtime.InteropServices.WindowsRuntime;
 using PangyaAPI.SQL;
 
 namespace PangyaAPI.Network.Repository
@@ -40,14 +41,13 @@ namespace PangyaAPI.Network.Repository
 
             m_lastVerify = false;
 
-            var r = procedure("pangya.ProcVerifyPass", m_uid.ToString() + ", " + m_pass);
+            var r = procedure("pangya.ProcVerifyPass", $"{m_uid}, {this.makeText(m_pass)}");
 
             checkResponse(r, "nao conseguiu pegar a uid do player pela senha: " + m_pass);
 
             return r;
 
         }
-
         public bool getLastVerify() => m_lastVerify;
 
     }

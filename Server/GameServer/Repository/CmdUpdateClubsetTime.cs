@@ -67,8 +67,7 @@ namespace Pangya_GameServer.Repository
                     4, 0));
             }
 
-            var r = procedure(
-                m_szConsulta,
+            var r = procedure(m_szConsulta,
                 Convert.ToString(m_uid) + ", " + Convert.ToString(m_wi.id) + ", " + Convert.ToString(m_wi._typeid) + ", " + (formatDateLocal(m_wi.end_date_unix_local)));
 
             checkResponse(r, "nao conseguiu atualizar o tempo do ClubSet[ID=" + Convert.ToString(m_wi.id) + ", TYPEID=" + Convert.ToString(m_wi._typeid) + ", ENDDATE=" + formatDateLocal(m_wi.end_date_unix_local) + "] do PLAYER[UID=" + Convert.ToString(m_uid) + "]");

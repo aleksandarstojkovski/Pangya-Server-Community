@@ -90,16 +90,26 @@ namespace Pangya_GameServer.Repository
 
         protected override Response prepareConsulta()
         {
+            // 1. Reset de estado
             v_ci.Clear();
 
-            var query = m_type == TYPE.ALL ? m_szConsulta[0] : m_szConsulta[1];
-            var parameters = m_type == TYPE.ONE ? $", {m_card_id}" : string.Empty;
+            // 2. Define the procedures
+            string procName = (m_type == TYPE.ALL)
+                ? m_szConsulta[0]
+                : m_szConsulta[1];
 
-            var response = procedure(query, $"{m_uid}{parameters}");
+            // 3. Define the parameters
+            // Se for TYPE.ONE, envia UID e CardID. Se for ALL, envia apenas o UID.
+            string parameters = (m_type == TYPE.ONE)
+                ? $"{m_uid}, {m_card_id}"
+                : $"{m_uid}";
 
-            checkResponse(response, $"Não conseguiu pegar card info do player: {m_uid}");
+            // 4. Execute and Validate
+            var r = procedure(procName, parameters);
 
-            return response;
+            checkResponse(r, $"Não foi possível carregar o card info do player: {m_uid}");
+
+            return r;
         }
 
         private uint m_uid;

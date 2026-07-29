@@ -80,32 +80,32 @@ namespace Pangya_GameServer.Game.System
                     ctx.range_score.par = el.Par_Hole;
                     ctx.star = 1f + (el.Star / 10f);
                     // Bonus por curso (substituir com enums se necessário)
-                    var tipo = (RoomInfo.eCOURSE)(el.ID & 0xFF);
+                    var tipo = (RoomInfo.ROOM_INFO_COURSE)(el.ID & 0xFF);
                     var course = (byte)(el.ID & 0xFF);
                     switch (tipo)
                     {
-                        case RoomInfo.eCOURSE.BLUE_LAGOON: ctx.clear_bonus = 20; break;
-                        case RoomInfo.eCOURSE.BLUE_WATER: ctx.clear_bonus = 50; break;
-                        case RoomInfo.eCOURSE.BLUE_MOON: ctx.clear_bonus = 50; break;
-                        case RoomInfo.eCOURSE.SEPIA_WIND: ctx.clear_bonus = 55; break;
-                        case RoomInfo.eCOURSE.PINK_WIND: ctx.clear_bonus = 20; break;
-                        case RoomInfo.eCOURSE.WIND_HILL: ctx.clear_bonus = 80; break;
-                        case RoomInfo.eCOURSE.WIZ_WIZ: ctx.clear_bonus = 65; break;
-                        case RoomInfo.eCOURSE.WHITE_WIZ: ctx.clear_bonus = 55; break;
-                        case RoomInfo.eCOURSE.WEST_WIZ: ctx.clear_bonus = 24; break;
-                        case RoomInfo.eCOURSE.WIZ_CITY: ctx.clear_bonus = 40; break;
-                        case RoomInfo.eCOURSE.DEEP_INFERNO: ctx.clear_bonus = 80; break;
-                        case RoomInfo.eCOURSE.ICE_SPA: ctx.clear_bonus = 20; break;
-                        case RoomInfo.eCOURSE.ICE_CANNON: ctx.clear_bonus = 40; break;
-                        case RoomInfo.eCOURSE.ICE_INFERNO: ctx.clear_bonus = 70; break;
-                        case RoomInfo.eCOURSE.SILVIA_CANNON: ctx.clear_bonus = 70; break;
-                        case RoomInfo.eCOURSE.SHINNING_SAND: ctx.clear_bonus = 40; break;
-                        case RoomInfo.eCOURSE.EASTERN_VALLEY: ctx.clear_bonus = 40; break;
-                        case RoomInfo.eCOURSE.LOST_SEAWAY: ctx.clear_bonus = 20; break;
-                        case RoomInfo.eCOURSE.GRAND_ZODIAC: ctx.clear_bonus = 0; break;
-                        case RoomInfo.eCOURSE.CHRONICLE_1_CHAOS: ctx.clear_bonus = 360; break;
-                        case RoomInfo.eCOURSE.ABBOT_MINE: ctx.clear_bonus = 40; break;
-                        case RoomInfo.eCOURSE.MYSTIC_RUINS: ctx.clear_bonus = 40; break;
+                        case RoomInfo.ROOM_INFO_COURSE.BLUE_LAGOON: ctx.clear_bonus = 20; break;
+                        case RoomInfo.ROOM_INFO_COURSE.BLUE_WATER: ctx.clear_bonus = 50; break;
+                        case RoomInfo.ROOM_INFO_COURSE.BLUE_MOON: ctx.clear_bonus = 50; break;
+                        case RoomInfo.ROOM_INFO_COURSE.SEPIA_WIND: ctx.clear_bonus = 55; break;
+                        case RoomInfo.ROOM_INFO_COURSE.PINK_WIND: ctx.clear_bonus = 20; break;
+                        case RoomInfo.ROOM_INFO_COURSE.WIND_HILL: ctx.clear_bonus = 80; break;
+                        case RoomInfo.ROOM_INFO_COURSE.WIZ_WIZ: ctx.clear_bonus = 65; break;
+                        case RoomInfo.ROOM_INFO_COURSE.WHITE_WIZ: ctx.clear_bonus = 55; break;
+                        case RoomInfo.ROOM_INFO_COURSE.WEST_WIZ: ctx.clear_bonus = 24; break;
+                        case RoomInfo.ROOM_INFO_COURSE.WIZ_CITY: ctx.clear_bonus = 40; break;
+                        case RoomInfo.ROOM_INFO_COURSE.DEEP_INFERNO: ctx.clear_bonus = 80; break;
+                        case RoomInfo.ROOM_INFO_COURSE.ICE_SPA: ctx.clear_bonus = 20; break;
+                        case RoomInfo.ROOM_INFO_COURSE.ICE_CANNON: ctx.clear_bonus = 40; break;
+                        case RoomInfo.ROOM_INFO_COURSE.ICE_INFERNO: ctx.clear_bonus = 70; break;
+                        case RoomInfo.ROOM_INFO_COURSE.SILVIA_CANNON: ctx.clear_bonus = 70; break;
+                        case RoomInfo.ROOM_INFO_COURSE.SHINNING_SAND: ctx.clear_bonus = 40; break;
+                        case RoomInfo.ROOM_INFO_COURSE.EASTERN_VALLEY: ctx.clear_bonus = 40; break;
+                        case RoomInfo.ROOM_INFO_COURSE.LOST_SEAWAY: ctx.clear_bonus = 20; break;
+                        case RoomInfo.ROOM_INFO_COURSE.GRAND_ZODIAC: ctx.clear_bonus = 0; break;
+                        case RoomInfo.ROOM_INFO_COURSE.CHRONICLE_1_CHAOS: ctx.clear_bonus = 360; break;
+                        case RoomInfo.ROOM_INFO_COURSE.ABBOT_MINE: ctx.clear_bonus = 40; break;
+                        case RoomInfo.ROOM_INFO_COURSE.MYSTIC_RUINS: ctx.clear_bonus = 40; break;
                     }
                     m_map[course] = (ctx);
                 }

@@ -43,8 +43,7 @@ namespace Pangya_GameServer.Repository
                     4, 0));
             }
 
-            var r = procedure(
-                m_szConsulta,
+            var r = procedure(m_szConsulta,
                 Convert.ToString(m_uid) + ", " + Convert.ToString((short)m_pl.channel) + ", " + Convert.ToString((short)m_pl.lobby) + ", " + Convert.ToString((short)m_pl.room) + ", " + Convert.ToString(m_pl.place.ulPlace));
 
             checkResponse(r, "nao conseguiu atualizar PLAYER[UID=" + Convert.ToString(m_uid) + "] Location[CHANNEL=" + Convert.ToString((short)m_pl.channel) + ", LOBBY=" + Convert.ToString((short)m_pl.lobby) + ", ROOM=" + Convert.ToString(m_pl.room) + ", PLACE=" + Convert.ToString((ushort)m_pl.place.ulPlace) + "]");

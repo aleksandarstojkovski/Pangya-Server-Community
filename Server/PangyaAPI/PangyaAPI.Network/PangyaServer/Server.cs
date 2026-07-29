@@ -1,20 +1,22 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Net;
-using System.Net.Sockets;
-using System.Threading;
-using System.Threading.Tasks;
-using PangyaAPI.Network.Repository;
-using PangyaAPI.Network.Models;
+﻿using PangyaAPI.Network.Models;
 using PangyaAPI.Network.PangyaPacket;
 using PangyaAPI.Network.PangyaSession;
 using PangyaAPI.Network.PangyaUnit;
 using PangyaAPI.Network.PangyaUtil;
+using PangyaAPI.Network.Repository;
 using PangyaAPI.SQL;
 using PangyaAPI.Utilities;
-using PangyaAPI.Utilities.BinaryModels;
+using PangyaAPI.Utilities.Models;
 using PangyaAPI.Utilities.Log;
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Net;
+using System.Net.Sockets;
+using System.Security.Cryptography;
+using System.Threading;
+using System.Threading.Tasks;
 namespace PangyaAPI.Network.PangyaServer
 {
     public enum ServerState
@@ -42,7 +44,7 @@ namespace PangyaAPI.Network.PangyaServer
         public SessionManager m_session_manager;
         public ServerInfoEx m_si = new ServerInfoEx();
         private int m_Bot_TTL; // Anti-bot Time-to-live
-       // private bool m_chatDiscord;
+                               // private bool m_chatDiscord;
         public bool _isRunning;
         public IniHandle m_reader_ini { get; set; }
         public List<TableMac> ListBlockMac { get; set; } = new List<TableMac>();
@@ -98,7 +100,7 @@ namespace PangyaAPI.Network.PangyaServer
             }
             catch (exception e)
             {
-                _smp.message_pool.getInstance().push(new message("[Server::construtor][Error] " + e.getFullMessageError(), type_msg.CL_ONLY_CONSOLE));
+                _smp.message_pool.getInstance().push(new message($"[{GetType().Name}::construtor][Error] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
 
@@ -120,15 +122,12 @@ namespace PangyaAPI.Network.PangyaServer
                     port = m_reader_ini.ReadInt32("SERVERINFO", "PORT"),
                     ip = m_reader_ini.ReadString("SERVERINFO", "IP"),
                     max_user = m_reader_ini.ReadInt32("SERVERINFO", "MAXUSER"),
-                    propriedade = new uProperty(m_reader_ini.ReadUInt32("SERVERINFO", "PROPERTY")),
-                    rate = new RateConfigInfo(),
-                    event_flag = new uEventFlag(),
-                    flag = new uFlag(0)
+                    propriedade = new uProperty(m_reader_ini.ReadUInt32("SERVERINFO", "PROPERTY"))
                 };
             }
             catch (exception e)
             {
-                _smp.message_pool.getInstance().push(new message("[Server::config_init][Error] " + e.getFullMessageError(), type_msg.CL_ONLY_CONSOLE));
+                _smp.message_pool.getInstance().push(new message($"[{GetType().Name}::config_init][Error] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
 
             try
@@ -138,72 +137,202 @@ namespace PangyaAPI.Network.PangyaServer
             }
             catch (exception e)
             {
-                _smp.message_pool.getInstance().push(new message("[Server::config_init][Error] " + e.getFullMessageError(), type_msg.CL_ONLY_CONSOLE));
+                _smp.message_pool.getInstance().push(new message($"[{GetType().Name}::config_init][Error] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
                 m_Bot_TTL = 1000; // Usa o valor padrão do anti bot TTL
             }
         }
 
-        /// <summary>
-        /// Manuseia Comunicação do Cliente
-        /// </summary>
-        private void accept_completed(object obj)
+
+        #endregion
+
+        #region Public Methods
+        // Shutdown With Time
+        public virtual void shutdown_time(int timeSec)
         {
-            //Recebe cliente a partir do parâmetro
-            TcpClient client = (TcpClient)obj;
-            Session _session;
-            lock (_sessionsLock)
+        }
+
+        public void shutdown()
+        {
+            Stop();
+        }
+
+        public void end_time_shutdown(object _arg1, object _arg2)
+        {
+
+            var s = (Server)(_arg1);
+            int time_sec = (int)_arg2;
+
+            try
             {
-                // Add player
-                _session = m_session_manager.AddSession(this, client, client.Client.RemoteEndPoint as IPEndPoint, (byte)(new Random().Next() % 16));
 
-                _smp.message_pool.getInstance().push(
-                    new message($"[Server::accept_completed][Warning] New Player Connected [IP: {_session.getIP()}, Key: {_session.m_key}]",
-                                type_msg.CL_FILE_LOG_AND_CONSOLE));
+                s.shutdown_time(time_sec);
 
-                //time out packet
-                _session.m_sock.ReceiveTimeout = 5000;
             }
-
-            onAcceptCompleted(_session);
-
-            while (_session.isConnected())
+            catch (exception e)
             {
-                try
-                {
-                    if (!_session.isConnected())
-                    {
-                        DisconnectSession(_session);
-                        break;
-                    }
 
-                    // Processa o pacote recebido
-                    if (!recv_server_new(_session))
-                    {
-
-                        DisconnectSession(_session);
-                        break;
-                    }
-                    _session.LastPacketReceived = DateTime.Now;
-                    Thread.Sleep(millisecondsTimeout: 10);
-                }
-                catch (IOException ioEx)
-                {
-                    _smp.message_pool.getInstance().push(new message("[Server::Handle_session][IOError] " + ioEx.Message, type_msg.CL_FILE_LOG_AND_CONSOLE));
-                    DisconnectSession(_session);
-                    break;
-                }
-                catch (exception ex)
-                {
-                    _smp.message_pool.getInstance().push(new message("[Server::Handle_session][ErrorSystem] " + ex.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
-                    DisconnectSession(_session);
-                    break;
-                }
+                _smp.message_pool.getInstance().push(new message($"[{GetType().Name}::end_time_shutdown][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
 
-        protected void OnMonitor()
+        public void Start()
+        { 
+            try
+            {
+                _server = new TcpListener(IPAddress.Parse(m_si.ip), m_si.port);
+                _server.Server.SendBufferSize = 8192;
+                _server.Server.ReceiveBufferSize = 8192;
+                _server.Server.NoDelay = true;
+                _server.AllowNatTraversal(allowed: true);
+                m_state = ServerState.Good;
+                if (m_state != ServerState.Failure)
+                {
+
+                    try
+                    {
+                        _server.Start(m_si.max_user);
+
+                        _smp.message_pool.getInstance().push(new message($"[{GetType().Name}::Start][Sucess] Running in Port: " + m_si.port, type_msg.CL_FILE_LOG_AND_CONSOLE));
+
+
+
+                        // Inicializa o Unit_Connect, que conecta com o Auth Server
+                        m_unit_connect = new unit_auth_server_connect(this);//interno
+
+                        _isRunning = true;
+                        
+                        m_unit_connect?.start();
+
+                        // inicia accept
+                        _server.BeginAcceptTcpClient(OnClientAccepted, null);
+
+                        // inicia monitor
+                        _ = OnMonitor(); 
+                    }
+                    catch (exception e)
+                    {
+                        _smp.message_pool.getInstance().push(new message(e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
+                    } 
+                }
+                else
+                {
+                    _smp.message_pool.getInstance().push(new message($"[{GetType().Name}::start][Error] Server Inicializado com falha, fechando o Server::", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                }
+            }
+            catch (exception e)
+            {
+                _smp.message_pool.getInstance().push(new message(e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
+            }
+        }
+
+        private void OnClientAccepted(IAsyncResult ar)
         {
-            _smp.message_pool.getInstance().push(new message("[Server::onMonitor][Info] monitor iniciado com sucesso!", type_msg.CL_ONLY_FILE_LOG));
+            TcpClient newClient = null;
+
+            if (!_isRunning) return;
+             
+            if (_isRunning)
+                _server.BeginAcceptTcpClient(OnClientAccepted, null);
+
+
+            try
+            {
+                newClient = _server.EndAcceptTcpClient(ar);
+
+                var remoteEndPoint = newClient.Client.RemoteEndPoint as IPEndPoint;
+                string ipAddress = remoteEndPoint?.Address.ToString();
+
+                // Filtragem de IP
+                if (_ipFilter != null && _ipFilter.IsBlocked(ipAddress) && haveBanList(ipAddress, "", false))
+                {
+                    newClient.Close();
+                    _smp.message_pool.getInstance().push(
+                        new message($"[{GetType().Name}] Conexão de IP bloqueado: {ipAddress}", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                    return; // já encerramos a conexão bloqueada
+                }
+
+                _ipFilter?.OnConnect(ipAddress);
+
+                // Cria thread/Task para processar o cliente
+               _  = accept_completed(newClient);
+            }
+            catch (ObjectDisposedException)
+            {
+                // listener foi parado
+                return;
+            }
+            catch (Exception e)
+            {
+                _smp.message_pool.getInstance().push(
+                    new message($"[{GetType().Name}::OnClientAccepted][ErrorSystem] {e.Message}", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                newClient?.Close();
+            }
+        }
+
+        public void Stop()
+        {
+            _isRunning = false;
+            m_state = ServerState.Failure;
+            Console.WriteLine("Server is stopping...");
+        }
+
+
+        /// <summary>
+        /// Manuseia Comunicação do Cliente
+        /// </summary>
+        private async Task accept_completed(object obj) 
+        {
+            TcpClient client = (TcpClient)obj;
+             
+            var _session = m_session_manager.AddSession(this, client, client.Client.RemoteEndPoint as IPEndPoint, (byte)(new Random().Next() % 16));
+
+
+            _smp.message_pool.getInstance().push(
+                new message(
+                    $"[{GetType().Name}] New Player [IP: {_session.getIP()}, Key: {_session.m_key}]",
+                    type_msg.CL_FILE_LOG_AND_CONSOLE
+                )
+            );
+
+            onAcceptCompleted(_session);
+            _session.last_activity = DateTime.Now;
+
+            try
+            {
+                while (client.Connected)
+                {
+                    bool success = await recv_server_new(_session); 
+                    if (success)
+                    {
+                        _session.last_activity = DateTime.Now;
+                    }
+                    else
+                    {
+                        // Se retornar false, o socket fechou ou houve erro crítico
+                        Debug.WriteLine($"[{GetType().Name}][ErrorSystem] Conexão encerrada pelo servidor remoto.");
+                        break;
+                    }
+                }
+            } 
+            catch (IOException ioEx)
+            {
+                _smp.message_pool.getInstance().push(
+                    new message($"[{GetType().Name}][IOError] {ioEx.Message}", type_msg.CL_FILE_LOG_AND_CONSOLE)
+                );
+            }
+            catch (Exception ex)
+            {
+                _smp.message_pool.getInstance().push(
+                    new message($"[{GetType().Name}][ErrorSystem] {ex}", type_msg.CL_FILE_LOG_AND_CONSOLE)
+                );
+            }
+
+            DisconnectSession(_session);
+        }
+
+        protected async Task OnMonitor()
+        {
+            _smp.message_pool.getInstance().push(new message($"[{GetType().Name}::onMonitor][Info] monitor iniciado com sucesso!", type_msg.CL_ONLY_FILE_LOG));
 
             while (_isRunning)
             {
@@ -212,7 +341,7 @@ namespace PangyaAPI.Network.PangyaServer
                     // Verifica e atualiza os arquivos de log caso o dia tenha mudado
                     if (_smp.message_pool.getInstance().check_update_day_log())
                     {
-                        _smp.message_pool.getInstance().push(new message("[Server::Monitor::UpdateLogFiles][Info] Atualizou os arquivos de Log porque trocou de dia.", type_msg.CL_ONLY_CONSOLE));
+                        _smp.message_pool.getInstance().push(new message($"[{GetType().Name}::Monitor::UpdateLogFiles][Info] Atualizou os arquivos de Log porque trocou de dia.", type_msg.CL_FILE_LOG_AND_CONSOLE));
                     }
 
                     try
@@ -224,59 +353,33 @@ namespace PangyaAPI.Network.PangyaServer
                     catch (exception e) // Exceção específica da aplicação
                     {
                         _smp.message_pool.getInstance().push(new message(
-                             $"[Server::Monitor][ErrorSystem] {e.GetType().Name}: {e.getFullMessageError()}\nStack Trace: {e.getStackTrace()}",
+                             $"[{GetType().Name}::Monitor][ErrorSystem] {e.GetType().Name}: {e.getFullMessageError()}\nStack Trace: {e.getStackTrace()}",
                              type_msg.CL_FILE_LOG_AND_CONSOLE));
-                    }
-                    // Atualiza o título da janela do console conforme o tipo do servidor
-                    switch (m_si.tipo)
-                    {
-                        case 0:
-                            Console.Title = $"Login Server - P: {m_si.curr_user}";
-                            break;
-                        case 1:
-                            Console.Title = $"Game Server - P: {m_si.curr_user}";
-                            break;
-                        case 2:
-                            Console.Title = $"Bird Server - P: {m_si.curr_user}";
-                            break;
-                        case 3:
-                            Console.Title = $"Messenger Server - P: {m_si.curr_user}";
-                            break;
-                        case 4:
-                            Console.Title = $"Rank Server - P: {m_si.curr_user}";
-                            break;
-                        case 5:
-                            Console.Title = $"Auth Server - P: {m_si.curr_user}";
-                            break;
-                        case 6:
-                            Console.Title = $"GG Auth Server - P: {m_si.curr_user}";
-                            break;
-                        default:
-                            Console.Title = $"Unknown Server - P: {m_si.curr_user}";
-                            break;
-                    }
+                    } 
                     // pega a lista de servidores online
                     cmdUpdateServerList();
                     // Atualiza a lista de bloqueios de IP/MAC
                     cmdUpdateListBlock_IP_MAC();
                     // Evento de heartbeat
-                    OnHeartBeat();
-
+                    OnHeartBeat(); 
+                    // On Start
+                    OnStart();
                 }
                 catch (exception e) // Exceção específica da aplicação
                 {
                     _smp.message_pool.getInstance().push(new message(
-                         $"[Server::Monitor][ErrorSystem] {e.GetType().Name}: {e.getFullMessageError()}\nStack Trace: {e.getStackTrace()}",
+                         $"[{GetType().Name}::Monitor][ErrorSystem] {e.GetType().Name}: {e.getFullMessageError()}\nStack Trace: {e.getStackTrace()}",
                          type_msg.CL_FILE_LOG_AND_CONSOLE));
                 }
                 catch (Exception ex) // Exceções gerais do .NET
                 {
                     _smp.message_pool.getInstance().push(new message(
-                         $"[Server::Monitor][ErrorSystem] {ex.GetType().Name}: {ex.Message}\nStack Trace: {ex.StackTrace}",
+                         $"[{GetType().Name}::Monitor][ErrorSystem] {ex.GetType().Name}: {ex.Message}\nStack Trace: {ex.StackTrace}",
                          type_msg.CL_FILE_LOG_AND_CONSOLE));
                 }
+               
+                await Task.Delay(2100); 
             }
-            Thread.Sleep(2100);
         }
 
         protected void cmdUpdateServerList()
@@ -324,7 +427,7 @@ namespace PangyaAPI.Network.PangyaServer
             }
             catch (exception e)
             {
-                _smp.message_pool.getInstance().push(new message($"[Server::dispach_packet_sv_same_thread][ErrorSystem] {e.Message}, {e.getStackTrace()}", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                _smp.message_pool.getInstance().push(new message($"[{GetType().Name}::dispach_packet_sv_same_thread][ErrorSystem] {e.Message}, {e.getStackTrace()}", type_msg.CL_FILE_LOG_AND_CONSOLE));
                 // Desconecta a sessão
                 DisconnectSession(session);
             }
@@ -346,24 +449,27 @@ namespace PangyaAPI.Network.PangyaServer
                     {
                         if (func != null && func.ExecCmd(pd) != 0)
                         {
-                            _smp.message_pool.getInstance().push(new message($"[Server::dispach_packet_sv_same_thread][Error][MY] Ao tratar o pacote. ID: {_packet.getTipo()}(0x{_packet.getTipo():X})," + pd._packet.Log(), type_msg.CL_FILE_LOG_AND_CONSOLE));
-                            //DisconnectSession(session);
+                            _smp.message_pool.getInstance().push(new message($"[{GetType().Name}::dispach_packet_sv_same_thread][Error][MY] Ao tratar o pacote. ID: {_packet.getTipo()}(0x{_packet.getTipo():X})," + pd._packet.Log(), type_msg.CL_FILE_LOG_AND_CONSOLE));
+                            session.m_client.Client.Shutdown(how: SocketShutdown.Both);
+
                         }
                     }
 
                     catch (exception e)
                     {
-                        _smp.message_pool.getInstance().push(new message($"[Server::dispach_packet_sv_same_thread][Error][MY] {e.getFullMessageError()}", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                        _smp.message_pool.getInstance().push(new message($"[{GetType().Name}::dispach_packet_sv_same_thread][Error][MY] {e.getFullMessageError()}", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
-                        // DisconnectSession(session);
+                        session.m_client.Client.Shutdown(how: SocketShutdown.Both);
+
                     }
                 }
             }
             catch (exception e)
             {
-                _smp.message_pool.getInstance().push(new message($"[Server::dispach_packet_sv_same_thread][Error][MY] {e.Message}", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                _smp.message_pool.getInstance().push(new message($"[{GetType().Name}::dispach_packet_sv_same_thread][Error][MY] {e.Message}", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
-                // DisconnectSession(session);
+                session.m_client.Client.Shutdown(how: SocketShutdown.Both);
+
             }
         }
 
@@ -383,9 +489,9 @@ namespace PangyaAPI.Network.PangyaServer
             }
             catch (exception e)
             {
-                _smp.message_pool.getInstance().push(new message($"[Server::dispach_packet_same_thread][ErrorSystem] {e.Message}, {e.getStackTrace()}", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                _smp.message_pool.getInstance().push(new message($"[{GetType().Name}::dispach_packet_same_thread][ErrorSystem] {e.Message}, {e.getStackTrace()}", type_msg.CL_FILE_LOG_AND_CONSOLE));
                 // Desconecta a sessão
-                session.m_sock.Client.Shutdown(how: SocketShutdown.Both);
+                session.m_client.Client.Shutdown(how: SocketShutdown.Both);
             }
 
             try
@@ -405,178 +511,32 @@ namespace PangyaAPI.Network.PangyaServer
                     {
                         if (func != null && func.ExecCmd(pd) != 0)
                         {
-                            _smp.message_pool.getInstance().push(new message($"[Server::dispach_packet_same_thread][Error][MY] Ao tratar o pacote. ID: {_packet.getTipo()}(0x{_packet.getTipo():X})," + pd._packet.Log(), type_msg.CL_FILE_LOG_AND_CONSOLE));
-                            //block ip now
-                            //snmdb.NormalManagerDB.getInstance().add(0, new CmdInsertBlockIp(session.getIP(), "255.255.255.255"), SQLDBResponse, this);
-
-                            //session.m_sock.Client.Shutdown(how: SocketShutdown.Both);
+                            _smp.message_pool.getInstance().push(new message($"[{GetType().Name}::dispach_packet_same_thread][Error][MY] Ao tratar o pacote. ID: {_packet.getTipo()}(0x{_packet.getTipo():X})," + pd._packet.Log(), type_msg.CL_FILE_LOG_AND_CONSOLE));
+                            
                         }
                     }
 
                     catch (exception e)
                     {
-                        _smp.message_pool.getInstance().push(new message($"[Server::dispach_packet_same_thread][Error][MY] {e.getFullMessageError()}", type_msg.CL_FILE_LOG_AND_CONSOLE));
-                        session.m_sock.Client.Shutdown(how: SocketShutdown.Both);
+                        _smp.message_pool.getInstance().push(new message($"[{GetType().Name}::dispach_packet_same_thread][Error][MY] {e.getFullMessageError()}", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                        session.m_client.Client.Shutdown(how: SocketShutdown.Both);
                     }
                 }
             }
             catch (exception e)
             {
-                _smp.message_pool.getInstance().push(new message($"[Server::dispach_packet_same_thread][Error][MY] {e.Message}", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                _smp.message_pool.getInstance().push(new message($"[{GetType().Name}::dispach_packet_same_thread][Error][MY] {e.Message}", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
-                session.m_sock.Client.Shutdown(how: SocketShutdown.Both);
+                session.m_client.Client.Shutdown(how: SocketShutdown.Both);
             }
         }
-
-
-        #endregion
-
-        #region Public Methods
-        // Shutdown With Time
-        public virtual void shutdown_time(int timeSec)
-        {
-        }
-
-        public void shutdown()
-        {
-            Stop();
-        }
-
-        public void end_time_shutdown(object _arg1, object _arg2)
-        {
-
-            var s = (Server)(_arg1);
-            int time_sec = (int)_arg2;
-
-            try
-            {
-
-                s.shutdown_time(time_sec);
-
-            }
-            catch (exception e)
-            {
-
-                _smp.message_pool.getInstance().push(new message("[Server::end_time_shutdown][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
-            }
-        }
-
-        public void Start()
-        {
-            _sessionsLock = new object();
-            try
-            {
-                _server = new TcpListener(IPAddress.Any, m_si.port);
-                m_state = ServerState.Good;
-
-                if (m_state != ServerState.Failure)
-                {
-
-                    try
-                    {
-                        _server.Start(m_si.max_user);
-
-                        _smp.message_pool.getInstance().push(new message("[Server::Start][Sucess] Running in Port: " + m_si.port, type_msg.CL_FILE_LOG_AND_CONSOLE));
-
-
-                        
-                        // Inicializa o Unit_Connect, que conecta com o Auth Server
-                        m_unit_connect = new unit_auth_server_connect(this);//interno
-
-                        _isRunning = true;
-
-                        //Inicia Thread para exec. registrar/att o servidor    
-                        Task.Run(() =>
-                        {
-                            // Set Accept Connection for Starting Service 
-                            _server.BeginAcceptTcpClient(OnClientAccepted, null);
-
-                            OnMonitor();
-                        }); // Inicia a thread de verificação
-
-                        // On Start
-                        OnStart();
-
-                        // Start Unit Connect for Try Connection with Auth Server
-                        if (m_unit_connect != null)
-                            m_unit_connect.start();
-                    }
-                    catch (exception e)
-                    {
-                        _smp.message_pool.getInstance().push(new message(e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
-                    }
-
-                }
-                else
-                {
-                    _smp.message_pool.getInstance().push(new message("[Server::start][Error] Server Inicializado com falha, fechando o Server::", type_msg.CL_FILE_LOG_AND_CONSOLE));
-                }
-            }
-            catch (exception e)
-            {
-                _smp.message_pool.getInstance().push(new message(e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
-            }
-        }
-
-        private void OnClientAccepted(IAsyncResult ar)
-        {
-            TcpClient newClient = null;
-
-            if (!_isRunning) return;
-
-
-            // Agenda o próximo accept IMEDIATAMENTE
-            if (_isRunning)
-                _server.BeginAcceptTcpClient(OnClientAccepted, null);
-
-            try
-            {
-                    newClient = _server.EndAcceptTcpClient(ar);
-
-                var remoteEndPoint = newClient.Client.RemoteEndPoint as IPEndPoint;
-                string ipAddress = remoteEndPoint?.Address.ToString();
-
-                // Filtragem de IP
-                if (_ipFilter != null && _ipFilter.IsBlocked(ipAddress) && haveBanList(ipAddress, "", false))
-                {
-                    newClient.Close();
-                    _smp.message_pool.getInstance().push(
-                        new message($"[Server] Conexão de IP bloqueado: {ipAddress}", type_msg.CL_FILE_LOG_AND_CONSOLE));
-                    return; // já encerramos a conexão bloqueada
-                }
-
-                _ipFilter?.OnConnect(ipAddress);
-
-                // Cria thread/Task para processar o cliente
-                Task.Run(() => accept_completed(newClient));
-            }
-            catch (ObjectDisposedException)
-            {
-                // listener foi parado
-                return;
-            }
-            catch (Exception e)
-            {
-                _smp.message_pool.getInstance().push(
-                    new message($"[Server::OnClientAccepted][ErrorSystem] {e.Message}", type_msg.CL_FILE_LOG_AND_CONSOLE));
-                newClient?.Close();
-            }
-        }
-
-        public void Stop()
-        {
-            _isRunning = false;
-            m_state = ServerState.Failure;
-            Console.WriteLine("Server is stopping...");
-        }
-
 
         public virtual Session HasLoggedWithOuterSocket(Session _session)
         {
             var s = m_session_manager.FindAllSessionByUid(_session.getUID());
             foreach (var el in s)
             {
-                if (el.m_oid != _session.m_oid && el.isConnected())
+                if (_session.m_oid != -1 && el.m_oid !=  -1 && el.m_oid != _session.m_oid && el.m_client != null && el.m_client.Connected)
                     return el;
             }
 
@@ -603,7 +563,7 @@ namespace PangyaAPI.Network.PangyaServer
             }
             catch (SocketException ex)
             {
-                throw new Exception("[Server::init_option_accepted_socket][Error] não conseguiu desabilitar tcp delay (nagle algorithm).", ex);
+                throw new Exception($"[{GetType().Name}::init_option_accepted_socket][Error] não conseguiu desabilitar tcp delay (nagle algorithm).", ex);
             }
 
             try
@@ -617,13 +577,13 @@ namespace PangyaAPI.Network.PangyaServer
                 _accepted.IOControl(IOControlCode.KeepAliveValues, keepAlive, null);
 
                 //_smp.message_pool.getInstance().push(new message(
-                //    $"[Server::init_option_accepted_socket][Info] socket[ID={_accepted.Handle}] KEEPALIVE[ONOFF=1, TIME=20000, INTERVAL=2000] foi ativado para esse",
+                //    $"[{GetType().Name}::init_option_accepted_socket][Info] socket[ID={_accepted.Handle}] KEEPALIVE[ONOFF=1, TIME=20000, INTERVAL=2000] foi ativado para esse",
                 //    type_msg.CL_FILE_LOG_AND_CONSOLE
                 //));
             }
             catch (SocketException ex)
             {
-                throw new Exception("[Server::init_option_accepted_socket][Error] não conseguiu setar o socket option KEEPALIVE.", ex);
+                throw new Exception($"[{GetType().Name}::init_option_accepted_socket][Error] não conseguiu setar o socket option KEEPALIVE.", ex);
             }
         }
 
@@ -683,34 +643,7 @@ namespace PangyaAPI.Network.PangyaServer
             Console.WriteLine("Shutting down Server::..");
             Stop();
         }
-
-        public virtual uint GetUID()
-        {
-            return (uint)m_si.uid;
-        }
-        protected void _disconnect_session()
-        {
-            try
-            {
-                if (m_session_manager.IsInit())
-                {
-
-                    var s = m_session_manager.GetSessionToDelete(1000/*1 second para a liberar o while se não tiver sessions para disconectar*/);
-
-                    if (s != null)
-                        DisconnectSession(s);
-
-                }
-                else
-                    Thread.Sleep(300/*espera 300 miliseconds até o session_manager ser inicializado*/);
-
-            }
-            catch (exception e)
-            {
-                _smp.message_pool.getInstance().push(new message("[Server::disconnect_session][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
-            }
-        }
-
+         
         public virtual List<Session> FindAllGM()
         {
             return m_session_manager.findAllGM();
@@ -740,11 +673,16 @@ namespace PangyaAPI.Network.PangyaServer
         {
             if (_session == null)
             {
-                Console.WriteLine("[Server::DisconnectSession][Warning] Tentativa de desconectar uma sessão nula.");
+                Console.WriteLine($"[{GetType().Name}::DisconnectSession][Warning] Tentativa de desconectar uma sessão nula.");
                 return false;
             }
 
-            _smp.message_pool.getInstance().push(new message($"[Server::DisconnectSession][Warning] PLAYER[IP: {_session.getIP()}, Key: {_session.m_key}, Time: {DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}]", type_msg.CL_ONLY_FILE_LOG));
+            if (_session.m_oid == -1)
+            {
+                return false;
+            }
+
+            _smp.message_pool.getInstance().push(new message($"[{GetType().Name}::DisconnectSession][Warning] PLAYER[IP: {_session.getIP()}, Key: {_session.m_key}, Time: {DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}]", type_msg.CL_ONLY_FILE_LOG));
 
             // Notifica que a desconexão ocorreu       
             onDisconnected(_session);
@@ -760,7 +698,7 @@ namespace PangyaAPI.Network.PangyaServer
             catch (Exception ex)
             {
                 result = false;
-                Console.WriteLine($"[Server::DisconnectSession][Error] Erro ao deletar sessão: {ex.Message}");
+                Console.WriteLine($"[{GetType().Name}::DisconnectSession][Error] Erro ao deletar sessão: {ex.Message}");
             }
             return result;
         }
@@ -769,7 +707,7 @@ namespace PangyaAPI.Network.PangyaServer
         {
             if (_arg == null)
             {
-                _smp.message_pool.getInstance().push(new message("[Server::SQLDBResponse][Warning] _arg is null, na msg_id = " + _msg_id, type_msg.CL_FILE_LOG_AND_CONSOLE));
+                _smp.message_pool.getInstance().push(new message($"[{GetType().Name}::SQLDBResponse][Warning] _arg is null, na msg_id = " + _msg_id, type_msg.CL_FILE_LOG_AND_CONSOLE));
                 return;
             }
             switch (_msg_id)
@@ -791,8 +729,7 @@ namespace PangyaAPI.Network.PangyaServer
         #endregion
 
         #region Auth                                                                           
-        public unit_auth_server_connect m_unit_connect;        // Ponteiro Connecta com o Auth Server                  
-        private object _sessionsLock;
+        public unit_auth_server_connect m_unit_connect;        // Ponteiro Connecta com o Auth Server  
 
 
         //sao do unit
@@ -824,7 +761,7 @@ namespace PangyaAPI.Network.PangyaServer
                 // UPDATE ON Auth Server - Error reply
                 m_unit_connect.sendInfoPlayerOnline(_req_server_uid, new AuthServerPlayerInfo(_player_uid));
 
-                _smp.message_pool.getInstance().push(new message("[Server::authCmdInfoPlayerOnline][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
+                _smp.message_pool.getInstance().push(new message($"[{GetType().Name}::authCmdInfoPlayerOnline][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
 
@@ -845,7 +782,7 @@ namespace PangyaAPI.Network.PangyaServer
                     func = packet_func_base.funcs_as.getPacketCall(command_id);
 
                     if (func != null && func.ExecCmd(new ParamDispatch(m_unit_connect.m_session, _packet)) == 1)
-                        throw new exception("[Server::authCmdSendCommandToOtherServer][Error] Ao tratar o Comando. ID: " + (command_id)
+                        throw new exception($"[{GetType().Name}::authCmdSendCommandToOtherServer][Error] Ao tratar o Comando. ID: " + (command_id)
                                 + "(0x" + (command_id) + ").", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 5000, 0));
 
                 }
@@ -855,7 +792,7 @@ namespace PangyaAPI.Network.PangyaServer
                     if (ExceptionError.STDA_SOURCE_ERROR_DECODE_TYPE(e.getCodeError()) == STDA_ERROR_TYPE.FUNC_ARR/*packet_func Erro, Warning e etc*/)
                     {
 
-                        _smp.message_pool.getInstance().push(new message("[Server::authCmdSendCommandToOtherServer][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
+                        _smp.message_pool.getInstance().push(new message($"[{GetType().Name}::authCmdSendCommandToOtherServer][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
 
                     }
                     else
@@ -866,7 +803,7 @@ namespace PangyaAPI.Network.PangyaServer
             catch (exception e)
             {
 
-                _smp.message_pool.getInstance().push(new message("[Server::authCmdSendCommandToOtherServer][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
+                _smp.message_pool.getInstance().push(new message($"[{GetType().Name}::authCmdSendCommandToOtherServer][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
 
@@ -887,7 +824,7 @@ namespace PangyaAPI.Network.PangyaServer
 
                     if (func != null && func.ExecCmd(new ParamDispatch(m_unit_connect.m_session, _packet)) == 1)
                     {
-                        throw new exception("[Server::authCmdSendReplyToOtherServer][Error] Ao tratar o Comando. ID: " + Convert.ToString(command_id) + "(0x" + (command_id) + ").", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER,
+                        throw new exception($"[{GetType().Name}::authCmdSendReplyToOtherServer][Error] Ao tratar o Comando. ID: " + Convert.ToString(command_id) + "(0x" + (command_id) + ").", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER,
                             5001, 0));
                     }
                 }
@@ -897,7 +834,7 @@ namespace PangyaAPI.Network.PangyaServer
                     if (ExceptionError.STDA_SOURCE_ERROR_DECODE_TYPE(e.getCodeError()) == STDA_ERROR_TYPE.FUNC_ARR/*packet_func Erro, Warning e etc*/)
                     {
 
-                        _smp.message_pool.getInstance().push(new message("[Server::authCmdSendCommandToOtherServer][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
+                        _smp.message_pool.getInstance().push(new message($"[{GetType().Name}::authCmdSendCommandToOtherServer][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
 
                     }
                     else
@@ -908,7 +845,7 @@ namespace PangyaAPI.Network.PangyaServer
             catch (exception e)
             {
 
-                _smp.message_pool.getInstance().push(new message("[Server::authCmdSendCommandToOtherServer][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
+                _smp.message_pool.getInstance().push(new message($"[{GetType().Name}::authCmdSendCommandToOtherServer][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
 
@@ -924,7 +861,7 @@ namespace PangyaAPI.Network.PangyaServer
             catch (exception e)
             {
 
-                _smp.message_pool.getInstance().push(new message("[Server::sendCommandToOtherServerWithAuthServer][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
+                _smp.message_pool.getInstance().push(new message($"[{GetType().Name}::sendCommandToOtherServerWithAuthServer][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
 
@@ -940,18 +877,9 @@ namespace PangyaAPI.Network.PangyaServer
             catch (exception e)
             {
 
-                _smp.message_pool.getInstance().push(new message("[Server::sendReplyToOtherServerWithAuthServer][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
+                _smp.message_pool.getInstance().push(new message($"[{GetType().Name}::sendReplyToOtherServerWithAuthServer][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
-        }
-
+        } 
         #endregion
-    }
-
-    // Server Static
-    //namespace ssv
-    //{
-    //    public abstract partial class sv : Singleton<Server>
-    //    {
-    //    }
-    //}
+    } 
 }

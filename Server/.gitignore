@@ -1,0 +1,14 @@
+## Visual Studio 2022 / .NET 10
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+bld/
+[Bb]in/
+[Oo]bj/
+.vs/
+*.user
+*.suo
+*.sln.docstates
+/.vs
+PangYa-Suite-Tools/PangYa-Suite-Tools.csproj.user

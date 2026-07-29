@@ -12,11 +12,7 @@ namespace Pangya_GameServer.Repository
         {
             this.m_uid = _uid;
             this.m_qsi = _qsi;
-        }
-
-        public virtual void Dispose()
-        {
-        }
+        } 
 
         public uint getUID()
         {
@@ -58,27 +54,19 @@ namespace Pangya_GameServer.Repository
 
             string clear_dt = "NULL";
 
-            if (m_qsi.clear_date_unix != 0)
-                clear_dt = "'" + DateTimeOffset.FromUnixTimeSeconds(m_qsi.clear_date_unix)
-                                               .ToString("yyyy-MM-dd HH:mm:ss.fffffff") + "'";
+            if (m_qsi.clear_date_unix != 0) 
+            clear_dt = makeText(formatDateLocal(m_qsi.clear_date_unix));
 
-            var query = string.Format(
-        m_szConsulta,
-        Convert.ToString(m_qsi.counter_item_id),  // {0}
-        clear_dt,                                 // {1}
-        Convert.ToString(m_uid),                  // {2}
-        Convert.ToString(m_qsi.id)                // {3}
-    );
+            //nome era date, nao 'name'
+            //var query = $"{m_qsi.counter_item_id}, {makeEscapeKeyword("date")} = {clear_dt} WHERE UID = {m_uid} AND id = {m_qsi.id};";
 
-            var r = _update(query);
-
-
+            var query = m_uid + ", " + m_qsi.id + ", " + m_qsi.counter_item_id + ", " + clear_dt;
+            var r = procedure("pangya.ProcUpdateQuestUser", query);  
             checkResponse(r, "nao conseguiu atualizar a quest[ID=" + Convert.ToString(m_qsi.id) + "] do player: " + Convert.ToString(m_uid));
 
             return r;
         }
         private uint m_uid = new uint();
         private QuestStuffInfo m_qsi = new QuestStuffInfo();
-        private const string m_szConsulta = "UPDATE pangya.pangya_quest SET counter_item_id = {0}, [date] = {1} WHERE UID = {2} AND id = {3};";
     }
 }

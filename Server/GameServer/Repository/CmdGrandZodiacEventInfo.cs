@@ -35,10 +35,10 @@ namespace Pangya_GameServer.Repository
             range_time rt = new range_time(0u);
 
             if (!(_result.data[0] is DBNull))
-                rt.m_start.CreateTime(_translateDate(_result.data[0]));
+                rt.m_start = TimeSpan.Parse(_result.data[0].ToString());
 
             if (!(_result.data[1] is DBNull))
-                rt.m_end.CreateTime(_translateDate(_result.data[1]));
+                rt.m_end = TimeSpan.Parse(_result.data[1].ToString());
 
             rt.m_type = (range_time.eTYPE_MAKE_ROOM)((byte)IFNULL(_result.data[2]));
 

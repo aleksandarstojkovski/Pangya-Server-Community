@@ -14,7 +14,7 @@ namespace Pangya_GameServer.Repository
 
         public CmdCoinCubeInfo()
         {
-            _CourseCtx = new CourseCtx();
+            _CourseCtx = new CourseCtx(0 ,false);
             this.m_course_info = new Dictionary<byte, bool>();
         }
 
@@ -29,21 +29,13 @@ namespace Pangya_GameServer.Repository
             checkColumnNumber(2);
 
             byte course_id = (byte)IFNULL(_result.data[0]);
-            bool active = IFNULL(_result.data[1]) == 1;
-
-            var it = m_course_info.Any(c => c.Key == course_id);
-            if (sIff.getInstance().getCourse().Any(c => c.ID == course_id))
-            {
-                _CourseCtx.set(course_id, active);
-                CourseCtxes.TryAdd(course_id, _CourseCtx);
-            }
-            if (it)
+            bool active = IFNULL(_result.data[1]) == 1; 
+            if (m_course_info.Any(c => c.Key == course_id))
             {
                 m_course_info[course_id] = active;
             }
             else
-            {
-
+            { 
                 m_course_info.Add(course_id, active);
 
                 if (!m_course_info.ContainsKey(course_id))

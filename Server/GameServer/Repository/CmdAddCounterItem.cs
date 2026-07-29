@@ -4,19 +4,10 @@ using PangyaAPI.SQL;
 namespace Pangya_GameServer.Repository
 {
     public class CmdAddCounterItem : Pangya_DB
-    {
-        public CmdAddCounterItem(bool _waiter = false) : base(_waiter)
-        {
-            this.m_uid = 0;
-            this.m_typeid = 0;
-            this.m_value = 0;
-            this.m_id = -1;
-        }
-
+    { 
         public CmdAddCounterItem(uint _uid,
             uint _typeid,
-            uint _value,
-            bool _waiter = false) : base(_waiter)
+            int _value)
         {
             this.m_uid = _uid;
             this.m_typeid = _typeid;
@@ -42,16 +33,7 @@ namespace Pangya_GameServer.Repository
         {
             m_typeid = _typeid;
         }
-
-        public uint getValue()
-        {
-            return (m_value);
-        }
-
-        public void setValue(uint _value)
-        {
-            m_value = _value;
-        }
+         
 
         public int getId()
         {
@@ -81,7 +63,7 @@ namespace Pangya_GameServer.Repository
 
         private uint m_uid = new uint();
         private uint m_typeid = new uint();
-        private uint m_value = new uint();
+        private int m_value = 0;
         private int m_id = new int();
 
         private const string m_szConsulta = "pangya.ProcAddCounterItem";

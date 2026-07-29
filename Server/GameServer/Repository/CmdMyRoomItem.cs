@@ -67,7 +67,7 @@ namespace Pangya_GameServer.Repository
             try
             {
                 MyRoomItem mri = new MyRoomItem();
-                uint uid_req = 0u;
+                uint uid_req = 0;
 
                 mri.id = IFNULL<int>(_result.data[0]);
                 uid_req = IFNULL<uint>(_result.data[1]);
@@ -97,8 +97,7 @@ namespace Pangya_GameServer.Repository
 
             v_mri.Clear();
 
-            var r = procedure(
-                (m_type == (CmdMyRoomItem.TYPE)TYPE.ALL) ? m_szConsulta[0] : m_szConsulta[1],
+            var r = procedure((m_type == (CmdMyRoomItem.TYPE)TYPE.ALL) ? m_szConsulta[0] : m_szConsulta[1],
                 Convert.ToString(m_uid) + (m_type == TYPE.ONE ? ", " + Convert.ToString(m_item_id) : ""));
 
             checkResponse(r, "nao conseguiu pegar o(s) item(ns) do my room do player: " + Convert.ToString(m_uid));

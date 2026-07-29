@@ -9,7 +9,7 @@ namespace Pangya_GameServer.Repository
     {
         public CmdDeleteItem()
         {
-            this.m_uid = 0u;
+            this.m_uid = 0;
             this.m_id = -1;
         }
 

@@ -1,7 +1,7 @@
 ﻿using Pangya_RankingServer.PangyaEnums;
 using PangyaAPI.Network.Models;
 using PangyaAPI.Network.PangyaPacket;
-using PangyaAPI.Utilities.BinaryModels;
+using PangyaAPI.Utilities.Models;
 using System;
 using System.Runtime.InteropServices;
 
@@ -116,7 +116,7 @@ namespace Pangya_RankingServer.Models
     }
 
     // Rank Pesquisa dados
-    public class search_dados : System.IDisposable
+    public class search_dados : IDisposable
     {
         public search_dados(uint _ul = 0u)
         {

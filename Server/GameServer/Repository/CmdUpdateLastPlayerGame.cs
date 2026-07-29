@@ -9,7 +9,7 @@ namespace Pangya_GameServer.Repository
     {
         public CmdUpdateLastPlayerGame()
         {
-            this.m_uid = 0u;
+            this.m_uid = 0;
             this.m_l5pg = new Last5PlayersGame();
         }
 
@@ -73,13 +73,12 @@ namespace Pangya_GameServer.Repository
                 else
                 {
                     param += ", " + Convert.ToString(m_l5pg.players[i].uid) + ", " + Convert.ToString(m_l5pg.players[i].sex);
-                    param += (string.IsNullOrEmpty(m_l5pg.players[i].id) ? ", null" : ", " + (m_l5pg.players[i].id));
-                    param += (string.IsNullOrEmpty(m_l5pg.players[i].nick) ? ", null" : ", " + (m_l5pg.players[i].nick));
+                    param += (string.IsNullOrEmpty(m_l5pg.players[i].id) ? ", null" : ", " + makeText(m_l5pg.players[i].id));
+                    param += (string.IsNullOrEmpty(m_l5pg.players[i].nick) ? ", null" : ", " + makeText(m_l5pg.players[i].nick));
                 }
             }
 
-            var r = procedure(
-                m_szConsulta,
+            var r = procedure(m_szConsulta,
                 Convert.ToString(m_uid) + param);
 
             checkResponse(r, "nao conseguiu atualizar o Last 5 Player Game do PLAYER[UID=" + Convert.ToString(m_uid) + "]");

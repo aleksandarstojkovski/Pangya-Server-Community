@@ -33,7 +33,7 @@ namespace Pangya_GameServer.Game.Manager
                 string _notice, TYPE _type)
             {
                 this.nickname = "";
-                this.option = 0u;
+                this.option = 0;
 
                 type = _type;
                 time_second = _time_second;
@@ -57,7 +57,7 @@ namespace Pangya_GameServer.Game.Manager
                 string _nickname,
                 string _notice, TYPE _type)
             {
-                this.option = 0u;
+                this.option = 0;
 
                 type = _type;
                 time_second = _time_second;
@@ -70,7 +70,7 @@ namespace Pangya_GameServer.Game.Manager
             {
 
                 type = TYPE.GM_NOTICE;
-                time_second = 0u;
+                time_second = 0;
 
                 if (notice.Length != 0)
                 {

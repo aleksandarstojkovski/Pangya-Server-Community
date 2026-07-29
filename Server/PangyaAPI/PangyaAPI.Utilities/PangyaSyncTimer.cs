@@ -35,21 +35,21 @@ namespace PangyaAPI.Utilities
         private List<long> tableInterval;
         private int currentIntervalIndex;
         private Timer timer;
-        private Stopwatch stopwatch;
-        private TimeSpan acumulado;
+        private readonly Stopwatch stopwatch;
+        private readonly TimeSpan acumulado;
         private bool pausado;
-        private bool autoRepeat;
+        private readonly bool autoRepeat;
         private bool isDisposed;
         public System.DateTime m_timer;
-        private uint timeFix;
-        private TIMER_TYPE tipo;
+        private readonly uint timeFix;
+        private readonly TIMER_TYPE tipo;
         private TIMER_STATE state;
         /// <summary>
         /// obter tipo time
         /// </summary>
         /// <returns></returns>
         public TIMER_STATE getState() => state;
-        private Action onTimeFinish;
+        private readonly Action onTimeFinish;
         public PangyaSyncTimer(
    uint timeMs,
    TIMER_TYPE tipo,
@@ -104,23 +104,22 @@ namespace PangyaAPI.Utilities
         {
             if (!pausado && stopwatch.IsRunning)
             {
-                stopwatch.Stop();
-                acumulado += stopwatch.Elapsed;
+                stopwatch.Stop(); 
                 pausado = true;
-                state = TIMER_STATE.PAUSING;
-                Dispose(false);
-                state = TIMER_STATE.PAUSED;
+                state = TIMER_STATE.PAUSED; 
+                timer?.Change(Timeout.Infinite, Timeout.Infinite);
             }
         }
 
         public void Resume()
         {
             if (pausado)
-            {
-                stopwatch.Restart();
+            { 
+                stopwatch.Start();
                 pausado = false;
-                state = TIMER_STATE.STANDBY;
-                TickTime();
+                state = TIMER_STATE.RUNNING; 
+                // Reinicia o Tick do timer
+                timer?.Change(0, tipo != TIMER_TYPE.NORMAL ? 50 : 1000);
             }
         }
 
@@ -189,6 +188,27 @@ namespace PangyaAPI.Utilities
             return 0;
         }
 
+
+        public string getTimeLog()
+        {
+
+            if (timer == null)
+                return ""; 
+
+                if (state == TIMER_STATE.STOP || state == TIMER_STATE.FINISH && isDisposed)
+                    return ""; 
+                long remaining = getRemainingMilliseconds();
+                long totalSeconds = remaining / 1000;
+
+                long minutes = remaining / 60000;
+                long seconds = (remaining / 1000) % 60;
+                long milliseconds = remaining % 1000;
+
+
+                string minPart = minutes != 0 ? minutes.ToString("D2") : "";
+                string timeLog = $"{(minPart != "" ? minPart + ":" : "")}{seconds:D2}:{milliseconds:D3}";
+            return timeLog;
+            }
         private void TickTime()
         {
             if (timer == null)
@@ -196,7 +216,7 @@ namespace PangyaAPI.Utilities
 
             try
             {
-                if (state == TIMER_STATE.STOP || state == TIMER_STATE.FINISH || isDisposed)
+                if (state == TIMER_STATE.STOP || state == TIMER_STATE.FINISH && isDisposed)
                     return;
 
                 state = TIMER_STATE.RUNNING;
@@ -211,8 +231,7 @@ namespace PangyaAPI.Utilities
                 string minPart = minutes != 0 ? minutes.ToString("D2") : "";
                 string timeLog = $"{(minPart != "" ? minPart + ":" : "")}{seconds:D2}:{milliseconds:D3}";
 
-                //_smp.message_pool.getInstance().push(
-                //    new message($"[PangyaSyncTimer::TickTime][Log] Time: {timeLog}", type_msg.CL_ONLY_CONSOLE_DEBUG));
+               // _smp.message_pool.getInstance().push(new message($"[PangyaSyncTimer::TickTime][Log] Time: {timeLog}", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
                 if (remaining == 0)
                 {

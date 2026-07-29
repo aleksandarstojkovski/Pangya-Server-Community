@@ -4,13 +4,12 @@ using Pangya_GameServer.Game.Manager;
 using Pangya_GameServer.Game.System;
 using Pangya_GameServer.Models;
 using Pangya_GameServer.PangyaEnums;
-using Pangya_GameServer.UTIL;
 using PangyaAPI.Network.Repository;
 using PangyaAPI.Network.Models;
 using PangyaAPI.Network.PangyaPacket;
 using PangyaAPI.Network.PangyaSession;
 using PangyaAPI.Utilities;
-using PangyaAPI.Utilities.BinaryModels;
+using PangyaAPI.Utilities.Models;
 using PangyaAPI.Utilities.Log;
 using System;
 using System.Collections.Generic;
@@ -19,6 +18,7 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using static Pangya_GameServer.Models.DefineConstants;
+using sgs;
 namespace Pangya_GameServer.PacketFunc
 {
     /// <summary>
@@ -31,8 +31,6 @@ namespace Pangya_GameServer.PacketFunc
             var str_tmp = "Time: " + ((Environment.TickCount - pd._session.m_time_start) / (double)1000);
 
             pd._session.m_time_start = Environment.TickCount;
-
-            _smp.message_pool.getInstance().push(new message("Packet ID: " + pd._packet.Id + " has send.", type_msg.CL_ONLY_FILE_LOG));
             return 0;
         }
 
@@ -58,11 +56,13 @@ namespace Pangya_GameServer.PacketFunc
         }
 
 
-        public static int packet002(object param, ParamDispatch _arg1)
+        public static int packet002(object param, ParamDispatch pd)
         {
             try
             {
-                sgs.gs.getInstance().requestLogin((Player)_arg1._session, _arg1._packet);
+                var player = getPlayer(pd._session);
+
+                sgs.gs.getInstance().requestLogin(player, pd._packet);
             }
             catch (exception ex)
             {
@@ -75,7 +75,10 @@ namespace Pangya_GameServer.PacketFunc
         {
             try
             {
-                sgs.gs.getInstance().requestChat((Player)pd._session, pd._packet);
+                var player = getPlayer(pd._session);
+
+
+                sgs.gs.getInstance().requestChat(player, pd._packet);
             }
             catch (exception ex)
             {
@@ -88,8 +91,11 @@ namespace Pangya_GameServer.PacketFunc
         {
             try
             {
+                var player = getPlayer(pd._session);
+
+
                 // Enter Channel, channel ID
-                sgs.gs.getInstance().requestEnterChannel((Player)pd._session, pd._packet);
+                sgs.gs.getInstance().requestEnterChannel(player, pd._packet);
             }
             catch (exception ex)
             {
@@ -102,12 +108,13 @@ namespace Pangya_GameServer.PacketFunc
         {
             try
             {
+                var player = getPlayer(pd._session);
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestFinishGame(getPlayer(pd._session), pd._packet);
+                    c.requestFinishGame(player, pd._packet);
                 }
 
             }
@@ -125,16 +132,18 @@ namespace Pangya_GameServer.PacketFunc
             return 0;
 
         }
-        
+
         public static int packet007(object param, ParamDispatch pd)
-        { 
+        {
             try
             {
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestCheckNick(getPlayer(pd._session), pd._packet);
+                    c.requestCheckNick(player, pd._packet);
                 }
                 return 0;
             }
@@ -143,7 +152,7 @@ namespace Pangya_GameServer.PacketFunc
                 _smp.message_pool.getInstance().push(new message(
                     $"[packet_func::packet007][ErrorSystem] {e.getFullMessageError()}",
                     type_msg.CL_FILE_LOG_AND_CONSOLE));
-            } 
+            }
             return -1;
         }
 
@@ -153,11 +162,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestMakeRoom(getPlayer(pd._session), pd._packet);
+                    c.requestMakeRoom(player, pd._packet);
                 }
 
             }
@@ -179,11 +190,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestEnterRoom(getPlayer(pd._session), pd._packet);
+                    c.requestEnterRoom(player, pd._packet);
                 }
 
             }
@@ -206,11 +219,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestChangeInfoRoom(getPlayer(pd._session), pd._packet);
+                    c.requestChangeInfoRoom(player, pd._packet);
                 }
 
             }
@@ -230,17 +245,16 @@ namespace Pangya_GameServer.PacketFunc
 
         public static int packet00B(object param, ParamDispatch pd)
         {
-
-
-
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestChangePlayerItemChannel(getPlayer(pd._session), pd._packet);
+                    c.requestChangePlayerItemChannel(player, pd._packet);
                 }
 
             }
@@ -264,7 +278,9 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 // Bloquear para ver se funciona o sync do entra depois no camp,
                 // mesmo que o outro(0x9D) chama primeiro esse(0x0C) é mais rápido para verificar se o player está em uma sala
@@ -273,7 +289,7 @@ namespace Pangya_GameServer.PacketFunc
 
                 if (c != null)
                 {
-                    c.requestChangePlayerItemRoom(getPlayer(pd._session), pd._packet);
+                    c.requestChangePlayerItemRoom(player, pd._packet);
                 }
 
                 // Bloquear para ver se funciona o sync do entra depois no camp,
@@ -302,11 +318,12 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                Channel c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+                Channel c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestChangePlayerStateReadyRoom(getPlayer(pd._session), pd._packet);
+                    c.requestChangePlayerStateReadyRoom(player, pd._packet);
                 }
 
             }
@@ -330,11 +347,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestStartGame(getPlayer(pd._session), pd._packet);
+                    c.requestStartGame(player, pd._packet);
                 }
 
             }
@@ -361,11 +380,12 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                Channel c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+                Channel c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestExitRoom(getPlayer(pd._session), pd._packet);
+                    c.requestExitRoom(player, pd._packet);
                 }
 
             }
@@ -392,11 +412,12 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                Channel c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+                Channel c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestChangePlayerTeamRoom(getPlayer(pd._session), pd._packet);
+                    c.requestChangePlayerTeamRoom(player, pd._packet);
                 }
 
             }
@@ -420,11 +441,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestFinishLoadHole(getPlayer(pd._session), pd._packet);
+                    c.requestFinishLoadHole(player, pd._packet);
                 }
 
             }
@@ -451,11 +474,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestInitShot(getPlayer(pd._session), pd._packet);
+                    c.requestInitShot(player, pd._packet);
                 }
 
             }
@@ -482,11 +507,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestChangeMira(getPlayer(pd._session), pd._packet);
+                    c.requestChangeMira(player, pd._packet);
                 }
 
             }
@@ -513,11 +540,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestChangeStateBarSpace(getPlayer(pd._session), pd._packet);
+                    c.requestChangeStateBarSpace(player, pd._packet);
                 }
 
             }
@@ -544,11 +573,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestActivePowerShot(getPlayer(pd._session), pd._packet);
+                    c.requestActivePowerShot(player, pd._packet);
                 }
 
             }
@@ -574,11 +605,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestChangeClub(getPlayer(pd._session), pd._packet);
+                    c.requestChangeClub(player, pd._packet);
                 }
 
             }
@@ -605,11 +638,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestUseActiveItem(getPlayer(pd._session), pd._packet);
+                    c.requestUseActiveItem(player, pd._packet);
                 }
 
             }
@@ -636,11 +671,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestChangeStateTypeing(getPlayer(pd._session), pd._packet);
+                    c.requestChangeStateTypeing(player, pd._packet);
                 }
 
             }
@@ -667,11 +704,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestMoveBall(getPlayer(pd._session), pd._packet);
+                    c.requestMoveBall(player, pd._packet);
                 }
 
             }
@@ -698,11 +737,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestInitHole(getPlayer(pd._session), pd._packet);
+                    c.requestInitHole(player, pd._packet);
                 }
 
             }
@@ -729,11 +770,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestSyncShot(getPlayer(pd._session), pd._packet);
+                    c.requestSyncShot(player, pd._packet);
                 }
 
             }
@@ -760,11 +803,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestFinishShot(getPlayer(pd._session), pd._packet);
+                    c.requestFinishShot(player, pd._packet);
                 }
 
             }
@@ -783,7 +828,6 @@ namespace Pangya_GameServer.PacketFunc
 
         }
 
-        [Obsolete]
         public static int packet01D(object param, ParamDispatch pd)
         {
 
@@ -792,11 +836,12 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                Channel c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+                Channel c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestBuyItemShop(getPlayer(pd._session), pd._packet);
+                    c.requestBuyItemShop(player, pd._packet);
                 }
 
             }
@@ -815,7 +860,6 @@ namespace Pangya_GameServer.PacketFunc
 
         }
 
-        [Obsolete]
         public static int packet01F(object param, ParamDispatch pd)
         {
 
@@ -824,11 +868,12 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                Channel c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+                Channel c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestGiftItemShop(getPlayer(pd._session), pd._packet);
+                    c.requestGiftItemShop(player, pd._packet);
                 }
 
             }
@@ -851,11 +896,12 @@ namespace Pangya_GameServer.PacketFunc
         {
             try
             {
-                Channel c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = (Player)(pd._session);
+                Channel c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestChangePlayerItemMyRoom(getPlayer(pd._session), pd._packet);
+                    c.requestChangePlayerItemMyRoom(player, pd._packet);
                 }
             }
             catch (exception e)
@@ -879,11 +925,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestStartTurnTime(getPlayer(pd._session), pd._packet);
+                    c.requestStartTurnTime(player, pd._packet);
                 }
 
             }
@@ -907,11 +955,12 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                Channel c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+                Channel c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestKickPlayerOfRoom(getPlayer(pd._session), pd._packet);
+                    c.requestKickPlayerOfRoom(player, pd._packet);
                 }
 
             }
@@ -934,11 +983,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestCheckInvite(getPlayer(pd._session), pd._packet);
+                    c.requestCheckInvite(player, pd._packet);
                 }
 
             }
@@ -964,8 +1015,9 @@ namespace Pangya_GameServer.PacketFunc
 
             try
             {
+                var player = getPlayer(pd._session);
 
-                sgs.gs.getInstance().requestPrivateMessage(getPlayer(pd._session), pd._packet);
+                sgs.gs.getInstance().requestPrivateMessage(player, pd._packet);
 
             }
             catch (exception e)
@@ -988,11 +1040,12 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                Channel c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+                Channel c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestShowInfoRoom(getPlayer(pd._session), pd._packet);
+                    c.requestShowInfoRoom(player, pd._packet);
                 }
 
             }
@@ -1009,13 +1062,11 @@ namespace Pangya_GameServer.PacketFunc
 
         public static int packet02F(object param, ParamDispatch pd)
         {
-
-
-
             try
             {
+                var player = getPlayer(pd._session);
 
-                sgs.gs.getInstance().requestPlayerInfo(getPlayer(pd._session), pd._packet);
+                sgs.gs.getInstance().requestPlayerInfo(player, pd._packet);
 
             }
             catch (exception e)
@@ -1041,11 +1092,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestUnOrPauseGame(getPlayer(pd._session), pd._packet);
+                    c.requestUnOrPauseGame(player, pd._packet);
                 }
 
             }
@@ -1072,11 +1125,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestFinishHoleData(getPlayer(pd._session), pd._packet);
+                    c.requestFinishHoleData(player, pd._packet);
                 }
 
             }
@@ -1100,11 +1155,12 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                Channel c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+                Channel c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestChangePlayerStateAFKRoom(getPlayer(pd._session), pd._packet);
+                    c.requestChangePlayerStateAFKRoom(player, pd._packet);
                 }
 
             }
@@ -1130,8 +1186,10 @@ namespace Pangya_GameServer.PacketFunc
 
             try
             {
+                var player = getPlayer(pd._session);
 
-                sgs.gs.getInstance().requestExceptionClientMessage(getPlayer(pd._session), pd._packet);
+
+                sgs.gs.getInstance().requestExceptionClientMessage(player, pd._packet);
 
             }
             catch (exception e)
@@ -1157,11 +1215,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestFinishCharIntro(getPlayer(pd._session), pd._packet);
+                    c.requestFinishCharIntro(player, pd._packet);
                 }
 
             }
@@ -1188,11 +1248,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestTeamFinishHole(getPlayer(pd._session), pd._packet);
+                    c.requestTeamFinishHole(player, pd._packet);
                 }
 
             }
@@ -1219,11 +1281,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestReplyContinueVersus(getPlayer(pd._session), pd._packet);
+                    c.requestReplyContinueVersus(player, pd._packet);
                 }
 
             }
@@ -1250,11 +1314,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestLastPlayerFinishVersus(getPlayer(pd._session), pd._packet);
+                    c.requestLastPlayerFinishVersus(player, pd._packet);
                 }
 
             }
@@ -1281,11 +1347,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestPayCaddieHolyDay(getPlayer(pd._session), pd._packet);
+                    c.requestPayCaddieHolyDay(player, pd._packet);
                 }
 
             }
@@ -1312,11 +1380,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestPlayerReportChatGame(getPlayer(pd._session), pd._packet);
+                    c.requestPlayerReportChatGame(player, pd._packet);
                 }
 
             }
@@ -1348,8 +1418,10 @@ namespace Pangya_GameServer.PacketFunc
 
             try
             {
+                var player = getPlayer(pd._session);
 
-                sgs.gs.getInstance().requestTranslateSubPacket(getPlayer(pd._session), pd._packet);
+
+                sgs.gs.getInstance().requestTranslateSubPacket(player, pd._packet);
 
             }
             catch (exception e)
@@ -1375,11 +1447,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestCookie(getPlayer(pd._session), pd._packet);
+                    c.requestCookie(player, pd._packet);
                 }
 
             }
@@ -1406,11 +1480,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestEnterSpyRoom(getPlayer(pd._session), pd._packet);
+                    c.requestEnterSpyRoom(player, pd._packet);
                 }
 
             }
@@ -1437,11 +1513,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestExecCCGIdentity(getPlayer(pd._session), pd._packet);
+                    c.requestExecCCGIdentity(player, pd._packet);
                 }
 
             }
@@ -1468,11 +1546,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestInitShotArrowSeq(getPlayer(pd._session), pd._packet);
+                    c.requestInitShotArrowSeq(player, pd._packet);
                 }
 
             }
@@ -1498,8 +1578,8 @@ namespace Pangya_GameServer.PacketFunc
 
             try
             {
-
-                sgs.gs.getInstance().sendServerListAndChannelListToSession(getPlayer(pd._session));
+                var player = getPlayer(pd._session);
+                sgs.gs.getInstance().sendServerListAndChannelListToSession(player);
 
             }
             catch (exception e)
@@ -1521,8 +1601,8 @@ namespace Pangya_GameServer.PacketFunc
         {
             try
             {
-
-                sgs.gs.getInstance().sendRankServer(getPlayer(pd._session));
+                var player = getPlayer(pd._session);
+                sgs.gs.getInstance().sendRankServer(player);
 
             }
             catch (exception e)
@@ -1548,11 +1628,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestLoadGamePercent(getPlayer(pd._session), pd._packet);
+                    c.requestLoadGamePercent(player, pd._packet);
                 }
 
             }
@@ -1579,11 +1661,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestActiveReplay(getPlayer(pd._session), pd._packet);
+                    c.requestActiveReplay(player, pd._packet);
                 }
 
             }
@@ -1610,11 +1694,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestClubSetStatsUpdate(getPlayer(pd._session), pd._packet);
+                    c.requestClubSetStatsUpdate(player, pd._packet);
                 }
 
             }
@@ -1641,11 +1727,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestChangeStateChatBlock(getPlayer(pd._session), pd._packet);
+                    c.requestChangeStateChatBlock(player, pd._packet);
                 }
 
             }
@@ -1672,11 +1760,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestChatTeam(getPlayer(pd._session), pd._packet);
+                    c.requestChatTeam(player, pd._packet);
                 }
 
             }
@@ -1702,8 +1792,10 @@ namespace Pangya_GameServer.PacketFunc
 
             try
             {
+                var player = getPlayer(pd._session);
 
-                sgs.gs.getInstance().requestChangeWhisperState(getPlayer(pd._session), pd._packet);
+
+                sgs.gs.getInstance().requestChangeWhisperState(player, pd._packet);
 
             }
             catch (exception e)
@@ -1728,8 +1820,10 @@ namespace Pangya_GameServer.PacketFunc
 
             try
             {
+                var player = getPlayer(pd._session);
 
-                sgs.gs.getInstance().requestCommandNoticeGM(getPlayer(pd._session), pd._packet);
+
+                sgs.gs.getInstance().requestCommandNoticeGM(player, pd._packet);
 
             }
             catch (exception e)
@@ -1754,8 +1848,8 @@ namespace Pangya_GameServer.PacketFunc
 
             try
             {
-
-                sgs.gs.getInstance().sendDateTimeToSession(getPlayer(pd._session));
+                var player = getPlayer(pd._session);
+                sgs.gs.getInstance().sendDateTimeToSession(player);
 
             }
             catch (exception e)
@@ -1784,11 +1878,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestExecCCGDestroy(getPlayer(pd._session), pd._packet);
+                    c.requestExecCCGDestroy(player, pd._packet);
                 }
 
             }
@@ -1818,18 +1914,20 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    _smp.message_pool.getInstance().push(new message("[packet_func::packet061][Log] PLAYER[UID=" + Convert.ToString(getPlayer(pd._session).m_pi.uid) + "] tentou desconectar um player, mas o server ja faz o tratamento do packet08F do comando GM.", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                    _smp.message_pool.getInstance().push(new message("[packet_func::packet061][Log] PLAYER[UID=" + Convert.ToString(player.m_pi.uid) + "] tentou desconectar um player, mas o server ja faz o tratamento do packet08F do comando GM.", type_msg.CL_FILE_LOG_AND_CONSOLE));
                 }
 
                 // Verifica se session está varrizada para executar esse ação,
                 // se ele não fez o login com o Server ele não pode fazer nada até que ele faça o login
-                if (!getPlayer(pd._session).m_is_authorized)
+                if (player == null)
                 {
-                    //throw new exception("[packet_func::" + "packet061" + "][Error] PLAYER[UID=" + Convert.ToString(getPlayer(pd._session).m_pi.m_uid) + "] Nao esta autorizado a fazer esse request por que ele ainda nao fez o login com o Server. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PACKET_FUNC_SV,
+                    //throw new exception("[packet_func::" + "packet061" + "][Error] PLAYER[UID=" + Convert.ToString(player.m_pi.m_uid) + "] Nao esta autorizado a fazer esse request por que ele ainda nao fez o login com o Server. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PACKET_FUNC_SV,
                     //    1, 0x7000501));
                 }
 
@@ -1857,11 +1955,12 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                Channel c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+                Channel c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestPlayerLocationRoom(getPlayer(pd._session), pd._packet);
+                    c.requestPlayerLocationRoom(player, pd._packet);
                 }
 
             }
@@ -1883,11 +1982,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestDeleteActiveItem(getPlayer(pd._session), pd._packet);
+                    c.requestDeleteActiveItem(player, pd._packet);
                 }
 
             }
@@ -1914,11 +2015,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestActiveBooster(getPlayer(pd._session), pd._packet);
+                    c.requestActiveBooster(player, pd._packet);
                 }
 
             }
@@ -1941,8 +2044,10 @@ namespace Pangya_GameServer.PacketFunc
         {
             try
             {
+                var player = getPlayer(pd._session);
 
-                sgs.gs.getInstance().requestSendTicker(getPlayer(pd._session), pd._packet);
+
+                sgs.gs.getInstance().requestSendTicker(player, pd._packet);
 
             }
             catch (exception e)
@@ -1967,8 +2072,10 @@ namespace Pangya_GameServer.PacketFunc
 
             try
             {
+                var player = getPlayer(pd._session);
 
-                sgs.gs.getInstance().requestQueueTicker(getPlayer(pd._session), pd._packet);
+
+                sgs.gs.getInstance().requestQueueTicker(player, pd._packet);
 
             }
             catch (exception e)
@@ -1993,8 +2100,10 @@ namespace Pangya_GameServer.PacketFunc
 
             try
             {
+                var player = getPlayer(pd._session);
 
-                sgs.gs.getInstance().requestChangeChatMacroUser(getPlayer(pd._session), pd._packet);
+
+                sgs.gs.getInstance().requestChangeChatMacroUser(player, pd._packet);
 
             }
             catch (exception e)
@@ -2020,11 +2129,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestSetNoticeBeginCaddieHolyDay(getPlayer(pd._session), pd._packet);
+                    c.requestSetNoticeBeginCaddieHolyDay(player, pd._packet);
                 }
 
             }
@@ -2051,11 +2162,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestChangeMascotMessage(getPlayer(pd._session), pd._packet);
+                    c.requestChangeMascotMessage(player, pd._packet);
                 }
 
             }
@@ -2082,11 +2195,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestCancelEditSaleShop(getPlayer(pd._session), pd._packet);
+                    c.requestCancelEditSaleShop(player, pd._packet);
                 }
 
             }
@@ -2113,11 +2228,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestCloseSaleShop(getPlayer(pd._session), pd._packet);
+                    c.requestCloseSaleShop(player, pd._packet);
                 }
 
             }
@@ -2144,11 +2261,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestOpenEditSaleShop(getPlayer(pd._session), pd._packet);
+                    c.requestOpenEditSaleShop(player, pd._packet);
                 }
 
             }
@@ -2175,11 +2294,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestViewSaleShop(getPlayer(pd._session), pd._packet);
+                    c.requestViewSaleShop(player, pd._packet);
                 }
 
             }
@@ -2206,11 +2327,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestCloseViewSaleShop(getPlayer(pd._session), pd._packet);
+                    c.requestCloseViewSaleShop(player, pd._packet);
                 }
 
             }
@@ -2237,11 +2360,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestChangeNameSaleShop(getPlayer(pd._session), pd._packet);
+                    c.requestChangeNameSaleShop(player, pd._packet);
                 }
 
             }
@@ -2268,11 +2393,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestVisitCountSaleShop(getPlayer(pd._session), pd._packet);
+                    c.requestVisitCountSaleShop(player, pd._packet);
                 }
 
             }
@@ -2298,12 +2425,12 @@ namespace Pangya_GameServer.PacketFunc
 
             try
             {
-
-                var r = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+                var r = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (r != null)
                 {
-                    r.requestPangSaleShop(getPlayer(pd._session), pd._packet);
+                    r.requestPangSaleShop(player, pd._packet);
                 }
 
             }
@@ -2330,11 +2457,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestOpenSaleShop(getPlayer(pd._session), pd._packet);
+                    c.requestOpenSaleShop(player, pd._packet);
                 }
 
             }
@@ -2361,11 +2490,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestBuyItemSaleShop(getPlayer(pd._session), pd._packet);
+                    c.requestBuyItemSaleShop(player, pd._packet);
                 }
 
             }
@@ -2391,11 +2522,12 @@ namespace Pangya_GameServer.PacketFunc
 
             try
             {
-                Channel c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+                Channel c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestEnterLobby(getPlayer(pd._session), pd._packet);
+                    c.requestEnterLobby(player, pd._packet);
                 }
 
             }
@@ -2418,11 +2550,12 @@ namespace Pangya_GameServer.PacketFunc
         {
             try
             {
-                Channel c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+                Channel c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestExitLobby(getPlayer(pd._session), pd._packet);
+                    c.requestExitLobby(player, pd._packet);
                 }
 
             }
@@ -2443,7 +2576,9 @@ namespace Pangya_GameServer.PacketFunc
 
             try
             {
-                sgs.gs.getInstance().requestEnterOtherChannelAndLobby(getPlayer(pd._session), pd._packet);
+                var player = getPlayer(pd._session);
+
+                sgs.gs.getInstance().requestEnterOtherChannelAndLobby(player, pd._packet);
 
             }
             catch (exception e)
@@ -2468,8 +2603,9 @@ namespace Pangya_GameServer.PacketFunc
 
             try
             {
+                var player = getPlayer(pd._session);
 
-                sgs.gs.getInstance().requestCheckGameGuardAuthAnswer(getPlayer(pd._session), pd._packet);
+                sgs.gs.getInstance().requestCheckGameGuardAuthAnswer(player, pd._packet);
 
             }
             catch (exception e)
@@ -2495,13 +2631,7 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                // Verifica se session está varrizada para executar esse ação,
-                // se ele não fez o login com o Server ele não pode fazer nada até que ele faça o login
-                if (!getPlayer(pd._session).m_is_authorized)
-                {
-                    throw new exception("[packet_func::" + "packet08B" + "][Error] PLAYER[UID=" + Convert.ToString(getPlayer(pd._session).m_pi.uid) + "] Nao esta autorizado a fazer esse request por que ele ainda nao fez o login com o Server. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PACKET_FUNC_SV,
-                        1, 0x7000501));
-                }
+                var player = getPlayer(pd._session);
 
                 CmdServerList cmd_sl = new CmdServerList(TYPE_SERVER.MSN); // waitable
 
@@ -2527,8 +2657,9 @@ namespace Pangya_GameServer.PacketFunc
         {
             try
             {
+                var player = getPlayer(pd._session);
 
-                sgs.gs.getInstance().requestCommonCmdGM(getPlayer(pd._session), pd._packet);
+                sgs.gs.getInstance().requestCommonCmdGM(player, pd._packet);
 
             }
             catch (exception e)
@@ -2554,11 +2685,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestOpenPapelShop(getPlayer(pd._session), pd._packet);
+                    c.requestOpenPapelShop(player, pd._packet);
                 }
 
             }
@@ -2582,11 +2715,13 @@ namespace Pangya_GameServer.PacketFunc
 
             try
             {
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestUpdatePCBangMascot(getPlayer(pd._session), pd._packet);
+                    c.requestUpdatePCBangMascot(player, pd._packet);
                 }
 
             }
@@ -2606,17 +2741,10 @@ namespace Pangya_GameServer.PacketFunc
 
             try
             {
-
-                // Verifica se session está varrizada para executar esse ação,
-                // se ele não fez o login com o Server ele não pode fazer nada até que ele faça o login
-                if (!getPlayer(pd._session).m_is_authorized)
-                {
-                    throw new exception("[packet_func::" + "packet09C(Last5Player)" + "][Error] PLAYER[UID=" + Convert.ToString(getPlayer(pd._session).m_pi.uid) + "] Nao esta autorizado a fazer esse request por que ele ainda nao fez o login com o Server. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PACKET_FUNC_SV,
-                        1, 0x7000501));
-                }
+                var player = getPlayer(pd._session);
 
                 //// Last 5 Player Game Info   
-                session_send(pacote10E(getPlayer(pd._session).m_pi.l5pg), pd._session);
+                session_send(pacote10E(player.m_pi.l5pg), pd._session);
 
             }
             catch (exception e)
@@ -2635,11 +2763,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestEnterGameAfterStarted(getPlayer(pd._session), pd._packet);
+                    c.requestEnterGameAfterStarted(player, pd._packet);
                 }
             }
             catch (exception e)
@@ -2669,11 +2799,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestUpdateGachaCoupon(getPlayer(pd._session), pd._packet);
+                    c.requestUpdateGachaCoupon(player, pd._packet);
                 }
 
             }
@@ -2700,11 +2832,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestEnterWebLinkState(getPlayer(pd._session), pd._packet);
+                    c.requestEnterWebLinkState(player, pd._packet);
                 }
 
             }
@@ -2728,11 +2862,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestExitedFromWebGuild(getPlayer(pd._session), pd._packet);
+                    c.requestExitedFromWebGuild(player, pd._packet);
                 }
 
             }
@@ -2759,11 +2895,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestUseTicketReport(getPlayer(pd._session), pd._packet);
+                    c.requestUseTicketReport(player, pd._packet);
                 }
 
             }
@@ -2788,11 +2926,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestOpenTicketReportScroll(getPlayer(pd._session), pd._packet);
+                    c.requestOpenTicketReportScroll(player, pd._packet);
                 }
 
             }
@@ -2819,11 +2959,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestMakeTutorial(getPlayer(pd._session), pd._packet);
+                    c.requestMakeTutorial(player, pd._packet);
                 }
 
             }
@@ -2850,11 +2992,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestOpenBoxMyRoom(getPlayer(pd._session), pd._packet);
+                    c.requestOpenBoxMyRoom(player, pd._packet);
                 }
 
             }
@@ -2880,19 +3024,13 @@ namespace Pangya_GameServer.PacketFunc
 
             try
             {
-                // Verifica se session está varrizada para executar esse ação,
-                // se ele não fez o login com o Server ele não pode fazer nada até que ele faça o login
-                if (!getPlayer(pd._session).m_is_authorized)
-                {
-                    throw new exception("[packet_func::" + "packet0B4" + "][Error] PLAYER[UID=" + Convert.ToString(getPlayer(pd._session).m_pi.uid) + "] Nao esta autorizado a fazer esse request por que ele ainda nao fez o login com o Server. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PACKET_FUNC_SV,
-                        1, 0x7000501));
-                }
+                var player = getPlayer(pd._session);
 
                 byte option = pd._packet.ReadByte();
                 ushort numero_sala = pd._packet.ReadUInt16();
 
                 // Log
-                _smp.message_pool.getInstance().push(new message("[packet_func::packet0B4][Log][Option=" + Convert.ToString((ushort)option) + "] PLAYER[UID=" + Convert.ToString(getPlayer(pd._session).m_pi.uid) + "] foi convidado por um player aceitou o pedido saiu da sala[NUMERO=" + Convert.ToString(numero_sala) + "] e relogou.", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                _smp.message_pool.getInstance().push(new message("[packet_func::packet0B4][Log][Option=" + Convert.ToString((ushort)option) + "] PLAYER[UID=" + Convert.ToString(player.m_pi.uid) + "] foi convidado por um player aceitou o pedido saiu da sala[NUMERO=" + Convert.ToString(numero_sala) + "] e relogou.", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
             }
             catch (exception e)
@@ -2917,14 +3055,7 @@ namespace Pangya_GameServer.PacketFunc
 
             try
             {
-
-                // Verifica se session está varrizada para executar esse ação,
-                // se ele não fez o login com o Server ele não pode fazer nada até que ele faça o login
-                if (!getPlayer(pd._session).m_is_authorized)
-                {
-                    throw new exception("[packet_func::" + "packet0B5(MyrRoomHouseInfo)" + "][Error] PLAYER[UID=" + Convert.ToString(getPlayer(pd._session).m_pi.uid) + "] Nao esta autorizado a fazer esse request por que ele ainda nao fez o login com o Server. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PACKET_FUNC_SV,
-                        1, 0x7000501));
-                }
+                var player = getPlayer(pd._session);
 
                 uint from_uid = new uint();
                 uint to_uid = new uint();
@@ -2936,13 +3067,13 @@ namespace Pangya_GameServer.PacketFunc
                 p.init_plain(0x12B);
 
                 // Aqui o player só pode pedir para entrar no dele mesmo
-                if (from_uid == to_uid && getPlayer(pd._session).m_pi.mrc.allow_enter == 1)
+                if (from_uid == to_uid && player.m_pi.mrc.allow_enter == 1)
                 { // Isso tinha no season 4, agora nos season posteriores tiraram isso
                     p.WriteUInt32(1); // option;
 
                     p.WriteUInt32(to_uid);
 
-                    p.WriteBytes(getPlayer(pd._session).m_pi.mrc.ToArray());
+                    p.WriteBytes(player.m_pi.mrc.ToArray());
                 }
                 else
                 {
@@ -2971,20 +3102,12 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                // Verifica se session está varrizada para executar esse ação,
-                // se ele não fez o login com o Server ele não pode fazer nada até que ele faça o login
-                if (!getPlayer(pd._session).m_is_authorized)
-                {
-                    throw new exception("[packet_func::" + "packet0B7(InfoPlayerMyRoom)" + "][Error] PLAYER[UID=" + Convert.ToString(getPlayer(pd._session).m_pi.uid) + "] Nao esta autorizado a fazer esse request por que ele ainda nao fez o login com o Server. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PACKET_FUNC_SV,
-                        1, 0x7000501));
-                }
+                var player = getPlayer(pd._session);
 
-                var _session = ((Player)pd._session);
-
-                var c = sgs.gs.getInstance().findChannel(_session.m_pi.channel);
+                var c = sgs.gs.getInstance().findChannel(player.m_pi.channel);
 
                 if (c != null)
-                    c.requestEnterMyRoom(_session, pd._packet);
+                    c.requestEnterMyRoom(player, pd._packet);
             }
             catch (exception e)
             {
@@ -2999,8 +3122,9 @@ namespace Pangya_GameServer.PacketFunc
         {
             try
             {
+                var player = getPlayer(pd._session);
 
-                sgs.gs.getInstance().requestUCCSystem(getPlayer(pd._session), pd._packet);
+                sgs.gs.getInstance().requestUCCSystem(player, pd._packet);
 
             }
             catch (exception e)
@@ -3026,11 +3150,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestInvite(getPlayer(pd._session), pd._packet);
+                    c.requestInvite(player, pd._packet);
                 }
 
             }
@@ -3054,11 +3180,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestUseCardSpecial(getPlayer(pd._session), pd._packet);
+                    c.requestUseCardSpecial(player, pd._packet);
                 }
 
             }
@@ -3085,19 +3213,15 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                // Verifica se session está varrizada para executar esse ação,
-                // se ele não fez o login com o Server ele não pode fazer nada até que ele faça o login
-                if (!getPlayer(pd._session).m_is_authorized)
-                {
-                    throw new exception("[packet_func::" + "packet0C1(UpdatePlace)" + "][Error] PLAYER[UID=" + Convert.ToString(getPlayer(pd._session).m_pi.uid) + "] Nao esta autorizado a fazer esse request por que ele ainda nao fez o login com o Server. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PACKET_FUNC_SV,
-                        1, 0x7000501));
-                }
+                var player = getPlayer(pd._session);
 
-                getPlayer(pd._session).m_pi.place = pd._packet.ReadSByte(); // Att place(lugar)
+                player.m_pi.place = pd._packet.ReadSByte(); // Att place(lugar)
 
                 // Update Location Player on DB
-                getPlayer(pd._session).m_pi.updateLocationDB();
+                player.m_pi.updateLocationDB();
                 //sucess
+
+
             }
             catch (exception e)
             {
@@ -3115,8 +3239,9 @@ namespace Pangya_GameServer.PacketFunc
 
             try
             {
+                var player = getPlayer(pd._session);
 
-                sgs.gs.getInstance().requestUCCWebKey(getPlayer(pd._session), pd._packet);
+                sgs.gs.getInstance().requestUCCWebKey(player, pd._packet);
 
             }
             catch (exception e)
@@ -3142,11 +3267,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestOpenCardPack(getPlayer(pd._session), pd._packet);
+                    c.requestOpenCardPack(player, pd._packet);
                 }
 
             }
@@ -3173,11 +3300,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestFinishGame(getPlayer(pd._session), pd._packet);
+                    c.requestFinishGame(player, pd._packet);
                 }
 
             }
@@ -3204,11 +3333,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestCheckDolfiniLockerPass(getPlayer(pd._session), pd._packet);
+                    c.requestCheckDolfiniLockerPass(player, pd._packet);
                 }
 
             }
@@ -3235,11 +3366,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestDolfiniLockerItem(getPlayer(pd._session), pd._packet);
+                    c.requestDolfiniLockerItem(player, pd._packet);
                 }
 
             }
@@ -3266,11 +3399,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestAddDolfiniLockerItem(getPlayer(pd._session), pd._packet);
+                    c.requestAddDolfiniLockerItem(player, pd._packet);
                 }
 
             }
@@ -3297,11 +3432,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestRemoveDolfiniLockerItem(getPlayer(pd._session), pd._packet);
+                    c.requestRemoveDolfiniLockerItem(player, pd._packet);
                 }
 
             }
@@ -3328,11 +3465,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestMakePassDolfiniLocker(getPlayer(pd._session), pd._packet);
+                    c.requestMakePassDolfiniLocker(player, pd._packet);
                 }
 
             }
@@ -3359,11 +3498,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestChangeDolfiniLockerPass(getPlayer(pd._session), pd._packet);
+                    c.requestChangeDolfiniLockerPass(player, pd._packet);
                 }
 
             }
@@ -3389,11 +3530,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestChangeDolfiniLockerModeEnter(getPlayer(pd._session), pd._packet);
+                    c.requestChangeDolfiniLockerModeEnter(player, pd._packet);
                 }
 
             }
@@ -3417,17 +3560,11 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                // Verifica se session está varrizada para executar esse ação,
-                // se ele não fez o login com o Server ele não pode fazer nada até que ele faça o login
-                if (!getPlayer(pd._session).m_is_authorized)
-                {
-                    throw new exception("[packet_func::" + "packet0D3(CheckDolfiniLocker)" + "][Error] PLAYER[UID=" + Convert.ToString(getPlayer(pd._session).m_pi.uid) + "] Nao esta autorizado a fazer esse request por que ele ainda nao fez o login com o Server. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PACKET_FUNC_SV,
-                        1, 0x7000501));
-                }
+                var player = getPlayer(pd._session);
 
-                uint check = 0u;
+                uint check = 0;
 
-                check = getPlayer(pd._session).m_pi.df.isLocker();
+                check = player.m_pi.df.isLocker();
 
                 var p = new PangyaBinaryWriter((ushort)0x170);
 
@@ -3453,11 +3590,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestUpdateDolfiniLockerPang(getPlayer(pd._session), pd._packet);
+                    c.requestUpdateDolfiniLockerPang(player, pd._packet);
                 }
 
             }
@@ -3484,11 +3623,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestDolfiniLockerPang(getPlayer(pd._session), pd._packet);
+                    c.requestDolfiniLockerPang(player, pd._packet);
                 }
 
             }
@@ -3515,11 +3656,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestUseItemBuff(getPlayer(pd._session), pd._packet);
+                    c.requestUseItemBuff(player, pd._packet);
                 }
 
             }
@@ -3545,14 +3688,10 @@ namespace Pangya_GameServer.PacketFunc
 
             try
             {
-
-                // Player não pode ver a message privada que o player mandou, avisa para o server
-                /*_smp::message_pool::push(new message("[packet_func::packet0DE][Log] PLAYER[UID=" + (getPlayer(pd._session).m_pi.m_uid)
-                        + "] mandou o Pacote0DE mas nao sei o que ele pede ou faz ainda. Hex: \n\r"
-                        + hex_util::BufferToHexString(pd._packet.getBuffer(), pd._packet.getSize()), type_msg.CL_FILE_LOG_AND_CONSOLE));*/
+                var player = getPlayer(pd._session);
 
                 // Envia mensagem para o player que enviou o MP que o player não pode ver a mensagem
-                sgs.gs.getInstance().requestNotifyNotDisplayPrivateMessageNow(getPlayer(pd._session), pd._packet);
+                sgs.gs.getInstance().requestNotifyNotDisplayPrivateMessageNow(player, pd._packet);
 
             }
             catch (exception e)
@@ -3578,11 +3717,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestActiveCutin(getPlayer(pd._session), pd._packet);
+                    c.requestActiveCutin(player, pd._packet);
                 }
 
             }
@@ -3609,11 +3750,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestExtendRental(getPlayer(pd._session), pd._packet);
+                    c.requestExtendRental(player, pd._packet);
                 }
 
             }
@@ -3640,11 +3783,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestDeleteRental(getPlayer(pd._session), pd._packet);
+                    c.requestDeleteRental(player, pd._packet);
                 }
 
             }
@@ -3671,11 +3816,12 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                Channel c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+                Channel c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestPlayerStateCharacterLounge(getPlayer(pd._session), pd._packet);
+                    c.requestPlayerStateCharacterLounge(player, pd._packet);
                 }
 
             }
@@ -3702,11 +3848,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestCometRefill(getPlayer(pd._session), pd._packet);
+                    c.requestCometRefill(player, pd._packet);
                 }
 
             }
@@ -3726,18 +3874,17 @@ namespace Pangya_GameServer.PacketFunc
         }
 
         public static int packet0EF(object param, ParamDispatch pd)
-        {
-
-
-
+        { 
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestOpenBoxMail(getPlayer(pd._session), pd._packet);
+                    c.requestOpenBoxMail(player, pd._packet);
                 }
 
             }
@@ -3760,46 +3907,40 @@ namespace Pangya_GameServer.PacketFunc
         {
             try
             {
-                // TTL = Time To Live    
-
+                var player = getPlayer(pd._session);
                 // Verifica se session está varrizada para executar esse ação,
                 // se ele não fez o login com o Server ele não pode fazer nada até que ele faça o login
-                if (!getPlayer(pd._session).m_is_authorized)
-                {
-                    throw new exception("[packet_func::" + "packet0F4" + "][Error] PLAYER[UID=" + Convert.ToString(getPlayer(pd._session).m_pi.uid) + "] Nao esta autorizado a fazer esse request por que ele ainda nao fez o login com o Server. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PACKET_FUNC_SV,
-                        1, 0x7000501));
-                }
-
-                getPlayer(pd._session).m_tick_bot = Environment.TickCount;
+                 
+                player.m_tick_bot = Environment.TickCount; 
 
                 //pd._session.m_time_start = std::clock();
                 //pd._session.m_tick = std::clock();
-                if (getPlayer(pd._session).m_pi.uid > 0)
-                {
-                    var cp = getPlayer(pd._session).m_pi.cookie;
-                    var pang = getPlayer(pd._session).m_pi.ui.pang;
-                    getPlayer(pd._session).m_pi.updateMoeda();
-                    // getPlayer(pd._session).m_pi.ReloadMemberInfo();
-                    using (var p = new PangyaBinaryWriter())
-                    {
-                        if (cp != getPlayer(pd._session).m_pi.cookie)  //so envia se estiver com valores novos
-                        {
-                            //// Update ON GAME(cookies)
-                            p.init_plain(0x96);
-                            p.WriteUInt64(getPlayer(pd._session).m_pi.cookie);
-                            p.WriteUInt32(0);
-                            session_send(p, getPlayer(pd._session), 1);
-                        }
-                        if (pang != getPlayer(pd._session).m_pi.ui.pang) //so envia se estiver com valores novos
-                        {
-                            // UPDATE pang ON GAME(pangs)
-                            p.init_plain(0xC8);
-                            p.WriteUInt64(getPlayer(pd._session).m_pi.ui.pang);
-                            p.WriteUInt32(0);
-                            session_send(p, getPlayer(pd._session), 1);
-                        }
-                    }
-                }
+                //if (player.m_pi.uid > 0)
+                //{
+                //    var cp = player.m_pi.cookie;
+                //    var pang = player.m_pi.ui.pang;
+                //    player.m_pi.updateMoeda();
+                //    // player.m_pi.ReloadMemberInfo();
+                //    using (var p = new PangyaBinaryWriter())
+                //    {
+                //        if (cp != player.m_pi.cookie)  //so envia se estiver com valores novos
+                //        {
+                //            //// Update ON GAME(cookies)
+                //            p.init_plain(0x96);
+                //            p.WriteUInt64(player.m_pi.cookie);
+                //            p.WriteUInt32(0);
+                //            session_send(p, getPlayer(pd._session), 1);
+                //        }
+                //        if (pang != player.m_pi.ui.pang) //so envia se estiver com valores novos
+                //        {
+                //            // UPDATE pang ON GAME(pangs)
+                //            p.init_plain(0xC8);
+                //            p.WriteUInt64(player.m_pi.ui.pang);
+                //            p.WriteUInt32(0);
+                //            session_send(p, getPlayer(pd._session), 1);
+                //        }
+                //    }
+                //}
 
 
             }
@@ -3815,15 +3956,9 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                // Verifica se session está varrizada para executar esse ação,
-                // se ele não fez o login com o Server ele não pode fazer nada até que ele faça o login
-                if (!getPlayer(pd._session).m_is_authorized)
-                {
-                    throw new exception("[packet_func::" + "packet0FB(WebKey)" + "][Error] PLAYER[UID=" + Convert.ToString(getPlayer(pd._session).m_pi.uid) + "] Nao esta autorizado a fazer esse request por que ele ainda nao fez o login com o Server. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PACKET_FUNC_SV,
-                        1, 0x7000501));
-                }
+                var player = getPlayer(pd._session);
 
-                var cmd_gwk = new CmdGeraWebKey(getPlayer(pd._session).m_pi.uid);
+                var cmd_gwk = new CmdGeraWebKey(player.m_pi.uid);
 
                 snmdb.NormalManagerDB.getInstance().add(0, cmd_gwk, null, null);
 
@@ -3853,11 +3988,9 @@ namespace Pangya_GameServer.PacketFunc
             //packet 254, no send response!        
             try
             {
-                // Verifica se session está varrizada para executar esse ação,
-                // se ele não fez o login com o Server ele não pode fazer nada até que ele faça o login     
-                CHECK_SESSION_IS_AUTHORIZED((Player)pd._session, "packet0FE");
+                var player = getPlayer(pd._session);
 
-                UCCSystem.HandleUCCLoad(getPlayer(pd._session));
+                UCCSystem.HandleUCCLoad(player);
             }
             catch (exception e)
             {
@@ -3871,12 +4004,12 @@ namespace Pangya_GameServer.PacketFunc
 
         public static int packet119(object param, ParamDispatch pd)
         {
-            var p = new PangyaBinaryWriter();
-
             try
             {
+                var player = getPlayer(pd._session);
 
-                sgs.gs.getInstance().requestChangeServer(getPlayer(pd._session), pd._packet);
+
+                sgs.gs.getInstance().requestChangeServer(player, pd._packet);
 
             }
             catch (exception e)
@@ -3893,11 +4026,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestOpenLegacyTikiShop(getPlayer(pd._session), pd._packet);
+                    c.requestOpenLegacyTikiShop(player, pd._packet);
                 }
 
             }
@@ -3920,11 +4055,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestPointLegacyTikiShop(getPlayer(pd._session), pd._packet);
+                    c.requestPointLegacyTikiShop(player, pd._packet);
                 }
 
             }
@@ -3946,11 +4083,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestExchangeTPByItemLegacyTikiShop(getPlayer(pd._session), pd._packet);
+                    c.requestExchangeTPByItemLegacyTikiShop(player, pd._packet);
                 }
 
             }
@@ -3972,11 +4111,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestExchangeItemByTPLegacyTikiShop(getPlayer(pd._session), pd._packet);
+                    c.requestExchangeItemByTPLegacyTikiShop(player, pd._packet);
                 }
 
             }
@@ -4001,11 +4142,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestFinishGame(getPlayer(pd._session), pd._packet);
+                    c.requestFinishGame(player, pd._packet);
                 }
 
             }
@@ -4032,11 +4175,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestReplyInitialValueGrandZodiac(getPlayer(pd._session), pd._packet);
+                    c.requestReplyInitialValueGrandZodiac(player, pd._packet);
                 }
 
             }
@@ -4063,11 +4208,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestMarkerOnCourse(getPlayer(pd._session), pd._packet);
+                    c.requestMarkerOnCourse(player, pd._packet);
                 }
 
             }
@@ -4094,11 +4241,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestShotEndData(getPlayer(pd._session), pd._packet);
+                    c.requestShotEndData(player, pd._packet);
                 }
 
             }
@@ -4124,11 +4273,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestLeavePractice(getPlayer(pd._session), pd._packet);
+                    c.requestLeavePractice(player, pd._packet);
                 }
 
             }
@@ -4149,11 +4300,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestLeaveChipInPractice(getPlayer(pd._session), pd._packet);
+                    c.requestLeaveChipInPractice(player, pd._packet);
                 }
 
             }
@@ -4180,11 +4333,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestStartFirstHoleGrandZodiac(getPlayer(pd._session), pd._packet);
+                    c.requestStartFirstHoleGrandZodiac(player, pd._packet);
                 }
 
             }
@@ -4211,11 +4366,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestActiveWing(getPlayer(pd._session), pd._packet);
+                    c.requestActiveWing(player, pd._packet);
                 }
 
             }
@@ -4237,17 +4394,14 @@ namespace Pangya_GameServer.PacketFunc
         public static int packet140(object param, ParamDispatch pd)
         {
             try
-            {
+            { 
+                var player = getPlayer(pd._session);
 
-                // Verifica se session está varrizada para executar esse ação,
-                // se ele não fez o login com o Server ele não pode fazer nada até que ele faça o login
-                CHECK_SESSION_IS_AUTHORIZED((Player)pd._session, "packet140(requestEnterShop)");
-
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestEnterShop(getPlayer(pd._session), pd._packet);
+                    c.requestEnterShop(player, pd._packet);
                 }
             }
             catch (exception e)
@@ -4263,11 +4417,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestChangeWindNextHoleRepeat(getPlayer(pd._session), pd._packet);
+                    c.requestChangeWindNextHoleRepeat(player, pd._packet);
                 }
 
             }
@@ -4294,11 +4450,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestOpenMailBox(getPlayer(pd._session), pd._packet);
+                    c.requestOpenMailBox(player, pd._packet);
                 }
 
             }
@@ -4325,11 +4483,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestInfoMail(getPlayer(pd._session), pd._packet);
+                    c.requestInfoMail(player, pd._packet);
                 }
 
             }
@@ -4356,11 +4516,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestSendMail(getPlayer(pd._session), pd._packet);
+                    c.requestSendMail(player, pd._packet);
                 }
 
             }
@@ -4387,11 +4549,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestTakeItemFomMail(getPlayer(pd._session), pd._packet);
+                    c.requestTakeItemFomMail(player, pd._packet);
                 }
 
             }
@@ -4418,11 +4582,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestDeleteMail(getPlayer(pd._session), pd._packet);
+                    c.requestDeleteMail(player, pd._packet);
                 }
 
             }
@@ -4449,11 +4615,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestPlayPapelShop(getPlayer(pd._session), pd._packet);
+                    c.requestPlayPapelShop(player, pd._packet);
                 }
 
             }
@@ -4480,11 +4648,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestDailyQuest(getPlayer(pd._session), pd._packet);
+                    c.requestDailyQuest(player, pd._packet);
                 }
 
             }
@@ -4511,11 +4681,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestAcceptDailyQuest(getPlayer(pd._session), pd._packet);
+                    c.requestAcceptDailyQuest(player, pd._packet);
                 }
 
             }
@@ -4539,11 +4711,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestTakeRewardDailyQuest(getPlayer(pd._session), pd._packet);
+                    c.requestTakeRewardDailyQuest(player, pd._packet);
                 }
 
             }
@@ -4567,11 +4741,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestLeaveDailyQuest(getPlayer(pd._session), pd._packet);
+                    c.requestLeaveDailyQuest(player, pd._packet);
                 }
 
             }
@@ -4595,11 +4771,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestLoloCardCompose(getPlayer(pd._session), pd._packet);
+                    c.requestLoloCardCompose(player, pd._packet);
                 }
 
             }
@@ -4622,11 +4800,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestActiveAutoCommand(getPlayer(pd._session), pd._packet);
+                    c.requestActiveAutoCommand(player, pd._packet);
                 }
 
             }
@@ -4651,37 +4831,38 @@ namespace Pangya_GameServer.PacketFunc
 
             try
             {
+                var player = getPlayer(pd._session);
 
                 uint uid = pd._packet.ReadUInt32();
- 
+
                 AchievementManager mgr_achievement = null;
                 Player s = null;
 
-                if (getPlayer(pd._session).m_pi.uid == uid) // O player solicitou o próprio achievement info
+                if (player.m_pi.uid == uid) // O player solicitou o próprio achievement info
                 {
-                    mgr_achievement = getPlayer(pd._session).m_pi.mgr_achievement;
+                    mgr_achievement = player.m_pi.mgr_achievement;
                 }
                 else if ((s = sgs.gs.getInstance().findPlayer(uid)) != null) // O player solicitou o achievement info de outro player online
                 {
                     mgr_achievement = s.m_pi.mgr_achievement;
                 }
                 else
-                { // O player solicitou o achievement info de outro player off-line
-
+                {
+                    // O player solicitou o achievement info de outro player off-line 
                     mgr_achievement = new AchievementManager();
 
                     mgr_achievement.initAchievement(uid);
 
-                    mgr_achievement.sendAchievementGuiToPlayer(getPlayer(pd._session));
+                    mgr_achievement.sendAchievementGuiToPlayer(player);
                 }
 
                 if (mgr_achievement == null)
                 {
-                    session_send(pacote22C(1), getPlayer(pd._session)); // unsucess  
+                    session_send(pacote22C(1),player); // unsucess  
                 }
                 else
                 {
-                    mgr_achievement.sendAchievementGuiToPlayer(getPlayer(pd._session));
+                    mgr_achievement.sendAchievementGuiToPlayer(player);
                 }
 
             }
@@ -4695,17 +4876,18 @@ namespace Pangya_GameServer.PacketFunc
             return 0;
         }
 
-        [Obsolete]
         public static int packet158(object param, ParamDispatch pd)
         {
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestCadieCauldronExchange(getPlayer(pd._session), pd._packet);
+                    c.requestCadieCauldronExchange(player, pd._packet);
                 }
 
             }
@@ -4726,17 +4908,16 @@ namespace Pangya_GameServer.PacketFunc
 
         public static int packet15C(object param, ParamDispatch pd)
         {
-
-
-
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestActivePaws(getPlayer(pd._session), pd._packet);
+                    c.requestActivePaws(player, pd._packet);
                 }
 
             }
@@ -4763,11 +4944,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestActiveRing(getPlayer(pd._session), pd._packet);
+                    c.requestActiveRing(player, pd._packet);
                 }
 
             }
@@ -4794,11 +4977,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestClubSetWorkShopUpLevel(getPlayer(pd._session), pd._packet);
+                    c.requestClubSetWorkShopUpLevel(player, pd._packet);
                 }
 
             }
@@ -4825,11 +5010,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestClubSetWorkShopUpLevelConfirm(getPlayer(pd._session), pd._packet);
+                    c.requestClubSetWorkShopUpLevelConfirm(player, pd._packet);
                 }
 
             }
@@ -4856,11 +5043,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestClubSetWorkShopUpLevelCancel(getPlayer(pd._session), pd._packet);
+                    c.requestClubSetWorkShopUpLevelCancel(player, pd._packet);
                 }
 
             }
@@ -4887,11 +5076,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestClubSetWorkShopUpRank(getPlayer(pd._session), pd._packet);
+                    c.requestClubSetWorkShopUpRank(player, pd._packet);
                 }
 
             }
@@ -4918,11 +5109,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestClubSetWorkShopUpRankTransformConfirm(getPlayer(pd._session), pd._packet);
+                    c.requestClubSetWorkShopUpRankTransformConfirm(player, pd._packet);
                 }
 
             }
@@ -4949,11 +5142,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestClubSetWorkShopUpRankTransformCancel(getPlayer(pd._session), pd._packet);
+                    c.requestClubSetWorkShopUpRankTransformCancel(player, pd._packet);
                 }
 
             }
@@ -4980,11 +5175,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestClubSetWorkShopRecoveryPts(getPlayer(pd._session), pd._packet);
+                    c.requestClubSetWorkShopRecoveryPts(player, pd._packet);
                 }
 
             }
@@ -5011,11 +5208,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestClubSetWorkShopTransferMasteryPts(getPlayer(pd._session), pd._packet);
+                    c.requestClubSetWorkShopTransferMasteryPts(player, pd._packet);
                 }
 
             }
@@ -5042,11 +5241,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestClubSetReset(getPlayer(pd._session), pd._packet);
+                    c.requestClubSetReset(player, pd._packet);
                 }
 
             }
@@ -5073,11 +5274,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestCheckAttendanceReward(getPlayer(pd._session), pd._packet);
+                    c.requestCheckAttendanceReward(player, pd._packet);
                 }
 
             }
@@ -5104,11 +5307,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestAttendanceRewardLoginCount(getPlayer(pd._session), pd._packet);
+                    c.requestAttendanceRewardLoginCount(player, pd._packet);
                 }
 
             }
@@ -5135,11 +5340,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestActiveEarcuff(getPlayer(pd._session), pd._packet);
+                    c.requestActiveEarcuff(player, pd._packet);
                 }
 
             }
@@ -5160,15 +5367,15 @@ namespace Pangya_GameServer.PacketFunc
 
         public static int packet172(object param, ParamDispatch pd)
         {
-            // !@ Log
-            _smp.message_pool.getInstance().push(new message("[packet_func::packet172][Log] PLAYER[UID=" + Convert.ToString(getPlayer(pd._session).m_pi.uid) + "] packet:" + pd._packet.Log(), type_msg.CL_FILE_LOG_AND_CONSOLE));
 
             try
             {
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
-                    c.requestOpenClubWorkShopEvent((Player)pd._session, pd._packet);
+                    c.requestOpenClubWorkShopEvent(player, pd._packet);
             }
             catch (exception e)
             {
@@ -5180,19 +5387,16 @@ namespace Pangya_GameServer.PacketFunc
 
         public static int packet173(object param, ParamDispatch pd)
         {
-
-            // !@ Log
-            _smp.message_pool.getInstance().push(new message("[packet_func::packet173][Log] PLAYER[UID=" + Convert.ToString(getPlayer(pd._session).m_pi.uid) + "] packet: " + pd._packet.Log(), type_msg.CL_FILE_LOG_AND_CONSOLE));
-
-
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestClubWorkShopEventCount(getPlayer(pd._session), pd._packet);
+                    c.requestClubWorkShopEventCount(player, pd._packet);
                 }
 
             }
@@ -5213,20 +5417,14 @@ namespace Pangya_GameServer.PacketFunc
 
         public static int packet174(object param, ParamDispatch pd)
         {
-
-            // !@ Log
-            _smp.message_pool.getInstance().push(new message("[packet_func::packet174][Log] PLAYER[UID=" + Convert.ToString(getPlayer(pd._session).m_pi.uid) + "] packet: " + pd._packet.Log(), type_msg.CL_FILE_LOG_AND_CONSOLE));
-
+            var player = getPlayer(pd._session);
             return 0;
         }
 
 
         public static int packet175(object param, ParamDispatch pd)
         {
-
-            // !@ Log
-            _smp.message_pool.getInstance().push(new message("[packet_func::packet175][Log] PLAYER[UID=" + Convert.ToString(getPlayer(pd._session).m_pi.uid) + "] packet: " + pd._packet.Log(), type_msg.CL_FILE_LOG_AND_CONSOLE));
-
+            var player = getPlayer(pd._session);
             return 0;
         }
 
@@ -5235,11 +5433,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestEnterLobbyGrandPrix(getPlayer(pd._session), pd._packet);
+                    c.requestEnterLobbyGrandPrix(player, pd._packet);
                 }
 
             }
@@ -5263,11 +5463,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestExitLobbyGrandPrix(getPlayer(pd._session), pd._packet);
+                    c.requestExitLobbyGrandPrix(player, pd._packet);
                 }
 
             }
@@ -5294,11 +5496,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestEnterRoomGrandPrix(getPlayer(pd._session), pd._packet);
+                    c.requestEnterRoomGrandPrix(player, pd._packet);
                 }
 
             }
@@ -5325,11 +5529,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestExitRoomGrandPrix(getPlayer(pd._session), pd._packet);
+                    c.requestExitRoomGrandPrix(player, pd._packet);
                 }
 
             }
@@ -5356,11 +5562,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestPlayMemorial(getPlayer(pd._session), pd._packet);
+                    c.requestPlayMemorial(player, pd._packet);
                 }
 
             }
@@ -5387,11 +5595,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestActiveGlove(getPlayer(pd._session), pd._packet);
+                    c.requestActiveGlove(player, pd._packet);
                 }
 
             }
@@ -5415,11 +5625,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestActiveRingGround(getPlayer(pd._session), pd._packet);
+                    c.requestActiveRingGround(player, pd._packet);
                 }
 
             }
@@ -5446,11 +5658,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestToggleAssist(getPlayer(pd._session), pd._packet);
+                    c.requestToggleAssist(player, pd._packet);
                 }
 
             }
@@ -5477,11 +5691,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestActiveAssistGreen(getPlayer(pd._session), pd._packet);
+                    c.requestActiveAssistGreen(player, pd._packet);
                 }
 
             }
@@ -5508,11 +5724,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestPlayBigPapelShop(getPlayer(pd._session), pd._packet);
+                    c.requestPlayBigPapelShop(player, pd._packet);
                 }
 
             }
@@ -5536,11 +5754,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestCharacterMasteryExpand(getPlayer(pd._session), pd._packet);
+                    c.requestCharacterMasteryExpand(player, pd._packet);
                 }
 
             }
@@ -5563,11 +5783,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestCharacterStatsUp(getPlayer(pd._session), pd._packet);
+                    c.requestCharacterStatsUp(player, pd._packet);
                 }
 
             }
@@ -5594,11 +5816,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestCharacterStatsDown(getPlayer(pd._session), pd._packet);
+                    c.requestCharacterStatsDown(player, pd._packet);
                 }
 
             }
@@ -5625,11 +5849,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestCharacterCardEquip(getPlayer(pd._session), pd._packet);
+                    c.requestCharacterCardEquip(player, pd._packet);
                 }
 
             }
@@ -5656,11 +5882,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestCharacterCardEquipWithPatcher(getPlayer(pd._session), pd._packet);
+                    c.requestCharacterCardEquipWithPatcher(player, pd._packet);
                 }
 
             }
@@ -5687,11 +5915,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestCharacterRemoveCard(getPlayer(pd._session), pd._packet);
+                    c.requestCharacterRemoveCard(player, pd._packet);
                 }
 
             }
@@ -5718,11 +5948,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestTikiShopExchangeItem(getPlayer(pd._session), pd._packet);
+                    c.requestTikiShopExchangeItem(player, pd._packet);
                 }
 
             }
@@ -5745,11 +5977,11 @@ namespace Pangya_GameServer.PacketFunc
         {
             try
             {
-
+                var player = getPlayer(pd._session);
                 // !@ Log
-                _smp.message_pool.getInstance().push(new message("[packet_func::packet192][Log] PLAYER[UID=" + Convert.ToString(getPlayer(pd._session).m_pi.uid) + "] request open Event Arin 2014.", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                _smp.message_pool.getInstance().push(new message("[packet_func::packet192][Log] PLAYER[UID=" + Convert.ToString(player.m_pi.uid) + "] request open Event Arin 2014.", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
-                _smp.message_pool.getInstance().push(new message("[packet_func::packet192][Log] PLAYER[UID=" + Convert.ToString(getPlayer(pd._session).m_pi.uid) + "] " + pd._packet.Log(), type_msg.CL_FILE_LOG_AND_CONSOLE));
+                _smp.message_pool.getInstance().push(new message("[packet_func::packet192][Log] PLAYER[UID=" + Convert.ToString(player.m_pi.uid) + "] " + pd._packet.Log(), type_msg.CL_FILE_LOG_AND_CONSOLE));
 
 
             }
@@ -5767,11 +5999,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestActiveRingPawsRainbowJP(getPlayer(pd._session), pd._packet);
+                    c.requestActiveRingPawsRainbowJP(player, pd._packet);
                 }
 
             }
@@ -5798,11 +6032,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestActiveRingPowerGagueJP(getPlayer(pd._session), pd._packet);
+                    c.requestActiveRingPowerGagueJP(player, pd._packet);
                 }
 
             }
@@ -5829,11 +6065,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestActiveRingMiracleSignJP(getPlayer(pd._session), pd._packet);
+                    c.requestActiveRingMiracleSignJP(player, pd._packet);
                 }
 
             }
@@ -5860,11 +6098,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestActiveRingPawsRingSetJP(getPlayer(pd._session), pd._packet);
+                    c.requestActiveRingPawsRingSetJP(player, pd._packet);
                 }
 
             }
@@ -5890,11 +6130,13 @@ namespace Pangya_GameServer.PacketFunc
             try
             {
 
-                var c = sgs.gs.getInstance().findChannel(getPlayer(pd._session).m_channel);
+                var player = getPlayer(pd._session);
+
+                var c = sgs.gs.getInstance().findChannel(player.m_channel);
 
                 if (c != null)
                 {
-                    c.requestInitShotSended(getPlayer(pd._session), pd._packet);
+                    c.requestInitShotSended(player, pd._packet);
                 }
 
             }
@@ -5930,37 +6172,26 @@ namespace Pangya_GameServer.PacketFunc
                 if (pi == null)
                     throw new exception("Erro PlayerInfo *pi is null. packet_func::principal()");
 
+                if (_si.version_client.Length > 12)
+                    throw new exception("Erro _si.version_client.Length > 12. packet_func::principal()");
+
                 p.WritePStr(_si.version_client);
 
                 //write struct member info player      
-                p.WriteBytes(pi.mi.ToArrayEx());//new version
+                p.WriteBytes(pi.getLoginInfo());//new version
                 p.WriteUInt32(pi.uid);
                 // write struct user info player(statistic)
-                p.WriteBytes(pi.ui.ToArray());//new version
+                p.WriteBytes(pi.getUserInfo());//new version
 
                 // write struct Trofel Info
-                p.WriteBytes(pi.ti_current_season.ToArray());
+                p.WriteBytes(pi.getInfoTrophy());
                 //write struct User Equip
-                p.WriteBytes(pi.ue.ToArray());//new version
+                p.WriteBytes(pi.getUserEquip());//new version
 
-                for (byte st_i = 0; st_i < MS_NUM_MAPS; st_i++)
-                    p.WriteBytes(pi.a_ms_normal[st_i].ToArray());
-
-                // Map Statistics Natural
-                for (byte st_i = 0; st_i < MS_NUM_MAPS; st_i++)
-                    p.WriteBytes(pi.a_ms_natural[st_i].ToArray());
-
-                // Map Statistics Grand Prix
-                for (byte st_i = 0; st_i < MS_NUM_MAPS; st_i++)
-                    p.WriteBytes(pi.a_ms_grand_prix[st_i].ToArray());
-
-                // Map Statistics Normal for all seasons
-                for (int j = 0; j < 9; j++)
-                    for (var st_i = 0; st_i < MS_NUM_MAPS; st_i++)
-                        p.WriteBytes(pi.aa_ms_normal_todas_season[j, st_i].ToArray());
+                p.WriteBytes(pi.GetMapStatistic());
                 //Equiped Items
                 #region EquipedItem
-                p.WriteBytes(pi.ei.ToArray());
+                p.WriteBytes(pi.getUserEquipedItem());
                 #endregion
                 // Write Time, 16 Bytes
                 p.WriteTime();
@@ -5970,7 +6201,7 @@ namespace Pangya_GameServer.PacketFunc
                 p.WriteBytes(pi.mi.papel_shop.ToArray());//aqui e outro
                 p.WriteUInt32(pi.mi.point_point_event); // point_point_event. Valor novo no JP, indicado como 0 em novas contas 
                 p.WriteUInt64(pi.block_flag.m_flag.ullFlag); // Flag do server para bloquear sistemas 
-                p.WriteUInt32(pi.ari.counter); // Quantidade de vezes que logou 
+                p.WriteInt32(pi.ToTalClubsetCNT + pi.ToTalPartsCNT); // Quantidade de vezes que logou 
                 p.WriteUInt32(_si.propriedade.ulProperty);
                 return 0;
             }
@@ -6121,7 +6352,6 @@ namespace Pangya_GameServer.PacketFunc
             var p = new PangyaBinaryWriter(0x157);
 
             p.WriteByte(season);
-
             p.WriteUInt32(_mi.uid);
             p.WriteBytes(_mi.ToArrayEx());
             p.WriteUInt32(_mi.uid);
@@ -6166,7 +6396,9 @@ namespace Pangya_GameServer.PacketFunc
             var p = new PangyaBinaryWriter(0x15B);
             p.WriteByte(season);
             p.WriteUInt32(uid);
-            p.WriteInt16(0); // Count desconhecido
+            p.WriteInt16(1); // Count desconhecido
+            for (int i = 0; i < 60; i++)
+                p.Write(i);
             return p.GetBytes;
         }
 
@@ -6362,7 +6594,7 @@ namespace Pangya_GameServer.PacketFunc
                     p.WriteByte(ai.active);
                     p.WriteUInt32(ai._typeid);
                     p.WriteInt32(ai.id);
-                    p.WriteUInt32(ai.status);
+                    p.WriteInt32(ai.status);
                     p.WriteUInt32((uint)ai.v_qsi.Count);
 
                     foreach (var qsi in ai.v_qsi)
@@ -6371,7 +6603,7 @@ namespace Pangya_GameServer.PacketFunc
 
                         p.WriteUInt32(qsi._typeid);
 
-                        if (qsi.counter_item_id > 0 && (cii = ai.FindCounterItemById((uint)qsi.counter_item_id)) != null)
+                        if (qsi.counter_item_id > 0 && (cii = ai.findCounterItemById(qsi.counter_item_id)) != null)
                         {
                             p.WriteUInt32(cii._typeid);
                             p.WriteInt32(cii.id);
@@ -6406,7 +6638,7 @@ namespace Pangya_GameServer.PacketFunc
                     p.WriteByte(counter.active);//;
                     p.WriteUInt32(counter._typeid);//
                     p.WriteInt32(counter.id);//
-                    p.WriteUInt32(counter.value);//
+                    p.WriteInt32(counter.value);//
                 }
                 return p;
             }
@@ -6435,7 +6667,7 @@ namespace Pangya_GameServer.PacketFunc
                     foreach (var qsi in ai.v_qsi)
                     {
                         p.WriteUInt32(qsi._typeid);
-                        p.WriteUInt32(qsi.counter_item_id > 0 && (cii = ai.FindCounterItemById((uint)qsi.counter_item_id)) != null ? cii.value : 0);
+                        p.WriteInt32(qsi.counter_item_id > 0 && (cii = ai.findCounterItemById(qsi.counter_item_id)) != null ? cii.value : 0);
                         p.WriteUInt32(qsi.clear_date_unix);
                     }
                 }
@@ -6446,6 +6678,7 @@ namespace Pangya_GameServer.PacketFunc
                 return p;
             }
         }
+
         public static PangyaBinaryWriter pacote22C(int option = 0)
         {
             var p = new PangyaBinaryWriter();
@@ -6462,14 +6695,14 @@ namespace Pangya_GameServer.PacketFunc
             }
         }
 
-        public static PangyaBinaryWriter pacote073(List<WarehouseItemEx> v_element, int option = 0)
+        public static PangyaBinaryWriter pacote073(List<WarehouseItemEx> v_element, int Count = 0, int option = 0)
         {
             var p = new PangyaBinaryWriter();
             p.init_plain(value: 0x73);
             try
             {
-                p.WriteUInt16((short)v_element.Count);
-                p.WriteUInt16((short)v_element.Count);
+                p.WriteUInt16(Count);
+                p.WriteUInt16(option);
                 foreach (var item in v_element)
                 {
                     p.WriteBytes(item.ToArray());
@@ -6861,7 +7094,7 @@ int option = 0)
                     p.WriteInt32(i.id);
                     p.WriteUInt32(i.flag_time);
                     p.WriteBytes(i.stat.ToArray());
-                    p.WriteInt32((i.STDA_C_ITEM_TIME > 0) ? i.STDA_C_ITEM_TIME32 : i.STDA_C_ITEM_QNTD32);
+                    p.WriteInt32((i.STDA_C_ITEM_TIME > 0) ? i.STDA_C_ITEM_TIME : i.STDA_C_ITEM_QNTD);
 
                     // End Base Item
 
@@ -7227,7 +7460,7 @@ int option = 0)
                                 {
                                     var it = (_session.m_pi.ei.char_info == null) ? _session.m_pi.mp_scl.end() : _session.m_pi.mp_scl.find(_session.m_pi.ei.char_info.id);
 
-                                    if (it.Key == 0)
+                                    if (it.Value == null)
                                     {
 
                                         _smp.message_pool.getInstance().push(new message("[channel::pacote04B][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] nao tem os estados do character na lounge. Criando um novo para ele. Bug", type_msg.CL_FILE_LOG_AND_CONSOLE));
@@ -7254,8 +7487,6 @@ int option = 0)
                     case 7: // Player game
                             // Nada Aqui
                         {
-                            _smp.message_pool.getInstance().push(new message("[channel::pacote04B][Log] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] pode ativar", type_msg.CL_FILE_LOG_AND_CONSOLE));
-
                         }
                         break;
                     default:
@@ -7373,7 +7604,7 @@ int option = 0)
                         }
 
                         p.WriteByte(0);     // Final list de PlayerRoomInfo
-
+                        //p.WriteFile($"pacote048-{option}-{_session.m_pi.id}-{DateTime.Now.Ticks}.hex");
                         session_send(p, _session, 1);//-> MAKE_END_SPLIT_PACKET
                     }
                     return true;
@@ -7411,7 +7642,9 @@ int option = 0)
                                     p.WriteBytes(playerRoom.ToArrayEx());
                                 }
                             }
+
                             p.WriteByte(0);
+                            //p.WriteFile($"pacote048-{option}-{_session.m_pi.id}-{DateTime.Now.Ticks}.hex");
                             return true;
                         }
                         else
@@ -7454,7 +7687,7 @@ int option = 0)
                                 }
 
                                 p.WriteByte(0); // Final list de PlayerRoomInfo
-
+                                //p.WriteFile($"pacote048-{option}-{_session.m_pi.id}-{DateTime.Now.Ticks}.hex");
                                 session_send(p, _session, 1);//-> MAKE_END_SPLIT_PACKET
                             }
                         }
@@ -7477,32 +7710,10 @@ int option = 0)
             var p = new PangyaBinaryWriter();
             p.init_plain(0x4A);
 
-            p.WriteInt16(option);      // pode ser valor constante da sala ou o número, ainda não descobri, sempre passa -1 des vezes que vi
-
+            p.WriteUInt16(_ri.numero);      // pode ser valor constante da sala ou o número, ainda não descobri, sempre passa -1 des vezes que vi
             // Tem que ser o tipo_show, por que ele é o que o cliente quer,
             // o tipo(real) só server conhece para poder fazer o jogo direito 
-            p.WriteByte(_ri.tipo_show);
-            p.WriteByte((byte)_ri.course);
-            p.WriteByte(_ri.qntd_hole);
-            p.WriteByte(_ri.modo);
-            if (_ri.getModo() == RoomInfo.eMODO.M_REPEAT)
-            {
-                p.WriteByte(_ri.hole_repeat);
-                p.WriteUInt32(_ri.fixed_hole);
-            }
-            p.WriteUInt32(_ri.natural.ulNaturalAndShortGame);
-            p.WriteByte(_ri.max_player);
-            p.WriteByte(_ri._30s);        // constante 30 de pangya
-            p.WriteSByte((sbyte)_ri.state_flag);
-            p.WriteUInt32(_ri.time_vs);
-            p.WriteUInt32(_ri.time_30s);
-            p.WriteUInt32(_ri.trofel);
-            p.WriteByte(_ri.senha_flag); // Senha Flag
-            if (_ri.senha.Length > 0)
-            {
-                p.WritePStr(_ri.senha);
-            }
-            p.WriteString(_ri.nome);
+            p.WriteBytes(_ri.ToArrayEx());
             return p;
         }
 
@@ -7510,7 +7721,7 @@ int option = 0)
         {
             try
             {
-                if (_room == null)
+                if (option !=  TGAME_CREATE_RESULT.CREATE_GAME_RESULT_SUCCESS && _room == null)
                     throw new exception("Error _room is null. EM packet_func::pacote049()", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PACKET_FUNC_SV, 3, 0));
 
                 var p = new PangyaBinaryWriter();
@@ -7579,13 +7790,13 @@ int option = 0)
                         p.WriteByte(i.active);
                         p.WriteUInt32(i._typeid);
                         p.WriteInt32(i.id);
-                        p.WriteUInt32(i.status);
+                        p.WriteInt32(i.status);
                         p.WriteUInt32((uint)i.v_qsi.Count);
                         foreach (var ii in i.v_qsi)
                         {
                             p.WriteUInt32(ii._typeid);
 
-                            if (ii.counter_item_id > 0 && (cii = i.FindCounterItemById((uint)ii.counter_item_id)) != null)
+                            if (ii.counter_item_id > 0 && (cii = i.findCounterItemById(ii.counter_item_id)) != null)
                             {
                                 p.WriteUInt32(cii._typeid);
                                 p.WriteInt32(cii.id);
@@ -7690,7 +7901,7 @@ int option = 0)
                     p.WriteUInt16(v_item[i].STDA_C_ITEM_TIME);
                     p.WriteByte(v_item[i].flag_time);
                     p.WriteUInt16((ushort)v_item[i].stat.qntd_dep);
-                    p.WriteBuffer(v_item[i].date.date.sysDate[1], Marshal.SizeOf(new SYSTEMTIME()));
+                    p.WriteTime(v_item[i].date.date.sysDate[1]);
                     p.WriteStr(v_item[i].ucc.IDX, 9);
 
                     // Aqui é a reflexão desse pacote, usa no ticket report
@@ -7699,7 +7910,7 @@ int option = 0)
                         p.WriteUInt16(v_item[i].STDA_C_ITEM_TICKET_REPORT_ID_HIGH);
                         p.WriteUInt16(v_item[i].STDA_C_ITEM_TICKET_REPORT_ID_LOW);
 
-                        p.WriteBuffer(v_item[i].date.date.sysDate[1], Marshal.SizeOf(new SYSTEMTIME()));
+                        p.WriteTime(v_item[i].date.date.sysDate[1]);
                     }
                 }
 
@@ -7839,6 +8050,15 @@ int option = 0)
 
         public static void room_broadcast(Room _room, byte[] p, int __DEBUG = 1)
         {
+            if (_room == null)
+            {
+                return;
+            }
+            if (p.Length == 0)
+            {
+                return;
+            }
+
             try
             {
                 var room_session = _room.getSessions(null, false/*without invited*/);
@@ -8053,9 +8273,18 @@ int option = 0)
 
 
         public static Player getPlayer(Session _session)
-        {
-            return Tools.reinterpret_cast<Player>(_session);
+        { 
+            if (_session != null && _session.getConnectTime() == 1)
+            {
+                return (Player)(_session);
+            }
+            else
+            {
+                // Em vez de null, lançamos uma exceção detalhada
+                throw new exception($"[Player::getPlayer][Error] Session é inválida ou não está conectada. " +
+                    (_session != null ? $"UID: {_session.getUID()}" : "Session is NULL"),
+                    ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.SESSION, 1, 0));
+            }
         }
-
     }
 }

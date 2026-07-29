@@ -29,7 +29,7 @@ namespace PangyaAPI.Network.Repository
                 throw new Exception("[CmdInsertBlockIP::prepareConsulta][Error] m_ip[" + m_ip + "] or m_mask["
             + m_mask + "] is invalid");
 
-            var r = procedure("pangya.ProcInsertBlockIP", m_ip + ", " + m_mask);
+            var r = procedure("pangya.ProcInsertBlockIP", m_ip + ", " + makeText(m_mask));
 
             checkResponse(r, "nao conseguiu inserir um Block IP[IP=" + m_ip + ", MASK=" + m_mask + "]");
             return r;
@@ -47,7 +47,7 @@ namespace PangyaAPI.Network.Repository
         }
 
 
-        public string geMask()
+        public string getMask()
         {
             return m_mask;
         }

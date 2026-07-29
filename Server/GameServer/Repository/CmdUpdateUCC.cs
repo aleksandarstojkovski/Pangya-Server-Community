@@ -102,9 +102,13 @@ namespace Pangya_GameServer.Repository
                     4, 0));
             }
 
-            var r = procedure(
-                m_szConsulta,
-                Convert.ToString(m_uid) + ", " + Convert.ToString(m_wi.id) + ", " + (m_wi.ucc.idx) + ", " + (m_wi.ucc.name) + ", " + ((m_dt_draw.Year == 0) ? "NULL" : ("") + ", " + ((m_wi.ucc.copier_nick[0] == '\0') ? "NULL" : (m_wi.ucc.copier_nick)) + ", " + Convert.ToString(m_wi.ucc.copier) + ", " + Convert.ToString((ushort)m_wi.ucc.status) + ", " + (((m_type == T_UPDATE.TEMPORARY) ? "T" : "Y")) + ", " + Convert.ToString(m_type)));
+            var r = procedure(m_szConsulta, Convert.ToString(m_uid) + ", " + Convert.ToString(m_wi.id) + ", " + makeText(m_wi.ucc.idx) + ", " + makeText(m_wi.ucc.name)
+            + ", " + ((m_dt_draw.Year == 0) ? "NULL" : makeText(_formatDate(m_dt_draw)))
+            + ", " + ((m_wi.ucc.copier_nick[0] == '\0') ? "NULL" : makeText(m_wi.ucc.copier_nick))
+            + ", " + Convert.ToString(m_wi.ucc.copier)
+            + ", " + Convert.ToString((ushort)m_wi.ucc.status)
+            + ", " + makeText(((m_type == T_UPDATE.TEMPORARY) ? "T" : "Y"))
+            + ", " + Convert.ToString((int)m_type));
 
             checkResponse(r, "nao conseguiu salvar o UCC[TYPEID=" + Convert.ToString(m_wi._typeid) + ", ID=" + Convert.ToString(m_wi.id) + ", UCCIDX=" + m_wi.ucc.idx + ", NAME=" + m_wi.ucc.name + "] do PLAYER[UID=" + Convert.ToString(m_uid) + "]");
 

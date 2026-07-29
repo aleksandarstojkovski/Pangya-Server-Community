@@ -1,112 +1,101 @@
-﻿using Pangya_GameServer.Repository;
-using Pangya_GameServer.Game.Manager;
-using Pangya_GameServer.UTIL;
+﻿using Pangya_GameServer.Game.Manager;
+using Pangya_GameServer.Repository;
 using PangyaAPI.IFF.JP.Extensions;
 using PangyaAPI.IFF.JP.Models.Flags;
 using PangyaAPI.Network.Models;
 using PangyaAPI.SQL;
 using PangyaAPI.Utilities;
+using PangyaAPI.Utilities.Models;
 using PangyaAPI.Utilities.Log;
 using snmdb;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.Contracts;
 using System.Linq;
-using System.Net;
-using System.Net.NetworkInformation;
 using static Pangya_GameServer.Models.DefineConstants;
+
 namespace Pangya_GameServer.Models
 {
     public partial class PlayerInfo : player_info
     {
 
-        public static readonly uint[] ExpByLevel = { 30, 40, 50, 60, 70, 140,					// ROOKIE
-												   105, 125, 145, 165, 330,					// BEGINNER
-												   248, 278, 308, 338, 675,					// JUNIOR
-												   506, 546, 586, 626, 1253,					// SENIOR
-												   1002, 1052, 1102, 1152, 2304,				// AMADOR
-												   1843, 1903, 1963, 2023, 4046,				// SEMI PRO
-												   3237, 3307, 3377, 3447, 6894,				// PRO
-												   5515, 5595, 5675, 5755, 11511,				// NACIONAL
-												   8058, 8148, 8238, 8328, 16655,				// WORLD PRO
-												   8328, 8428, 8528, 8628, 17255,				// MESTRE
-												   9490, 9690, 9890, 10090, 20181,			// TOP_MASTER
-												   20181, 20481, 20781, 21081, 42161,			// WORLD_MASTER
-												   37945, 68301, 122942, 221296, 442592,		// LEGEND
-												   663887, 995831, 1493747, 2240620, 0 };// INFINIT_LEGEND
+        public PlayerAssistent Assistent { get; set; } = new PlayerAssistent();
+        public bool assist_flag { get => Assistent.assist_flag; set => Assistent.assist_flag = value; } //set assistent
+        public ulong cookie { get; set; }
+        public CouponGacha cg { get; set; }
+        public MemberInfoEx mi { get; set; }
+        public UserInfoEx ui { get; set; }
+        public UserEquipedItem ei { get; set; }//with comet
+        public ClubSetWorkshopLasUpLevel cwlul { get; set; }
+        public ClubSetWorkshopTransformClubSet cwtc { get; set; }
+        public PremiumTicket pt { get; set; }
+        public TrofelInfo ti_current_season { get; set; }
+        public TrofelInfo ti_rest_season { get; set; }
+        public TutorialInfo TutoInfo { get; set; }
+        public UserEquip ue { get; set; }
+        public chat_macro_user cmu { get; set; }
+        public List<MapStatisticsEx> a_ms_normal { get; set; } = new List<MapStatisticsEx>(22);
+        public List<MapStatisticsEx> a_msa_normal { get; set; } = new List<MapStatisticsEx>(22);
+        public List<MapStatisticsEx> a_ms_natural { get; set; } = new List<MapStatisticsEx>(22);
+        public List<MapStatisticsEx> a_msa_natural { get; set; } = new List<MapStatisticsEx>(22);
+        public List<MapStatisticsEx> a_ms_grand_prix { get; set; } = new List<MapStatisticsEx>(22);
+        public List<MapStatisticsEx> a_msa_grand_prix { get; set; } = new List<MapStatisticsEx>(22);
+        public MapStatistics[,] aa_ms_normal_todas_season { get; set; } = new MapStatistics[9, MS_NUM_MAPS];// Esse aqui é diferente, explico ele no pacote InitialLogin
 
-        public class stIdentifyKey
-        {
+        public Dictionary<int, StateCharacterLounge> mp_scl { get; set; }
 
-            public uint _typeid;
-            public int id;
-            public stIdentifyKey(uint __typeid, int _id)
-            {
-                _typeid = (__typeid);
-                id = (_id);
-            }
-            public static bool operator <(stIdentifyKey MyIntLeft, stIdentifyKey _ik)
-            {
+        public CharacterManager mp_ce { get; set; }      //  
+        public CaddieManager mp_ci { get; set; }
+        public MascotManager mp_mi { get; set; }
+        public WarehouseManager mp_wi { get; set; }
 
-                // Classifica pelo ID, depois o typeid
-                if (MyIntLeft.id != _ik.id)
-                    return MyIntLeft.id < _ik.id;
-                else
-                    return MyIntLeft._typeid < _ik._typeid;
-            }
+        public Dictionary<uint/*UID*/, FriendInfo> mp_fi { get; set; }    // Friend List
 
-            public static bool operator >(stIdentifyKey MyIntLeft, stIdentifyKey _ik)
-            {
+        public AttendanceRewardInfoEx ari { get; set; }
 
-                // Classifica pelo ID, depois o typeid
-                if (MyIntLeft.id != _ik.id)
-                    return MyIntLeft.id < _ik.id;
-                else
-                    return MyIntLeft._typeid < _ik._typeid;
-            }
+        public AchievementManager mgr_achievement { get; set; }             // Manager Achievement
+        public CardManager v_card_info { get; set; }
 
-        }
+        public CardEquipManager v_cei { get; set; }
+        public List<ItemBuffEx> v_ib { get; set; }
 
-        /*
-			 Skin[Title] map Call back function to trate Condition 
-			*/
-        public class stTitleMapCallback
-        {
+        public Dictionary<stIdentifyKey/*uint/*ID*/, UpdateItem> mp_ui { get; set; }
 
-            // Function Callback type
+        public List<TrofelEspecialInfo> v_tsi_current_season { get; set; }
+        public List<TrofelEspecialInfo> v_tsi_rest_season { get; set; }
+        public List<TrofelEspecialInfo> v_tgp_current_season { get; set; }   // Trofel Grand Prix
+        public List<TrofelEspecialInfo> v_tgp_rest_season { get; set; } // Trofel Grand Prix
+        public List<MyRoomItem> v_mri { get; set; }      // MyRoomItem
 
-            // Constructor
-            public stTitleMapCallback(uint _ul = 0)
-            {
-                // Construtor sem callback ou argumento
-            }
+        public List<GrandPrixClear> v_gpc { get; set; }  // Grand Prix Clear os grand prix que o player já jogou
 
-            // Construtor com callback e argumento
-            public stTitleMapCallback(Func<object, int> _callback, object _arg)
-            {
-                call_back = _callback;
-                arg = _arg;
-            }
+        public MyRoomConfig mrc { get; set; }
+        public DolfiniLocker df { get; set; }   // DolfiniLocker
+        public GuildInfoEx gi { get; set; }
+        public DailyQuestInfoUser dqiu { get; set; }
+        public Last5PlayersGame l5pg { get; set; }
+        public stLocation location { get; set; }
+        public long Web_Points { get; set; } = 0;
 
-            public uint exec()
-            {
-                if (call_back != null)
-                {
-                    int result = call_back.Invoke(arg); // Chama o callback e pega o resultado (int)
-                    return (uint)result; // Retorna o valor como uint
-                }
-                else
-                {
-                    // Exemplo de mensagem de erro
-                    _smp.message_pool.getInstance().push(new message("[PlayerInfo::stTitleMapCallBack::exec][Error] call_back is null.", 0));
-                    return 0;
-                }
-            }
-            Func<object, int> call_back;
-            object arg;
-        }
-
-
+        public sbyte place { get; set; } = -1;            // Lugar que o player está no momento
+        public byte lobby { get; set; } = DEFAULT_CHANNEL;            // Lobby
+        public byte channel { get; set; } = DEFAULT_CHANNEL;          // Channel
+        public byte whisper { get; set; } = 1; // Whisper 0 e 1, 0 OFF, 1 ON
+        public uint state { get; set; }
+        public uint state_lounge { get; set; }
+        public byte[] animation { get; set; }// bytes 
+        public uCapability m_cap { get; set; }   //chamar de outra forma
+        public ulong grand_zodiac_pontos { get; set; }
+        public ulong m_legacy_tiki_pts { get; set; } // Point Shop(Tiki Shop antigo)                                          
+        //// Mail Box
+        public PlayerMailBox m_mail_box { get; set; }
+        public stPlayerLocationDB m_pl { get; set; }
+        public stSyncUpdateDB m_update_pang_db { get; set; }
+        public stSyncUpdateDB m_update_cookie_db { get; set; }
+        public int ToTalClubsetCNT { get; internal set; }
+        public int ToTalPartsCNT { get; internal set; }
         private Dictionary<uint/*key*/, stTitleMapCallback> mp_title_callback { get; set; }
+
         public stTitleMapCallback getTitleCallBack(int _id)
         {
             return mp_title_callback.FirstOrDefault(c => c.Key == _id).Value;
@@ -361,11 +350,8 @@ namespace Pangya_GameServer.Models
 
         public PlayerInfo()
         {
-            clear();
-        }
-
-        public void clear()
-        {
+            location = new stLocation();
+            block_flag = new BlockFlag();
             m_pl = new stPlayerLocationDB();
             m_update_pang_db = new stSyncUpdateDB();
             m_update_cookie_db = new stSyncUpdateDB();
@@ -383,7 +369,7 @@ namespace Pangya_GameServer.Models
             TutoInfo = new TutorialInfo();
             ue = new UserEquip();
             cmu = new chat_macro_user();
-
+            uid = 0;
             for (sbyte i = 0; i < MS_NUM_MAPS; i++)
             {
                 var map = new MapStatisticsEx();
@@ -429,13 +415,122 @@ namespace Pangya_GameServer.Models
             v_tgp_rest_season = new List<TrofelEspecialInfo>(); // Trofel Grand Prix
             v_mri = new List<MyRoomItem>();     // MyRoomItem
             v_gpc = new List<GrandPrixClear>(); // Grand Prix Clear os grand prix que o player já jogou
-            assist_flag = false;//set flag assistent . ASSISTENT_TYPEID have in inventory
+            assist_flag = false;//set PCBangMascot assistent . ASSISTENT_TYPEID have in inventory
             mrc = new MyRoomConfig();
             df = new DolfiniLocker();   // DolfiniLocker
             gi = new GuildInfoEx();
             dqiu = new DailyQuestInfoUser();
             l5pg = new Last5PlayersGame();
             m_mail_box = new PlayerMailBox();
+            mp_title_callback.Add(0x15, new stTitleMapCallback(better_hit_pangya_bronze, this));
+            mp_title_callback.Add(0x16, new stTitleMapCallback(better_fairway_bronze, this));
+            mp_title_callback.Add(0x17, new stTitleMapCallback(better_putt_bronze, this));
+            mp_title_callback.Add(0x18, new stTitleMapCallback(master_course, this));
+            mp_title_callback.Add(0x19, new stTitleMapCallback(atirador_de_ouro, this));
+            mp_title_callback.Add(0x1a, new stTitleMapCallback(atirador_de_silver, this));
+            mp_title_callback.Add(0x1b, new stTitleMapCallback(atirador_de_bronze, this));
+            mp_title_callback.Add(0x1C, new stTitleMapCallback(better_quit_rate_bronze, this));
+            mp_title_callback.Add(0x32, new stTitleMapCallback(better_hit_pangya_silver, this));
+            mp_title_callback.Add(0x33, new stTitleMapCallback(better_fairway_silver, this));
+            mp_title_callback.Add(0x34, new stTitleMapCallback(better_putt_silver, this));
+            mp_title_callback.Add(0x35, new stTitleMapCallback(better_quit_rate_silver, this));
+            mp_title_callback.Add(0x45, new stTitleMapCallback(natural_record_420, this));
+            mp_title_callback.Add(0x46, new stTitleMapCallback(natural_record_390, this));
+            mp_title_callback.Add(0x47, new stTitleMapCallback(natural_record_350, this));
+            mp_title_callback.Add(0x48, new stTitleMapCallback(natural_record_300, this));
+            mp_title_callback.Add(0x49, new stTitleMapCallback(natural_record_200, this));
+            mp_title_callback.Add(0x4a, new stTitleMapCallback(natural_record_80, this));
+            mp_title_callback.Add(0x7B, new stTitleMapCallback(better_quit_rate_gold, this));
+            mp_title_callback.Add(0x7C, new stTitleMapCallback(better_putt_gold, this));
+            mp_title_callback.Add(0x7D, new stTitleMapCallback(better_fairway_gold, this));
+            mp_title_callback.Add(0x7E, new stTitleMapCallback(better_hit_pangya_gold, this));
+            mp_title_callback.Add(0x17C, new stTitleMapCallback(natural_record_470, this));
+            mp_title_callback.Add(0x17D, new stTitleMapCallback(natural_record_540, this));
+            init(false);
+        }
+        private void init(bool _init = true)
+        { 
+            // --- 1. RESET DE TIPOS PRIMITIVOS E STATUS (Onde os hackers costumam deixar lixo) ---
+            this.cookie = 0;
+            this.Web_Points = 0;
+            this.grand_zodiac_pontos = 0;
+            this.m_legacy_tiki_pts = 0;
+            this.ToTalClubsetCNT = 0;
+            this.ToTalPartsCNT = 0;
+            this.place = -1;
+            this.lobby = DEFAULT_CHANNEL; 
+            this.channel = DEFAULT_CHANNEL;
+            this.whisper = 1;
+            this.state = 0;
+            this.state_lounge = 0;
+            this.animation = new byte[12]; // Limpa o buffer de animação
+            this.assist_flag = false;
+        }
+        public void clear()
+        {
+            init(false);
+
+            // --- 3. ESTATÍSTICAS DE MAPAS (CORREÇÃO CRÍTICA: Limpar antes de dar Add) ---
+            a_ms_normal.Clear();
+            a_msa_normal.Clear();
+            a_ms_natural.Clear();
+            a_msa_natural.Clear();
+            a_ms_grand_prix.Clear();
+            a_msa_grand_prix.Clear();
+
+            for (sbyte i = 0; i < MS_NUM_MAPS; i++)
+            {
+                var map = new MapStatisticsEx();
+                map.clear(i);
+                // Adicionando instâncias limpas
+                a_ms_normal.Add(map);
+                a_msa_normal.Add(map);
+                a_ms_natural.Add(map);
+                a_msa_natural.Add(map);
+                a_ms_grand_prix.Add(map);
+                a_msa_grand_prix.Add(map);
+            }
+
+            // Inicializando Array Multidimensional [Season, Mapa]
+            aa_ms_normal_todas_season = new MapStatistics[9, MS_NUM_MAPS];
+            for (int j = 0; j < 9; j++)
+            {
+                for (sbyte i = 0; i < MS_NUM_MAPS; i++)
+                {
+                    var m = new MapStatisticsEx();
+                    m.clear(i);
+                    aa_ms_normal_todas_season[j, i] = m;
+                }
+            }
+
+            // --- 4. MANAGERS E DICIONÁRIOS (Proteção contra NullReference) ---
+            mp_scl?.Clear();
+            mp_ce?.Clear(); // Character Manager
+            mp_ci?.Clear(); // Caddie Manager
+            mp_mi?.Clear(); // Mascot Manager
+            mp_wi?.Clear(); // Warehouse Manager
+            mp_fi?.Clear(); // Friend List
+            mp_ui?.Clear(); // Update Item list
+
+            // Achievement e Cards
+            mgr_achievement?.clear();
+            v_card_info?.Clear();
+            v_cei?.Clear();
+            v_ib?.Clear();
+
+            // Troféus e Listas de MyRoom
+            v_tsi_current_season?.Clear();
+            v_tsi_rest_season?.Clear();
+            v_tgp_current_season?.Clear();
+            v_tgp_rest_season?.Clear();
+            v_mri?.Clear();
+            v_gpc?.Clear();
+
+            // MailBox
+            m_mail_box?.clear();
+
+            // --- 5. RECONSTRUÇÃO DO MAPA DE CALLBACKS (Title System) ---
+            mp_title_callback.Clear();
 
             // Inicializa o map de Title call back condition
             mp_title_callback.Add(0x15, new stTitleMapCallback(better_hit_pangya_bronze, this));
@@ -464,210 +559,83 @@ namespace Pangya_GameServer.Models
             mp_title_callback.Add(0x17D, new stTitleMapCallback(natural_record_540, this));
         }
 
-        public PlayerAssistent Assistent { get; set; } = new PlayerAssistent();
-        public bool assist_flag { get => Assistent.assist_flag; set => Assistent.assist_flag = value; } //set assistent
-        public ulong cookie { get; set; }
-        public CouponGacha cg { get; set; }
-        public MemberInfoEx mi { get; set; }
-        public UserInfoEx ui { get; set; }
-        public UserEquipedItem ei { get; set; }//with comet
-        public ClubSetWorkshopLasUpLevel cwlul { get; set; }
-        public ClubSetWorkshopTransformClubSet cwtc { get; set; }
-        public PremiumTicket pt { get; set; }
-        public TrofelInfo ti_current_season { get; set; }
-        public TrofelInfo ti_rest_season { get; set; }
-        public TutorialInfo TutoInfo { get; set; }
-        public UserEquip ue { get; set; }
-        public chat_macro_user cmu { get; set; }
-        public List<MapStatisticsEx> a_ms_normal { get; set; } = new List<MapStatisticsEx>(22);
-        public List<MapStatisticsEx> a_msa_normal { get; set; } = new List<MapStatisticsEx>(22);
-        public List<MapStatisticsEx> a_ms_natural { get; set; } = new List<MapStatisticsEx>(22);
-        public List<MapStatisticsEx> a_msa_natural { get; set; } = new List<MapStatisticsEx>(22);
-        public List<MapStatisticsEx> a_ms_grand_prix { get; set; } = new List<MapStatisticsEx>(22);
-        public List<MapStatisticsEx> a_msa_grand_prix { get; set; } = new List<MapStatisticsEx>(22);
-        public MapStatistics[,] aa_ms_normal_todas_season { get; set; } = new MapStatistics[9, MS_NUM_MAPS];// Esse aqui é diferente, explico ele no pacote InitialLogin
-
-        public Dictionary<int, StateCharacterLounge> mp_scl { get; set; }
-
-        public CharacterManager mp_ce { get; set; }      //  
-        public CaddieManager mp_ci { get; set; }
-        public MascotManager mp_mi { get; set; }
-        public WarehouseManager mp_wi { get; set; }
-
-        public Dictionary<uint/*UID*/, FriendInfo> mp_fi { get; set; }    // Friend List
-
-        public AttendanceRewardInfoEx ari { get; set; }
-
-        public AchievementManager mgr_achievement { get; set; }             // Manager Achievement
-        public CardManager v_card_info { get; set; }
-
-        public CardEquipManager v_cei { get; set; }
-        public List<ItemBuffEx> v_ib { get; set; }
-
-        public Dictionary<stIdentifyKey/*uint/*ID*/, UpdateItem> mp_ui { get; set; }
-
-        public List<TrofelEspecialInfo> v_tsi_current_season { get; set; }
-        public List<TrofelEspecialInfo> v_tsi_rest_season { get; set; }
-        public List<TrofelEspecialInfo> v_tgp_current_season { get; set; }   // Trofel Grand Prix
-        public List<TrofelEspecialInfo> v_tgp_rest_season { get; set; } // Trofel Grand Prix
-        public List<MyRoomItem> v_mri { get; set; }      // MyRoomItem
-
-        public List<GrandPrixClear> v_gpc { get; set; }  // Grand Prix Clear os grand prix que o player já jogou
-
-        public MyRoomConfig mrc { get; set; }
-        public DolfiniLocker df { get; set; }   // DolfiniLocker
-        public GuildInfoEx gi { get; set; }
-        public DailyQuestInfoUser dqiu { get; set; }
-        public Last5PlayersGame l5pg { get; set; }
-        public class stLocation
+        public int addExp(int expGain)
         {
-            public stLocation()
-            {
+            if (expGain <= 0) return 0;
 
-            }
-            public stLocation(float x, float z, float r)
-            {
-                this.x = x;
-                this.z = z;
-                this.r = r;
-            }
-
-            public float x { get; set; }
-            public float y { get; set; }
-            public float z { get; set; }
-            public float r { get; set; }    // Face
-
-            public static stLocation operator +(stLocation _old_location, stLocation _add_location)
-            {
-                return new stLocation()
-                {
-                    x = _old_location.x + _add_location.x,
-                    y = _old_location.y + _add_location.y,
-                    z = _old_location.z + _add_location.z,
-                    r = _old_location.r + _add_location.r
-                };
-            }
-            public static stLocation operator -(stLocation _old_location, stLocation _add_location)
-            {
-                return new stLocation()
-                {
-                    x = _old_location.x - _add_location.x,
-                    y = _old_location.y - _add_location.y,
-                    z = _old_location.z - _add_location.z,
-                    r = _old_location.r - _add_location.r
-                };
-            }
-
-        }
-        public stLocation location = new stLocation();
-        public sbyte place { get; set; } = -1;            // Lugar que o player está no momento
-        public byte lobby { get; set; } = DEFAULT_CHANNEL;            // Lobby
-        public byte channel { get; set; } = DEFAULT_CHANNEL;          // Channel
-        public byte whisper { get; set; } = 1; // Whisper 0 e 1, 0 OFF, 1 ON
-        public uint state { get; set; }
-        public uint state_lounge { get; set; }
-        public byte[] animation { get; set; }// bytes 
-        public uCapability m_cap { get; set; }   //chamar de outra forma
-        public ulong grand_zodiac_pontos { get; set; }
-        public ulong m_legacy_tiki_pts { get; set; } // Point Shop(Tiki Shop antigo)                                          
-        //// Mail Box
-        public PlayerMailBox m_mail_box { get; set; }
-        public stPlayerLocationDB m_pl { get; set; }
-        public stSyncUpdateDB m_update_pang_db { get; set; }
-        public stSyncUpdateDB m_update_cookie_db { get; set; }
-
-
-        public int addExp(uint _exp)
-        {
-            if (_exp == 0)
-                throw new exception("[PlayerInfo::addExp][Error] _exp is invalid(zero)", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PLAYER_INFO, 21, 0));
-
-            int ret = -1;
-
-            var exp = 0;
+            int levelsGained = 0;
+            int totalExpBefore = ui.exp; // Para o log final
 
             try
             {
-
-                if (level >= 71)
+                // Trava para nível máximo (Índice 69 do seu array de 70 elementos)
+                if (level >= 69)
                 {
-                    _smp.message_pool.getInstance().push(new message("[AddExp][Debug] PLAYER[UID=" + uid + "] ja eh infinit legend I, nao precisar mais add exp para ele.", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                    _smp.message_pool.getInstance().push(new message($"[AddExp][MaxLevel] PLAYER[UID={uid}] já é Level Máximo (70). Ignorando {expGain} EXP.", type_msg.CL_FILE_LOG_AND_CONSOLE));
                     return -1;
                 }
-                else
+
+                // Soma a EXP ganha ao que o player já tinha
+                ui.exp += expGain;
+                byte oldLevel = (byte)level;
+
+                // Loop de processamento de Level Up
+                while (level < 69)
                 {
+                    // Pega quanto custa para sair do nível atual (Ex: Level 0 precisa de 30)
+                    int costToLevelUp = Convert.ToInt32(ExpByLevel[(byte)level]);
 
-                    if ((exp = Convert.ToInt32(ExpByLevel[(byte)level])) != -1)
+                    // Se encontrar o 0 no final do seu array, para.
+                    if (costToLevelUp <= 0)
                     {
-                        // Att Exp do player
-                        ui.exp += _exp;
-                        if (ui.exp >= exp)
-                        {
-                            // LEVEL UP!
-                            byte new_level = 0, ant_level = 0;
+                        _smp.message_pool.getInstance().push(new message($"[AddExp][Info] PLAYER[UID={uid}] atingiu o limite da tabela de EXP no Level {level}.", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                        break;
+                    }
 
-                            // Atualiza todos os levels das estruturas que o player tem
-                            ant_level = (byte)level;
+                    // Verifica se a EXP acumulada paga o próximo nível
+                    if (ui.exp >= costToLevelUp)
+                    {
+                        ui.exp -= costToLevelUp; // Subtrai o custo (Ex: 32 - 30 = 2)
+                        level++;                       // Sobe o nível
+                        levelsGained++;
 
-                            // Check if up n levels
-                            do
-                            {
-                                new_level = (byte)++level;
-
-                                mi.level = new_level;
-                                ui.level = new_level;
-
-                                // Att Exp do player
-                                ui.exp -= Convert.ToUInt32(exp);
-
-                                // LEVEL UP!
-                                ret = new_level - ant_level;
-
-                            } while ((exp = Convert.ToInt32(ExpByLevel[(byte)level])) != -1 && ui.exp > exp);
-
-                            _smp.message_pool.getInstance().push(new message("[PlayerInfo::addExp][Debug] PLAYER[UID=" + uid + "] Upou de Level[FROM=" + ant_level + ", TO="
-                                    + new_level + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
-                        }
-
+                        // Atualiza as estruturas
+                        mi.level = (byte)level;
+                        ui.level = (byte)level;
                     }
                     else
-                    { // Update só a Exp
-                        ret = 0;
-
-                        _smp.message_pool.getInstance().push(new message("[PlayerInfo::addExp][Debug] PLAYER[UID=" + uid + "] adicionou Experiencia[value=" + _exp + "] e ficou com [LEVEL="
-                                + level + ", EXP=" + ui.exp + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                    {
+                        // Se a sobra (Ex: 2) for menor que o custo do próximo level (Ex: 40), para aqui.
+                        break;
                     }
-                    // UPDATE ON DB, LEVEL AND EXP
-                    snmdb.NormalManagerDB.getInstance().add(3, _pangya_db: new CmdUpdateLevelAndExp(uid, level, ui.exp), SQLDBResponse, this);
                 }
-
+                 
+                // Envia para o Banco de Dados
+                snmdb.NormalManagerDB.getInstance().add(
+                    3,
+                    _pangya_db: new CmdUpdateLevelAndExp(uid, (byte)level, ui.exp),
+                    SQLDBResponse,
+                    this
+                );
             }
-            catch (exception e)
+            catch (Exception e)
             {
-
-
-                _smp.message_pool.getInstance().push(new message("[PlayerInfo::addExp][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
-
-                throw;
+                _smp.message_pool.getInstance().push(new message($"[AddExp][CriticalError] PLAYER[UID={uid}]: {e.Message} | Stack: {e.StackTrace}", type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
 
-            return ret;
+            return levelsGained;
         }
 
         public void addGrandZodiacPontos(ulong _pontos)
         {
             if (_pontos < 0)
-                throw new exception("[PlayerInfo::addGrandZodiacPontos][Error] invalid _pontos(" + _pontos + "), ele eh negativo.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PLAYER_INFO, 101, 0));
+                throw new exception("[PlayerInfo::addGrandZodiacPontos][Error] invalid _pontos(" + _pontos + "), ele é negativo.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PLAYER_INFO, 101, 0));
 
             grand_zodiac_pontos += _pontos;
 
             // Update no Banco de dados
             snmdb.NormalManagerDB.getInstance().add(8, new CmdGrandZodiacPontos(uid, (uint)grand_zodiac_pontos, CmdGrandZodiacPontos.eCMD_GRAND_ZODIAC_TYPE.CGZT_UPDATE), SQLDBResponse, this);
-
-            // Log
-            _smp.message_pool.getInstance().push(new message("[PlayerInfo::addGrandZodiacPontos][Debug] PLAYER[UID=" + uid
-                    + ", ADD_POINTS=" + _pontos + ", NEW_POINTS="+ grand_zodiac_pontos + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
-
+             
         }
 
         public void consomeMoeda(ulong _pang, ulong _cookie)
@@ -683,7 +651,7 @@ namespace Pangya_GameServer.Models
         public void consomeCookie(ulong _cookie)
         {
 
-            if ((long)_cookie <= 0)
+            if (_cookie <= 0)
                 throw new exception("[PlayerInfo::consomeCookie][Error] _cookie valor invalido: " + ((long)_cookie), ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PLAYER_INFO, 21, 0));
 
             try
@@ -693,14 +661,14 @@ namespace Pangya_GameServer.Models
                 if (checkAlterationCookieOnDB())
                     throw new exception("[PlayerInfo::consomeCookie][Error] PLAYER[UID=" + (uid) + "] cookie on db is different of server.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PLAYER_INFO, 200, 0));
 
-                if (((ulong)cookie - _cookie) < 0)
+                if ((cookie - _cookie) < 0)
                     throw new exception("[PlayerInfo::consomeCookie][Error] O PLAYER[UID=" + (uid) + "] nao tem cookies suficiente para consumir", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PLAYER_INFO, 20, 0));
 
                 cookie -= _cookie;
 
                 m_update_cookie_db.requestUpdateOnDB();
 
-                global::snmdb.NormalManagerDB.getInstance().add(2, new CmdUpdateCookie(uid, _cookie, CmdUpdateCookie.T_UPDATE_COOKIE.DECREASE), SQLDBResponse, this);
+                snmdb.NormalManagerDB.getInstance().add(2, new CmdUpdateCookie(uid, _cookie, CmdUpdateCookie.T_UPDATE_COOKIE.DECREASE), SQLDBResponse, this);
 
             }
             catch (exception e)
@@ -710,8 +678,6 @@ namespace Pangya_GameServer.Models
 
                 throw;
             }
-
-			_smp.message_pool.getInstance().push(new message("[PlayerInfo::consomeCookie][Debug] PLAYER[UID= " + uid + ", CONSUMED_CP= " + _cookie + " NEW_CP " + cookie + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
         }
 
         public void consomePang(ulong _pang)
@@ -726,15 +692,18 @@ namespace Pangya_GameServer.Models
                 // Check alteration on pang of DB
                 if (checkAlterationPangOnDB())
                     throw new exception("[PlayerInfo::consomePang][Error] PLAYER[UID=" + (uid) + "] pang on db is different of server.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PLAYER_INFO, 200, 0));
-
-                if (((ulong)ui.pang - _pang) < 0)
-                    throw new exception("[PlayerInfo::consomePang][Error] O PLAYER[UID=" + (uid) + "] nao tem pangs suficiente para consumir", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PLAYER_INFO, 20, 0));
+                // 3. CORREÇÃO AQUI: Comparação direta antes da subtração
+                if (ui.pang < _pang)
+                {
+                    throw new exception($"[PlayerInfo::consomePang] PLAYER[UID={uid}] saldo insuficiente (Saldo: {ui.pang}, Custo: {_pang})",
+                        ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PLAYER_INFO, 20, 0));
+                }
 
                 ui.pang -= _pang;
 
                 m_update_pang_db.requestUpdateOnDB();
 
-                global::snmdb.NormalManagerDB.getInstance().add(1, new CmdUpdatePang(uid, _pang, CmdUpdatePang.T_UPDATE_PANG.DECREASE), SQLDBResponse, this);
+                NormalManagerDB.getInstance().add(1, new CmdUpdatePang(uid, _pang, CmdUpdatePang.T_UPDATE_PANG.DECREASE), SQLDBResponse, this);
 
             }
             catch (exception e)
@@ -744,8 +713,6 @@ namespace Pangya_GameServer.Models
 
                 throw;
             }
-
-            _smp.message_pool.getInstance().push(new message("[PlayerInfo::consomePang][Debug] PLAYER[UID= " + uid + ", CONSUMED_PANG= " + _pang + " NEW_PANG " + ui.pang + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
         }
 
         public void addMoeda(ulong _pang, ulong _cookie)
@@ -775,7 +742,7 @@ namespace Pangya_GameServer.Models
 
                 m_update_cookie_db.requestUpdateOnDB();
 
-                global::snmdb.NormalManagerDB.getInstance().add(2, new CmdUpdateCookie(uid, _cookie, CmdUpdateCookie.T_UPDATE_COOKIE.INCREASE), SQLDBResponse, this);
+                snmdb.NormalManagerDB.getInstance().add(2, new CmdUpdateCookie(uid, _cookie, CmdUpdateCookie.T_UPDATE_COOKIE.INCREASE), SQLDBResponse, this);
 
             }
             catch (exception e)
@@ -785,8 +752,6 @@ namespace Pangya_GameServer.Models
 
                 throw;
             }
-
-			_smp.message_pool.getInstance().push(new message("[PlayerInfo::addCookie][Debug] PLAYER[UID= " + uid + ", CONSUMED_CP= " + _cookie + " NEW_CP " + cookie + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
         }
 
         public void addPang(ulong _pang)
@@ -809,11 +774,6 @@ namespace Pangya_GameServer.Models
 
                     // Atualiza o valor do pang do server com o do banco de dados
                     updatePang();
-
-                    // Log
-                    _smp.message_pool.getInstance().push(new message("[PlayerInfo::addPang][Debug] PLAYER[UID=" + (uid)
-                            + "] o Pang[DB=" + (ui.pang) + ", GS=" + (old_pang)
-                            + "] no banco de dados eh diferente do que esta no server, atualiza para o valor do banco de dados.", type_msg.CL_FILE_LOG_AND_CONSOLE));
                 }
 
                 // Add o pang para o player
@@ -821,7 +781,7 @@ namespace Pangya_GameServer.Models
 
                 m_update_pang_db.requestUpdateOnDB();
 
-                global::snmdb.NormalManagerDB.getInstance().add(1, new CmdUpdatePang(uid, _pang, CmdUpdatePang.T_UPDATE_PANG.INCREASE), SQLDBResponse, this);
+                snmdb.NormalManagerDB.getInstance().add(1, new CmdUpdatePang(uid, _pang, CmdUpdatePang.T_UPDATE_PANG.INCREASE), SQLDBResponse, this);
 
             }
             catch (exception e)
@@ -831,7 +791,6 @@ namespace Pangya_GameServer.Models
 
                 throw;
             }
-			_smp.message_pool.getInstance().push(new message("[PlayerInfo::addCookie][Debug] PLAYER[UID= " + uid + ", CONSUMED_PANG= " + _pang + " NEW_PANG " + ui.pang + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
         }
 
         public void updateMoeda()
@@ -852,7 +811,7 @@ namespace Pangya_GameServer.Models
 
                 var cmd_cp = new CmdCookie(uid);    // Waiter
 
-                global::snmdb.NormalManagerDB.getInstance().add(0, cmd_cp, null, null);
+                snmdb.NormalManagerDB.getInstance().add(0, cmd_cp, null, null);
 
                 if (cmd_cp.getException().getCodeError() != 0)
                     throw cmd_cp.getException();
@@ -877,7 +836,7 @@ namespace Pangya_GameServer.Models
 
                 var cmd_pang = new CmdPang(uid);    // Waiter
 
-                global::snmdb.NormalManagerDB.getInstance().add(0, cmd_pang, null, null);
+                snmdb.NormalManagerDB.getInstance().add(0, cmd_pang, null, null);
 
                 if (cmd_pang.getException().getCodeError() != 0)
                     throw cmd_pang.getException();
@@ -894,17 +853,22 @@ namespace Pangya_GameServer.Models
                 throw;
             }
         }
+       
         // Adiciona Pang Estático
         public static void addPang(uint _uid, ulong _pang)
         {
-
             if ((long)_pang <= 0)
                 throw new exception("[PlayerInfo::addPang][Error] _pang valor invalido: " + ((long)_pang), ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PLAYER_INFO, 21, 0));
 
-            global::snmdb.NormalManagerDB.getInstance().add(1, new CmdUpdatePang(_uid, _pang, CmdUpdatePang.T_UPDATE_PANG.INCREASE), SQLDBResponse, null);
+            PlayerInfo playerInfo = null;
+            if (sgs.gs.getInstance().FindSessionByUid(_uid) != null)
+            {
+                playerInfo = sgs.gs.getInstance().findPlayer(_uid).m_pi;
+            }
 
-            _smp.message_pool.getInstance().push(new message("[PlayerInfo::addPang][Debug] Player: " + (_uid) + ", ganhou " + (_pang) + " Pang(s).", type_msg.CL_ONLY_FILE_LOG));
+            NormalManagerDB.getInstance().add(1, new CmdUpdatePang(_uid, _pang, CmdUpdatePang.T_UPDATE_PANG.INCREASE), SQLDBResponse, playerInfo);
         }
+
         // Adiciona Cookie Point(CP) Estático
         public static void addCookie(uint _uid, ulong _cookie)
         {
@@ -912,9 +876,13 @@ namespace Pangya_GameServer.Models
             if ((long)_cookie <= 0)
                 throw new exception("[PlayerInfo::addCookie][Error] _cookie valor invalido: " + ((long)_cookie), ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PLAYER_INFO, 21, 0));
 
-            global::snmdb.NormalManagerDB.getInstance().add(2, new CmdUpdateCookie(_uid, _cookie, CmdUpdateCookie.T_UPDATE_COOKIE.INCREASE), SQLDBResponse, null);
+            PlayerInfo playerInfo = null;
+            if (sgs.gs.getInstance().FindSessionByUid(_uid) != null)
+            {
+                playerInfo = sgs.gs.getInstance().findPlayer(_uid).m_pi;
+            }
 
-            _smp.message_pool.getInstance().push(new message("[PlayerInfo::addCookie][Debug] Player: " + (_uid) + ", ganhou " + (_cookie) + " Cookie Point(s).", type_msg.CL_FILE_LOG_AND_CONSOLE));
+            snmdb.NormalManagerDB.getInstance().add(2, new CmdUpdateCookie(_uid, _cookie, CmdUpdateCookie.T_UPDATE_COOKIE.INCREASE), SQLDBResponse, playerInfo);
         }
 
         public void addUserInfo(UserInfoEx _ui, ulong _total_pang_win_game = 0)
@@ -942,7 +910,7 @@ namespace Pangya_GameServer.Models
         {
             var cmd_pang = new CmdPang(uid);    // Waiter
 
-            snmdb.NormalManagerDB.getInstance().add(0, cmd_pang, null, null);
+            NormalManagerDB.getInstance().add(0, cmd_pang, null, null);
 
             if (cmd_pang.getException().getCodeError() != 0)
                 throw cmd_pang.getException();
@@ -952,7 +920,7 @@ namespace Pangya_GameServer.Models
 
         public bool checkEquipedItem(uint _typeid)
         {
-            return false;
+            return mp_wi.Any(c=> c.Value._typeid == _typeid);
         }
 
         public PlayerRoomInfo.uItemBoost checkEquipedItemBoost()
@@ -964,16 +932,16 @@ namespace Pangya_GameServer.Models
             foreach (var _el in mp_wi)
             {
                 // Pang Boost X2
-                // Verifica a quantidade do item para gastar menos processo se ele não tiver a quantidade necessária para ativar a flag
+                // Verifica a quantidade do item para gastar menos processo se ele não tiver a quantidade necessária para ativar a PCBangMascot
                 if (_el.Value.STDA_C_ITEM_QNTD > 0 && passive_item_pang_x2.Any(c => c == _el.Value._typeid))
                     ib.ucPangMastery = 1;
 
                 // Pang Boost X4
-                // Verifica a quantidade do item para gastar menos processo se ele não tiver a quantidade necessária para ativar a flag
+                // Verifica a quantidade do item para gastar menos processo se ele não tiver a quantidade necessária para ativar a PCBangMascot
                 if (_el.Value.STDA_C_ITEM_QNTD > 0 && passive_item_pang_x4.Any(c => c == _el.Value._typeid))
                     ib.ucPangNitro = 1;
 
-                // Tenta não consumir mais processo, quando já estiver as duas flag setada.
+                // Tenta não consumir mais processo, quando já estiver as duas PCBangMascot setada.
                 // Tentando verificar outros itens que possa ter ainda no map
                 if (ib.ucPangMastery == 1 && ib.ucPangNitro == 1)
                     break;
@@ -1151,6 +1119,9 @@ namespace Pangya_GameServer.Models
             if (mp_wi.findWarehouseItemByTypeid(_typeid) != null)
                 return true;
 
+            if (v_card_info.findCardByTypeid(_typeid) != null)
+                return true;
+
             return false;
         }
 
@@ -1212,7 +1183,7 @@ namespace Pangya_GameServer.Models
 
             var mastery = sIff.getInstance().findCharacterMastery(ei.char_info._typeid);
 
-            if (mastery.empty())
+            if (mastery == null || mastery.Count ==0 )
             {
 
                 _smp.message_pool.getInstance().push(new message("[PlayerInfo::getSlotPower][Error][Warning] PLAYER[UID=" + (uid)
@@ -1222,7 +1193,7 @@ namespace Pangya_GameServer.Models
                 return -1;
             }
 
-            if (mastery.Count() < (uint)ei.char_info.mastery)
+            if (mastery.Count() < ei.char_info.mastery)
             {
 
                 _smp.message_pool.getInstance().push(new message("[PlayerInfo::getSlotPower][Error][Warning] PLAYER[UID=" + (uid)
@@ -1297,7 +1268,7 @@ namespace Pangya_GameServer.Models
 
         public int getSlotPower()
         {
-            uint power_slot = 0u;
+            uint power_slot = 0;
 
             // Check CL to Caddie, Mascot, Character, ClubSet, Ring and Card
             if (ei.cad_info != null)
@@ -1329,7 +1300,7 @@ namespace Pangya_GameServer.Models
                     power_slot += character.Power; // Power
 
                     // Parts
-                    for (var i = 0u; i < 24; ++i)
+                    for (var i = 0; i < 24; ++i)
                     {
 
                         if (ei.char_info.parts_typeid[i] != 0)
@@ -1344,7 +1315,7 @@ namespace Pangya_GameServer.Models
                     }
 
                     // Ring
-                    for (var i = 0u; i < 5; ++i)
+                    for (var i = 0; i < 5; ++i)
                     {
 
                         if (ei.char_info.auxparts[i] != 0)
@@ -1356,9 +1327,7 @@ namespace Pangya_GameServer.Models
                                 power_slot += auxpart.c[0]; // Power
                         }
                     }
-
-                    // Card -- Card só da slot
-
+                     
                     // Pega o valor máximo de slot de POWER
                     int value = getCharacterMaxSlot(CharacterInfo.Stats.S_POWER);
 
@@ -1574,11 +1543,11 @@ namespace Pangya_GameServer.Models
 
             if (set != null)
             {
-                for (var i = 0u; i < set.packege.item_typeid.Length; ++i)
+                for (var i = 0; i < set.packege.item_typeid.Length; ++i)
                 {
                     // Eleminar a verificação do character que ele só inclui se o player não tiver ele
                     // se ele tiver não faz diferença não anula o verificação do set
-                    if (set.packege.item_typeid[i] != 0 && sIff.getInstance().getItemGroupIdentify(set.packege.item_typeid[i]) != sIff.getInstance().CHARACTER)
+                    if (set.packege.item_typeid[i] != 0 && sIff.getInstance().getItemGroupIdentify(set.packege.item_typeid[i]) != IFF_GROUP.CHARACTER)
                         if (ownerItem(set.packege.item_typeid[i])) // se tiver 1 item que seja não pode ganhar o set se não vai duplicar os itens, que ele tem
                             return true;
                 }
@@ -1643,7 +1612,7 @@ namespace Pangya_GameServer.Models
                 //// Sincroniza para não ter valores inseridos errados no banco de dados
                 m_pl.requestUpdateOnDB();
 
-                global::snmdb.NormalManagerDB.getInstance().add(5, new CmdUpdatePlayerLocation(uid, m_pl), SQLDBResponse, this);
+                snmdb.NormalManagerDB.getInstance().add(5, new CmdUpdatePlayerLocation(uid, m_pl), SQLDBResponse, this);
 
             }
             catch (exception e)
@@ -1669,7 +1638,7 @@ namespace Pangya_GameServer.Models
         public static void updateMedal(uint _uid, uMedalWin _medal_win)
         {
             if (_uid == 0u)
-                throw new exception("[PlayerInfo::updateMedal][Error] PLAYER[UID=" + (_uid) + "] tentou atualizar medalhas, mas o uid do player eh invalido(zero). Hacker ou Bug.",
+                throw new exception("[PlayerInfo::updateMedal][Error] PLAYER[UID=" + (_uid) + "] tentou atualizar medalhas, mas o uid do player é invalido(zero). Hacker ou Bug.",
                         ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PLAYER_INFO, 601, 0));
 
             if (_medal_win.ucMedal == 0u)
@@ -1698,27 +1667,27 @@ namespace Pangya_GameServer.Models
 
             if (_trofel_typeid == 0u)
                 throw new exception("[PlayerInfo::updateTrofelInfo][Error] PLAYER[UID=" + (uid) + "] tentou atualizar um trofel[TYPEID="
-                        + (_trofel_typeid) + ", RANK=" + (_trofel_rank) + "] que eh invalido(zero). Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PLAYER_INFO, 200, 0));
+                        + (_trofel_typeid) + ", RANK=" + (_trofel_rank) + "] que é invalido(zero). Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PLAYER_INFO, 200, 0));
 
             if (_trofel_typeid == TROFEL_GM_EVENT_TYPEID/*GM Event*/)
                 throw new exception("[PlayerInfo::updateTrofelInfo][Error] PLAYER[UID=" + (uid) + "] tentou atualizar um trofel[TYPEID="
-                        + (_trofel_typeid) + ", RANK=" + (_trofel_rank) + "] que nao eh normal, eh um trofel de evento GM. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PLAYER_INFO, 201, 0));
+                        + (_trofel_typeid) + ", RANK=" + (_trofel_rank) + "] que nao é normal, é um trofel de evento GM. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PLAYER_INFO, 201, 0));
 
             uint type = sIff.getInstance().getMatchTypeIdentity(_trofel_typeid);
 
             // Verifica se é o 2C e se o Tipo do Trofel é menor ou igual a 12, que é o Pro 7 o ultimo
             if (sIff.getInstance().getItemSubGroupIdentify24(_trofel_typeid) != 0 && type > 12/*Pro 7*/)
                 throw new exception("[PlayerInfo::updateTrofelInfo][Error] PLAYER[UID=" + (uid) + "] tentou atualizar um trofel[TYPEID="
-                        + (_trofel_typeid) + ", RANK=" + (_trofel_rank) + "] que nao eh normal, eh um outro trofel. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PLAYER_INFO, 202, 0));
+                        + (_trofel_typeid) + ", RANK=" + (_trofel_rank) + "] que nao é normal, é um outro trofel. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PLAYER_INFO, 202, 0));
 
             if (_trofel_rank == 0u || _trofel_rank > 3)
                 throw new exception("[PlayerInfo::updateTrofelInfo][Error] PLAYER[UID=" + (uid) + "] tentou atualizar um trofel[TYPEID="
-                        + (_trofel_typeid) + ", RANK=" + (_trofel_rank) + "] rank eh invalido. Bug,", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PLAYER_INFO, 203, 0));
+                        + (_trofel_typeid) + ", RANK=" + (_trofel_rank) + "] rank é invalido. Bug,", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PLAYER_INFO, 203, 0));
 
             // Update Trofel Info Atual (season atual)
             ti_current_season.update(type, _trofel_rank);
 
-            global::snmdb.NormalManagerDB.getInstance().add(4, new CmdUpdateNormalTrofel(uid, ti_current_season), SQLDBResponse, this);
+            snmdb.NormalManagerDB.getInstance().add(4, new CmdUpdateNormalTrofel(uid, ti_current_season), SQLDBResponse, this);
 
         }
         // Update Trofel Info Estático
@@ -1731,26 +1700,26 @@ namespace Pangya_GameServer.Models
 
             if (_trofel_typeid == 0u)
                 throw new exception("[PlayerInfo::updateTrofelInfo][Error] PLAYER[UID=" + (_uid) + "] tentou atualizar um trofel[TYPEID="
-                        + (_trofel_typeid) + ", RANK=" + (_trofel_rank) + "] que eh invalido(zero). Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PLAYER_INFO, 200, 0));
+                        + (_trofel_typeid) + ", RANK=" + (_trofel_rank) + "] que é invalido(zero). Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PLAYER_INFO, 200, 0));
 
             if (_trofel_typeid == TROFEL_GM_EVENT_TYPEID/*GM Event*/)
                 throw new exception("[PlayerInfo::updateTrofelInfo][Error] PLAYER[UID=" + (_uid) + "] tentou atualizar um trofel[TYPEID="
-                        + (_trofel_typeid) + ", RANK=" + (_trofel_rank) + "] que nao eh normal, eh um trofel de evento GM. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PLAYER_INFO, 201, 0));
+                        + (_trofel_typeid) + ", RANK=" + (_trofel_rank) + "] que nao é normal, é um trofel de evento GM. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PLAYER_INFO, 201, 0));
 
             var type = sIff.getInstance().getMatchTypeIdentity(_trofel_typeid);
 
             // Verifica se é o 2C e se o Tipo do Trofel é menor ou igual a 12, que é o Pro 7 o ultimo
             if (sIff.getInstance().getItemSubGroupIdentify24(_trofel_typeid) != 0 && type > 12/*Pro 7*/)
                 throw new exception("[PlayerInfo::updateTrofelInfo][Error] PLAYER[UID=" + (_uid) + "] tentou atualizar um trofel[TYPEID="
-                        + (_trofel_typeid) + ", RANK=" + (_trofel_rank) + "] que nao eh normal, eh um outro trofel. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PLAYER_INFO, 202, 0));
+                        + (_trofel_typeid) + ", RANK=" + (_trofel_rank) + "] que nao é normal, é um outro trofel. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PLAYER_INFO, 202, 0));
 
             if (_trofel_rank == 0u || _trofel_rank > 3)
                 throw new exception("[PlayerInfo::updateTrofelInfo][Error] PLAYER[UID=" + (_uid) + "] tentou atualizar um trofel[TYPEID="
-                        + (_trofel_typeid) + ", RANK=" + (_trofel_rank) + "] rank eh invalido. Bug,", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PLAYER_INFO, 203, 0));
+                        + (_trofel_typeid) + ", RANK=" + (_trofel_rank) + "] rank é invalido. Bug,", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PLAYER_INFO, 203, 0));
 
             var cmd_ti = new CmdTrofelInfo(_uid, CmdTrofelInfo.TYPE_SEASON.CURRENT); // Waiter
 
-            global::snmdb.NormalManagerDB.getInstance().add(0, cmd_ti, null, null);
+            snmdb.NormalManagerDB.getInstance().add(0, cmd_ti, null, null);
 
             if (cmd_ti.getException().getCodeError() != 0)
                 throw cmd_ti.getException();
@@ -1760,15 +1729,13 @@ namespace Pangya_GameServer.Models
             // Update Trofel Info Atual (season atual)
             ti.update(type, _trofel_rank);
 
-            global::snmdb.NormalManagerDB.getInstance().add(4, new CmdUpdateNormalTrofel(_uid, ti), SQLDBResponse, null);
+            snmdb.NormalManagerDB.getInstance().add(4, new CmdUpdateNormalTrofel(_uid, ti), SQLDBResponse, null);
 
         }
 
         public void updateUserInfo()
         {
             snmdb.NormalManagerDB.getInstance().add(3, new CmdUpdateUserInfo(uid, ui), SQLDBResponse, this);
-
-            _smp.message_pool.getInstance().push(new message("[PlayerInfo::updateUserInfo][Debug] Atualizou info do PLAYER[UID=" + uid + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
         }
 
         // Update User Info ON DB Estático 
@@ -1778,9 +1745,6 @@ namespace Pangya_GameServer.Models
                 throw new exception("[PlayerInfo::updateUserInfo][Error] _uid is invalid(zero)", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PLAYER_INFO, 300, 0));
 
             snmdb.NormalManagerDB.getInstance().add(3, new CmdUpdateUserInfo(_uid, _ui), SQLDBResponse, null);
-
-            _smp.message_pool.getInstance().push(new message("[PlayerInfo::updateUserInfo][Debug] Atualizou info do PLAYER[UID=" + _uid + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
-
         }
 
         public Dictionary<stIdentifyKey/*int/*ID*/, UpdateItem> findUpdateItemByTypeidAndType(uint _typeid, UpdateItem.UI_TYPE _type)
@@ -1805,7 +1769,7 @@ namespace Pangya_GameServer.Models
             {
                 var cmd_member_info = new CmdMemberInfo(uid);
 
-                global::snmdb.NormalManagerDB.getInstance().add(0, cmd_member_info, null, null);
+                snmdb.NormalManagerDB.getInstance().add(0, cmd_member_info, null, null);
 
                 if (cmd_member_info.getException().getCodeError() != 0)
                     throw cmd_member_info.getException();
@@ -1889,70 +1853,63 @@ namespace Pangya_GameServer.Models
                     return;
                 }
 
-                switch (_msg_id)
+                else
                 {
-                    case 1: // UPDATE pang
+                    if (pi != null)
+                    {
+                        switch (_msg_id)
                         {
+                            case 1: // UPDATE pang
+                                {
 
-                            // Success update on DB
-                            pi.m_update_pang_db.confirmUpdadeOnDB();
-                            break;
+                                    // Success update on DB
+                                    pi.m_update_pang_db.confirmUpdadeOnDB();
+                                    break;
+                                }
+                            case 2: // UPDATE cookie
+                                {
+
+                                    // Success update on DB
+                                    pi.m_update_cookie_db.confirmUpdadeOnDB();
+                                    break;
+                                }
+                            case 3: // UPDATE USER INFO
+                                {
+                                    break;
+                                }
+                            case 4: // Update Normal Trofel Info
+                                {
+                                    break;
+                                }
+                            case 5: // Update Location Player on DB
+                                {
+                                    // Success update on DB
+                                    pi.m_pl.confirmUpdadeOnDB();
+
+                                    var cmd_upl = (CmdUpdatePlayerLocation)(_pangya_db); break;
+                                }
+                            case 6: // Insert Grand Prix Clear
+                                {
+
+                                    var cmd_igpc = (CmdInsertGrandPrixClear)(_pangya_db);
+
+                                    break;
+                                }
+                            case 7: // Update Grand Prix Clear
+                                {
+                                    var cmd_ugpc = (CmdUpdateGrandPrixClear)(_pangya_db);
+                                    break;
+                                }
+                            case 8: // Update Grand Zodiac Pontos
+                                {
+                                    var cmd_gzp = (CmdGrandZodiacPontos)(_pangya_db);
+                                    break;
+                                }
+                            case 0:
+                            default:
+                                break;
                         }
-                    case 2: // UPDATE cookie
-                        {
-
-                            // Success update on DB
-                            pi.m_update_cookie_db.confirmUpdadeOnDB();
-                            break;
-                        }
-                    case 3: // UPDATE USER INFO
-                        {
-                            break;
-                        }
-                    case 4: // Update Normal Trofel Info
-                        {
-                            break;
-                        }
-                    case 5: // Update Location Player on DB
-                        {
-                            // Success update on DB
-                            pi.m_pl.confirmUpdadeOnDB();
-
-                            var cmd_upl = (CmdUpdatePlayerLocation)(_pangya_db); break;
-                        }
-                    case 6: // Insert Grand Prix Clear
-                        {
-
-                            var cmd_igpc = (CmdInsertGrandPrixClear)(_pangya_db);
-
-                            _smp.message_pool.getInstance().push(new message("[PlayerInfo::SQLDBResponse][Debug] Player[UID=" + (cmd_igpc.getUID())
- + "] Inseriu Grand Prix Clear[TYPEID=" + (cmd_igpc.getInfo()._typeid)
- + ", POSITION=" + (cmd_igpc.getInfo().position) + "] novo com sucesso.", type_msg.CL_FILE_LOG_AND_CONSOLE));
-
-                            break;
-                        }
-                    case 7: // Update Grand Prix Clear
-                        {
-                            var cmd_ugpc = (CmdUpdateGrandPrixClear)(_pangya_db);
-
-                            _smp.message_pool.getInstance().push(new message("[PlayerInfo::SQLDBResponse][Debug] Player[UID=" + cmd_ugpc.getUID()
-                 + "] Atualizou Grand Prix Clear[TYPEID=" + cmd_ugpc.getInfo()._typeid
-                 + ", POSITION=" + cmd_ugpc.getInfo().position + "] com sucesso.", type_msg.CL_FILE_LOG_AND_CONSOLE));
-
-                            break;
-                        }
-                    case 8: // Update Grand Zodiac Pontos
-                        {
-                            var cmd_gzp = (CmdGrandZodiacPontos)(_pangya_db);
-
-                            _smp.message_pool.getInstance().push(new message("[PlayerInfo::SQLDBResponse][Debug] Player[UID=" + (cmd_gzp.getUID())
-        + "] Atualizou Grand Zodiac Pontos[PONTOS=" + (cmd_gzp.getPontos()) + "] com sucesso.", type_msg.CL_FILE_LOG_AND_CONSOLE));
-
-                            break;
-                        }
-                    case 0:
-                    default:
-                        break;
+                    }
                 }
 
             }
@@ -1999,7 +1956,77 @@ namespace Pangya_GameServer.Models
 
             return it;
         }
+        /// <summary>
+        /// Normal = 903,
+        /// Natural = 903,                           
+        /// </summary>
+        /// <returns>Bytes Write -> 1806 Size</returns>
+        public byte[] GetMapStatistic()
+        {
+            using (var p = new PangyaBinaryWriter())
+            {
+                for (byte st_i = 0; st_i < MS_NUM_MAPS; st_i++)
+                    p.WriteBytes(a_ms_normal[st_i].ToArray());
 
+                // Map Statistics Natural
+                for (byte st_i = 0; st_i < MS_NUM_MAPS; st_i++)
+                    p.WriteBytes(a_ms_natural[st_i].ToArray());
 
+                // Map Statistics Grand Prix
+                for (byte st_i = 0; st_i < MS_NUM_MAPS; st_i++)
+                    p.WriteBytes(a_ms_grand_prix[st_i].ToArray());
+
+                // Map Statistics Normal for all seasons
+                for (int j = 0; j < 9; j++)
+                    for (var st_i = 0; st_i < MS_NUM_MAPS; st_i++)
+                        p.WriteBytes(aa_ms_normal_todas_season[j, st_i].ToArray());
+
+                return p.GetBytes;
+            }
+        }
+
+        /// <summary>
+        /// Character(460 bytes), Caddie(25 bytes), ClubSet(28 bytes), Mascot(62 bytes), Total Size 628 
+        /// </summary>
+        /// <returns>Equiped Item(628 array of byte)</returns>
+        public byte[] getUserEquipedItem()
+        {
+            return ei.ToArray();
+        }
+
+        /// <summary>
+        /// Size = 116 Bytes
+        /// </summary>
+        /// <returns></returns>
+        public byte[] getUserEquip()
+        {
+            return ue.ToArray();
+        }
+
+        /// <summary>
+        /// Size = 235 Bytes
+        /// </summary>
+        /// <returns></returns>
+        public byte[] getUserInfo()
+        {
+            return ui.ToArray();
+        }
+        /// <summary>
+        /// Size = 239 Bytes
+        /// </summary>
+        /// <returns></returns>
+        public byte[] getInfoTrophy()
+        {
+            return ti_current_season.ToArray();
+        }
+
+        /// <summary>
+        /// Size = 263 Bytes
+        /// </summary>
+        /// <returns></returns>
+        public byte[] getLoginInfo()
+        {
+            return mi.ToArrayEx();
+        }
     }
 }

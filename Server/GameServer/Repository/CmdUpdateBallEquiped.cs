@@ -53,8 +53,7 @@ namespace Pangya_GameServer.Repository
         protected override Response prepareConsulta()
         {
 
-            var r = procedure(
-                m_szConsulta,
+            var r = procedure(m_szConsulta,
                 Convert.ToString(m_uid) + ", " + Convert.ToString(m_ball_typeid));
 
             checkResponse(r, "nao conseguiu atualizar a bola[TYPEID=" + Convert.ToString(m_ball_typeid) + "] equipada do player: " + Convert.ToString(m_uid));

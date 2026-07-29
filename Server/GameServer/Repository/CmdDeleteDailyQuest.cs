@@ -66,7 +66,7 @@ namespace Pangya_GameServer.Repository
                 }
             }
 
-            var r = _delete(m_szConsulta[0] + Convert.ToString(m_uid) + m_szConsulta[1] + ids + m_szConsulta[2] + Convert.ToString(m_uid) + m_szConsulta[3] + ids + m_szConsulta[4]);
+            var r = consulta(m_szConsulta[0] + Convert.ToString(m_uid) + m_szConsulta[1] + ids + m_szConsulta[2] + Convert.ToString(m_uid) + m_szConsulta[3] + ids + m_szConsulta[4]);
 
             checkResponse(r, "nao conseguiu deletar a daily[ID(s)=" + ids + "] quest do player: " + Convert.ToString(m_uid));
 

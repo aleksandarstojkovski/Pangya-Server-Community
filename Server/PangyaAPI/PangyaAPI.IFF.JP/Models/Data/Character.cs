@@ -24,11 +24,8 @@ namespace PangyaAPI.IFF.JP.Models.Data
         public byte NumberAcessory { get; set; }
         public int ClubType { get; set; }
         public float ClubScale { get; set; }
-        public byte PowerSlot { get; set; }
-        public byte ControlSlot { get; set; }
-        public byte ImpactSlot { get; set; }
-        public byte SpinSlot { get; set; }
-        public byte CurveSlot { get; set; }
+        [field: MarshalAs(UnmanagedType.ByValArray, SizeConst = 5)]
+        public byte[] PCL = new byte[5]; // By TH S4 - (PCL)
         [field: MarshalAs(UnmanagedType.ByValTStr, SizeConst = 43)]
         public string Camera { get; set; }
     }

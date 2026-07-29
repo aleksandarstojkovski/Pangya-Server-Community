@@ -1,13 +1,16 @@
-﻿using System;
-using System.Runtime.InteropServices;
-using PangyaAPI.Network.Repository;
-using PangyaAPI.Network.Models;
+﻿using PangyaAPI.Network.Models;
 using PangyaAPI.Network.PangyaPacket;
 using PangyaAPI.Network.PangyaServer;
 using PangyaAPI.Network.PangyaSession;
+using PangyaAPI.Network.Repository;
 using PangyaAPI.Utilities;
-using PangyaAPI.Utilities.BinaryModels;
+using PangyaAPI.Utilities.Models;
 using PangyaAPI.Utilities.Log;
+using System;
+using System.Diagnostics;
+using System.Runtime.InteropServices;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace PangyaAPI.Network.PangyaUnit
 {
@@ -85,6 +88,7 @@ namespace PangyaAPI.Network.PangyaUnit
                 p.WriteUInt32(m_session.m_si.packet_version);
                 packet_func_as.session_send(p,
                     _session, 1);
+                
             }
             catch (exception e)
             {
@@ -93,19 +97,54 @@ namespace PangyaAPI.Network.PangyaUnit
             }
         }
 
+        // 1. Mude para Task para melhor controle
+        public async Task requestSendKeepLive(UnitPlayer _session)
+        {
+            if (_session == null) return;
+
+            // 2. Use um CancellationToken se possível para encerrar o loop no desligamento do server
+            while (isLive())
+            {
+                try
+                {
+                    // 3. Em vez de criar um objeto Writer gigante, 
+                    // use um buffer pequeno ou reutilize o writer se sua arquitetura permitir
+                    using (var p = new PangyaBinaryWriter(0xFF))
+                    {
+                        p.WriteInt32(_session.m_si.tipo);
+                        p.WriteInt32(_session.m_si.uid);
+
+                        // 4. Enviar o tempo do servidor (Unix Timestamp ou DateTime customizado)
+                        p.WriteTime();
+
+                        // 5. Envio direto e assíncrono (se o seu session_send permitir)
+                        packet_func_as.session_send(p, _session, 1);
+                    }
+
+                    _session.last_activity = DateTime.Now;
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"[KeepLive] Erro na sessão {_session.m_si.uid}: {ex.Message}");
+                    break;
+                }
+
+                // 6. Task.Delay é excelente pois não bloqueia a thread
+                await Task.Delay(2000);
+            }
+        }
+        public void requestRecvKeepLive(UnitPlayer _session, packet _packet)
+        {
+#if RELEASE
+            _smp.message_pool.getInstance().push(new message("[unit_auth_server_connect::requestRecvKeepLive][Log] ", type_msg.CL_FILE_LOG_AND_CONSOLE));
+#endif
+
+            _session.last_activity = DateTime.Now;
+
+        }
+
         public virtual void requestAskLogin(UnitPlayer _session, packet _packet)
         {
-            if (!_session.getState())
-            {
-                throw new exception("[unit_auth_server_connect::request" + "AskLogin" + "][Error] player nao esta connectado.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.UNIT_AUTH_SERVER_CONNECT,
-                    1, 0));
-            }
-            if (_packet == null)
-            {
-                throw new exception("[unit_auth_server_connect::request" + "AskLogin" + "][Error] _packet is null", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.UNIT_AUTH_SERVER_CONNECT,
-                    6, 0));
-            }
-
             try
             {
 
@@ -113,14 +152,13 @@ namespace PangyaAPI.Network.PangyaUnit
 
                 if (oid > -1)
                 {
-
                     _session.m_oid = oid;
+                    Task.Run(() => requestSendKeepLive(_session));
                 }
                 else
                 {
                     _smp.message_pool.getInstance().push(new message("[unit_auth_server_connect::requestAskLogin][Log] Nao conseguiu logar com o Auth Server.", type_msg.CL_FILE_LOG_AND_CONSOLE));
-                }
-
+                } 
             }
             catch (exception e)
             {
@@ -131,17 +169,6 @@ namespace PangyaAPI.Network.PangyaUnit
 
         public virtual void requestShutdownServer(UnitPlayer _session, packet _packet)
         {
-            if (!_session.getState())
-            {
-                throw new exception("[unit_auth_server_connect::request" + "ShutdownServer" + "][Error] player nao esta connectado.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.UNIT_AUTH_SERVER_CONNECT,
-                    1, 0));
-            }
-            if (_packet == null)
-            {
-                throw new exception("[unit_auth_server_connect::request" + "ShutdownServer" + "][Error] _packet is null", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.UNIT_AUTH_SERVER_CONNECT,
-                    6, 0));
-            }
-
             try
             {
 
@@ -160,17 +187,6 @@ namespace PangyaAPI.Network.PangyaUnit
 
         public virtual void requestBroadcastNotice(UnitPlayer _session, packet _packet)
         {
-            if (!_session.getState())
-            {
-                throw new exception("[unit_auth_server_connect::request" + "BroadcastNotice" + "][Error] player nao esta connectado.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.UNIT_AUTH_SERVER_CONNECT,
-                    1, 0));
-            }
-            if (_packet == null)
-            {
-                throw new exception("[unit_auth_server_connect::request" + "BroadcastNotice" + "][Error] _packet is null", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.UNIT_AUTH_SERVER_CONNECT,
-                    6, 0));
-            }
-
             try
             {
 
@@ -188,17 +204,6 @@ namespace PangyaAPI.Network.PangyaUnit
 
         public virtual void requestBroadcastTicker(UnitPlayer _session, packet _packet)
         {
-            if (!_session.getState())
-            {
-                throw new exception("[unit_auth_server_connect::request" + "BroadcastTicker" + "][Error] player nao esta connectado.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.UNIT_AUTH_SERVER_CONNECT,
-                    1, 0));
-            }
-            if (_packet == null)
-            {
-                throw new exception("[unit_auth_server_connect::request" + "BroadcastTicker" + "][Error] _packet is null", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.UNIT_AUTH_SERVER_CONNECT,
-                    6, 0));
-            }
-
             try
             {
 
@@ -217,17 +222,6 @@ namespace PangyaAPI.Network.PangyaUnit
 
         public virtual void requestBroadcastCubeWinRare(UnitPlayer _session, packet _packet)
         {
-            if (!_session.getState())
-            {
-                throw new exception("[unit_auth_server_connect::request" + "BroadcastCubeWinRare" + "][Error] player nao esta connectado.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.UNIT_AUTH_SERVER_CONNECT,
-                    1, 0));
-            }
-            if (_packet == null)
-            {
-                throw new exception("[unit_auth_server_connect::request" + "BroadcastCubeWinRare" + "][Error] _packet is null", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.UNIT_AUTH_SERVER_CONNECT,
-                    6, 0));
-            }
-
             try
             {
 
@@ -246,17 +240,6 @@ namespace PangyaAPI.Network.PangyaUnit
 
         public virtual void requestDisconnectPlayer(UnitPlayer _session, packet _packet)
         {
-            if (!_session.getState())
-            {
-                throw new exception("[unit_auth_server_connect::request" + "DisconnectPlayer" + "][Error] player nao esta connectado.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.UNIT_AUTH_SERVER_CONNECT,
-                    1, 0));
-            }
-            if (_packet == null)
-            {
-                throw new exception("[unit_auth_server_connect::request" + "DisconnectPlayer" + "][Error] _packet is null", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.UNIT_AUTH_SERVER_CONNECT,
-                    6, 0));
-            }
-
             try
             {
 
@@ -277,18 +260,7 @@ namespace PangyaAPI.Network.PangyaUnit
         }
 
         public virtual void requestConfirmDisconnectPlayer(UnitPlayer _session, packet _packet)
-        {
-            if (!_session.getState())
-            {
-                throw new exception("[unit_auth_server_connect::request" + "ConfirmDisconnectPlayer" + "][Error] player nao esta connectado.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.UNIT_AUTH_SERVER_CONNECT,
-                    1, 0));
-            }
-            if (_packet == null)
-            {
-                throw new exception("[unit_auth_server_connect::request" + "ConfirmDisconnectPlayer" + "][Error] _packet is null", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.UNIT_AUTH_SERVER_CONNECT,
-                    6, 0));
-            }
-
+        { 
             try
             {
 
@@ -305,18 +277,7 @@ namespace PangyaAPI.Network.PangyaUnit
         }
 
         public virtual void requestNewMailArrivedMailBox(UnitPlayer _session, packet _packet)
-        {
-            if (!_session.getState())
-            {
-                throw new exception("[unit_auth_server_connect::request" + "NewMailArrivedMailBox" + "][Error] player nao esta connectado.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.UNIT_AUTH_SERVER_CONNECT,
-                    1, 0));
-            }
-            if (_packet == null)
-            {
-                throw new exception("[unit_auth_server_connect::request" + "NewMailArrivedMailBox" + "][Error] _packet is null", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.UNIT_AUTH_SERVER_CONNECT,
-                    6, 0));
-            }
-
+        { 
             try
             {
 
@@ -334,18 +295,7 @@ namespace PangyaAPI.Network.PangyaUnit
         }
 
         public virtual void requestNewRate(UnitPlayer _session, packet _packet)
-        {
-            if (!_session.getState())
-            {
-                throw new exception("[unit_auth_server_connect::request" + "NewRate" + "][Error] player nao esta connectado.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.UNIT_AUTH_SERVER_CONNECT,
-                    1, 0));
-            }
-            if (_packet == null)
-            {
-                throw new exception("[unit_auth_server_connect::request" + "NewRate" + "][Error] _packet is null", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.UNIT_AUTH_SERVER_CONNECT,
-                    6, 0));
-            }
-
+        { 
             try
             {
 
@@ -363,18 +313,7 @@ namespace PangyaAPI.Network.PangyaUnit
         }
 
         public virtual void requestReloadSystem(UnitPlayer _session, packet _packet)
-        {
-            if (!_session.getState())
-            {
-                throw new exception("[unit_auth_server_connect::request" + "ReloadSystem" + "][Error] player nao esta connectado.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.UNIT_AUTH_SERVER_CONNECT,
-                    1, 0));
-            }
-            if (_packet == null)
-            {
-                throw new exception("[unit_auth_server_connect::request" + "ReloadSystem" + "][Error] _packet is null", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.UNIT_AUTH_SERVER_CONNECT,
-                    6, 0));
-            }
-
+        { 
             try
             {
 
@@ -421,11 +360,7 @@ namespace PangyaAPI.Network.PangyaUnit
 
         public virtual void requestConfirmSendInfoPlayerOnline(UnitPlayer _session, packet _packet)
         {
-            if (!_session.getState())
-            {
-                throw new exception("[unit_auth_server_connect::request" + "ConfirmSendInfoOnline" + "][Error] player nao esta connectado.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.UNIT_AUTH_SERVER_CONNECT,
-                    1, 0));
-            }
+           
             if (_packet == null)
             {
                 throw new exception("[unit_auth_server_connect::request" + "ConfirmSendInfoOnline" + "][Error] _packet is null", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.UNIT_AUTH_SERVER_CONNECT,
@@ -443,36 +378,22 @@ namespace PangyaAPI.Network.PangyaUnit
                 aspi.uid = _packet.ReadUInt32();
 
                 if (aspi.option == 1)
-                {
-
+                { 
                     aspi.id = _packet.ReadString();
-                    aspi.ip = _packet.ReadString();
-
+                    aspi.ip = _packet.ReadString(); 
                 }
 
                 m_owner_server.authCmdConfirmSendInfoPlayerOnline(req_server_uid, aspi);
 
             }
             catch (exception e)
-            {
-
+            { 
                 _smp.message_pool.getInstance().push(new message("[unit_auth_server_connect::requestConfirmSendInfoPlayerOnline][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
 
         public virtual void requestSendCommandToOtherServer(UnitPlayer _session, packet _packet)
-        {
-            if (!_session.getState())
-            {
-                throw new exception("[unit_auth_server_connect::request" + "SendCommandToOtherServer" + "][Error] player nao esta connectado.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.UNIT_AUTH_SERVER_CONNECT,
-                    1, 0));
-            }
-            if (_packet == null)
-            {
-                throw new exception("[unit_auth_server_connect::request" + "SendCommandToOtherServer" + "][Error] _packet is null", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.UNIT_AUTH_SERVER_CONNECT,
-                    6, 0));
-            }
-
+        { 
             try
             {
 
@@ -487,18 +408,7 @@ namespace PangyaAPI.Network.PangyaUnit
         }
 
         public virtual void requestSendReplyToOtherServer(UnitPlayer _session, packet _packet)
-        {
-            if (!_session.getState())
-            {
-                throw new exception("[unit_auth_server_connect::request" + "SendReplyToOtherServer" + "][Error] player nao esta connectado.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.UNIT_AUTH_SERVER_CONNECT,
-                    1, 0));
-            }
-            if (_packet == null)
-            {
-                throw new exception("[unit_auth_server_connect::request" + "SendReplyToOtherServer" + "][Error] _packet is null", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.UNIT_AUTH_SERVER_CONNECT,
-                    6, 0));
-            }
-
+        { 
             try
             {
 
@@ -514,14 +424,7 @@ namespace PangyaAPI.Network.PangyaUnit
 
         // Request _writer
         public virtual void sendConfirmDisconnectPlayer(uint _server_uid, uint _player_uid)
-        {
-
-            if (!isLive())
-            {
-                throw new exception("[unit_auth_server_connect::sendConfirmDisconnectPlayer][Error] Nao pode enviar o comando confirm disconnect player para o Auth Server, por que nao esta conectado com ele.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.UNIT_AUTH_SERVER_CONNECT,
-                    50, 0));
-            }
-
+        { 
             try
             {
                 var p = new PangyaBinaryWriter((ushort)0x3);
@@ -541,16 +444,9 @@ namespace PangyaAPI.Network.PangyaUnit
         }
 
         public virtual void sendDisconnectPlayer(uint _server_uid, uint _player_uid)
-        {
-
-            if (!isLive())
-            {
-                throw new exception("[unit_auth_server_connect::sendDisconnectPlayer][Error] Nao pode enviar o comando disconnect player para o Auth Server, por que nao esta conectado com ele.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.UNIT_AUTH_SERVER_CONNECT,
-                    50, 0));
-            }
-
+        { 
             try
-            { 
+            {
                 var p = new PangyaBinaryWriter((ushort)0x2);
 
                 p.WriteUInt32(_player_uid);
@@ -568,14 +464,7 @@ namespace PangyaAPI.Network.PangyaUnit
         }
 
         public virtual void sendInfoPlayerOnline(uint _server_uid, AuthServerPlayerInfo _aspi)
-        {
-
-            if (!isLive())
-            {
-                throw new exception("[unit_auth_server_connect::sendInfoPlayerOnline][Error] Nao pode enviar o comando disconnect player para o Auth Server, por que nao esta conectado com ele.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.UNIT_AUTH_SERVER_CONNECT,
-                    50, 0));
-            }
-
+        { 
             try
             {
                 var p = new PangyaBinaryWriter((ushort)0x5);
@@ -585,8 +474,7 @@ namespace PangyaAPI.Network.PangyaUnit
                 p.WriteUInt32(_aspi.uid);
 
                 if (_aspi.option == 1)
-                {
-
+                { 
                     p.WriteString(_aspi.id);
                     p.WriteString(_aspi.ip);
                 }
@@ -603,17 +491,10 @@ namespace PangyaAPI.Network.PangyaUnit
         }
 
         public virtual void getInfoPlayerOnline(uint _server_uid, uint _player_uid)
-        {
-
-            if (!isLive())
-            {
-                throw new exception("[unit_auth_server_connect::getInfoPlayerOnline][Error] Nao pode enviar o comando disconnect player para o Auth Server, por que nao esta conectado com ele.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.UNIT_AUTH_SERVER_CONNECT,
-                    50, 0));
-            }
-
+        { 
             try
-            { 
-                var p = new PangyaBinaryWriter((ushort)0x4);
+            {
+                var p = new PangyaBinaryWriter(0x04);
 
                 p.WriteUInt32(_server_uid);
                 p.WriteUInt32(_player_uid);
@@ -628,16 +509,10 @@ namespace PangyaAPI.Network.PangyaUnit
                 _smp.message_pool.getInstance().push(new message("[unit_auth_server_connect::getInfoPlayerOnline][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
+         
 
         public virtual void sendCommandToOtherServer(uint _server_uid, packet _packet)
-        {
-
-            if (!isLive())
-            {
-                throw new exception("[unit_auth_server_connect::sendCommandToOtherServer][Error] Nao pode enviar o comando[ID=" + Convert.ToString(_packet.getTipo()) + "] para o outro server[UID=" + Convert.ToString(_server_uid) + "] com o Auth Server, por que nao esta conectado com ele.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.UNIT_AUTH_SERVER_CONNECT,
-                    50, 0));
-            }
-
+        { 
             try
             {
 
@@ -646,7 +521,7 @@ namespace PangyaAPI.Network.PangyaUnit
 
                 if (_packet.GetSize < 2)
                 {
-                    throw new exception("[unit_auth_server_connect::sendCommandToOtherServer][Error] Tentou enviar o comando[ID=" + Convert.ToString(_packet.getTipo()) + "] para o outro server[UID=" + Convert.ToString(_server_uid) + "] com o Auth Server, mas o packet eh invalido nao tem nem o id.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.UNIT_AUTH_SERVER_CONNECT,
+                    throw new exception("[unit_auth_server_connect::sendCommandToOtherServer][Error] Tentou enviar o comando[ID=" + Convert.ToString(_packet.getTipo()) + "] para o outro server[UID=" + Convert.ToString(_server_uid) + "] com o Auth Server, mas o packet é invalido nao tem nem o id.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.UNIT_AUTH_SERVER_CONNECT,
                         1000, 0));
                 }
 
@@ -668,17 +543,10 @@ namespace PangyaAPI.Network.PangyaUnit
                 }
 
                 cosh.command.buff = _packet.ReadBytes(cosh.command.size);
-                 
+
                 // Envia o comando para o Auth Server enviar para o outro server
                 var p = new PangyaBinaryWriter((ushort)0x06);
-                //WriteBuffer(cosh, Marshal.SizeOf(new CommandOtherServerHeader())) e o toarray
-                p.WriteBytes(cosh.ToArray());
-
-                if (command_buff_size > 0 && cosh.command.size > 0)
-                {
-                    p.WriteBytes(cosh.command.buff, cosh.command.size);
-                }
-
+                p.WriteBytes(cosh.ToArray()); 
                 packet_func_as.session_send(p,
                     m_session, 1);
 
@@ -691,14 +559,7 @@ namespace PangyaAPI.Network.PangyaUnit
         }
 
         public virtual void sendReplyToOtherServer(uint _server_uid, packet _packet)
-        {
-
-            if (!isLive())
-            {
-                throw new exception("[unit_auth_server_connect::sendReplyToOtherServer][Error] Nao pode enviar a resposta[ID=" + Convert.ToString(_packet.getTipo()) + "] para o outro server[UID=" + Convert.ToString(_server_uid) + "] com o Auth Server, por que nao esta conectado com ele.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.UNIT_AUTH_SERVER_CONNECT,
-                    50, 0));
-            }
-
+        { 
             try
             {
 
@@ -708,7 +569,7 @@ namespace PangyaAPI.Network.PangyaUnit
 
                 if (_packet.GetSize < 2)
                 {
-                    throw new exception("[unit_auth_server_connect::sendReplyToOtherServer][Error] Tentou enviar a reposta[ID=" + Convert.ToString(_packet.getTipo()) + "] para o outro server[UID=" + Convert.ToString(_server_uid) + "] com o Auth Server, mas o packet eh invalido nao tem nem o id.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.UNIT_AUTH_SERVER_CONNECT,
+                    throw new exception("[unit_auth_server_connect::sendReplyToOtherServer][Error] Tentou enviar a reposta[ID=" + Convert.ToString(_packet.getTipo()) + "] para o outro server[UID=" + Convert.ToString(_server_uid) + "] com o Auth Server, mas o packet é invalido nao tem nem o id.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.UNIT_AUTH_SERVER_CONNECT,
                         1000, 0));
                 }
 
@@ -729,17 +590,10 @@ namespace PangyaAPI.Network.PangyaUnit
                 }
 
                 cosh.command.buff = _packet.ReadBytes(cosh.command.size);
-                 
+
                 // Envia a resposta para o Auth Server enviar para o outro server
-                var p = new PangyaBinaryWriter((ushort)0x07);
-
-                p.WriteBuffer(cosh, Marshal.SizeOf(new CommandOtherServerHeader()));
-
-                if (command_buff_size > 0 && cosh.command.size > 0)
-                {
-                    p.WriteBuffer(cosh.command.buff, cosh.command.size);
-                }
-
+                var p = new PangyaBinaryWriter((ushort)0x07); 
+                p.WriteBytes(cosh.ToArray());   
                 packet_func_as.session_send(p,
                     m_session, 1);
 
@@ -749,51 +603,18 @@ namespace PangyaAPI.Network.PangyaUnit
 
                 _smp.message_pool.getInstance().push(new message("[unit_auth_server_connect::sendReplyToOtherServer][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
-        }
-
-        private DateTime _lastReconnectAttempt = DateTime.MinValue;
-        private int _retryCount = 0;
+        } 
 
         protected override void onHeartBeat()
         {
             try
             {
-                if (m_state != STATE.INITIALIZED)
-                    return;
+                // Se não inicializou ou a sessão caiu, o OnMonitor cuida disso.
+                if (m_state != STATE.INITIALIZED || !this.isLive())
+                    return; 
 
-                if (m_session?.m_sock == null || !m_session.m_sock.Connected)
-                {
-                    // Calcula quanto esperar antes da próxima tentativa
-                    int delaySeconds = Math.Min(30, (int)Math.Pow(2, _retryCount));
-                    // Ex.: 1s, 2s, 4s, 8s... até 30s no máx.
-
-                    if ((DateTime.Now - _lastReconnectAttempt).TotalSeconds >= delaySeconds)
-                    {
-                        try
-                        {
-                            _smp.message_pool.getInstance().push(
-                                new message($"[unit_auth_server_connect::onHeartBeat] Tentando reconectar (tentativa {_retryCount + 1})",
-                                type_msg.CL_FILE_LOG_AND_CONSOLE));
-
-                            ConnectAndAssoc();
-
-                            _retryCount = 0; // Reset se conectou
-                        }
-                        catch (Exception ex)
-                        {
-                            _retryCount++; // Aumenta tempo de espera
-                            _smp.message_pool.getInstance().push(
-                                new message("[unit_auth_server_connect::onHeartBeat][ReconnectError] " + ex.Message,
-                                type_msg.CL_FILE_LOG_AND_CONSOLE));
-                        }
-
-                        _lastReconnectAttempt = DateTime.Now;
-                    }
-                }
-                else
-                {
-                    _retryCount = 0; // Reset se já está conectado
-                }
+                // Se chegou aqui, a conexão está saudável
+                _retryCount = 0;
             }
             catch (Exception e)
             {
@@ -805,14 +626,12 @@ namespace PangyaAPI.Network.PangyaUnit
 
 
         protected override void onConnected()
-        {
-
+        { 
             try
             {
             }
             catch (exception e)
-            {
-
+            { 
                 _smp.message_pool.getInstance().push(new message("[unit_auth_server_connect::onConnected][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
@@ -821,11 +640,7 @@ namespace PangyaAPI.Network.PangyaUnit
         {
 
             try
-            {
-
-                // Log
-                _smp.message_pool.getInstance().push(new message("[unit_auth_server_connect::onDisconnect][Log] Desconectou do Auth Server.", type_msg.CL_FILE_LOG_AND_CONSOLE));
-
+            { 
             }
             catch (exception e)
             {
@@ -845,7 +660,7 @@ namespace PangyaAPI.Network.PangyaUnit
             AddPacketHandler(0x04, (uc, s, p) => uc.requestBroadcastTicker(m_session, p));
             AddPacketHandler(0x05, (uc, s, p) => uc.requestBroadcastCubeWinRare(m_session, p));
             AddPacketHandler(0x06, (uc, s, p) => uc.requestDisconnectPlayer(m_session, p));
-            AddPacketHandler(0x07, (uc, s, p) => uc.requestConfirmDisconnectPlayer(m_session, p));
+            AddPacketHandler(0x07, (uc, s, p) => uc.requestConfirmDisconnectPlayer(m_session, p)); 
             AddPacketHandler(0x08, (uc, s, p) => uc.requestNewMailArrivedMailBox(m_session, p));
             AddPacketHandler(0x09, (uc, s, p) => uc.requestNewRate(m_session, p));
             AddPacketHandler(0x0A, (uc, s, p) => uc.requestReloadSystem(m_session, p));
@@ -853,7 +668,7 @@ namespace PangyaAPI.Network.PangyaUnit
             AddPacketHandler(0x0C, (uc, s, p) => uc.requestConfirmSendInfoPlayerOnline(m_session, p));
             AddPacketHandler(0x0D, (uc, s, p) => uc.requestSendCommandToOtherServer(m_session, p));
             AddPacketHandler(0x0E, (uc, s, p) => uc.requestSendReplyToOtherServer(m_session, p));
-
+            AddPacketHandler(0xFE, (uc, s, p) => uc.requestRecvKeepLive(m_session, p));//server -> auth
 
             funcs_sv.addPacketCall((0x1), (object _arg1, ParamDispatch _arg2) =>
             {
@@ -896,6 +711,11 @@ namespace PangyaAPI.Network.PangyaUnit
                 return 0;
             }, this);
 
+            // Pacote005
+            funcs_sv.addPacketCall((0xFF), (object _arg1, ParamDispatch _arg2) =>
+            {
+                return 0;
+            }, this);
         }
         // Método auxiliar reutilizável
         void AddPacketHandler(byte packetId, Action<unit_auth_server_connect, Session, packet> handler)
@@ -920,7 +740,6 @@ namespace PangyaAPI.Network.PangyaUnit
                 return 0;
             }, this);
         }
-
         //
         protected IUnitAuthServer m_owner_server;
     }

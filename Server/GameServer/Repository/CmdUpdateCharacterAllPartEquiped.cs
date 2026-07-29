@@ -52,48 +52,37 @@ namespace Pangya_GameServer.Repository
             q += "|" + Convert.ToString((ushort)m_ci.gift_flag) + "|" + Convert.ToString((ushort)m_ci.purchase);
 
             uint @is;
-            for (@is = 0u; @is < (m_ci.parts_typeid.Length); ++@is)
+            for (@is = 0; @is < (m_ci.parts_typeid.Length); ++@is)
             {
                 q += "|" + Convert.ToString(m_ci.parts_typeid[@is]);
             }
 
-            for (@is = 0u; @is < (m_ci.parts_id.Length); ++@is)
+            for (@is = 0; @is < (m_ci.parts_id.Length); ++@is)
             {
                 q += "|" + Convert.ToString(m_ci.parts_id[@is]);
             }
 
-            for (@is = 0u; @is < (m_ci.auxparts.Length); ++@is)
+            for (@is = 0; @is < (m_ci.auxparts.Length); ++@is)
             {
                 q += "|" + Convert.ToString(m_ci.auxparts[@is]);
             }
 
-            for (@is = 0u; @is < (m_ci.cut_in.Length); ++@is)
+            for (@is = 0; @is < (m_ci.cut_in.Length); ++@is)
             {
                 q += "|" + Convert.ToString(m_ci.cut_in[@is]);
             }
 
-            for (@is = 0u; @is < (m_ci.pcl.Length); ++@is)
+            for (@is = 0; @is < (m_ci.pcl.Length); ++@is)
             {
-                q += "|" + Convert.ToString((ushort)m_ci.pcl[@is]);
+                q += "|" + Convert.ToString(m_ci.pcl[@is]);
             }
 
             // Mastery Character
             q += "|" + Convert.ToString(m_ci.mastery);
-            var r = procedureWithParams(m_szConsulta, new string[] {
-    "@IDUSER",
-    "@ITEM_ID",
-    "@STR" //VARCHAR(8000)
-}, new SqlDbType[] {
-    SqlDbType.Int,
-    SqlDbType.Int,
-    SqlDbType.NVarChar,
-}, new object[] {
-m_uid,                                // Ex: "retreev（ちょき）（むふ）"
- m_ci.id,           // Ex: "1"
-   q                        // Ex: "2025-06-20 14:32:00"
-},
-ParameterDirection.Input // <- Aqui o mais importante!
-);
+            var r = procedure(m_szConsulta,
+m_uid + ", " +                                // Ex: "retreev（ちょき）（むふ）"
+ m_ci.id + ", " +           // Ex: "1"
+   makeText(q));                       // Ex: "2025-06-20 14:32:00");
             checkResponse(r, "nao conseguiu atualizar o character[ID=" + Convert.ToString(m_ci.id) + "] parts equipado do player: " + Convert.ToString(m_uid));
 
             return r;

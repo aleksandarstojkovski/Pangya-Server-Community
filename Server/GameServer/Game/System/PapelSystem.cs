@@ -394,7 +394,7 @@ namespace Pangya_GameServer.Game.System
             {
                 if (el.active == 1 && (el.numero == -1 || el.numero == m_ctx_ps.numero))
                 {
-                    lottery.Push((uint)(el.probabilidade * (el.tipo == PAPEL_SHOP_TYPE.PST_COOKIE ? rate_cookie_server : (el.tipo == PAPEL_SHOP_TYPE.PST_RARE ? rate_rare_server : 1.0f))), el, el._typeid);
+                    lottery.Push((uint)(el.probabilidade * (el.tipo == PAPEL_SHOP_TYPE.PST_COOKIE ? rate_cookie_server : (el.tipo == PAPEL_SHOP_TYPE.PST_RARE ? rate_rare_server : 1.0f))), el);
                 }
             }
             uint _type_id = 0;
@@ -406,7 +406,7 @@ namespace Pangya_GameServer.Game.System
                 // Sortea um valor
                 Lottery.LotteryCtx lc = null;
 
-                lc = lottery.SpinRoleta();
+                lc = lottery.spinRoleta();
 
                 if (lc == null)
                 {
@@ -474,7 +474,7 @@ namespace Pangya_GameServer.Game.System
             {
                 if (el.active == 1 && (el.numero == -1 || el.numero == m_ctx_ps.numero))
                 {
-                    lottery.Push((uint)(el.probabilidade * (el.tipo == PAPEL_SHOP_TYPE.PST_COOKIE ? rate_cookie_server : (el.tipo == PAPEL_SHOP_TYPE.PST_RARE ? rate_rare_server : 1.0f))), el, el._typeid);
+                    lottery.Push((uint)(el.probabilidade * (el.tipo == PAPEL_SHOP_TYPE.PST_COOKIE ? rate_cookie_server : (el.tipo == PAPEL_SHOP_TYPE.PST_RARE ? rate_rare_server : 1.0f))), el);
                 }
             }
             // Número de balls
@@ -482,7 +482,7 @@ namespace Pangya_GameServer.Game.System
 
             while (num_ball > 0)
             {
-                Lottery.LotteryCtx lc = lottery.SpinRoleta();
+                Lottery.LotteryCtx lc = lottery.spinRoleta();
                 if (lc == null)
                 {
                     throw new exception("[PapelShopSystem::dropBalls][Error] nao conseguiu sortear Bola. Bug",
@@ -494,7 +494,7 @@ namespace Pangya_GameServer.Game.System
 
 
                 // Player já tem o item, e nao pode ter duplicate, sortea um novo para ele
-                if ((!sIff.getInstance().IsCanOverlapped(ctx_psi._typeid) || sIff.getInstance()._getItemGroupIdentify(ctx_psi._typeid) == PangyaAPI.IFF.JP.Models.Flags.IFF_GROUP.CAD_ITEM) && _session.m_pi.ownerItem(ctx_psi._typeid))
+                if ((!sIff.getInstance().IsCanOverlapped(ctx_psi._typeid) || sIff.getInstance().getItemGroupIdentify(ctx_psi._typeid) == PangyaAPI.IFF.JP.Models.Flags.IFF_GROUP.CAD_ITEM) && _session.m_pi.ownerItem(ctx_psi._typeid))
                 {
                     continue;
                 }
@@ -574,7 +574,7 @@ namespace Pangya_GameServer.Game.System
                     }
                 };
 
-                lc = lottery.SpinRoleta();
+                lc = lottery.spinRoleta();
                 if (lc == null)
                 {
                     throw new exception("[PapelShopSystem::dropBigBall][Error] nao conseguiu sortear Bola. Bug",
@@ -599,7 +599,7 @@ namespace Pangya_GameServer.Game.System
                 }
 
                 // Player já tem o item, e nao pode ter duplicate, sortea um novo para ele
-                if ((!sIff.getInstance().IsCanOverlapped(ctx_psi._typeid) || sIff.getInstance().getItemGroupIdentify(ctx_psi._typeid) == sIff.getInstance().CAD_ITEM) && _session.m_pi.ownerItem(ctx_psi._typeid))
+                if ((!sIff.getInstance().IsCanOverlapped(ctx_psi._typeid) || sIff.getInstance().getItemGroupIdentify(ctx_psi._typeid) == PangyaAPI.IFF.JP.Models.Flags.IFF_GROUP.CAD_ITEM) && _session.m_pi.ownerItem(ctx_psi._typeid))
                 {
                     continue;
                 }
@@ -638,15 +638,10 @@ namespace Pangya_GameServer.Game.System
                 object _arg)
         {
 
-#if DEBUG
             // Classe estatica não pode passar o ponteiro dela, por ser estática, então passa null
             if (_arg == null)
             {
-                // Static class
-                _smp.message_pool.getInstance().push(new message("[PapelShopSystem::SQLDBResponse][Warning] _arg is null", type_msg.CL_ONLY_CONSOLE_DEBUG));
             }
-#endif // DEBUG
-
             // Por Hora só sai, depois faço outro tipo de tratamento se precisar
             if (_pangya_db.getException().getCodeError() != 0)
             {

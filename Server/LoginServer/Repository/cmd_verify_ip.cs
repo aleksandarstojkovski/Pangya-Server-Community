@@ -1,9 +1,9 @@
-﻿using LoginServer.Models;
+﻿using Pangya_LoginServer.Models;
 using PangyaAPI.SQL;
 using PangyaAPI.Utilities;
 using System;
 
-namespace LoginServer.Repository
+namespace Pangya_LoginServer.Repository
 {
     public class CmdVerifyIP : Pangya_DB
     {
@@ -71,7 +71,7 @@ namespace LoginServer.Repository
             m_last_verify = false;
 
             var r = procedure(m_szConsulta,
-                Convert.ToString(m_uid) + ", " + m_ip);
+                Convert.ToString(m_uid) + ", " + makeText(m_ip));
 
             checkResponse(r, "nao conseguiu verificar o ip de accesso do player: " + Convert.ToString(m_uid));
 

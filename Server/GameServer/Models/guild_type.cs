@@ -3,8 +3,8 @@
     // Dados dos holes no jogo
     public class Dados
     {
-        public short score;
-        public uint tacada;
+        public int score;
+        public int tacada;
         public bool finish = true;
     }
 

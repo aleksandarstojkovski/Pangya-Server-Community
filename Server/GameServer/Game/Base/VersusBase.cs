@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
-using Pangya_GameServer.Game.Manager;
+﻿using Pangya_GameServer.Game.Manager;
 using Pangya_GameServer.Game.System;
 using Pangya_GameServer.Models;
 using Pangya_GameServer.PacketFunc;
@@ -14,14 +8,38 @@ using PangyaAPI.IFF.JP.Models.Flags;
 using PangyaAPI.Network.Models;
 using PangyaAPI.Network.PangyaPacket;
 using PangyaAPI.Utilities;
-using PangyaAPI.Utilities.BinaryModels;
+using PangyaAPI.Utilities.Models;
 using PangyaAPI.Utilities.Log;
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
+using System.Threading;
 using static Pangya_GameServer.Models.DefineConstants;
+using static PangyaAPI.Utilities.Tools;
 namespace Pangya_GameServer.Game.Base
 {
-    public abstract class VersusBase : GameBase, IDisposable
-    {
-        public bool m_game_running = true;  // Controle de execução da thread
+    public abstract class VersusBase : GameBase
+    { 
+        private PangyaThread m_thread_chk_turn;
+
+        protected IntPtr m_hEvent_chk_turn;//
+
+        private IntPtr m_hEvent_chk_turn_pulse;
+
+        private readonly uint m_max_player = 4;                  // No m�ximo 4 jogadores
+
+        protected PlayerGameInfo m_player_turn;                  // PlayerGameInfo do player que est� tacando ou vai tacar
+
+        uint m_count_pause;                 // Count de pause no Versus Base, 3x � o m�ximo permitido
+
+        readonly uint m_seed_mascot_effect;              // Seed Mascot Effect Random
+
+        public uint m_flag_next_step_game;         // Flag que guarda a proxima passo que o game vai d� depois que um player sai
+
+        protected TreasureHunterVersusInfo m_thi;
+
+        protected stStateVersus m_state_vs;
 
         public VersusBase(List<Player> _players, RoomInfoEx _ri, RateValue _rv, bool _channel_rookie) : base(_players, _ri, _rv, _channel_rookie)
         {
@@ -36,136 +54,80 @@ namespace Pangya_GameServer.Game.Base
             {
                 new exception("[VersusBase::init][Error] bug ou hackers, maximo de jogadores foi superior");
             }
-            m_game_running = true;
-            StartGameLoop();
+
+            // Cria evento que vai para a thRead sync hole
+            if ((m_hEvent_chk_turn = CreateEvent(IntPtr.Zero,
+        true, false, null)) == IntPtr.Zero)
+            {
+                throw new exception("[VersusBase::init][Error] ao criar evento check versus.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.APPROACH,
+                    1050, GetLastError()));
+            }
+
+            // Cria evento que vai pulsar a thRead sync hole para ir mais r pido quando um player tacar
+            if ((m_hEvent_chk_turn_pulse = CreateEvent(IntPtr.Zero,
+                        false, false, null)) == IntPtr.Zero)
+            {
+                throw new exception("[VersusBase::init][Error] ao criar evento check versus pulse.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.APPROACH,
+                    1050, GetLastError()));
+            }
+
+            m_thread_chk_turn = new PangyaThread(1050, obj => checkVersusTurn(), this, ThreadPriority.AboveNormal);
         }
 
-        public virtual void StartGameLoop()
-        {
-            if (m_task_chk_turn != null && !m_task_chk_turn.IsCompleted)
-                return; // Já tá rodando
-
-            m_cancel_token_source = new CancellationTokenSource();
-
-            m_game_running = true;
-
-            m_task_chk_turn = Task.Run(() => GameLoop(m_cancel_token_source.Token));
-        }
-
-        private async Task GameLoop(CancellationToken token)
+        private void finish_thread_check_versus_turn()
         {
             try
             {
-                _smp.message_pool.getInstance().push(new message("[VersusBase::checkVersusTurn][Log] Versus iniciou corretamente.", type_msg.CL_ONLY_CONSOLE_DEBUG));
-
-                while (!token.IsCancellationRequested)
+                if (m_thread_chk_turn != null)
                 {
-                    try
-                    {
-                        checkVersusTurn(); // Sua lógica original
-                    }
-                    catch (Exception ex)
-                    {
-                        _smp.message_pool.getInstance().push(new message($"[checkVersusTurn][Error] {ex}", type_msg.CL_FILE_LOG_AND_CONSOLE));
-                    }
+                    if (m_hEvent_chk_turn != INVALID_HANDLE_VALUE)
+                        SetEvent(m_hEvent_chk_turn);
 
-                    await Task.Delay(100, token);
+                    // Espera a thread terminar
+                    m_thread_chk_turn.waitThreadFinish(-1);
                 }
             }
-            catch (OperationCanceledException)
+            catch (exception ex)
             {
-                _smp.message_pool.getInstance().push(new message("[VersusBase::GameLoop][Error] Loop cancelado com sucesso.", type_msg.CL_FILE_LOG_AND_CONSOLE));
-                await Task.Delay(100); // sem token
+                Console.WriteLine($"[VersusBase::finish_thread_check_versus_turn][ErrorSystem] {ex.getFullMessageError()}");
             }
-            catch (Exception ex)
-            {
-                _smp.message_pool.getInstance().push(new message($"[GameLoop][Error] {ex}", type_msg.CL_FILE_LOG_AND_CONSOLE));
-                await Task.Delay(100); // sem token
-            }
+
+
+            m_thread_chk_turn = null;
+
+            if (m_hEvent_chk_turn != INVALID_HANDLE_VALUE)
+                CloseHandle(m_hEvent_chk_turn);
+
+            if (m_hEvent_chk_turn_pulse != INVALID_HANDLE_VALUE)
+                CloseHandle(m_hEvent_chk_turn_pulse);
+
+            m_hEvent_chk_turn = IntPtr.Zero;
+            m_hEvent_chk_turn_pulse = IntPtr.Zero;
         }
 
-        public virtual void clearRoom()
-        {
-            _smp.message_pool.getInstance().push(new message("[VersusBase::~VersusBase][Log] VersusBase destroyed on Room[Number=" + (m_ri.numero) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
-            clear_treasure_hunter();
-            try
-            {
-                if (m_cancel_token_source != null)
-                {
-                    m_cancel_token_source.Cancel();
-                    m_cancel_token_source.Dispose();
-                    m_cancel_token_source = null;
-                }
-
-                if (m_hEvent_chk_turn != null)
-                    m_hEvent_chk_turn.Dispose();
-
-                if (m_hEvent_chk_turn_pulse != null)
-                    m_hEvent_chk_turn_pulse.Dispose();
-
-                m_task_chk_turn?.Wait(); // Espera encerrar
-
-                m_game_running = false;
-            }
-            catch (AggregateException ae)
-            {
-                foreach (var ex in ae.InnerExceptions)
-                    _smp.message_pool.getInstance().push(new message($"[Dispose][TaskError] {ex}", type_msg.CL_FILE_LOG_AND_CONSOLE));
-            }
-            finally
-            {
-                m_task_chk_turn?.Dispose();
-                m_task_chk_turn = null;
-            }
-            m_hEvent_chk_turn?.Dispose();
-            m_hEvent_chk_turn_pulse?.Dispose();
-            m_hEvent_chk_turn = null;
-            m_hEvent_chk_turn_pulse = null;
-        }
-
-        protected override void Dispose(bool disposing)
+        public override void Dispose(bool disposing) 
         {
             if (disposing)
-            {
-                _smp.message_pool.getInstance().push(new message("[VersusBase::Dispose][Log] VersusBase destroyed on Room[Number=" + (m_ri.numero) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
-
-                clear_treasure_hunter();
+            {                
                 try
                 {
-                    if (m_cancel_token_source != null)
+                    clear_treasure_hunter();
+
+                    finish_thread_check_versus_turn();
+                }
+                catch (exception e)
+                {
+                    _smp.message_pool.getInstance().push(new message("[VersusBase::~VersusBase][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
+
+                    if (m_thread_chk_turn != null)
                     {
-                        m_cancel_token_source.Cancel();
-                        m_cancel_token_source.Dispose();
-                        m_cancel_token_source = null;
+                        m_thread_chk_turn.exit_thread();
+                        m_thread_chk_turn = null;
                     }
-
-                    if (m_hEvent_chk_turn != null)
-                        m_hEvent_chk_turn.Dispose();
-
-                    if (m_hEvent_chk_turn_pulse != null)
-                        m_hEvent_chk_turn_pulse.Dispose();
-
-                    m_task_chk_turn?.Wait(); // Espera encerrar
-
-                    m_game_running = false;
-                }
-                catch (AggregateException ae)
-                {
-                    foreach (var ex in ae.InnerExceptions)
-                        _smp.message_pool.getInstance().push(new message($"[VersusBase::TaskError] {ex}", type_msg.CL_FILE_LOG_AND_CONSOLE));
-                }
-                finally
-                {
-                    m_task_chk_turn?.Dispose();
-                    m_task_chk_turn = null;
-                }
-                m_hEvent_chk_turn?.Dispose();
-                m_hEvent_chk_turn_pulse?.Dispose();
-                m_hEvent_chk_turn = null;
-                m_hEvent_chk_turn_pulse = null;
+                } 
             }
-            base.Dispose(disposing);
+            base.Dispose(true);
         }
 
         public override void INIT_PLAYER_INFO(string _method, string _msg, Player __session, out PlayerGameInfo pgi)
@@ -241,12 +203,7 @@ namespace Pangya_GameServer.Game.Base
             if (m_player_turn == null)
             {
                 _smp.message_pool.getInstance().push(new message("[VersusBase::sendPlayerTurn][ERROR] m_player_turn está null. Ninguém tem o turno!", type_msg.CL_FILE_LOG_AND_CONSOLE));
-            }
-            else
-            {
-                _smp.message_pool.getInstance().push(new message($"[VersusBase::sendPlayerTurn][Log] PLAYER[UID={m_player_turn.uid}, OID={m_player_turn.oid}] TURN NOW", type_msg.CL_FILE_LOG_AND_CONSOLE));
-            }
-
+            }  
 
             if (m_player_turn == null)
             {
@@ -521,11 +478,9 @@ namespace Pangya_GameServer.Game.Base
 
                     if (pgi.flag == PlayerGameInfo.eFLAG_GAME.QUIT)
                     {
-                        _smp.message_pool.getInstance().push(new message($"[VersusBase::init_turn_hole_start][Log] Jogador UID={pgi.uid} está com flag QUIT, será ignorado.", type_msg.CL_FILE_LOG_AND_CONSOLE));
                     }
                     else
                     {
-                        _smp.message_pool.getInstance().push(new message($"[VersusBase::init_turn_hole_start][Log] PLAYER[UID={pgi.uid}] IN TURN GAME.", type_msg.CL_FILE_LOG_AND_CONSOLE));
                     }
 
                 }
@@ -725,49 +680,64 @@ namespace Pangya_GameServer.Game.Base
         }
 
 
-        public virtual void checkVersusTurn()
-        {
-            while (m_game_running)
+        public object checkVersusTurn()
+        { 
+            var datetime = Stopwatch.StartNew();
+            TimeSpan ts = datetime.Elapsed;
+            try
             {
-                try
+                string elapsedTime = String.Format("{0:00}:{1:00}:{2:00}", ts.Hours, ts.Minutes, ts.Seconds);
+
+                _smp.message_pool.getInstance().push(new message($"[VersusBase::checkVersusTurn] Partida comecou: {elapsedTime}", type_msg.CL_FILE_LOG_AND_CONSOLE));
+
+                uint retWait = WAIT_TIMEOUT;//
+                IntPtr[] wait_events = { m_hEvent_chk_turn, m_hEvent_chk_turn_pulse };
+
+                while ((retWait = WaitForMultipleObjects((uint)wait_events.Length, wait_events, false, 1000 /*1 segundo*/)) == WAIT_TIMEOUT || retWait == (WAIT_OBJECT_0 + 1))
                 {
-                    m_state_vs.@lock();
-
-                    var state = m_state_vs.getState();
-
-                    switch (state)
+                    try
                     {
-                        case STATE_VERSUS.WAIT_HIT_SHOT:
-                            HandleWaitHitShot();
-                            break;
-                        case STATE_VERSUS.SHOTING:
-                            HandleShoting();
-                            break;
-                        case STATE_VERSUS.END_SHOT:
-                            HandleEndShot();
-                            break;
-                        case STATE_VERSUS.LOAD_HOLE:
-                            HandleLoadHole();
-                            break;
-                        case STATE_VERSUS.WAIT_END_GAME:
-                            // Apenas espera o jogo terminar, não faz nada
-                            m_game_running = false;//finalizou o jogo, agurdar todo mundo acbar e desativar
-                            break;
-                        default:
-                            _smp.message_pool.getInstance().push(new message($"[VersusBase::checkVersusTurn] Estado desconhecido: {state}", type_msg.CL_ONLY_CONSOLE_DEBUG));
-                            break;
+                        m_state_vs.@lock();
+                        switch (m_state_vs.getState())
+                        {
+                            case STATE_VERSUS.WAIT_HIT_SHOT:
+                                HandleWaitHitShot();
+                                break;
+                            case STATE_VERSUS.SHOTING:
+                                HandleShoting();
+                                break;
+                            case STATE_VERSUS.END_SHOT:
+                                HandleEndShot();
+                                break;
+                            case STATE_VERSUS.LOAD_HOLE:
+                                HandleLoadHole();
+                                break;
+                            case STATE_VERSUS.WAIT_END_GAME:
+                                break;
+                            default:
+                                break;
+                        }
+                        m_state_vs.unlock();
                     }
-                    m_state_vs.unlock();
+                    catch (exception ex)
+                    {
+                        _smp.message_pool.getInstance().push(new message("[VersusBase::checkVersusTurn][ErrorSystem] " + ex.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
+                        m_state_vs.unlock();
+                    }
                 }
-                catch (exception ex)
-                {
-                    _smp.message_pool.getInstance().push(new message("[VersusBase::checkVersusTurn][ErrorSystem] " + ex.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
-                }
-                Thread.Sleep(1000); // Ajuste para evitar uso excessivo de CPU
-            }
+                //para o tempo
+                datetime.Stop();
+                ts = datetime.Elapsed;
+                elapsedTime = String.Format("{0:00}:{1:00}:{2:00}", ts.Hours, ts.Minutes, ts.Seconds);
 
-            _smp.message_pool.getInstance().push(new message("Saindo de checkVersusTurn()...", type_msg.CL_ONLY_CONSOLE_DEBUG));
-            clearRoom();
+                _smp.message_pool.getInstance().push(new message($"[VersusBase::checkVersusTurn] Partida Finalizada. Tempo total: {elapsedTime}", type_msg.CL_FILE_LOG_AND_CONSOLE));
+
+            }
+            catch (exception e)
+            {
+                _smp.message_pool.getInstance().push(new message("[VersusBase::checkVersusTurn][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
+            }
+            return null;
         }
 
         // Métodos auxiliares para cada estado
@@ -832,7 +802,6 @@ namespace Pangya_GameServer.Game.Base
         {
             if (m_players.Count <= 0)
             {
-                m_game_running = false;
                 return;
             }
 
@@ -887,8 +856,6 @@ namespace Pangya_GameServer.Game.Base
             sendRatesOfVersusBase();
             m_state_vs.setState(STATE_VERSUS.WAIT_HIT_SHOT);
         }
-
-
         private void ValidatePlayerTurn()
         {
             if (m_player_turn == null)
@@ -941,7 +908,7 @@ namespace Pangya_GameServer.Game.Base
                 }
                 catch
                 {
-
+                    m_state_vs.unlock();
                 }
             }
         }
@@ -953,8 +920,7 @@ namespace Pangya_GameServer.Game.Base
             var p = new PangyaBinaryWriter();
 
             try
-            {
-
+            { 
                 // No Versus tem o Update Last 5 players play
                 if (Interlocked.Increment(ref m_sync_send_init_data) == m_players.Count)
                 {
@@ -1002,64 +968,63 @@ namespace Pangya_GameServer.Game.Base
                                 p.WriteBytes(el.m_pi.aa_ms_normal_todas_season[j, st_i].ToArray());
 
                         // Character Info(CharEquip)
-                        if (el.m_pi.ei.char_info != null)
+                        if (el.m_pi.ei.char_info != null && el.m_pi.ei.char_info.id != 0)
                         {
 
                             var tmp_char_info = el.m_pi.ei.char_info;
 
-                            int value = -1;
+                            int _value = -1;
 
-                            for (var stats = (uint)CharacterInfo.Stats.S_POWER; stats < (uint)CharacterInfo.Stats.S_CURVE; stats++)
+                            for (var stats = 0; stats < 5; stats++)
                             {
 
-                                value = el.m_pi.getCharacterMaxSlot((CharacterInfo.Stats)(stats));
+                                _value = el.m_pi.getCharacterMaxSlot((CharacterInfo.Stats)(stats));
 
                                 // Não deixa passar do Slot em jogo
-                                if (value != -1 && tmp_char_info.pcl[stats] > value)
+                                if (_value != -1 && tmp_char_info.pcl[stats] > _value)
                                 {
-                                    tmp_char_info.pcl[stats] = (byte)value;
+                                    tmp_char_info.pcl[stats] = (byte)_value;
                                 }
                             }
 
-                            p.WriteBytes(tmp_char_info.ToArray());
+                            p.WriteBytes(el.m_pi.ei.char_info.ToArray());
                         }
                         else
                             p.WriteZeroByte(513);
 
                         // Caddie Info
-                        if (el.m_pi.ei.cad_info != null)
+                        if (el.m_pi.ei.cad_info != null && el.m_pi.ei.cad_info.id != 0)
                             p.WriteBytes(el.m_pi.ei.cad_info.getInfo().ToArray());
                         else
                             p.WriteZeroByte(25);
 
                         // Club Set Info
-                        if (el.m_pi.ei.clubset != null)
+                        if (el.m_pi.ei.csi != null && el.m_pi.ei.csi.id != 0)
                         {
 
                             var tmp_csi = el.m_pi.ei.csi;
 
-                            int value = -1;
+                            int _value = -1;
 
-                            for (var stats = (uint)CharacterInfo.Stats.S_POWER; stats < (uint)CharacterInfo.Stats.S_CURVE; stats++)
+                            for (var stats = 0; stats < 5; stats++)
                             {
 
-                                value = el.m_pi.getClubSetMaxSlot((CharacterInfo.Stats)(stats));
+                                _value = el.m_pi.getClubSetMaxSlot((CharacterInfo.Stats)(stats));
 
                                 // Não deixa passar do Slot em jogo
-                                if (value != -1 && tmp_csi.slot_c[stats] > value)
+                                if (_value != -1 && tmp_csi.slot_c[stats] > _value)
                                 {
-                                    tmp_csi.slot_c[stats] = (short)value;
+                                    tmp_csi.slot_c[stats] = (short)_value;
                                 }
                             }
 
-                            p.WriteBytes(tmp_csi.ToArray());
-
+                            p.WriteBytes(tmp_csi.ToArray()); 
                         }
                         else
                             p.WriteZeroByte(28);
 
                         // Mascot Info
-                        if (el.m_pi.ei.mascot_info != null)
+                        if (el.m_pi.ei.mascot_info != null && el.m_pi.ei.mascot_info.id != 0)
                         {
                             p.WriteBytes(el.m_pi.ei.mascot_info.ToArray());
                         }
@@ -1070,7 +1035,7 @@ namespace Pangya_GameServer.Game.Base
                         p.WriteTime(m_start_time);
 
                         // Card(s) Equipped, acho que aqui não vai os itens buff, por que ele só da buff de exp e pang, o outro player nao precisa saber
-                        v_card_equip_char_and_special.Clear();
+                        v_card_equip_char_and_special = new List<CardEquipInfoEx>();
 
                         foreach (var el2 in el.m_pi.v_cei)
                         {
@@ -1086,11 +1051,9 @@ namespace Pangya_GameServer.Game.Base
                         {
                             p.WriteBytes(el2.ToArray());
                         }
-                    }
+                    } 
 
-                    //packet_func::session_send(p, &_session, 1);
-                    packet_func.game_broadcast(this,
-                        p, 1);
+                    packet_func.game_broadcast(this, p, 1);
 
                     // Send Individual Packet to all players in game
                     foreach (var el in m_players)
@@ -1107,12 +1070,7 @@ namespace Pangya_GameServer.Game.Base
                         p.WriteUInt32(m_seed_mascot_effect);
 
                         packet_func.session_send(p,
-                            el, 1);
-
-
-                        // No meu tem que atualizar o info do player na sala, sendUpdatePlayerRoomInfo
-                        //p.init_plain((unsigned short)0x48)
-                        //p.WriteByte(3);	// Update 0x103
+                            el, 1); 
                     }
                 }
             }
@@ -1196,7 +1154,6 @@ namespace Pangya_GameServer.Game.Base
                 setLoadHole(pgi);
 
 
-                _smp.message_pool.getInstance().push(new message($"[VersusBase::requestFinishLoadHole][Log] PLAYER[UID: {pgi.uid}] Finish Load Sucess", type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
             catch (exception e)
             {
@@ -1246,69 +1203,7 @@ namespace Pangya_GameServer.Game.Base
 
                 UserInfoEx ui = new UserInfoEx();
                 #region Read Packet
-
-                ui.tacada = p.ReadInt32();
-                ui.putt = p.ReadInt32();
-                ui.tempo = p.ReadInt32();
-                ui.tempo_tacada = p.ReadInt32();
-                ui.best_drive = p.ReadSingle();
-                ui.acerto_pangya = p.ReadInt32();
-                ui.timeout = p.ReadInt32();
-                ui.ob = p.ReadInt32();
-                ui.total_distancia = p.ReadInt32();
-                ui.hole = p.ReadInt32();
-                ui.hole_in = p.ReadInt32();
-                ui.hio = p.ReadInt32();
-                ui.bunker = p.ReadInt16();
-                ui.fairway = p.ReadInt32();
-                ui.albatross = p.ReadInt32();
-                ui.mad_conduta = p.ReadInt32();
-                ui.putt_in = p.ReadInt32();
-                ui.best_long_putt = p.ReadSingle();
-                ui.best_chip_in = p.ReadSingle();
-                ui.exp = p.ReadUInt32();
-                ui.level = p.ReadByte();
-                ui.pang = p.ReadUInt64();
-                ui.media_score = p.ReadInt32();
-                ui.best_score = p.ReadBytes(5);
-                ui.event_flag = p.ReadByte();
-                ui.best_pang = new long[5];
-                for (int i = 0; i < 5; i++)
-                    ui.best_pang[i] = p.ReadInt64();
-                ui.sum_pang = p.ReadInt64();
-                ui.jogado = p.ReadInt32();
-                ui.team_hole = p.ReadInt32();
-                ui.team_win = p.ReadInt32();
-                ui.team_game = p.ReadInt32();
-                ui.ladder_point = p.ReadInt32();
-                ui.ladder_hole = p.ReadInt32();
-                ui.ladder_win = p.ReadInt32();
-                ui.ladder_lose = p.ReadInt32();
-                ui.ladder_draw = p.ReadInt32();
-                ui.combo = p.ReadInt32();
-                ui.all_combo = p.ReadInt32();
-                ui.quitado = p.ReadInt32();
-                ui.skin_pang = p.ReadInt64();
-                ui.skin_win = p.ReadInt32();
-                ui.skin_lose = p.ReadInt32();
-                ui.skin_all_in_count = p.ReadInt32();
-                ui.skin_run_hole = p.ReadInt32();
-                ui.skin_strike_point = p.ReadInt32();
-                ui.jogados_disconnect = p.ReadInt32();
-                ui.event_value = p.ReadInt16();
-                ui.disconnect = p.ReadInt32();
-                ui.medal = new stMedal
-                {
-                    lucky = p.ReadInt32(),
-                    fast = p.ReadInt32(),
-                    best_drive = p.ReadInt32(),
-                    best_chipin = p.ReadInt32(),
-                    best_puttin = p.ReadInt32(),
-                    best_recovery = p.ReadInt32(),
-                };
-                ui.sys_school_serie = p.ReadInt32();
-                ui.game_count_season = p.ReadInt32();
-                ui._16bit_nao_sei = p.ReadInt16();
+                ui.ToRead(p); 
                 #endregion
 
                 requestTranslateFinishHoleData(_session, ui);
@@ -1533,8 +1428,6 @@ namespace Pangya_GameServer.Game.Base
 
                 ShotEndLocationData seld = new ShotEndLocationData(_packet);
 
-                _smp.message_pool.getInstance().push(new message("Log Shot End Location Data:\n\r" + seld.ToString(), type_msg.CL_FILE_LOG_AND_CONSOLE));
-
                 if (m_player_turn == null)
                 {
                     throw new exception("[VersusBase::requestShotEndData][Error] m_player_turn is invalid(null)", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.VERSUS_BASE,
@@ -1715,7 +1608,7 @@ namespace Pangya_GameServer.Game.Base
                                     100, 0));
                             pgi.shot_sync.state_shot.display.acerto_hole = true;
 
-                            pgi.data.tacada_num = (uint)hole.getPar().total_shot;
+                            pgi.data.tacada_num = hole.getPar().total_shot;
 
                             // Derruba player, tem que fazer isso no channel ou na sala, com o retorno dessa função
                             pgi.data.bad_condute = 3;
@@ -1838,7 +1731,7 @@ namespace Pangya_GameServer.Game.Base
                         77, 0));
 
 
-                if (sIff.getInstance().getItemGroupIdentify(item_typeid) != (uint)sIff.getInstance().ITEM || !sIff.getInstance().IsItemEquipable(item_typeid))
+                if (sIff.getInstance().getItemGroupIdentify(item_typeid) != IFF_GROUP.ITEM || !sIff.getInstance().IsItemEquipable(item_typeid))
                 {
                     throw new exception("[VersusBase::requestActiveItem][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou usar active item[TYPEID=" + Convert.ToString(item_typeid) + "] no jogo, mas o item nao eh equipavel(usar). Hacker ou Bug.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.VERSUS_BASE,
                         78, 0));
@@ -2040,7 +1933,7 @@ namespace Pangya_GameServer.Game.Base
 
                     var it = pgi.used_item.v_passive.find(pWi._typeid);
 
-                    if (it.Key == 0)
+                    if (it.Value == null)
                     {
                         throw new exception("[VersusBase::requestActiveBooster][Error] PLAYER[UID = " + Convert.ToString(_session.m_pi.uid) + "] tentou ativar time booster, mas ele nao tem ele no item passive usados do server. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.VERSUS_BASE,
                             13, 0));
@@ -2117,7 +2010,7 @@ namespace Pangya_GameServer.Game.Base
                 {
                     type = 2,
                     _typeid = pWi._typeid,
-                    id = (int)pWi.id,
+                    id = pWi.id,
                     qntd = 1
                 };
                 item.STDA_C_ITEM_QNTD = (short)(item.qntd * -1);
@@ -2127,10 +2020,7 @@ namespace Pangya_GameServer.Game.Base
                     throw new exception("[VersusBase::requestActiveReplay][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou ativar Replay[TYPEID=" + Convert.ToString(_typeid) + "], nao conseguiu deletar ou atualizar qntd do item[TYPEID=" + Convert.ToString(item._typeid) + ", ID=" + Convert.ToString(item.id) + "]", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.VERSUS_BASE,
                         203, 0));
                 }
-
-
-                _smp.message_pool.getInstance().push(new message("[VersusBase::requestActiveReplay][Log] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] ativou replay e ficou com " + Convert.ToString(item.stat.qntd_dep) + " + fita(s)", type_msg.CL_FILE_LOG_AND_CONSOLE));
-                // DEBUG
+                 
 
                 // UPDATE ON GAME
                 // Resposta para o Active Replay
@@ -2150,9 +2040,7 @@ namespace Pangya_GameServer.Game.Base
         }
 
         public override void requestActiveCutin(Player _session, packet _packet)
-        {
-            ////REQUEST_BEGIN("ActiveCutin");
-
+        { 
             var p = new PangyaBinaryWriter();
 
             try
@@ -2184,7 +2072,7 @@ namespace Pangya_GameServer.Game.Base
                 CutinInformation pCutin = null;
 
                 // Cutin Padrão que o player equipa, quando o cliente envia o cutin type é que é efeito por roupas equipadas
-                if (sIff.getInstance().getItemGroupIdentify(ac.char_typeid) == (uint)sIff.getInstance().CHARACTER && ac.active == 1)
+                if (sIff.getInstance().getItemGroupIdentify(ac.char_typeid) == IFF_GROUP.CHARACTER && ac.active == 1)
                 {
 
                     if (s.m_pi.ei.char_info._typeid != ac.char_typeid)
@@ -2206,7 +2094,7 @@ namespace Pangya_GameServer.Game.Base
                             if ((pWi = _session.m_pi.findWarehouseItemById((int)s.m_pi.ei.char_info.cut_in[i])) != null)
                             {
 
-                                if ((pCutin = sIff.getInstance().findCutinInfomation(pWi._typeid)) == null)
+                                if ((pCutin = sIff.getInstance().findCutinInfomation(pWi._typeid)) == null || pCutin._typeid == 0)
                                 {
                                     throw new exception("[VersusBase::requestActiveCutin][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou activar cutin[CHAR_TYPEID=" + Convert.ToString(ac.char_typeid) + ", TIPO=" + Convert.ToString(ac.tipo) + ", OPT=" + Convert.ToString(ac.opt) + ", ACTIVE=" + Convert.ToString(ac.active) + "] de um PLAYER[UID=" + Convert.ToString(ac.uid) + "], mas o jogador nao tem esse cutin[TYPEID=" + Convert.ToString(pWi._typeid) + ", ID=" + Convert.ToString(pWi.id) + "]. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.VERSUS_BASE,
                                         3, 0x5200103));
@@ -2226,22 +2114,16 @@ namespace Pangya_GameServer.Game.Base
                     }
 
                 }
-                else if (sIff.getInstance().getItemGroupIdentify(ac.char_typeid) == (uint)sIff.getInstance().SKIN && ac.active == 0)
-                {
-
-                    // Verificar se ele tem os itens para ativar esse Cutin
-
+                else if (sIff.getInstance().getItemGroupIdentify(ac.char_typeid) == IFF_GROUP.SKIN && ac.active == 0)
+                { 
                     if ((pCutin = sIff.getInstance().findCutinInfomation(ac.char_typeid)) == null)
                     {
                         throw new exception("[VersusBase::requestActiveCutin][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou activar cutin[CHAR_TYPEID=" + Convert.ToString(ac.char_typeid) + ", TIPO=" + Convert.ToString(ac.tipo) + ", OPT=" + Convert.ToString(ac.opt) + ",  ACTIVE=" + Convert.ToString(ac.active) + "] de um PLAYER[UID=" + Convert.ToString(ac.uid) + "], mas o jogador nao tem esse cutin[TYPEID=" + Convert.ToString(ac.char_typeid) + "]. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.VERSUS_BASE,
                             3, 0x5200103));
                     }
-
-                    // Esses que passa o cutin typeid, pode ativar com tipo 1 e 2, 1 PS e 2 PS
-
                 }
 
-                if (pCutin == null)
+                if (pCutin == null || pCutin._typeid == 0)
                 {
                     throw new exception("[VersusBase::requestActiveCutin][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou activar cutin[CHAR_TYPEID=" + Convert.ToString(ac.char_typeid) + ", TIPO=" + Convert.ToString(ac.tipo) + ", OPT=" + Convert.ToString(ac.opt) + ",  ACTIVE=" + Convert.ToString(ac.active) + "] de um PLAYER[UID=" + Convert.ToString(ac.uid) + "], mas o cution nao foi encontrado[TYPEID=" + Convert.ToString(ac.char_typeid) + "]. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.TOURNEY_BASE,
                         4, 0x5200104));
@@ -2365,6 +2247,7 @@ namespace Pangya_GameServer.Game.Base
             }
         }
 
+
         public override void requestActiveRingGround(Player _session, packet _packet)
         {
             ////REQUEST_BEGIN("ActiveRingGround");
@@ -2376,45 +2259,44 @@ namespace Pangya_GameServer.Game.Base
 
                 stRingGround rg = new stRingGround
                 {
-                    efeito = _packet.ReadUInt32()
+                    efeito = (AbilityEffect)_packet.ReadUInt32()
                 };
                 rg.ring[0] = _packet.ReadUInt32();
                 rg.ring[1] = _packet.ReadUInt32();
                 rg.option = _packet.ReadUInt32();
 
-
                 // Log para saber qual é o efeito 31(0x1F)
-                if ((AbilityEffect)(rg.efeito) == AbilityEffect.UNKNOWN_31)
+                if (rg.efeito == AbilityEffect.UNKNOWN_31)//efeito 31, e o taco
                 {
                     _smp.message_pool.getInstance().push(new message("[VersusBase::requestActiveRingGround][Log] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] ativou o efeito 0x1F(31) com os itens[TYPEID_1=" + Convert.ToString(rg.ring[0]) + ", TYPEID_2=" + Convert.ToString(rg.ring[1]) + "] e OPTION=" + Convert.ToString(rg.option), type_msg.CL_FILE_LOG_AND_CONSOLE));
                 }
 
                 if (!rg.isValid())
                 {
-                    throw new exception("[VersusBase::requestActiveRingGround][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou ativar Anel de Terreno[TYPE=" + Convert.ToString(rg.efeito) + ", RING[0]=" + Convert.ToString(rg.ring[0]) + ", RING[1]=" + Convert.ToString(rg.ring[1]) + ", OPTION=" + Convert.ToString(rg.option) + "], mas os typeid's nao sao validos. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.VERSUS_BASE,
+                    throw new exception("[VersusBase::requestActiveRingGround][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou ativar Anel de Terreno[TYPE=" + Convert.ToString(rg.efeito) + ", RING[0]=" + Convert.ToString(rg.ring[0]) + ", RING[1]=" + Convert.ToString(rg.ring[1]) + ", OPTION=" + Convert.ToString(rg.option) + "], mas os typeid's nao sao validos. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.TOURNEY_BASE,
                         50, 0x340001));
                 }
 
                 if (_session.m_pi.ei.char_info == null)
                 {
-                    throw new exception("[VersusBase::requestActiveRingGround][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou ativar Anel de Terreno[TYPE=" + Convert.ToString(rg.efeito) + ", RING[0]=" + Convert.ToString(rg.ring[0]) + ", RING[1]=" + Convert.ToString(rg.ring[1]) + ", OPTION=" + Convert.ToString(rg.option) + "], mas ele nao esta com um Character equipado. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.VERSUS_BASE,
+                    throw new exception("[VersusBase::requestActiveRingGround][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou ativar Anel de Terreno[TYPE=" + Convert.ToString(rg.efeito) + ", RING[0]=" + Convert.ToString(rg.ring[0]) + ", RING[1]=" + Convert.ToString(rg.ring[1]) + ", OPTION=" + Convert.ToString(rg.option) + "], mas ele nao esta com um Character equipado. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.TOURNEY_BASE,
                         51, 0x340002));
                 }
 
-                if (sIff.getInstance().getItemGroupIdentify(rg.ring[0]) == (uint)sIff.getInstance().AUX_PART)
+                if (sIff.getInstance().getItemGroupIdentify(rg.ring[0]) == IFF_GROUP.AUX_PART)
                 { // Anel
 
                     var pRing = _session.m_pi.findWarehouseItemByTypeid(rg.ring[0]);
 
                     if (pRing == null)
                     {
-                        throw new exception("[VersusBase::requestActiveRingGround][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou ativar Anel de Terreno[TYPE=" + Convert.ToString(rg.efeito) + ", RING[0]=" + Convert.ToString(rg.ring[0]) + ", RING[1]=" + Convert.ToString(rg.ring[1]) + ", OPTION=" + Convert.ToString(rg.option) + "], mas ele nao tem o Anel[0]. hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.VERSUS_BASE,
+                        throw new exception("[VersusBase::requestActiveRingGround][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou ativar Anel de Terreno[TYPE=" + Convert.ToString(rg.efeito) + ", RING[0]=" + Convert.ToString(rg.ring[0]) + ", RING[1]=" + Convert.ToString(rg.ring[1]) + ", OPTION=" + Convert.ToString(rg.option) + "], mas ele nao tem o Anel[0]. hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.TOURNEY_BASE,
                             52, 0x340002));
                     }
 
                     if (!_session.m_pi.ei.char_info.auxparts.Any(c => c == rg.ring[0]))
                     {
-                        throw new exception("[VersusBase::requestActiveRingGround][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou ativar Anel de Terreno[TYPE=" + Convert.ToString(rg.efeito) + ", RING[0]=" + Convert.ToString(rg.ring[0]) + ", RING[1]=" + Convert.ToString(rg.ring[1]) + ", OPTION=" + Convert.ToString(rg.option) + "], mas ele nao esta com o Anel[0] equipado", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.VERSUS_BASE,
+                        throw new exception("[VersusBase::requestActiveRingGround][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou ativar Anel de Terreno[TYPE=" + Convert.ToString(rg.efeito) + ", RING[0]=" + Convert.ToString(rg.ring[0]) + ", RING[1]=" + Convert.ToString(rg.ring[1]) + ", OPTION=" + Convert.ToString(rg.option) + "], mas ele nao esta com o Anel[0] equipado", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.TOURNEY_BASE,
                             53, 0x340003));
                     }
 
@@ -2425,34 +2307,33 @@ namespace Pangya_GameServer.Game.Base
 
                         if (pRing2 == null)
                         {
-                            throw new exception("[VersusBase::requestActiveRingGround][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou ativar Anel de Terreno[TYPE=" + Convert.ToString(rg.efeito) + ", RING[0]=" + Convert.ToString(rg.ring[0]) + ", RING[1]=" + Convert.ToString(rg.ring[1]) + ", OPTION=" + Convert.ToString(rg.option) + "], mas ele nao tem o Anel[1]. hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.VERSUS_BASE,
+                            throw new exception("[VersusBase::requestActiveRingGround][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou ativar Anel de Terreno[TYPE=" + Convert.ToString(rg.efeito) + ", RING[0]=" + Convert.ToString(rg.ring[0]) + ", RING[1]=" + Convert.ToString(rg.ring[1]) + ", OPTION=" + Convert.ToString(rg.option) + "], mas ele nao tem o Anel[1]. hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.TOURNEY_BASE,
                                 52, 0x340002));
                         }
 
                         if (!_session.m_pi.ei.char_info.auxparts.Any(c => c == rg.ring[1]))
                         {
-                            throw new exception("[VersusBase::requestActiveRingGround][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou ativar Anel de Terreno[TYPE=" + Convert.ToString(rg.efeito) + ", RING[0]=" + Convert.ToString(rg.ring[0]) + ", RING[1]=" + Convert.ToString(rg.ring[1]) + ", OPTION=" + Convert.ToString(rg.option) + "], mas ele nao esta com o Anel[1] equipado", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.VERSUS_BASE,
+                            throw new exception("[VersusBase::requestActiveRingGround][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou ativar Anel de Terreno[TYPE=" + Convert.ToString(rg.efeito) + ", RING[0]=" + Convert.ToString(rg.ring[0]) + ", RING[1]=" + Convert.ToString(rg.ring[1]) + ", OPTION=" + Convert.ToString(rg.option) + "], mas ele nao esta com o Anel[1] equipado", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.TOURNEY_BASE,
                                 53, 0x340003));
                         }
                     }
 
                 }
-                else if (sIff.getInstance().getItemGroupIdentify(rg.ring[0]) == (uint)sIff.getInstance().PART)
+                else if (sIff.getInstance().getItemGroupIdentify(rg.ring[0]) == IFF_GROUP.PART)
                 { // Part
 
                     var pRing = _session.m_pi.findWarehouseItemByTypeid(rg.ring[0]);
 
                     if (pRing == null)
                     {
-                        throw new exception("[VersusBase::requestActiveRingGround][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou ativar Anel de Terreno[TYPE=" + Convert.ToString(rg.efeito) + ", RING[0]=" + Convert.ToString(rg.ring[0]) + ", RING[1]=" + Convert.ToString(rg.ring[1]) + ", OPTION=" + Convert.ToString(rg.option) + "], mas ele nao tem o Part[0]. hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.VERSUS_BASE,
+                        throw new exception("[VersusBase::requestActiveRingGround][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou ativar Anel de Terreno[TYPE=" + Convert.ToString(rg.efeito) + ", RING[0]=" + Convert.ToString(rg.ring[0]) + ", RING[1]=" + Convert.ToString(rg.ring[1]) + ", OPTION=" + Convert.ToString(rg.option) + "], mas ele nao tem o Part[0]. hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.TOURNEY_BASE,
                             52, 0x340002));
                     }
-
+                    //etava como aux ring
                     if (!_session.m_pi.ei.char_info.parts_typeid.Any(c => c == rg.ring[0]))
-
                     {
-                        throw new exception("[VersusBase::requestActiveRingGround][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou ativar Anel de Terreno[TYPE=" + Convert.ToString(rg.efeito) + ", RING[0]=" + Convert.ToString(rg.ring[0]) + ", RING[1]=" + Convert.ToString(rg.ring[1]) + ", OPTION=" + Convert.ToString(rg.option) + "], mas ele nao esta com o Part[0] equipado", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.VERSUS_BASE,
-                        53, 0x340003));
+                        throw new exception("[VersusBase::requestActiveRingGround][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou ativar Anel de Terreno[TYPE=" + Convert.ToString(rg.efeito) + ", RING[0]=" + Convert.ToString(rg.ring[0]) + ", RING[1]=" + Convert.ToString(rg.ring[1]) + ", OPTION=" + Convert.ToString(rg.option) + "], mas ele nao esta com o Part[0] equipado", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.TOURNEY_BASE,
+                            53, 0x340003));
                     }
 
                     if (rg.ring[0] != rg.ring[1])
@@ -2462,25 +2343,26 @@ namespace Pangya_GameServer.Game.Base
 
                         if (pRing2 == null)
                         {
-                            throw new exception("[VersusBase::requestActiveRingGround][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou ativar Anel de Terreno[TYPE=" + Convert.ToString(rg.efeito) + ", RING[0]=" + Convert.ToString(rg.ring[0]) + ", RING[1]=" + Convert.ToString(rg.ring[1]) + ", OPTION=" + Convert.ToString(rg.option) + "], mas ele nao tem o Part[1]. hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.VERSUS_BASE,
+                            throw new exception("[VersusBase::requestActiveRingGround][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou ativar Anel de Terreno[TYPE=" + Convert.ToString(rg.efeito) + ", RING[0]=" + Convert.ToString(rg.ring[0]) + ", RING[1]=" + Convert.ToString(rg.ring[1]) + ", OPTION=" + Convert.ToString(rg.option) + "], mas ele nao tem o Part[1]. hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.TOURNEY_BASE,
                                 52, 0x340002));
                         }
-                        if (!_session.m_pi.ei.char_info.parts_typeid.Any(c => c == rg.ring[1]))
+
+                        if (!_session.m_pi.ei.char_info.auxparts.Any(c => c == rg.ring[1]))
                         {
-                            throw new exception("[VersusBase::requestActiveRingGround][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou ativar Anel de Terreno[TYPE=" + Convert.ToString(rg.efeito) + ", RING[0]=" + Convert.ToString(rg.ring[0]) + ", RING[1]=" + Convert.ToString(rg.ring[1]) + ", OPTION=" + Convert.ToString(rg.option) + "], mas ele nao esta com o Part[1] equipado", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.VERSUS_BASE,
+                            throw new exception("[VersusBase::requestActiveRingGround][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou ativar Anel de Terreno[TYPE=" + Convert.ToString(rg.efeito) + ", RING[0]=" + Convert.ToString(rg.ring[0]) + ", RING[1]=" + Convert.ToString(rg.ring[1]) + ", OPTION=" + Convert.ToString(rg.option) + "], mas ele nao esta com o Part[1] equipado", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.TOURNEY_BASE,
                                 53, 0x340003));
                         }
                     }
 
                 }
-                else if (sIff.getInstance().getItemGroupIdentify(rg.ring[0]) == (uint)sIff.getInstance().MASCOT)
+                else if (sIff.getInstance().getItemGroupIdentify(rg.ring[0]) == IFF_GROUP.MASCOT)
                 {
 
                     var pMascot = _session.m_pi.findMascotByTypeid(rg.ring[0]);
 
                     if (pMascot == null)
                     {
-                        throw new exception("[VersusBase::requestActiveRingGround][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou ativar Anel de Terreno[TYPE=" + Convert.ToString(rg.efeito) + ", RING[0]=" + Convert.ToString(rg.ring[0]) + ", RING[1]=" + Convert.ToString(rg.ring[1]) + ", OPTION=" + Convert.ToString(rg.option) + "], mas ele nao tem o Mascot[0]. hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.VERSUS_BASE,
+                        throw new exception("[VersusBase::requestActiveRingGround][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou ativar Anel de Terreno[TYPE=" + Convert.ToString(rg.efeito) + ", RING[0]=" + Convert.ToString(rg.ring[0]) + ", RING[1]=" + Convert.ToString(rg.ring[1]) + ", OPTION=" + Convert.ToString(rg.option) + "], mas ele nao tem o Mascot[0]. hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.TOURNEY_BASE,
                             52, 0x340002));
                     }
 
@@ -2491,21 +2373,20 @@ namespace Pangya_GameServer.Game.Base
 
                         if (pPart2 == null)
                         {
-                            throw new exception("[VersusBase::requestActiveRingGround][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou ativar Anel de Terreno[TYPE=" + Convert.ToString(rg.efeito) + ", RING[0]=" + Convert.ToString(rg.ring[0]) + ", RING[1]=" + Convert.ToString(rg.ring[1]) + ", OPTION=" + Convert.ToString(rg.option) + "], mas ele nao tem o Part[1]. hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.VERSUS_BASE,
+                            throw new exception("[VersusBase::requestActiveRingGround][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou ativar Anel de Terreno[TYPE=" + Convert.ToString(rg.efeito) + ", RING[0]=" + Convert.ToString(rg.ring[0]) + ", RING[1]=" + Convert.ToString(rg.ring[1]) + ", OPTION=" + Convert.ToString(rg.option) + "], mas ele nao tem o Part[1]. hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.TOURNEY_BASE,
                                 52, 0x340002));
                         }
 
-                        if (!_session.m_pi.ei.char_info.parts_typeid.Any(c => c == rg.ring[0]))
-
+                        if (!_session.m_pi.ei.char_info.parts_typeid.Any(c => c == rg.ring[1]))
                         {
-                            throw new exception("[VersusBase::requestActiveRingGround][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou ativar Anel de Terreno[TYPE=" + Convert.ToString(rg.efeito) + ", RING[0]=" + Convert.ToString(rg.ring[0]) + ", RING[1]=" + Convert.ToString(rg.ring[1]) + ", OPTION=" + Convert.ToString(rg.option) + "], mas ele nao esta com o Part[1] equipado", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.VERSUS_BASE,
+                            throw new exception("[VersusBase::requestActiveRingGround][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou ativar Anel de Terreno[TYPE=" + Convert.ToString(rg.efeito) + ", RING[0]=" + Convert.ToString(rg.ring[0]) + ", RING[1]=" + Convert.ToString(rg.ring[1]) + ", OPTION=" + Convert.ToString(rg.option) + "], mas ele nao esta com o Part[1] equipado", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.TOURNEY_BASE,
                                 53, 0x340003));
                         }
                     }
                 }
 
-                // Adiciona o efeito que foi ativado
-                setEffectActiveInShot(_session, enumToBitValue((AbilityEffect)(rg.efeito)));
+                // Adiciona o efeito que foi ativado 
+                setEffectActiveInShot(_session, enumToBitValue(rg.efeito));
 
                 // Resposta para o Active Ring Terreno
                 p.init_plain(0x266);
@@ -2516,8 +2397,8 @@ namespace Pangya_GameServer.Game.Base
 
                 p.WriteUInt32(_session.m_pi.uid);
 
-                packet_func.game_broadcast(this,
-                    p, 1);
+                packet_func.session_send(p,
+                    _session, 1);
 
             }
             catch (exception e)
@@ -2528,7 +2409,7 @@ namespace Pangya_GameServer.Game.Base
                 // Resposta Error
                 p.init_plain(0x266);
 
-                p.WriteUInt32((ExceptionError.STDA_SOURCE_ERROR_DECODE(e.getCodeError()) == (uint)STDA_ERROR_TYPE.VERSUS_BASE) ? ExceptionError.STDA_SYSTEM_ERROR_DECODE(e.getCodeError()) : 0x340000);
+                p.WriteUInt32((ExceptionError.STDA_SOURCE_ERROR_DECODE_TYPE(e.getCodeError()) == STDA_ERROR_TYPE.TOURNEY_BASE) ? ExceptionError.STDA_SOURCE_ERROR_DECODE(e.getCodeError()) : 0x340000);
 
                 packet_func.session_send(p,
                     _session, 1);
@@ -2668,13 +2549,7 @@ namespace Pangya_GameServer.Game.Base
 
                 _smp.message_pool.getInstance().push(new message("[VersusBase::requestActiveRingPowerGagueJP][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
-        }
-
-
-
-
-
-
+        } 
 
         public override void requestActiveRingMiracleSignJP(Player _session, packet _packet)
         {
@@ -2707,7 +2582,7 @@ namespace Pangya_GameServer.Game.Base
                         72, 0x350003));
                 }
 
-                if (sIff.getInstance().getItemGroupIdentify(_typeid) == sIff.getInstance().AUX_PART)
+                if (sIff.getInstance().getItemGroupIdentify(_typeid) == IFF_GROUP.AUX_PART)
                 { // Anel
 
                     if (!_session.m_pi.ei.char_info.auxparts.Any(c => c ==
@@ -2718,7 +2593,7 @@ namespace Pangya_GameServer.Game.Base
                     }
 
                 }
-                else if (sIff.getInstance().getItemGroupIdentify(_typeid) == sIff.getInstance().PART)
+                else if (sIff.getInstance().getItemGroupIdentify(_typeid) == IFF_GROUP.PART)
                 { // Part
 
                     if (!_session.m_pi.ei.char_info.parts_typeid.Any(c => c ==
@@ -2791,8 +2666,7 @@ namespace Pangya_GameServer.Game.Base
                         92, 0x360003));
                 }
 
-                if (!_session.m_pi.ei.char_info.parts_typeid.Any(c => c ==
-                    _typeid))
+                if (!_session.m_pi.ei.char_info.parts_typeid.Any(c => c == _typeid))
                 {
                     throw new exception("[VersusBase::ActiveWing][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou ativar Asa[TYPEID=" + Convert.ToString(_typeid) + "], mas ele nao esta com o item 'Asa' equipado. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.VERSUS_BASE,
                         93, 0x360004));
@@ -2878,7 +2752,7 @@ namespace Pangya_GameServer.Game.Base
                         112, 0x370003));
                 }
 
-                if (sIff.getInstance().getItemGroupIdentify(_typeid) == sIff.getInstance().PART)
+                if (sIff.getInstance().getItemGroupIdentify(_typeid) == IFF_GROUP.PART)
                 { // Luva
 
                     if (!_session.m_pi.ei.char_info.parts_typeid.Any(c => c ==
@@ -2889,7 +2763,7 @@ namespace Pangya_GameServer.Game.Base
                     }
 
                 }
-                else if (sIff.getInstance().getItemGroupIdentify(_typeid) == sIff.getInstance().AUX_PART)
+                else if (sIff.getInstance().getItemGroupIdentify(_typeid) == IFF_GROUP.AUX_PART)
                 { // Anel
 
                     if (!_session.m_pi.ei.char_info.auxparts.Any(c => c ==
@@ -2949,7 +2823,7 @@ namespace Pangya_GameServer.Game.Base
                         130, 0x380001));
                 }
 
-                if (sIff.getInstance().getItemGroupIdentify(ec._typeid) == sIff.getInstance().PART)
+                if (sIff.getInstance().getItemGroupIdentify(ec._typeid) ==IFF_GROUP.PART)
                 { // Earcuff
 
                     if (_session.m_pi.ei.char_info == null)
@@ -2974,7 +2848,7 @@ namespace Pangya_GameServer.Game.Base
                     }
 
                 }
-                else if (sIff.getInstance().getItemGroupIdentify(ec._typeid) == sIff.getInstance().MASCOT)
+                else if (sIff.getInstance().getItemGroupIdentify(ec._typeid) == IFF_GROUP.MASCOT)
                 { // Mascot Dragon
 
                     var pMi = _session.m_pi.findMascotByTypeid(ec._typeid);
@@ -3078,11 +2952,8 @@ namespace Pangya_GameServer.Game.Base
             try
             {
 
-                byte percent = _packet.ReadByte();
-                //#if DEBUG
-                //                _smp.message_pool.getInstance().push(new message($"[VersusBase::requestLoadGamePercent][Log] [PLAYER: {_session.m_pi.uid}, COMPLETED: {percent * 10}%] ", type_msg.CL_FILE_LOG_AND_CONSOLE));
-                //#endif
-                // Resposta para o Load Game Percent
+                byte percent = _packet.ReadByte(); 
+
                 p.init_plain(0xA3);
 
                 p.WriteInt32(_session.m_oid);
@@ -3101,9 +2972,7 @@ namespace Pangya_GameServer.Game.Base
         }
 
         public override void requestStartTurnTime(Player _session, packet _packet)
-        {
-            ////REQUEST_BEGIN("StartTurnTime");
-
+        { 
             try
             {
 
@@ -3135,11 +3004,11 @@ namespace Pangya_GameServer.Game.Base
                 }
 
                 if (opt == 0)
-                { // Despausa
-
-                    if (m_timer.getState() != PangyaSyncTimer.TIMER_STATE.PAUSE)
+                { 
+                    // Despausa 
+                    if (m_timer.getState() != PangyaSyncTimer.TIMER_STATE.PAUSED)
                     {
-                        throw new exception("[VersusBase::requestUnOrPause][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou pausar ou despausar[OPT=" + Convert.ToString((ushort)opt) + "] um VersusBase, que o timer nao esta pausado, esta em outro estado[ESTADO=" + Convert.ToString(m_timer.getState()) + "]", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.VERSUS_BASE,
+                        throw new exception("[VersusBase::requestUnOrPause][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou pausar ou despausar[OPT=" + Convert.ToString((ushort)opt)  + ", TYPE" + m_timer.getState() + "] um VersusBase, que o timer nao esta pausado, esta em outro estado[ESTADO=" + Convert.ToString(m_timer.getState()) + "]", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.VERSUS_BASE,
                             301, 0));
                     }
 
@@ -3152,20 +3021,16 @@ namespace Pangya_GameServer.Game.Base
                     p.WriteByte(0);
 
                     packet_func.game_broadcast(this,
-                        p, 1);
-
-                    // Log
-
-                    _smp.message_pool.getInstance().push(new message("[VersusBase::requestUnOrPause][Log] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] despausou o tempo na sala[NUMERO=" + Convert.ToString(m_ri.numero) + "] com sucesso!", type_msg.CL_FILE_LOG_AND_CONSOLE));
-                    // DEBUG
+                        p, 1); 
+                    _smp.message_pool.getInstance().push(new message("[VersusBase::requestUnOrPause][Log] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] pausou o tempo na sala[NUMERO=" + Convert.ToString(m_ri.numero) + ", TYPE" + m_timer.getState() + "] com sucesso!", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
                 }
                 else if (opt == 1)
-                { // Pausa
-
+                { 
+                    // Pausa 
                     if (m_timer.getState() != PangyaSyncTimer.TIMER_STATE.RUNNING)
                     {
-                        throw new exception("[VersusBase::requestUnOrPause][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou pausar ou despausar[OPT=" + Convert.ToString((ushort)opt) + "] um VersusBase, que o timer nao esta rodando, esta em outro estado[ESTADO=" + Convert.ToString(m_timer.getState()) + "]", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.VERSUS_BASE,
+                        throw new exception("[VersusBase::requestUnOrPause][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou pausar ou despausar[OPT=" + Convert.ToString((ushort)opt)  + ", TYPE" + m_timer.getState() + "] um VersusBase, que o timer nao esta rodando, esta em outro estado[ESTADO=" + Convert.ToString(m_timer.getState()) + "]", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.VERSUS_BASE,
                             301, 0));
                     }
 
@@ -3187,7 +3052,7 @@ namespace Pangya_GameServer.Game.Base
 
                     // Log
 
-                    _smp.message_pool.getInstance().push(new message("[VersusBase::requestUnOrPause][Log] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] pausou o tempo na sala[NUMERO=" + Convert.ToString(m_ri.numero) + "] com sucesso!", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                    _smp.message_pool.getInstance().push(new message("[VersusBase::requestUnOrPause][Log] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] pausou o tempo na sala[NUMERO=" + Convert.ToString(m_ri.numero) + ", TYPE" + m_timer.getState() + "] com sucesso!", type_msg.CL_FILE_LOG_AND_CONSOLE));
                     // DEBUG
                 }
 
@@ -3296,69 +3161,7 @@ namespace Pangya_GameServer.Game.Base
 
                 UserInfoEx ui = new UserInfoEx();
                 #region Read Packet
-
-                ui.tacada = p.ReadInt32();
-                ui.putt = p.ReadInt32();
-                ui.tempo = p.ReadInt32();
-                ui.tempo_tacada = p.ReadInt32();
-                ui.best_drive = p.ReadSingle();
-                ui.acerto_pangya = p.ReadInt32();
-                ui.timeout = p.ReadInt32();
-                ui.ob = p.ReadInt32();
-                ui.total_distancia = p.ReadInt32();
-                ui.hole = p.ReadInt32();
-                ui.hole_in = p.ReadInt32();
-                ui.hio = p.ReadInt32();
-                ui.bunker = p.ReadInt16();
-                ui.fairway = p.ReadInt32();
-                ui.albatross = p.ReadInt32();
-                ui.mad_conduta = p.ReadInt32();
-                ui.putt_in = p.ReadInt32();
-                ui.best_long_putt = p.ReadSingle();
-                ui.best_chip_in = p.ReadSingle();
-                ui.exp = p.ReadUInt32();
-                ui.level = p.ReadByte();
-                ui.pang = p.ReadUInt64();
-                ui.media_score = p.ReadInt32();
-                ui.best_score = p.ReadBytes(5);
-                ui.event_flag = p.ReadByte();
-                ui.best_pang = new long[5];
-                for (int i = 0; i < 5; i++)
-                    ui.best_pang[i] = p.ReadInt64();
-                ui.sum_pang = p.ReadInt64();
-                ui.jogado = p.ReadInt32();
-                ui.team_hole = p.ReadInt32();
-                ui.team_win = p.ReadInt32();
-                ui.team_game = p.ReadInt32();
-                ui.ladder_point = p.ReadInt32();
-                ui.ladder_hole = p.ReadInt32();
-                ui.ladder_win = p.ReadInt32();
-                ui.ladder_lose = p.ReadInt32();
-                ui.ladder_draw = p.ReadInt32();
-                ui.combo = p.ReadInt32();
-                ui.all_combo = p.ReadInt32();
-                ui.quitado = p.ReadInt32();
-                ui.skin_pang = p.ReadInt64();
-                ui.skin_win = p.ReadInt32();
-                ui.skin_lose = p.ReadInt32();
-                ui.skin_all_in_count = p.ReadInt32();
-                ui.skin_run_hole = p.ReadInt32();
-                ui.skin_strike_point = p.ReadInt32();
-                ui.jogados_disconnect = p.ReadInt32();
-                ui.event_value = p.ReadInt16();
-                ui.disconnect = p.ReadInt32();
-                ui.medal = new stMedal
-                {
-                    lucky = p.ReadInt32(),
-                    fast = p.ReadInt32(),
-                    best_drive = p.ReadInt32(),
-                    best_chipin = p.ReadInt32(),
-                    best_puttin = p.ReadInt32(),
-                    best_recovery = p.ReadInt32(),
-                };
-                ui.sys_school_serie = p.ReadInt32();
-                ui.game_count_season = p.ReadInt32();
-                ui._16bit_nao_sei = p.ReadInt16();
+                ui.ToRead(p);
                 #endregion
 
                 _smp.message_pool.getInstance().push(new message("[VersusBase::requestFinishGame][Log] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] UserInfo[" + ui.ToString() + "]", type_msg.CL_ONLY_CONSOLE_DEBUG));
@@ -3433,7 +3236,7 @@ namespace Pangya_GameServer.Game.Base
                 p, 1);
         }
 
-        protected override bool init_game()
+        public override bool init_game()
         {
             // Inicializar Treasure Hunter Info do Versus Base
             init_treasure_hunter_info();
@@ -3441,7 +3244,7 @@ namespace Pangya_GameServer.Game.Base
             return true;
         }
 
-        protected override void requestTranslateSyncShotData(Player _session, ShotSyncData _ssd)
+        public override void requestTranslateSyncShotData(Player _session, ShotSyncData _ssd)
         {
             //CHECK_SESSION_BEGIN("requestTranslateSyncShotData");
 
@@ -3508,7 +3311,7 @@ namespace Pangya_GameServer.Game.Base
             }
         }
 
-        protected override void requestReplySyncShotData(Player _session)
+        public override void requestReplySyncShotData(Player _session)
         {
             //CHECK_SESSION_BEGIN("requestReplySyncShotData");
 
@@ -3855,10 +3658,8 @@ namespace Pangya_GameServer.Game.Base
             // Set
             _pgi.finish_load_hole = 1;
 
-            if (m_hEvent_chk_turn_pulse != null)
-            {
-                m_hEvent_chk_turn_pulse.Set();
-            }
+            if (m_hEvent_chk_turn_pulse != INVALID_HANDLE_VALUE)
+                SetEvent(m_hEvent_chk_turn_pulse);
         }
 
         public virtual bool checkAllLoadHole()
@@ -3952,10 +3753,8 @@ namespace Pangya_GameServer.Game.Base
             // Set
             _pgi.finish_shot = 1;
 
-            if (m_hEvent_chk_turn_pulse != null)
-            {
-                m_hEvent_chk_turn_pulse.Set();
-            }
+            if (m_hEvent_chk_turn_pulse != INVALID_HANDLE_VALUE)
+                SetEvent(m_hEvent_chk_turn_pulse);
 
         }
 
@@ -4005,37 +3804,33 @@ namespace Pangya_GameServer.Game.Base
             // Set
             _pgi.sync_shot_flag = 1;//possivelmente erro aqui
 
-            if (m_hEvent_chk_turn_pulse != null)
-            {
-                m_hEvent_chk_turn_pulse.Set();
-            }
+            if (m_hEvent_chk_turn_pulse != INVALID_HANDLE_VALUE)
+                SetEvent(m_hEvent_chk_turn_pulse);
         }
 
+        // 2. Verificação Robusta de Sincronismo
         public virtual bool checkAllSyncShot()
         {
+            if (m_players.Count == 0) return true;
 
-            uint count = 0;
-
-            // Check
-            m_players.ForEach(_el =>
+            int count = 0;
+            foreach (var _el in m_players)
             {
-                try
+                if (_el == null || !_el.isConnected())
                 {
-                    INIT_PLAYER_INFO("CheckAllSyncShot",
-                        "tentou verificar se todos os player sincronizaram a Tacada no jogo",
-                        _el, out PlayerGameInfo pgi);
-                    if (pgi.sync_shot_flag == 1)
-                    {
-                        count++;
-                    }
+                    count++;
+                    continue;
                 }
-                catch (exception e)
-                {
-                    _smp.message_pool.getInstance().push(new message("[VersusBase::CheckAllSyncShot][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
-                }
-            });
-            return (count == m_players.Count);
+
+                INIT_PLAYER_INFO("CheckAllSyncShot", "verificando sincronia", _el, out PlayerGameInfo pgi);
+
+                // Se o player confirmou OU se ele saiu do jogo, contamos como pronto
+                if (pgi.sync_shot_flag == 1 || pgi.flag == PlayerGameInfo.eFLAG_GAME.QUIT)
+                    count++;
+            }
+            return (count >= m_players.Count);
         }
+
 
         public virtual void clearSyncShot()
         {
@@ -4141,24 +3936,22 @@ namespace Pangya_GameServer.Game.Base
             });
         }
 
+        // 1. Limpeza total de flags para evitar que lixo da tacada anterior atropele a nova
         public virtual void clear_all_sync_shot()
         {
-
-            m_players.ForEach(_el =>
+            foreach (var _el in m_players)
             {
                 try
                 {
-                    INIT_PLAYER_INFO("clear_all_sync_shot",
-                        " tentou limpar all sync shot do jogo",
-                        _el, out PlayerGameInfo pgi);
+                    if (_el == null) continue;
+
+                    INIT_PLAYER_INFO("clear_all_sync_shot", "limpando sync shot", _el, out PlayerGameInfo pgi);
+
                     pgi.sync_shot_flag = 0;
                     pgi.tick_sync_shot.clear();
                 }
-                catch (exception e)
-                {
-                    _smp.message_pool.getInstance().push(new message("[VersusBase::clear_all_sync_shot][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
-                }
-            });
+                catch { /* Log omitido para brevidade */ }
+            }
         }
 
         public virtual void clear_all_sync_shot2()
@@ -4506,24 +4299,5 @@ namespace Pangya_GameServer.Game.Base
         {
             return m_players.Count > m_max_player;
         }
-
-        private readonly uint m_max_player = 4;                  // No m�ximo 4 jogadores
-
-        protected PlayerGameInfo m_player_turn;                  // PlayerGameInfo do player que est� tacando ou vai tacar
-
-        uint m_count_pause;                 // Count de pause no Versus Base, 3x � o m�ximo permitido
-
-        readonly uint m_seed_mascot_effect;              // Seed Mascot Effect Random
-
-        public uint m_flag_next_step_game;         // Flag que guarda a proxima passo que o game vai d� depois que um player sai
-
-        protected TreasureHunterVersusInfo m_thi;
-
-        protected stStateVersus m_state_vs;
-        private CancellationTokenSource m_cancel_token_source;
-        private Task m_task_chk_turn;
-
-        private AutoResetEvent m_hEvent_chk_turn = new AutoResetEvent(false);
-        private AutoResetEvent m_hEvent_chk_turn_pulse = new AutoResetEvent(false);
     }
 }

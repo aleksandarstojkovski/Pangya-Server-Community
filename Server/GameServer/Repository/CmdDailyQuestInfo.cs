@@ -25,7 +25,7 @@ namespace Pangya_GameServer.Repository
         {
             checkColumnNumber(4);
 
-            for (var i = 0u; i < 3; ++i)
+            for (var i = 0; i < 3; ++i)
             {
                 m_dqi._typeid[i] = IFNULL<uint>(_result.data[0 + i]); // 0 + 3 = 3
             }

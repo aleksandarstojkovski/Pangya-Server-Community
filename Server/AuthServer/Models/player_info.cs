@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
  
-namespace AuthServer.Models
+namespace Pangya_AuthServer.Models
 {
     public class PlayerInfo : player_info
     {

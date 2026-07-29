@@ -235,7 +235,7 @@ namespace PangyaAPI.IFF.JP.Models.Data
 
         public bool isGrandPrixNormal()
         {
-            return (uint)((ID & 0x3000000) >> 24) == 0u;
+            return (uint)((ID & 0x3000000) >> 24) == 0;
         }
 
         public uint getGrandPrixAba(uint _typeid)
@@ -255,7 +255,7 @@ namespace PangyaAPI.IFF.JP.Models.Data
 
         public bool isGrandPrixNormal(uint _typeid)
         {
-            return (uint)((_typeid & 0x3000000) >> 24) == 0u;
+            return (uint)((_typeid & 0x3000000) >> 24) == 0;
         }
 
         [StructLayout(LayoutKind.Sequential, Pack = 1)]

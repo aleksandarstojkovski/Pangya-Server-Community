@@ -8,7 +8,7 @@ namespace Pangya_GameServer.Repository
     {
         public CmdExtendRental()
         {
-            this.m_uid = 0u;
+            this.m_uid = 0;
             this.m_item_id = 0;
             this.m_date = "";
         }
@@ -80,8 +80,7 @@ namespace Pangya_GameServer.Repository
                     4, 0));
             }
 
-            var r = procedure(
-                m_szConsulta,
+            var r = procedure(m_szConsulta,
                 Convert.ToString(m_uid) + ", " + Convert.ToString(m_item_id) + ", " + (m_date));
 
             checkResponse(r, "nao conseguiu extender o Part Rental[ID=" + Convert.ToString(m_item_id) + "] do PLAYER[UID=" + Convert.ToString(m_uid) + "]");

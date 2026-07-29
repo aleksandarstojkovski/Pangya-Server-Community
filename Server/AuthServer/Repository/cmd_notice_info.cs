@@ -2,7 +2,7 @@
 using PangyaAPI.Utilities;
 using System;
 using System.Text;
-namespace AuthServer.Repository
+namespace Pangya_AuthServer.Repository
 {
     public class CmdNoticeInfo : Pangya_DB
     {

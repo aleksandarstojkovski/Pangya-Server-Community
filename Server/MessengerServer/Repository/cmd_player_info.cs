@@ -1,11 +1,11 @@
-﻿using MessengerServer.Models;
+﻿using Pangya_MessengerServer.Models;
 using PangyaAPI.SQL;
 using PangyaAPI.Utilities;
 using PangyaAPI.Utilities.Log;
 using System;
 using System.Collections.Generic;
 
-namespace MessengerServer.Repository
+namespace Pangya_MessengerServer.Repository
 {
     public class CmdPlayerInfo : Pangya_DB
     {

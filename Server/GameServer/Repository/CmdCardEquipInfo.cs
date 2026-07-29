@@ -1,18 +1,11 @@
 ﻿using System;
 using Pangya_GameServer.Game.Manager;
 using Pangya_GameServer.Models;
-using PangyaAPI.SQL;
-
+using PangyaAPI.SQL; 
 namespace Pangya_GameServer.Repository
 {
     public class CmdCardEquipInfo : Pangya_DB
-    {
-        public CmdCardEquipInfo()
-        {
-            this.m_uid = 0;
-            this.v_cei = new CardEquipManager();
-        }
-
+    { 
         public CmdCardEquipInfo(uint _uid)
         {
             this.m_uid = _uid;
@@ -21,40 +14,30 @@ namespace Pangya_GameServer.Repository
         public CardEquipManager getInfo()
         {
             return v_cei;
-        }
-
-        public uint getUID()
-        {
-            return (m_uid);
-        }
-
-        public void setUID(uint _uid)
-        {
-            m_uid = _uid;
-        }
+        } 
 
         protected override void lineResult(ctx_res _result, uint _index_reuslt)
         {
             checkColumnNumber(13/*tempo*/);
 
-            CardEquipInfoEx cei = new CardEquipInfoEx();
-
-            cei.index = IFNULL<int>(_result.data[0]);
-            cei._typeid = IFNULL(_result.data[1]);
-            cei.parts_typeid = IFNULL(_result.data[3]);
-            cei.parts_id = IFNULL(_result.data[4]);
-            cei.efeito = IFNULL(_result.data[5]);
-            cei.efeito_qntd = IFNULL(_result.data[6]);
-            cei.slot = IFNULL(_result.data[7]);
+            CardEquipInfoEx cei = new CardEquipInfoEx
+            {
+                index = IFNULL<int>(_result.data[0]),
+                _typeid = IFNULL(_result.data[1]),
+                parts_typeid = IFNULL(_result.data[3]),
+                parts_id = IFNULL(_result.data[4]),
+                efeito = IFNULL(_result.data[5]),
+                efeito_qntd = IFNULL(_result.data[6]),
+                slot = IFNULL(_result.data[7])
+            };
             if (_result.IsNotNull(8))
-                cei.use_date.CreateTime(DateTime.Parse(_result.GetString(8)));
+                cei.use_date.CreateTime(_result.GetDateTime(8));
             if (_result.IsNotNull(9))
-                cei.end_date.CreateTime(DateTime.Parse(_result.GetString(9)));
+                cei.end_date.CreateTime(_result.GetDateTime(9));
 
             cei.tipo = IFNULL(_result.data[11]);
-            cei.use_yn = (byte)IFNULL(_result.data[12]);
-
-            v_cei.Add(cei);
+            cei.use_yn = (byte)IFNULL(_result.data[12]); 
+                v_cei.Add(cei);
         }
 
         protected override Response prepareConsulta()

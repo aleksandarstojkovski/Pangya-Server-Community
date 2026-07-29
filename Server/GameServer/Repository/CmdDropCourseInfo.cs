@@ -33,7 +33,7 @@ namespace Pangya_GameServer.Repository
             di._typeid = IFNULL(_result.data[2]);
             di.qntd = IFNULL(_result.data[3]);
 
-            for (var i = 0u; i < 4; ++i)
+            for (var i = 0; i < 4; ++i)
             {
                 di.probabilidade[i] = IFNULL(_result.data[4 + i]); // i + 4
             }

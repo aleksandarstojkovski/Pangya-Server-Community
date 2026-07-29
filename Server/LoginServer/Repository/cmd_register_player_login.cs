@@ -1,9 +1,9 @@
-﻿using LoginServer.Models;
+﻿using Pangya_LoginServer.Models;
 using PangyaAPI.SQL;
 using PangyaAPI.Utilities;
 using System;
 
-namespace LoginServer.Repository
+namespace Pangya_LoginServer.Repository
 {
 	public class CmdRegisterPlayerLogin : Pangya_DB
 	{
@@ -74,7 +74,7 @@ m_server_uid = _server_uid;
 				}
 
 				var r = procedure(m_szConsulta,
-					Convert.ToString(m_uid) + ", " +(m_ip) + ", " + Convert.ToString(m_server_uid));
+					Convert.ToString(m_uid) + ", " + makeText(m_ip) + ", " + Convert.ToString(m_server_uid));
 
 				checkResponse(r, "nao conseguiu registrar o login do player: " + Convert.ToString(m_uid) + ", IP: " + m_ip);
 

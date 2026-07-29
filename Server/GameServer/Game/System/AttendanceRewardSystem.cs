@@ -10,7 +10,7 @@ using PangyaAPI.IFF.JP.Extensions;
 using PangyaAPI.Network.PangyaPacket;
 using PangyaAPI.SQL;
 using PangyaAPI.Utilities;
-using PangyaAPI.Utilities.BinaryModels;
+using PangyaAPI.Utilities.Models;
 using PangyaAPI.Utilities.Log;
 using static Pangya_GameServer.Models.DefineConstants;
 
@@ -201,6 +201,10 @@ namespace Pangya_GameServer.Game.System
 
                 // D� 3 Grand Prix Ticket, por que � a primeira vez que o player loga no dia
                 sendGrandPrixTicket(_session);
+
+                sendBotTicket(_session);
+
+                sendFortuneKey(_session);
             }
             catch (exception e)
             {
@@ -275,7 +279,7 @@ namespace Pangya_GameServer.Game.System
                     item.type = 2;
                     item.id = -1;
                     item._typeid = GRAND_PRIX_TICKET;
-                    item.qntd = (int)((pWi == null) ? 3 : ((LIMIT_GRAND_PRIX_TICKET - pWi.STDA_C_ITEM_QNTD32) >= 3 ? 3 : LIMIT_GRAND_PRIX_TICKET - pWi.STDA_C_ITEM_QNTD32));
+                    item.qntd = (int)((pWi == null) ? 3 : ((LIMIT_GRAND_PRIX_TICKET - pWi.STDA_C_ITEM_QNTD) >= 3 ? 3 : LIMIT_GRAND_PRIX_TICKET - pWi.STDA_C_ITEM_QNTD));
                     item.STDA_C_ITEM_QNTD = (short)item.qntd;
 
                     // UPDATE ON SERVER AND DB
@@ -297,6 +301,51 @@ namespace Pangya_GameServer.Game.System
 
                 }
 
+            }
+            catch (Exception)
+            {
+
+                throw;
+            }
+        }
+
+
+        public void sendBotTicket(Player _session)
+        {
+            try
+            {
+
+                var pWi = _session.m_pi.findWarehouseItemByTypeid(436207927);
+
+                if (pWi == null || pWi.STDA_C_ITEM_QNTD < 5)
+                {
+
+                    stItem item = new stItem
+                    {
+                        type = 2,
+                        id = -1,
+                        _typeid = 436207927,
+                        qntd = (int)((pWi == null) ? 5 : ((5 - pWi.STDA_C_ITEM_QNTD) >= 5 ? 5 : 5 - pWi.STDA_C_ITEM_QNTD))
+                    };
+                    item.STDA_C_ITEM_QNTD = (short)item.qntd;
+
+                    // UPDATE ON SERVER AND DB
+                    var rt = ItemManager.RetAddItem.T_ERROR;
+
+                    if ((rt = ItemManager.addItem(item, _session, 0, 0)) < 0/*Error*/)
+                        throw new exception("[AttendanceRewardSystem::sendBotTicket][Error] PLAYER[UID=" + (_session.m_pi.uid)
+                            + "] tentou adicionar o Key of fortune do login, mas nao conseguiu. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.ATTENDANCE_REWARD_SYSTEM, 9, 0));
+
+
+                    // UPDATE ON GAME, s� envia se for diferente de Pang and Exp Pouch
+                    if (rt != ItemManager.RetAddItem.T_SUCCESS_PANG_AND_EXP_AND_CP_POUCH)
+                    {
+
+                        var msg = "Special Daily Login Prize!"; //envia no email, na proxima vez que ele logar, ele já ver o item
+
+                        MailBoxManager.sendMessageWithItem(0, _session.m_pi.uid, msg, item);
+                    }
+                }
             }
             catch (Exception)
             {
@@ -337,7 +386,7 @@ namespace Pangya_GameServer.Game.System
                     if (rt != ItemManager.RetAddItem.T_SUCCESS_PANG_AND_EXP_AND_CP_POUCH)
                     {
 
-                        var msg = "Daily Login Prize!"; //envia no email, na proxima vez que ele logar, ele já ver o item
+                        var msg = "Special Daily Login Prize!"; //envia no email, na proxima vez que ele logar, ele já ver o item
 
                         MailBoxManager.sendMessageWithItem(0, _session.m_pi.uid, msg, item);
                     }
@@ -375,7 +424,7 @@ namespace Pangya_GameServer.Game.System
                     foreach (var item in collection)
                         lottery.Push(400, item);
                 }
-                var lc = lottery.SpinRoleta();
+                var lc = lottery.spinRoleta();
 
                 if (lc == null)
                     throw new exception("[AttendanceRewardSystem::drawReward][Error] nao conseguiu rodar a roleta. falhou ao sortear o item. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.ATTENDANCE_REWARD_SYSTEM, 5, 0));

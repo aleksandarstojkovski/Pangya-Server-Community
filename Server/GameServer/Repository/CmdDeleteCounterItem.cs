@@ -20,7 +20,7 @@ namespace Pangya_GameServer.Repository
         }
 
         public CmdDeleteCounterItem(uint _uid,
-            Dictionary<uint, CounterItemInfo> _mp_id)
+            Dictionary<int, CounterItemInfo> _mp_id)
         {
 
             this.m_uid = _uid;

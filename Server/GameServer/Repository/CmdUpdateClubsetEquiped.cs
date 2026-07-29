@@ -57,8 +57,7 @@ namespace Pangya_GameServer.Repository
         protected override Response prepareConsulta()
         {
 
-            var r = procedure(
-                m_szConsulta,
+            var r = procedure(m_szConsulta,
                 Convert.ToString(m_uid) + ", " + Convert.ToString(m_clubset_id));
 
             checkResponse(r, "nao conseguiu atualizar o clubset[ID=" + Convert.ToString(m_clubset_id) + "] equipado do player: " + Convert.ToString(m_uid));

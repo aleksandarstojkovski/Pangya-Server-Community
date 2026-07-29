@@ -79,9 +79,8 @@ namespace Pangya_GameServer.Repository
 
             m_ps.id = 0Ul;
 
-            var r = procedure(
-                m_szConsulta,
-                Convert.ToString(m_id) + ", " + Convert.ToString(m_ps.uid) + ", " + Convert.ToString(m_ps.count_days) + ", " + Convert.ToString(m_ps.count_seq) + ", " + (m_ps.is_clear ? "1" : "0") + ", " + _formatDate(m_ps.update_date.ConvertTime()));
+            var r = procedure(m_szConsulta,
+                Convert.ToString(m_id) + ", " + Convert.ToString(m_ps.uid) + ", " + Convert.ToString(m_ps.count_days) + ", " + Convert.ToString(m_ps.count_seq) + ", " + (m_ps.is_clear ? "1" : "0") + ", " + makeText(_formatDate(m_ps.update_date.ConvertTime())));
 
             checkResponse(r, "nao conseguiu adicionar o PLAYER[" + m_ps.toString() + "] do Login Reward[ID=" + Convert.ToString(m_id) + "]");
 

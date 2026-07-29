@@ -1,11 +1,11 @@
 ﻿using System.Net;
 using System.Net.Sockets;
-using LoginServer.Models;
+using Pangya_LoginServer.Models;
 using PangyaAPI.Network.PangyaPacket;
 using PangyaAPI.Network.PangyaSession;
 using PangyaAPI.Network.PangyaUtil;
 
-namespace LoginServer.Session
+namespace Pangya_LoginServer.Session
 {
     public class Player : PangyaAPI.Network.PangyaSession.Session
     {

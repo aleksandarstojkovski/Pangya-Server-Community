@@ -1,12 +1,12 @@
-﻿using AuthServer.Models;
+﻿using Pangya_AuthServer.Models;
 using PangyaAPI.Network.Cryptor;
 using PangyaAPI.Network.PangyaPacket;
 using PangyaAPI.Utilities.Log;
 using PangyaAPI.Utilities;
-using PangyaAPI.Utilities.BinaryModels;
+using PangyaAPI.Utilities.Models;
 using System.Collections.Generic;
 
-namespace AuthServer.Session
+namespace Pangya_AuthServer.Session
 {
     public class Player : PangyaAPI.Network.PangyaSession.Session
     {
@@ -74,7 +74,7 @@ namespace AuthServer.Session
 
                     var payloadData = _raw ? _buff : Cipher.ServerEncrypt(_buff, m_key, 0);
 
-                    if (!m_sock.Send(payloadData, payloadData.Length))
+                    if (!m_client.Send(payloadData, payloadData.Length))
                     {
                         @lock();
                         setConnectedToSend(false);

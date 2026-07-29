@@ -34,8 +34,7 @@ namespace Pangya_GameServer.Repository
 
             m_gpc.Clear();
 
-            var r = procedure(
-                m_szConsulta,
+            var r = procedure(m_szConsulta,
                 Convert.ToString(m_uid));
 
             checkResponse(r, "nao conseguiu pegar o  Grand Prix Clear do PLAYER[UID=" + Convert.ToString(m_uid) + "]");

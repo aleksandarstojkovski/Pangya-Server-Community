@@ -15,7 +15,7 @@ using PangyaAPI.Network.PangyaPacket;
 using PangyaAPI.Network.PangyaSession;
 using PangyaAPI.SQL;
 using PangyaAPI.Utilities;
-using PangyaAPI.Utilities.BinaryModels;
+using PangyaAPI.Utilities.Models;
 using PangyaAPI.Utilities.Log;
 using static Pangya_GameServer.Models.DefineConstants;
 namespace Pangya_GameServer
@@ -24,12 +24,12 @@ namespace Pangya_GameServer
     {
         public ChatPenaltyManager ChatPenalty { get; } = new ChatPenaltyManager();
         //trocar por Inventory depois
-        public PlayerInfo m_pi { get; set; }
-        public GMInfo m_gi { get; set; } 
-        public GameBase m_pGame { get; set; }
+        public PlayerInfo m_pi { get; set; }// info do jogador....
+        public GMInfo m_gi { get; set; }// info de GM se for GM
+        public GameBase m_pGame { get; set; }//tipo de jogo que o jogador esta....  
         public Room m_room { get; set; } //sala onde esta o jogador....
-        public Channel m_channel { get; set; } //onde esta o jogador....
-        public bool IsBot { get; set; } = false;
+        public Channel m_channel { get; set; } //onde esta o jogador....  
+        public string m_MacAdress { get; set; }
         public Player()
         {
             m_pi = new PlayerInfo();
@@ -60,22 +60,25 @@ namespace Pangya_GameServer
 
         public override bool clear()
         {
-            bool ret;
-            if (ret = base.clear())
-            { 
-                // Player Info
-                m_pi.clear();
+            lock (this)
+            {
+                bool ret;
+                if (ret = base.clear())
+                {
+                    // Player Info
+                    m_pi.clear();
 
-                // Game Master Info
-                m_gi.clear();
+                    // Game Master Info
+                    m_gi.clear();
+                }
+                return ret;
             }
-            return ret;
         }
 
-        public void addExp(uint _exp, bool _upt_on_game = false)
+        public void addExp(int _exp, bool _upt_on_game = false)
         {
 
-            if (_exp == 0)
+            if (_exp == 0 || _exp < 0)
             {
                 throw new exception("[player::addExp][Error] _exp is invalid(zero)", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PLAYER,
                     1, 0));
@@ -93,8 +96,7 @@ namespace Pangya_GameServer
                 {
 
                     if (ret > 0)
-                    { // Player Upou de level
-
+                    { // Player Upou de level 
                         List<stItem> v_item = new List<stItem>();
                         stItem item = new stItem();
                         BuyItem bi = new BuyItem();
@@ -115,7 +117,7 @@ namespace Pangya_GameServer
                                     2, 0));
                             }
 
-                            for (var ii = 0u; ii < (it.reward.TypeID.Length); ++ii)
+                            for (var ii = 0; ii < (it.reward.TypeID.Length); ++ii)
                             {
 
                                 if (it.reward.TypeID[ii] != 0)
@@ -168,7 +170,7 @@ namespace Pangya_GameServer
                     p.init_plain(0x1D9);
 
                     p.WriteUInt32(m_pi.mi.level);
-                    p.WriteUInt32(m_pi.ui.exp);
+                    p.WriteInt32(m_pi.ui.exp);
 
                     packet_func.session_send(p,
                         this, 1);
@@ -187,10 +189,11 @@ namespace Pangya_GameServer
             }
         }
 
-        public void addCaddieExp(uint _exp)
+
+        public void addCaddieExp(int _exp)
         {
 
-            if (_exp == 0)
+            if (_exp == 0 || _exp < 0)
             {
                 throw new exception("[player::addCaddieExp][Error] PLAYER[UID=" + Convert.ToString(m_pi.uid) + "] tentou adicionar mais exp[VALUE=" + Convert.ToString(_exp) + "] ao caddie equipado, mas exp is invalid(zero).", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PLAYER,
                     300, 0));
@@ -209,19 +212,15 @@ namespace Pangya_GameServer
 
                 m_pi.ei.cad_info.exp += _exp;
 
-                uint exp_level = 0u;
+                int exp_level = 0;
 
-                bool upou = false;
-
-                while (m_pi.ei.cad_info.level < LIMIT_LEVEL_CADDIE && m_pi.ei.cad_info.exp >= (exp_level = (uint)(520 + (160 * (m_pi.ei.cad_info.level)))))
+                while (m_pi.ei.cad_info.level < LIMIT_LEVEL_CADDIE && m_pi.ei.cad_info.exp >= (exp_level = (int)(520 + (160 * (m_pi.ei.cad_info.level)))))
                 {
 
                     // Upou 1 Level
                     m_pi.ei.cad_info.level++;
 
                     m_pi.ei.cad_info.exp -= exp_level;
-
-                    upou = true;
                 }
 
                 // UPDATE ON DB
@@ -230,14 +229,13 @@ namespace Pangya_GameServer
                     SQLDBResponse, this);
 
                 // LOG
-                _smp.message_pool.getInstance().push(new message("[player::addCaddieExp][Log] PLAYER[UID=" + Convert.ToString(m_pi.uid) + "] add Exp para o Caddie[TYPEID=" + Convert.ToString(m_pi.ei.cad_info._typeid) + ", ID=" + Convert.ToString(m_pi.ei.cad_info.id) + ", LEVEL=" + Convert.ToString((ushort)m_pi.ei.cad_info.level + 1) + ", EXP=" + Convert.ToString(m_pi.ei.cad_info.exp) + "]" + (upou ? " Upou de Level!" : ""), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
 
-        public void addMascotExp(uint _exp)
+        public void addMascotExp(int _exp)
         {
 
-            if (_exp == 0)
+            if (_exp == 0 || _exp < 0)
             {
                 throw new exception("[player::addMascotExp][Error] PLAYER[UID=" + Convert.ToString(m_pi.uid) + "] tentou adicionar mais exp[VALUE=" + Convert.ToString(_exp) + "] ao mascot equipado, mas exp is invalid(zero).", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PLAYER,
                     400, 0));
@@ -260,19 +258,15 @@ namespace Pangya_GameServer
 
                 m_pi.ei.mascot_info.exp += _exp;
 
-                uint exp_level = 0u;
+                int exp_level = 0;
 
-                bool upou = false;
-
-                while (m_pi.ei.mascot_info.level < LIMIT_LEVEL_MASCOT && m_pi.ei.mascot_info.exp >= (exp_level = (uint)(50 + ((20 + (20 + ((m_pi.ei.mascot_info.level) - 1) * 10)) * (m_pi.ei.mascot_info.level) / 2))))
+                while (m_pi.ei.mascot_info.level < LIMIT_LEVEL_MASCOT && m_pi.ei.mascot_info.exp >= (exp_level = (int)(50 + ((20 + (20 + ((m_pi.ei.mascot_info.level) - 1) * 10)) * (m_pi.ei.mascot_info.level) / 2))))
                 {
 
                     // Upou 1 Level
                     m_pi.ei.mascot_info.level++;
 
                     m_pi.ei.mascot_info.exp -= exp_level;
-
-                    upou = true;
                 }
 
                 // UPDATE ON DB
@@ -280,15 +274,13 @@ namespace Pangya_GameServer
                     new CmdUpdateMascotInfo(m_pi.uid, m_pi.ei.mascot_info),
                     SQLDBResponse, this);
 
-                // LOG
-                _smp.message_pool.getInstance().push(new message("[player::addMascotExp][Log] PLAYER[UID=" + Convert.ToString(m_pi.uid) + "] add Exp para o Mascot[TYPEID=" + Convert.ToString(m_pi.ei.mascot_info._typeid) + ", ID=" + Convert.ToString(m_pi.ei.mascot_info.id) + ", LEVEL=" + Convert.ToString((ushort)m_pi.ei.mascot_info.level + 1) + ", EXP=" + Convert.ToString(m_pi.ei.mascot_info.exp) + "]" + (upou ? " Upou de Level!" : ""), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
         // Add Exp Estático
-        public static void addExp(uint _uid, uint _exp)
+        public static void addExp(uint _uid, int _exp)
         {
 
-            if (_exp == 0)
+            if (_exp == 0 || _exp < 0)
             {
                 throw new exception("[player::addExp][Error] _exp is invalid(zero)", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PLAYER,
                     1, 0));
@@ -304,8 +296,7 @@ namespace Pangya_GameServer
 
                 CmdPlayerInfo cmd_pi = new CmdPlayerInfo(_uid); // Waiter
 
-                snmdb.NormalManagerDB.getInstance().add(0,
-                    cmd_pi, null, null);
+                snmdb.NormalManagerDB.getInstance().add(0, cmd_pi, null, null);
 
 
                 if (cmd_pi.getException().getCodeError() != 0)
@@ -319,9 +310,6 @@ namespace Pangya_GameServer
 
                 if ((ret = pi.addExp(_exp)) >= 0)
                 {
-
-                    // UPDATE ON GAME
-                    p = new packet();
 
                     if (ret > 0)
                     { // Player Upou de level
@@ -346,7 +334,7 @@ namespace Pangya_GameServer
                                     2, 0));
                             }
 
-                            for (var ii = 0u; ii < (it.reward.TypeID.Length); ++ii)
+                            for (var ii = 0; ii < (it.reward.TypeID.Length); ++ii)
                             {
 
                                 if (it.reward.TypeID[ii] != 0)
@@ -589,22 +577,21 @@ namespace Pangya_GameServer
             bool upt_on_db = false;
 
             // Check AuxPart Equiped
-            for (var i = 0u; i < (ci.auxparts.Length); ++i)
+            for (var i = 0; i < 5; ++i)
             {
 
                 if (ci.auxparts[i] != 0)
                 {
 
                     // Esse AuxPartNumber é o 0x0 anel que consome(só mão direita), 0x1 mão direita, 0x21 mão esquerda
-                    if (sIff.getInstance().getItemGroupIdentify(ci.auxparts[i]) == sIff.getInstance().AUX_PART)
+                    if (sIff.getInstance().getItemGroupIdentify(ci.auxparts[i]) == PangyaAPI.IFF.JP.Models.Flags.IFF_GROUP.AUX_PART)
                     {
 
                         var aux = sIff.getInstance().findAuxPart(ci.auxparts[i]);
-                        var pAux = m_pi.findWarehouseItemByTypeid(ci.auxparts[i]);
 
-                        if (aux != null
-                            && aux.Active
-                            && pAux != null)
+                        var pAux = m_pi.findWarehouseItemByTypeid(aux.ID);
+
+                        if (aux != null && aux.Active && pAux != null)
                         {
 
                             if (aux.Level.GoodLevel((byte)m_pi.level))
@@ -614,11 +601,9 @@ namespace Pangya_GameServer
                                 {
                                 }
                                 else
-                                {
-
+                                { 
                                     // Desequipa
-                                    ci.auxparts[i] = 0;
-
+                                    ci.auxparts[i] = 0; 
                                     upt_on_db = true;
                                 }
 
@@ -627,8 +612,7 @@ namespace Pangya_GameServer
                             {
 
                                 // Desequipa
-                                ci.auxparts[i] = 0;
-
+                                ci.auxparts[i] = 0; 
                                 upt_on_db = true;
                             }
 
@@ -637,18 +621,14 @@ namespace Pangya_GameServer
                         {
 
                             // Desequipa
-                            ci.auxparts[i] = 0;
-
+                            ci.auxparts[i] = 0; 
                             upt_on_db = true;
-                        }
-
+                        } 
                     }
                     else
-                    {
-
+                    { 
                         // Desequipa
-                        ci.auxparts[i] = 0;
-
+                        ci.auxparts[i] = 0; 
                         upt_on_db = true;
                     }
 
@@ -657,7 +637,7 @@ namespace Pangya_GameServer
                 {
                 }
             }
-
+            m_pi.ei.char_info = ci;
             return upt_on_db;
         }
 
@@ -667,7 +647,7 @@ namespace Pangya_GameServer
             bool upt_on_db = false;
 
 
-            for (var i = 0u; i < (ci.cut_in.Length); ++i)
+            for (var i = 0; i < (ci.cut_in.Length); ++i)
             {
 
                 if (ci.cut_in[i] != 0)
@@ -736,13 +716,13 @@ namespace Pangya_GameServer
                 snmdb.NormalManagerDB.getInstance().add(5,
                     new CmdUpdateCharacterAllPartEquiped(m_pi.uid, ci),
                     SQLDBResponse, this);
-            }
+            } 
         }
 
         public bool checkCharacterEquipedPart(CharacterInfo ci)
         {
 
-            uint def_part = 0u;
+            uint def_part = 0;
 
             // Angel Part of character 3% quit rate para equipar o Normal angel wings
             var angel_wings_typeid = Global.angel_wings.FirstOrDefault(el => sIff.getInstance().getItemCharIdentify(el) == (ci._typeid & 0x000000FF));
@@ -758,7 +738,7 @@ namespace Pangya_GameServer
                 if (ci.parts_typeid[i] != 0)
                 {
 
-                    if (sIff.getInstance().getItemGroupIdentify(ci.parts_typeid[i]) == (uint)sIff.getInstance().PART && (sIff.getInstance().getItemCharPartNumber(ci.parts_typeid[i]) == i || (ci.parts_typeid[i] & 0x08000400/*def part*/) == 0x8000400))
+                    if (sIff.getInstance().getItemGroupIdentify(ci.parts_typeid[i]) == PangyaAPI.IFF.JP.Models.Flags.IFF_GROUP.PART && (sIff.getInstance().getItemCharPartNumber(ci.parts_typeid[i]) == i || (ci.parts_typeid[i] & 0x08000400/*def part*/) == 0x8000400))
                     {
 
                         var part = sIff.getInstance().findPart(ci.parts_typeid[i]);
@@ -875,30 +855,10 @@ namespace Pangya_GameServer
                     }
                 }
             }
-
+            m_pi.ei.char_info = ci;
             return upt_on_db;
         }
-
-        private bool checkCharacterEquiped(CharacterInfo ci)
-        {
-            for (int i = 0; i < 24; i++)
-            {
-                if (ci.parts_typeid[i] == 0)
-                {
-                    ci.parts_id[i] = 0;
-                }
-                else
-                {
-                    if (ci.parts_id[i] == 0)
-                    {
-                        ci.parts_typeid[i] = 0;
-                    }
-                }
-            }
-            return true;
-        }
-
-
+          
         public bool checkSkinEquiped(UserEquip _ue)
         {
 
@@ -906,7 +866,7 @@ namespace Pangya_GameServer
             uint tmp_typeid = 0;
             uint tmp_id = 0;
 
-            for (var i = 0u; i < (_ue.skin_typeid.Length); ++i)
+            for (var i = 0; i < (_ue.skin_typeid.Length); ++i)
             {
 
                 if (_ue.skin_typeid[i] != 0)
@@ -998,7 +958,7 @@ namespace Pangya_GameServer
             bool upt_on_db = false;
             int tmp_typeid = 0;
 
-            for (var i = 0u; i < (_ue.poster.Length); ++i)
+            for (var i = 0; i < (_ue.poster.Length); ++i)
             {
 
                 if (_ue.poster[i] != 0)
@@ -1380,7 +1340,7 @@ namespace Pangya_GameServer
         {
 
             bool upt_on_db = false;
-            uint tmp_typeid = 0u;
+            uint tmp_typeid = 0;
 
             if (_ue.ball_typeid != 0)
             {
@@ -1491,7 +1451,7 @@ namespace Pangya_GameServer
         public bool checkItemEquiped(UserEquip _ue)
         {
             bool upt_on_db = false;
-            uint tmp_typeid = 0u;
+            uint tmp_typeid = 0;
             WarehouseItemEx pWi = null;
 
             Dictionary<uint, uint> mp_count_same_item = new Dictionary<uint, uint>();
@@ -1728,7 +1688,7 @@ namespace Pangya_GameServer
 
                 if (cs != null)
                 {
-                    for (var j = 0u; j < (m_pi.ei.csi.enchant_c.Length); ++j)
+                    for (var j = 0; j < (m_pi.ei.csi.enchant_c.Length); ++j)
                     {
                         m_pi.ei.csi.enchant_c[j] = (short)(cs.SlotStats.getSlot[j] + pWi.clubset_workshop.c[j]);
                     }
@@ -1777,7 +1737,7 @@ namespace Pangya_GameServer
 
                             if (cs != null)
                             {
-                                for (var j = 0u; j < (m_pi.ei.csi.enchant_c.Length); ++j)
+                                for (var j = 0; j < (m_pi.ei.csi.enchant_c.Length); ++j)
                                 {
                                     m_pi.ei.csi.enchant_c[j] = (short)(cs.SlotStats.getSlot[j] + pWi.clubset_workshop.c[j]);
                                 }
@@ -1989,9 +1949,9 @@ namespace Pangya_GameServer
             m_pi.mi = memberInfoEx;
             m_pi.m_cap = memberInfoEx.capability;
             m_pi.mi.oid = m_oid;
-            m_pi.mi.state_flag.visible = true;
-            m_pi.mi.state_flag.whisper = m_pi.whisper.IsTrue();
-            m_pi.mi.state_flag.channel = !m_pi.whisper.IsTrue();//passar true?
+            //m_pi.mi.state_flag.visible = true;
+            //m_pi.mi.state_flag.whisper = m_pi.whisper;
+            //m_pi.mi.state_flag.channel = !m_pi.whisper.IsTrue();//passar true?
         }
 
         public static void SQLDBResponse(int _msg_id,
@@ -2027,12 +1987,6 @@ namespace Pangya_GameServer
                     {
                         var cmd_icpli = Tools.reinterpret_cast<CmdInsertCPLogItem>(_pangya_db);
 
-#if DEBUG
-                        _smp.message_pool.getInstance().push(new message("[player::SQLDBResponse][Debug] Inseriu CPLogItem[LOD_ID=" + Convert.ToString(cmd_icpli.getLogId()) + ", ITEM_TYPEID=" + Convert.ToString(cmd_icpli.getItem()._typeid) + ", ITEM_QNTD=" + Convert.ToString(cmd_icpli.getItem().qntd) + ", ITEM_PRICE=" + Convert.ToString(cmd_icpli.getItem().price) + "] do PLAYER[UID=" + Convert.ToString(cmd_icpli.getUID()) + "] com sucesso.", type_msg.CL_FILE_LOG_AND_CONSOLE));
-#else
-                                                _smp.message_pool.getInstance().push(new message("[player::SQLDBResponse][Debug] Inseriu CPLogItem[LOD_ID=" + Convert.ToString(cmd_icpli.getLogId()) + ", ITEM_TYPEID=" + Convert.ToString(cmd_icpli.getItem()._typeid) + ", ITEM_QNTD=" + Convert.ToString(cmd_icpli.getItem().qntd) + ", ITEM_PRICE=" + Convert.ToString(cmd_icpli.getItem().price) + "] do PLAYER[UID=" + Convert.ToString(cmd_icpli.getUID()) + "] com sucesso.", type_msg.CL_ONLY_FILE_LOG));
-#endif // DEBUG
-
                         break;
                     }
                 case 0:
@@ -2040,7 +1994,5 @@ namespace Pangya_GameServer
                     break;
             }
         }
-
-
     }
 }

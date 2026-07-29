@@ -4,16 +4,18 @@ using System.Linq;
 using System.Threading;
 using Pangya_GameServer.Models;
 using Pangya_GameServer.PacketFunc;
-
+using PangyaAPI.IFF.JP.Extensions;
 using PangyaAPI.Network.PangyaPacket;
 using PangyaAPI.Utilities;
-using PangyaAPI.Utilities.BinaryModels;
+using PangyaAPI.Utilities.Models;
 using PangyaAPI.Utilities.Log;
 
 namespace Pangya_GameServer.Game.Manager
 {
     public partial class PersonalShopManager
     {
+        public uint LIMIT_MIN_PERSONAL = 6;//beginner E
+
         public enum eTYPE_LOCK : byte
         {
             TL_NONE,
@@ -58,8 +60,19 @@ namespace Pangya_GameServer.Game.Manager
 
         public PersonalShopManager(RoomInfoEx _ri)
         {
-            this.m_ri = _ri;
-            this.shopsByPlayer = new Dictionary<Player, PersonalShopCtx>();
+            try
+            {
+                this.m_ri = _ri;
+                this.shopsByPlayer = new Dictionary<Player, PersonalShopCtx>();
+                var m_reader_ini = new IniHandle("config/personal_config.ini");
+
+                LIMIT_MIN_PERSONAL = m_reader_ini.ReadUInt32("CONFIG", "LIMIT_LEVEL_PERSONAL");
+            }
+            catch (Exception)
+            {
+
+                throw;
+            }
         }
 
 
@@ -244,7 +257,7 @@ namespace Pangya_GameServer.Game.Manager
             {
 
                 // Sala não é Lounge, não tem como o player abrir um shop
-                if ((RoomInfo.TIPO)m_ri.tipo != RoomInfo.TIPO.LOUNGE)
+                if ((RoomInfo.ROOM_INFO_TYPE)m_ri.tipo != RoomInfo.ROOM_INFO_TYPE.LOUNGE)
                 {
                     return false;
                 }
@@ -283,7 +296,7 @@ namespace Pangya_GameServer.Game.Manager
 
             PlayerRoomInfo.PersonShop person = new PlayerRoomInfo.PersonShop() { active = 0u };
 
-            if ((RoomInfo.TIPO)m_ri.tipo != RoomInfo.TIPO.LOUNGE)
+            if ((RoomInfo.ROOM_INFO_TYPE)m_ri.tipo != RoomInfo.ROOM_INFO_TYPE.LOUNGE)
             {
                 return person;
             }
@@ -327,7 +340,7 @@ namespace Pangya_GameServer.Game.Manager
             }
         }
 
-        public bool openShopToEdit(Player _session, ref PangyaBinaryWriter _out_packet)
+        public bool openShopToEdit(Player _session, PangyaBinaryWriter _out_packet)
         {
 
             Locker _locker = new Locker(this,
@@ -339,9 +352,9 @@ namespace Pangya_GameServer.Game.Manager
             try
             {
 
-                if ((RoomInfo.TIPO)m_ri.tipo != RoomInfo.TIPO.LOUNGE)
+                if ((RoomInfo.ROOM_INFO_TYPE)m_ri.tipo != RoomInfo.ROOM_INFO_TYPE.LOUNGE)
                 {
-                    throw new exception("[PersonalShopManager::openShopToEdit][Error][Warning] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou abri um personal shop para venda em uma sala[TIPO=" + Convert.ToString((ushort)(RoomInfo.TIPO)m_ri.tipo) + ", NUMERO=" + Convert.ToString(m_ri.numero) + "] diferente de Lounge. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PERSONAL_SHOP_MANAGER,
+                    throw new exception("[PersonalShopManager::openShopToEdit][Error][Warning] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou abri um personal shop para venda em uma sala[TIPO=" + Convert.ToString((ushort)(RoomInfo.ROOM_INFO_TYPE)m_ri.tipo) + ", NUMERO=" + Convert.ToString(m_ri.numero) + "] diferente de Lounge. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PERSONAL_SHOP_MANAGER,
                         100, 52001001));
                 }
 
@@ -351,10 +364,9 @@ namespace Pangya_GameServer.Game.Manager
                         4, 0x790001));
                 }
 
-                // Verifica o level do player e bloquea se não tiver level Beginner E
-                if (_session.m_pi.level < (short)PangyaEnums.enLEVEL.BEGINNER_E)
+                if (_session.m_pi.level < LIMIT_MIN_PERSONAL)
                 {
-                    throw new exception("[PersonalShopManager::openShopToEdit][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + ", LEVEL=" + Convert.ToString(_session.m_pi.level) + "] tentou abrir um personal shop para vender na sala[NUMERO=" + Convert.ToString(m_ri.numero) + "], mas o level dele eh menor que Beginner E.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PERSONAL_SHOP_MANAGER,
+                    throw new exception("[PersonalShopManager::openShopToEdit][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + ", LEVEL=" + Convert.ToString(_session.m_pi.level) + "] tentou abrir um personal shop para vender na sala[NUMERO=" + Convert.ToString(m_ri.numero) + $"], mas o level dele é menor que {((PangyaEnums.enLEVEL)LIMIT_MIN_PERSONAL)}.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PERSONAL_SHOP_MANAGER,
                         3, 0));
                 }
 
@@ -368,12 +380,8 @@ namespace Pangya_GameServer.Game.Manager
 
                 // Esse aqui não é para da esse erro por que o pacote que pede para editar a loja, é esse também
                 if ((ps = findShop(_session)) != null)
-                {
-
+                { 
                     ps.setState(PersonalShop.STATE.OPEN_EDIT);
-
-                    _smp.message_pool.getInstance().push(new message("[PersonalShopManager::openShopToEdit][Info] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] Editando Personal Shop", type_msg.CL_FILE_LOG_AND_CONSOLE));
-
                 }
                 else
                 {
@@ -399,11 +407,7 @@ namespace Pangya_GameServer.Game.Manager
 
                     // unlock
                     unlock();
-                }
-
-                // Log
-                _smp.message_pool.getInstance().push(new message("[PersonalShopManager::openShopToEdit][Info] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] abriu Personal Shop[Owner UID=" + Convert.ToString(ps.getOwner().m_pi.uid) + ", STATE=" + Convert.ToString(ps.getState()) + ", Name=" + ps.getName() + ", Item Count=" + Convert.ToString(ps.getCountItem()) + ", Pang Sale=" + Convert.ToString(ps.getPangSale()) + "] para editar na sala[numero=" + Convert.ToString(m_ri.numero) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
-
+                } 
                 // Sucesso
                 _out_packet.init_plain(0xE5);
 
@@ -432,7 +436,7 @@ namespace Pangya_GameServer.Game.Manager
             return false;
         }
 
-        public bool cancelEditShop(Player _session, ref PangyaBinaryWriter _out_packet)
+        public bool cancelEditShop(Player _session, PangyaBinaryWriter _out_packet)
         {
 
             Locker _locker = new Locker(this,
@@ -480,7 +484,7 @@ namespace Pangya_GameServer.Game.Manager
             return false;
         }
 
-        public bool closeShop(Player _session, ref PangyaBinaryWriter _out_packet)
+        public bool closeShop(Player _session, PangyaBinaryWriter _out_packet)
         {
 
             Locker _locker = new Locker(this,
@@ -500,8 +504,6 @@ namespace Pangya_GameServer.Game.Manager
                     throw new exception("[PersonalShopManager::closeShop][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] nao tem um personal shop criado.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PERSONAL_SHOP_MANAGER,
                         150, 5200151));
                 }
-
-                _smp.message_pool.getInstance().push(new message("[PersonalShopManager::closeShop][Info] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] fechou o Personal Shop[Owner UID=" + Convert.ToString(ps.getOwner().m_pi.uid) + ", STATE=" + Convert.ToString(ps.getState()) + ", NAME=" + ps.getName() + ", Count Item=" + Convert.ToString(ps.getCountItem()) + ", Pang Sale=" + Convert.ToString(ps.getPangSale()) + "] na sala[numero=" + Convert.ToString(m_ri.numero) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
                 // Deleta shop
                 delete_shop(_session);
@@ -534,9 +536,7 @@ namespace Pangya_GameServer.Game.Manager
             return false;
         }
 
-        public bool changeShopName(Player _session,
-            string _name,
-            ref PangyaBinaryWriter _out_packet)
+        public bool changeShopName(Player _session, string _name, PangyaBinaryWriter _out_packet)
         {
 
             Locker _locker = new Locker(this,
@@ -570,9 +570,7 @@ namespace Pangya_GameServer.Game.Manager
                 }
 
                 ps.setName(_name);
-
-                _smp.message_pool.getInstance().push(new message("[PersonalShopManager::changeShopName][Info] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] trocou o nome[VALUE=" + _name + "] do seu Personal Shop com sucesso!", type_msg.CL_FILE_LOG_AND_CONSOLE));
-
+ 
                 _out_packet.init_plain(0xE8);
 
                 _out_packet.WriteUInt32(1); // Ok
@@ -605,93 +603,126 @@ namespace Pangya_GameServer.Game.Manager
 
         public void openShop(Player _session, packet _packet)
         {
-
-            Locker _locker = new Locker(this,
-                _session.m_pi.uid,
-                eTYPE_LOCK.TL_SELECT);
-
+            Locker _locker = new Locker(this, _session.m_pi.uid, eTYPE_LOCK.TL_SELECT);
             var p = new PangyaBinaryWriter();
-            PersonalShopItem psi = new PersonalShopItem();
 
             try
             {
-
                 uint count = _packet.ReadUInt32();
 
-                if (count > 6)
+                // 1. Limite de itens na loja (Padrão Pangya é geralmente entre 6 a 10)
+                if (count == 0 || count > 10)
                 {
-                    throw new exception("[PersonalShopManager::openShop][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou abrir Personal Shop com um numero[value=" + Convert.ToString(count) + "] de itens eh maior que o permitido", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PERSONAL_SHOP_MANAGER,
-                        250, 5200251));
+                    throw new exception($"[HACK] PLAYER[UID={_session.m_pi.uid}] tentou abrir shop com {count} itens.",
+                        ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PERSONAL_SHOP_MANAGER, 250, 5200251));
                 }
 
-                PersonalShop ps = null;
-
-                if ((ps = findShop(_session)) == null)
+                PersonalShop ps = findShop(_session);
+                if (ps == null)
                 {
-                    throw new exception("[PersonalShopManager::openShop][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou abrir um Personal Shop que ele nao tem.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PERSONAL_SHOP_MANAGER,
-                        251, 5200252));
+                    throw new exception($"[Error] PLAYER[UID={_session.m_pi.uid}] não tem instância de Shop.",
+                        ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PERSONAL_SHOP_MANAGER, 251, 5200252));
                 }
 
-                // Limpa os itens do Shop se tiver
                 ps.clearItem();
 
-                for (var i = 0u; i < count; ++i)
-                {
-                    psi = new PersonalShopItem().ToRead(_packet);
+                // Lista temporária para evitar que o player coloque o MESMO ID de item várias vezes no shop
+                List<(int id, uint typeid)> addedItemIds = new List<(int id, uint typeid)>();
 
-                    // Dentro do push ele verifica se é permitido esse item no Personal Shop
+                for (var i = 0; i < count; ++i)
+                {
+                    // Lê o item que o cliente QUER colocar à venda
+                    PersonalShopItem psi = new PersonalShopItem().ToRead(_packet);
+
+                    // 2. SEGURANÇA: Verificar se o player REALMENTE possui o item no inventário (Warehouse) 
+                    if (!_session.m_pi.ItemExist(psi.item._typeid))
+                    {
+                        throw new exception($"[HACK] PLAYER[UID={_session.m_pi.uid}] tentou vender Item ID[{psi.item.id}] que NÃO POSSUI.",
+                            ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PERSONAL_SHOP, 30, 0));
+                    }
+
+                    var iff = sIff.getInstance().getItemGroupIdentify(psi.item._typeid);
+                    var qntd = 0;
+                    switch (iff)
+                    { 
+                        case PangyaAPI.IFF.JP.Models.Flags.IFF_GROUP.CLUBSET:
+                        case PangyaAPI.IFF.JP.Models.Flags.IFF_GROUP.ITEM:
+                            if (sIff.getInstance().IsExist(psi.item._typeid))
+                                qntd = _session.m_pi.findWarehouseItemByTypeid(psi.item._typeid).STDA_C_ITEM_QNTD;
+                            break;  
+							
+                        case PangyaAPI.IFF.JP.Models.Flags.IFF_GROUP.PART: 
+						if (sIff.getInstance().IsExist(psi.item._typeid) && _session.m_pi.findWarehouseItemByTypeid(psi.item._typeid) != null)
+                                qntd =  _session.m_pi.findWarehouseItemByTypeid(psi.item._typeid).STDA_C_ITEM_QNTD == 0? 1 :  _session.m_pi.findWarehouseItemByTypeid(psi.item._typeid).STDA_C_ITEM_QNTD;//coloca 1, pq ai ele verifica, se a quantidade bateu
+							break;
+                        case PangyaAPI.IFF.JP.Models.Flags.IFF_GROUP.CARD:
+                            if (sIff.getInstance().IsExist(psi.item._typeid))
+                                qntd = _session.m_pi.findCardByTypeid(psi.item._typeid).qntd;
+                            break;
+                        default:
+                            throw new exception($"[HACK] PLAYER[UID={_session.m_pi.uid}] test 1].",
+                           ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PERSONAL_SHOP, 31, 0)); 
+                    } 
+                    // 3. SEGURANÇA: Verificar a QUANTIDADE real no inventário
+                    if (psi.item.qntd <= 0 || psi.item.qntd > qntd)
+                    {
+                        throw new exception($"[HACK] PLAYER[UID={_session.m_pi.uid}] tentou vender QNTD[{psi.item.qntd}] mas só possui [{qntd}].",
+                            ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PERSONAL_SHOP, 31, 0));
+                    }
+ 
+                    // 5. SEGURANÇA: Evitar Duplicidade de IDs no mesmo Shop (Anti-Exploit)
+                   
+                    addedItemIds.Add((psi.item.id, psi.item._typeid));
+
+                    // 6. VALIDAÇÃO DE PREÇO: Evitar preços negativos ou abusivos que buguem a ulong
+                    if (psi.item.pang > 2000000000) // Exemplo: limite de 2 bilhões por item
+                    {
+                        throw new exception($"[HACK] Preço abusivo detectado: {psi.item.pang}",
+                           ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PERSONAL_SHOP, 33, 0));
+                    }
+                      
+                    // Adiciona ao Shop (pushItem deve verificar flags do IFF se pode vender)
                     ps.pushItem(psi);
                 }
 
-                // Abre o Shop
+                // Finaliza a abertura
                 ps.setState(PersonalShop.STATE.OPEN);
 
-                _smp.message_pool.getInstance().push(new message("[PersonalShopManager::openShop][Info] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] abriu o Personal Shop[NAME=" + ps.getName() + ", Count Item=" + Convert.ToString(ps.getCountItem()) + ", Pang Sale=" + Convert.ToString(ps.getPangSale()) + "] ", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                _smp.message_pool.getInstance().push(new message($"[PersonalShop::openShop][Info] Player {_session.m_pi.uid} abriu loja com {ps.getCountItem()} itens.", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
+                // Resposta de Sucesso (0xEB)
                 p.init_plain(0xEB);
-
-                p.WriteUInt32(1); // Ok
-
+                p.WriteUInt32(1);
                 p.WriteStr(_session.m_pi.nickname, 22);
-
                 p.WriteUInt32(_session.m_pi.uid);
-
                 ps.putItemOnPacket(p);
 
-                packet_func.session_send(p,
-                    _session, 1);
-
+                packet_func.session_send(p, _session, 1);
             }
             catch (exception e)
             {
-
-                if (ExceptionError.STDA_ERROR_CHECK_SOURCE_AND_ERROR_TYPE(e.getCodeError(),
-                    STDA_ERROR_TYPE.PERSONAL_SHOP,
-                    23))
+                // Tratamento de Erros de Preço de Card (IFF Range)
+                if (ExceptionError.STDA_ERROR_CHECK_SOURCE_AND_ERROR_TYPE(e.getCodeError(), STDA_ERROR_TYPE.PERSONAL_SHOP, 23))
                 {
-
-                    p.init_plain(0x40); // Msg to Chat of player
-
-                    p.WriteByte(7); // Notice
-
+                    p.init_plain(0x40);
+                    p.WriteByte(7);
                     p.WritePStr(_session.m_pi.nickname);
-                    p.WritePStr("Card price is outside the price range.");
-
-                    packet_func.session_send(p,
-                        _session, 1);
+                    p.WritePStr("O preço do Card está fora do limite permitido.");
+                    packet_func.session_send(p, _session, 1);
                 }
 
-                _smp.message_pool.getInstance().push(new message("[PersonalShopManager::openShop][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
-
+                // Resposta de Erro para o Cliente
                 p.init_plain(0xEB);
+                uint errorCode = (ExceptionError.STDA_SOURCE_ERROR_DECODE_TYPE(e.getCodeError()) == STDA_ERROR_TYPE.PERSONAL_SHOP_MANAGER)
+                                 ? ExceptionError.STDA_SYSTEM_ERROR_DECODE_TYPE(e.getCodeError())
+                                 : 5200250;
+                p.WriteUInt32(errorCode);
+                packet_func.session_send(p, _session, 1);
 
-                p.WriteUInt32((ExceptionError.STDA_SOURCE_ERROR_DECODE_TYPE(e.getCodeError()) == STDA_ERROR_TYPE.PERSONAL_SHOP_MANAGER) ? ExceptionError.STDA_SYSTEM_ERROR_DECODE_TYPE(e.getCodeError()) : 5200250);
-
-                packet_func.session_send(p,
-                    _session, 1);
+                // Log do erro/tentativa de hack no console
+                Console.WriteLine(e.Message);
             }
         }
-
         public void buyInShop(Player _session, packet _packet)
         {
 
@@ -942,12 +973,12 @@ namespace Pangya_GameServer.Game.Manager
 
         protected void @lock()
         {
-            Monitor.Enter(m_cs);
+            //Monitor.Exit(m_cs);
         }
 
         protected void unlock()
         {
-            Monitor.Exit(m_cs);
+            //Monitor.Exit(m_cs);
         }
 
         protected void clear_shops()

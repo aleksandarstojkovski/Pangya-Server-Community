@@ -23,7 +23,8 @@ namespace PangyaAPI.Network.Repository
             if (string.IsNullOrEmpty(m_nick))
                 throw new Exception("[CmdSaveNick::prepareConsulta][Error] Nick invalid");
 
-            var r = procedure("pangya.ProcSaveNickname", m_uid.ToString() + ", " + m_nick);
+            var r = procedure("pangya.ProcSaveNickname", m_uid + ", " + makeText(m_nick));
+
             checkResponse(r, "nao conseguiu atualizar o nick: " + m_nick + ", do player: " + m_uid);
             return r;
         }

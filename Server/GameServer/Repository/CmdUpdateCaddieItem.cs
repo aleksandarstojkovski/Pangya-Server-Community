@@ -71,9 +71,8 @@ namespace Pangya_GameServer.Repository
                     4, 0));
             }
 
-            var r = procedure(
-                m_szConsulta,
-                Convert.ToString(m_uid) + ", " + Convert.ToString(m_ci.id) + ", " + Convert.ToString(m_ci.parts_typeid) + ", " + (m_time));
+            var r = procedure(m_szConsulta,
+                Convert.ToString(m_uid) + ", " + Convert.ToString(m_ci.id) + ", " + Convert.ToString(m_ci.parts_typeid) + ", " + makeText(m_time));
 
             checkResponse(r, "nao conseguiu atualizar o caddie item[TYPEID=" + Convert.ToString(m_ci.parts_typeid) + "] do caddie[ID=" + Convert.ToString(m_ci.id) + "] do player: " + Convert.ToString(m_uid));
 

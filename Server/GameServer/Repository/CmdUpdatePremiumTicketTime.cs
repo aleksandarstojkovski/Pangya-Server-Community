@@ -60,8 +60,7 @@ namespace Pangya_GameServer.Repository
                     4, 0));
             }
 
-            var r = procedure(
-                m_szConsulta,
+            var r = procedure(m_szConsulta,
                 Convert.ToString(m_uid) + ", " + Convert.ToString(m_wi.id) + ", " + Convert.ToString(m_wi.c[3]) + ", " + Convert.ToString(m_wi.c[0]) + ", " + Convert.ToString(m_wi.c[1]) + ", " + Convert.ToString(m_wi.c[2]) + ", " + Convert.ToString(m_wi.c[3]) + ", " + Convert.ToString(m_wi.c[4]));
 
             checkResponse(r, "nao conseguiu atualizar Premium Ticket Time[ID=" + Convert.ToString(m_wi.id) + ", TEMPO=" + Convert.ToString(m_wi.c[3]) + ", C0=" + Convert.ToString(m_wi.c[0]) + ", C1=" + Convert.ToString(m_wi.c[1]) + ", C2=" + Convert.ToString(m_wi.c[2]) + ", C3=" + Convert.ToString(m_wi.c[3]) + ", C4=" + Convert.ToString(m_wi.c[4]) + "] do PLAYER[UID=" + Convert.ToString(m_uid) + "]");

@@ -35,12 +35,7 @@ namespace Pangya_GameServer.Game.Manager
                 throw cmd_sg.getException();
             }
 
-            m_shop_gift = cmd_sg.getInfo();
-
-            if (m_shop_gift.Count <= 0)
-            {
-                _smp.message_pool.getInstance().push(new message("[ShopGiftSystem::initialize][Warning] Not Loaded.", type_msg.CL_FILE_LOG_AND_CONSOLE));
-            }
+            m_shop_gift = cmd_sg.getInfo(); 
 
             // Carregado com sucesso!
             m_load = true;

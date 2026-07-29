@@ -9,8 +9,8 @@ namespace Pangya_GameServer.Repository
     {
         public CmdInsertBoxRareWinLog(bool _waiter = false) : base(_waiter)
         {
-            this.m_uid = 0u;
-            this.m_box_typeid = 0u;
+            this.m_uid = 0;
+            this.m_box_typeid = 0;
             this.m_ctx_bi = new ctx_box_item();
         }
 

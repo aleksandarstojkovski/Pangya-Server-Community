@@ -1,12 +1,14 @@
 ﻿
-using System;
-using System.Diagnostics;
-using System.Reflection;
 using Pangya_GameServer.Game.Manager;
 using Pangya_GameServer.Models;
+using PangyaAPI.IFF.JP.Extensions;
+using PangyaAPI.IFF.JP.Models.Flags;
 using PangyaAPI.SQL;
 using PangyaAPI.Utilities;
 using PangyaAPI.Utilities.Log;
+using System;
+using System.Diagnostics;
+using System.Reflection;
 
 namespace Pangya_GameServer.Repository
 {
@@ -21,6 +23,9 @@ namespace Pangya_GameServer.Repository
         TYPE m_type;
         uint m_item_id;
         WarehouseManager v_wi;
+        private int m_ToTalPartsCNT;
+        private int m_ToTalClubsetCNT;
+
         public CmdWarehouseItem(uint _uid, TYPE _type, uint _item_id = 0)
         {
             m_uid = _uid;
@@ -50,6 +55,7 @@ namespace Pangya_GameServer.Repository
 
                 wi.id = _result.GetInt32(0);
                 wi._typeid = _result.GetUInt32(2);
+
                 wi.ano = _result.GetInt32(3);
                 for (i = 0; i < 5; i++)
                     wi.c[i] = _result.GetInt16(4 + i);            // 4 + 5
@@ -101,6 +107,16 @@ namespace Pangya_GameServer.Repository
                 wi.ucc.copier = IFNULL(_result.data[41]);
                 wi.ucc.trade = (sbyte)IFNULL(_result.data[42]);
                 wi.ucc.status = (byte)IFNULL(_result.data[44]);
+
+                if (sIff.getInstance().getItemGroupIdentify(wi._typeid) == IFF_GROUP.PART)
+                {
+                    SetPartsItemCount();
+                }
+                else if (sIff.getInstance().getItemGroupIdentify(wi._typeid) == IFF_GROUP.CLUBSET)
+                {
+                    SetClubsetItemCount();
+                }
+
                 if (!v_wi.ContainsKey(wi.id))
                 {
                     v_wi[wi.id] = wi;
@@ -132,14 +148,45 @@ namespace Pangya_GameServer.Repository
             }
         }
 
-        protected override Response prepareConsulta()
+        private void SetClubsetItemCount()
         {
-            var m_szConsulta = new string[] { "pangya.ProcGetWarehouseItem ", "pangya.ProcGetWarehouseItem_One " };
-            var r = procedure(m_type == TYPE.ALL ? m_szConsulta[0] + m_uid.ToString() : m_szConsulta[1] + m_uid.ToString() + ", " + m_item_id.ToString());
-            checkResponse(r, "nao conseguiu pegar o member info do player: " + (m_uid));
-            return r;
+            m_ToTalClubsetCNT = m_ToTalClubsetCNT + 1;
         }
 
+        private void SetPartsItemCount()
+        {
+            m_ToTalPartsCNT = m_ToTalPartsCNT + 1;
+        }
+
+        public int getClubsetItemCount()
+        {
+            return m_ToTalClubsetCNT;
+        }
+
+        public int getPartsItemCount()
+        {
+            return m_ToTalPartsCNT;
+        }
+
+        protected override Response prepareConsulta()
+        {
+            // 1. Define the procedures
+            string procName = (m_type == TYPE.ALL)
+                ? "pangya.ProcGetWarehouseItem"
+                : "pangya.ProcGetWarehouseItem_One";
+
+            // 2. Define the parameters
+            string parameters = (m_type == TYPE.ALL)
+                ? m_uid.ToString()
+                : $"{m_uid}, {m_item_id}";
+
+            // 3. Execute and Validate
+            var r = procedure(procName, parameters);
+
+            checkResponse(r, $"Não foi possível carregar o Warehouse do player: {m_uid}");
+
+            return r;
+        }
 
         public WarehouseManager getInfo()
         {

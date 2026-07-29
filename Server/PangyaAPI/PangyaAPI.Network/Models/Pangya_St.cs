@@ -7,16 +7,19 @@ using PangyaAPI.IFF.JP.Models.Data;
 using PangyaAPI.IFF.JP.Models.Flags;
 using PangyaAPI.Network.PangyaPacket;
 using PangyaAPI.Utilities;
-using PangyaAPI.Utilities.BinaryModels;
+using PangyaAPI.Utilities.Models;
 using PangyaAPI.Utilities.Log;
 using Part = PangyaAPI.IFF.JP.Models.Data.Part;
 namespace PangyaAPI.Network.Models
 {
     public class Global
     {
+        //nao pode ler
         public static readonly uint[] angel_wings = { 134309888u, 134580224u, 134842368u, 135120896u, 135366656u, 135661568u, 135858176u, 136194048u, 136398848u, 136660992u, 137185294u, 137447424u, 138004480u };
+        //nao pode ler
         public static readonly uint[] gacha_angel_wings = { 134309903u, 134580239u, 134842383u, 135120911u, 135366671u, 135661583u, 135858191u, 136194063u, 136398863u, 136661007u, 136923153u, 137185284u, 137447436u, 138004492u };
     }
+
     public class IPBan
     {
         public enum _TYPE : byte
@@ -540,32 +543,27 @@ namespace PangyaAPI.Network.Models
         }
 
     }
-
-
-
-    [StructLayout(LayoutKind.Sequential, Pack = 4, Size = 92)]
+     
     public class ServerInfo
-    {
-        [field: MarshalAs(UnmanagedType.ByValArray, SizeConst = 40)]
+    { 
         private byte[] name_bytes;
         public string nome { get => name_bytes.GetString(); set => name_bytes.SetString(value); }
         public int uid { get; set; }
         public int max_user { get; set; }
-        public int curr_user { get; set; }
-        [field: MarshalAs(UnmanagedType.ByValTStr, SizeConst = 18)]
+        public int curr_user { get; set; } 
         public string ip { get; set; } = "";
-        public int port { get; set; }
-        [field: MarshalAs(UnmanagedType.Struct, SizeConst = 4)]
-        public uProperty propriedade = new uProperty();
-        public int angelic_wings_num { get; set; }
-        [field: MarshalAs(UnmanagedType.Struct, SizeConst = 4)]
-        public uEventFlag event_flag = new uEventFlag();
+        public int port { get; set; } 
+        public uProperty propriedade { get; set; }
+        public int angelic_wings_num { get; set; } 
+        public uEventFlag event_flag{ get; set; }
         public short event_map { get; set; }
         public short app_rate { get; set; }
         public short scratch_rate { get; set; } // pode ser scratchy rate ou não
         public short img_no { get; set; }
         public ServerInfo()
         {
+            event_flag = new uEventFlag();
+            propriedade = new uProperty();
             name_bytes = new byte[40];
         }
 
@@ -589,23 +587,43 @@ namespace PangyaAPI.Network.Models
                 return p.GetBytes;
             }
         }
-    }
 
-    [StructLayout(LayoutKind.Sequential, Pack = 4)]
+        public ServerInfo ToRead(packet p)
+        {
+            this.nome = p.ReadPStr(40);
+            this.uid = p.ReadInt32();
+            this.max_user = p.ReadInt32();
+            this.curr_user = p.ReadInt32();
+            this.ip = p.ReadPStr(18);
+            this.port = p.ReadInt32();
+            this.propriedade.ulProperty = p.ReadUInt32();
+            this.angelic_wings_num = p.ReadInt32();
+            this.event_flag.usEventFlag = p.ReadUInt16();
+            this.event_map = p.ReadInt16();
+            this.app_rate = p.ReadInt16();
+            this.scratch_rate = p.ReadInt16();
+            this.img_no = p.ReadInt16();
+            return this;
+        }
+    }
+     
     public class ServerInfoEx : ServerInfo
     {
-        public sbyte tipo { get; set; }
-        [field: MarshalAs(UnmanagedType.ByValTStr, SizeConst = 40)]
-        public string version { get; set; } = new string(new char[40]);
-        [field: MarshalAs(UnmanagedType.ByValTStr, SizeConst = 40)]
-        public string version_client { get; set; } = new string(new char[40]);
-        [field: MarshalAs(UnmanagedType.Struct, SizeConst = 2)]
+        public sbyte tipo { get; set; } 
+        public string version { get; set; } 
+        public string version_client { get; set; }
         public uint packet_version { get; set; }
-        public RateConfigInfo rate { get; set; } = new RateConfigInfo();
-        [field: MarshalAs(UnmanagedType.Struct, SizeConst = 4)]
-        public uFlag flag { get; set; } = new uFlag();
+        public RateConfigInfo rate { get; set; }
+        public uFlag flag { get; set; } 
+
+        public ServerInfoEx()
+        {
+            rate = new RateConfigInfo();
+            event_flag = new uEventFlag();
+            flag = new uFlag(0);
+        }
     }
-    [StructLayout(LayoutKind.Sequential, Pack = 4)]
+     
     public class RateConfigInfo
     {
 
@@ -900,12 +918,12 @@ namespace PangyaAPI.Network.Models
 
         public bool isEquipedPartSlotThirdCaddieCardSlot()
         {
-            for (var i = 0u; i < (parts_typeid.Length); ++i)
+            for (var i = 0; i < (parts_typeid.Length); ++i)
             {
                 Part part;
                 if (parts_id[i] != 0 && (part = sIff.getInstance().findPart(parts_typeid[i])) != null)
                 {
-                    if (((Part)null)._CardSlot.CaddieSlot != 0) // Tem um Part que Libera o terceiro Caddie Card Slot
+                    if (part._CardSlot.CaddieSlot != 0) // Tem um Part que Libera o terceiro Caddie Card Slot
                     {
                         return true;
                     }
@@ -954,7 +972,7 @@ namespace PangyaAPI.Network.Models
             if (_auxPart_typeid == 0)
                 return false;
 
-            for (var i = 0u; i < (auxparts.Length); ++i)
+            for (var i = 0; i < (auxparts.Length); ++i)
             {
                 if (auxparts[i] == _auxPart_typeid)
                 {
@@ -975,7 +993,7 @@ namespace PangyaAPI.Network.Models
 
                 return;
             }
-            for (var i = 0u; i < (parts_typeid.Length); ++i)
+            for (uint i = 0; i < (parts_typeid.Length); ++i)
             {
 
                 if (_part.position_mask.getSlot((int)i))
@@ -1011,7 +1029,7 @@ namespace PangyaAPI.Network.Models
                 Singleton<list_fifo_console_asyc<message>>.getInstance().push(new message("[CharacterInfo::unequipPart][Error][WARNIG] Part[TYPEID=" + Convert.ToString(_typeid) + "], mas ele nao existe no IFF_STRUCT do server, desequipa sem usar a funcao do character. Hacker ou Bug.", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
                 // Não vai pegar todos os Slots que o Part ocupava para desequipar, desequipa o só onde tem o typeid   
-                for (var i = 0u; i < (parts_typeid.Length); ++i)
+                for (uint i = 0; i < (parts_typeid.Length); ++i)
                 {
 
                     // Não vai pergar todos os 
@@ -1039,7 +1057,7 @@ namespace PangyaAPI.Network.Models
             if (_typeid == 0u)
                 return;
 
-            for (var i = 0u; i < (auxparts.Length); ++i)
+            for (var i = 0; i < (auxparts.Length); ++i)
             {
 
                 if (auxparts[i] == _typeid)
@@ -1074,45 +1092,29 @@ namespace PangyaAPI.Network.Models
         }
 
         public sbyte getSlotOfStatsFromCharEquipedPartItem(Stats __stat)
-        { // Get Slot of stats from Character equiped item
+        {
+            int totalValue = 0; // Use int para evitar problemas de cast durante a soma
 
-            sbyte value = 0;
-            Part part = null;
-
-            // Invalid Stats type, Unknown type Stats
             if (__stat > Stats.S_CURVE)
                 return -1;
 
-            for (var i = 0u; i < (parts_typeid.Length); ++i)
+            for (var i = 0; i < parts_typeid.Length; ++i)
             {
-
-                if (parts_id[i] != 0 && (part = sIff.getInstance().findPart(parts_typeid[i])) != null)
+                // Verifica se o slot de equipamento não está vazio
+                if (parts_id[i] != 0)
                 {
-
-                    switch (__stat)
+                    var part = sIff.getInstance().findPart(parts_typeid[i]);
+                    if (part != null)
                     {
-                        case Stats.S_POWER:
-                            value += (sbyte)part.Stats.Power;
-                            break;
-                        case Stats.S_CONTROL:
-                            value += (sbyte)part.Stats.Control;
-                            break;
-                        case Stats.S_ACCURACY:
-                            value += (sbyte)part.Stats.Impact;
-                            break;
-                        case Stats.S_SPIN:
-                            value += (sbyte)part.Stats.Spin;
-                            break;
-                        case Stats.S_CURVE:
-                            value += (sbyte)part.Stats.Curve;
-                            break;
-                        default:
-                            break;
+                        short slotAmount = (short)part.Stats.getSlot[(ushort)__stat];
+                        totalValue += slotAmount;
+
+                        // Console.WriteLine($"Item {parts_typeid[i]} adicionou {slotAmount} slots de {__stat}");
                     }
                 }
             }
 
-            return value;
+            return (sbyte)totalValue;
         }
 
         public sbyte getSlotOfStatsFromCharEquipedAuxPart(Stats __stat)
@@ -1127,7 +1129,7 @@ namespace PangyaAPI.Network.Models
                 return -1;
             }
 
-            for (var i = 0u; i < (auxparts.Length); ++i)
+            for (var i = 0; i < (auxparts.Length); ++i)
             {
 
                 if (auxparts[i] != 0 && (aux_part = sIff.getInstance().findAuxPart(auxparts[i])) != null)
@@ -1157,7 +1159,7 @@ namespace PangyaAPI.Network.Models
             }
 
             // Part Item                                                                                     
-            for (var i = 0u; i < (parts_typeid.Length); ++i)
+            for (var i = 0; i < (parts_typeid.Length); ++i)
             {
 
                 if (parts_typeid[i] != 0)
@@ -1168,7 +1170,6 @@ namespace PangyaAPI.Network.Models
                     // O Item no Set Effect Table
                     if (iff_SET != null)
                     {
-
                         if (check_id.Count == 0 || !check_id.Contains(iff_SET.Index))
                         {
 
@@ -1177,18 +1178,17 @@ namespace PangyaAPI.Network.Models
 
                             // Verifica sem tem todos os itens da tabela de efeito equipados
                             ret = 1;
-                            for (var j = 0u; j < (iff_SET.item.ID.Length); ++j)
+                            for (var j = 0; j < (iff_SET.item.ID.Length); ++j)
                             {
 
                                 if (iff_SET.item.ID[j] != 0u)
                                 {
 
-                                    if (sIff.getInstance().getItemGroupIdentify(iff_SET.item.ID[j]) == sIff.getInstance().PART)
+                                    if (sIff.getInstance().getItemGroupIdentify(iff_SET.item.ID[j]) == PangyaAPI.IFF.JP.Models.Flags.IFF_GROUP.PART)
                                     {
 
                                         if (!isPartEquiped(iff_SET.item.ID[j]))
                                         {
-
                                             // Não tem o outro item equipado
                                             ret = 0;
 
@@ -1196,7 +1196,7 @@ namespace PangyaAPI.Network.Models
                                         }
 
                                     }
-                                    else if (sIff.getInstance().getItemGroupIdentify(iff_SET.item.ID[j]) == sIff.getInstance().AUX_PART)
+                                    else if (sIff.getInstance().getItemGroupIdentify(iff_SET.item.ID[j]) == PangyaAPI.IFF.JP.Models.Flags.IFF_GROUP.AUX_PART)
                                     {
 
                                         if (!isAuxPartEquiped(iff_SET.item.ID[j]))
@@ -1296,12 +1296,10 @@ namespace PangyaAPI.Network.Models
                 p.WriteUInt32(auxparts);
                 p.WriteUInt32(cut_in);
                 p.WriteBytes(pcl);
-
                 p.WriteUInt32(mastery);
                 p.WriteUInt32(Card_Character);
                 p.WriteUInt32(Card_Caddie);
                 p.WriteUInt32(Card_NPC);
-
                 return p.GetBytes;
             }
         }
@@ -1314,40 +1312,16 @@ namespace PangyaAPI.Network.Models
             default_shirts = r.ReadByte();
             gift_flag = r.ReadByte();
             purchase = r.ReadByte();
-
-            parts_typeid = new uint[24];
-            for (int i = 0; i < 24; i++)
-                parts_typeid[i] = r.ReadUInt32();
-
-            parts_id = new uint[24];
-            for (int i = 0; i < 24; i++)
-                parts_id[i] = r.ReadUInt32();
-
+            parts_typeid = r.ReadUInt32(24);
+            parts_id = r.ReadUInt32(24);
             UccIndexList = r.ReadBytes(216);
-
-            auxparts = new uint[5];
-            for (int i = 0; i < 5; i++)
-                auxparts[i] = r.ReadUInt32();
-
-            cut_in = new uint[4];
-            for (int i = 0; i < 4; i++)
-                cut_in[i] = r.ReadUInt32();
-
+            auxparts = r.ReadUInt32(5);
+            cut_in = r.ReadUInt32(4);
             pcl = r.ReadBytes(5);
-
             mastery = r.ReadUInt32();
-
-            Card_Character = new uint[4];
-            for (int i = 0; i < 4; i++)
-                Card_Character[i] = r.ReadUInt32();
-
-            Card_Caddie = new uint[4];
-            for (int i = 0; i < 4; i++)
-                Card_Caddie[i] = r.ReadUInt32();
-
-            Card_NPC = new uint[4];
-            for (int i = 0; i < 4; i++)
-                Card_NPC[i] = r.ReadUInt32();
+            Card_Character = r.ReadUInt32(4);
+            Card_Caddie = r.ReadUInt32(4);
+            Card_NPC = r.ReadUInt32(4);
 
             return this;
         }
@@ -1379,11 +1353,10 @@ namespace PangyaAPI.Network.Models
 
         public void Clear()
         {
-            uid = 0;
-            option = -1;
-
-            if (!string.IsNullOrEmpty(id)) id = string.Empty;
-            if (!string.IsNullOrEmpty(ip)) ip = string.Empty;
+            this.uid = 0;
+            this.option = -1; // -1 Geralmente indica "Não Inicializado" ou "Erro"
+            this.id = string.Empty;
+            this.ip = "0.0.0.0";
         }
     }
 
@@ -1399,7 +1372,7 @@ namespace PangyaAPI.Network.Models
             command_id = 0;
         }
 
-        public void Clear()
+        public virtual void Clear()
         {
             send_server_uid_or_type = 0;
             command_id = 0;
@@ -1427,7 +1400,7 @@ namespace PangyaAPI.Network.Models
 
             public StCommand(ushort size = 0)
             {
-                buff = null;
+                buff = new byte[0];
                 this.size = 0;
                 state = false;
 
@@ -1436,7 +1409,7 @@ namespace PangyaAPI.Network.Models
 
             public void Destroy()
             {
-                buff = null;
+                buff = new byte[0];
                 state = false;
             }
 
@@ -1464,16 +1437,32 @@ namespace PangyaAPI.Network.Models
             command = new StCommand(0);
             Clear();
         }
-
-        ~CommandOtherServerHeaderEx()
-        {
-            Clear();
-        }
-
-        public new void Clear()
+         
+        public override void Clear()
         {
             base.Clear();
             command.Destroy();
+        }
+
+        public new byte[] ToArray()
+        {
+            using (var p = new PangyaBinaryWriter())
+            {
+                // 1. Escreve os dados da classe base (send_server_uid_or_type e command_id)
+                p.Write(base.ToArray());
+
+                // 2. Escreve os dados do StCommand
+                if (command != null && command.is_good() && command.buff != null)
+                {
+                    p.WriteUInt16(command.size); // Escreve o tamanho do buffer (ushort)
+                    p.WriteBytes(command.buff); // Escreve o conteúdo binário
+                }
+                else
+                {
+                    p.WriteUInt16(0);    // Se não houver comando, envia tamanho 0
+                } 
+                return p.GetBytes;
+            }
         }
     }
     #region User Info

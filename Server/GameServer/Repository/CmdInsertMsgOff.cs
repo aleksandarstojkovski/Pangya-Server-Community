@@ -5,14 +5,7 @@ using System;
 namespace Pangya_GameServer.Repository
 {
     public class CmdInsertMsgOff : Pangya_DB
-    {
-        public CmdInsertMsgOff(bool _waiter = false) : base(_waiter)
-        {
-            this.m_uid = 0u;
-            this.m_to_uid = 0u;
-            this.m_msg = "";
-        }
-
+    { 
         public CmdInsertMsgOff(uint _uid,
             uint _to_uid, string _msg,
             bool _waiter = false) : base(_waiter)
@@ -20,37 +13,7 @@ namespace Pangya_GameServer.Repository
             this.m_uid = _uid;
             this.m_to_uid = _to_uid;
             this.m_msg = _msg;
-        }
-
-        public uint getUID()
-        {
-            return (m_uid);
-        }
-
-        public void setUID(uint _uid)
-        {
-            m_uid = _uid;
-        }
-
-        public uint getToUID()
-        {
-            return (m_to_uid);
-        }
-
-        public void setToUID(uint _to_uid)
-        {
-            m_to_uid = _to_uid;
-        }
-
-        public string getMessage()
-        {
-            return m_msg;
-        }
-
-        public void setMessage(string _msg)
-        {
-            m_msg = _msg;
-        }
+        } 
 
         protected override void lineResult(ctx_res _result, uint _index_result)
         {
@@ -86,9 +49,8 @@ namespace Pangya_GameServer.Repository
                     4, 0));
             }
 
-            var r = procedure(
-                m_szConsulta,
-                Convert.ToString(m_uid) + ", " + Convert.ToString(m_to_uid) + ", " + m_msg);
+            var r = procedure(m_szConsulta,
+                Convert.ToString(m_uid) + ", " + Convert.ToString(m_to_uid) + ", " + makeText(m_msg));
 
             checkResponse(r, "nao conseguiu inserir Message Off[" + m_msg + "] do PLAYER[UID=" + Convert.ToString(m_uid) + "] para o PLAYER[UID=" + Convert.ToString(m_to_uid) + "]");
 

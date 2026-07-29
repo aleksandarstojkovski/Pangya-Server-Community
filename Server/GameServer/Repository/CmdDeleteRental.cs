@@ -8,7 +8,7 @@ namespace Pangya_GameServer.Repository
     {
         public CmdDeleteRental()
         {
-            this.m_uid = 0u;
+            this.m_uid = 0;
             this.m_item_id = 0;
         }
 

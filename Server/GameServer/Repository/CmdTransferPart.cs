@@ -9,8 +9,8 @@ namespace Pangya_GameServer.Repository
     {
         public CmdTransferPart(bool _waiter = false) : base(_waiter)
         {
-            this.m_uid_sell = 0u;
-            this.m_uid_buy = 0u;
+            this.m_uid_sell = 0;
+            this.m_uid_buy = 0;
             this.m_item_id = 0;
             this.m_type_iff = 0;
         }
@@ -89,8 +89,7 @@ namespace Pangya_GameServer.Repository
                     4, 0));
             }
 
-            var r = procedure(
-                m_szConsulta,
+            var r = procedure(m_szConsulta,
                 Convert.ToString(m_uid_sell) + ", " + Convert.ToString(m_uid_buy) + ", " + Convert.ToString(m_item_id) + ", " + Convert.ToString(m_type_iff));
 
             checkResponse(r, "nao conseguiu transferir o item[ID=" + Convert.ToString(m_item_id) + "] do PLAYER[UID=" + Convert.ToString(m_uid_sell) + "] para o PLAYER[UID=" + Convert.ToString(m_uid_buy) + "]");

@@ -129,14 +129,14 @@
 
     public enum SET_ITEM_SUB_TYPE : byte
     {
-        UNKNOWN_0,
+        COMMOON,
         CHARACTER_SET,//CHARACTER
         CHARACTER_SET_NEW,//PARTS
-        UNKNOWN_3,
+        MASCOT,
         CLUB_SET,//CLUBSET
         BALL,//BALL
         CHARACTER_SET_DUP_AND_ITEM_PASSIVE_AND_ACTIVE,//ITEM
-        UNKNOWN_7,//CADDIE
+        CADDIE,//CADDIE
         CARD,
         AUXPART,    // Anel
     }

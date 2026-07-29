@@ -1,4 +1,4 @@
-﻿namespace LoginServer.Models
+﻿namespace Pangya_LoginServer.Models
 {
     public class PlayerInfo : player_info
     {

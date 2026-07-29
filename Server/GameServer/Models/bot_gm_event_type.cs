@@ -16,15 +16,15 @@ namespace Pangya_GameServer.Models
                            ushort _hour_end, ushort _min_end, ushort _sec_end,
                            byte _channel_id)
         {
-            m_start = new SYSTEMTIME(0, 0, 0, 0, _hour_start, _min_start, _sec_start, 0);
-            m_end = new SYSTEMTIME(0, 0, 0, 0, _hour_end, _min_end, _sec_end, 0);
+            m_start = new TimeSpan(_hour_start, _min_start, _sec_start, 0);
+            m_end = new TimeSpan(_hour_end, _min_end, _sec_end, 0);
             m_channel_id = _channel_id;
             m_sended_message = false;
             m_room_created = false;
             m_room_closed = false;
         }
 
-        public stRangeTime(SYSTEMTIME _start, SYSTEMTIME _end, byte _channel_id)
+        public stRangeTime(TimeSpan _start, TimeSpan _end, byte _channel_id)
         {
             m_start = _start;
             m_end = _end;
@@ -38,8 +38,8 @@ namespace Pangya_GameServer.Models
 
         public void clear()
         {
-            m_start = new SYSTEMTIME();
-            m_end = new SYSTEMTIME();
+            m_start = new TimeSpan();
+            m_end = new TimeSpan();
             m_channel_id = 255;
 
             m_sended_message = false;
@@ -47,29 +47,19 @@ namespace Pangya_GameServer.Models
             m_room_closed = false;
         }
 
-        public bool isBetweenTime(SYSTEMTIME _st)
-        {
-            _st.Day = 0;
-            _st.DayOfWeek = 0;
-            _st.Month = 0;
-            _st.Year = 0;
-
+        public bool isBetweenTime(TimeSpan _st)
+        { 
             return intoStartTime(_st) && intoEndTime(_st);
         }
 
         public bool isBetweenTime(ushort _hour, ushort _min, ushort _sec, ushort _milli = 0)
         {
-            SYSTEMTIME st = new SYSTEMTIME(0, 0, 0, 0, _hour, _min, _sec, _milli);
+            TimeSpan st = new TimeSpan(_hour, _min, _sec, _milli);
             return isBetweenTime(st);
         }
 
-        public bool isPastEnd(SYSTEMTIME _st)
-        {
-            _st.Day = 0;
-            _st.DayOfWeek = 0;
-            _st.Month = 0;
-            _st.Year = 0;
-
+        public bool isPastEnd(TimeSpan _st)
+        { 
             return timeToMilliseconds(_st) > timeToMilliseconds(m_end);
         }
 
@@ -78,23 +68,23 @@ namespace Pangya_GameServer.Models
             return timeToMilliseconds(m_end) - timeToMilliseconds(m_start);
         }
 
-        protected bool intoStartTime(SYSTEMTIME _st)
+        protected bool intoStartTime(TimeSpan _st)
         {
             return timeToMilliseconds(m_start) <= timeToMilliseconds(_st);
         }
 
-        protected bool intoEndTime(SYSTEMTIME _st)
+        protected bool intoEndTime(TimeSpan _st)
         {
             return timeToMilliseconds(_st) < timeToMilliseconds(m_end);
         }
 
-        protected uint timeToMilliseconds(SYSTEMTIME _st)
+        protected uint timeToMilliseconds(TimeSpan _st)
         {
-            return (uint)((_st.Hour * 60 * 60 * 1000) + (_st.Minute * 60 * 1000) + (_st.Second * 1000) + _st.MilliSecond);
+            return (uint)((_st.Hours * 60 * 60 * 1000) + (_st.Minutes * 60 * 1000) + (_st.Seconds * 1000) + _st.Milliseconds);
         }
 
-        public SYSTEMTIME m_start = new SYSTEMTIME();
-        public SYSTEMTIME m_end = new SYSTEMTIME();
+        public TimeSpan m_start = new TimeSpan();
+        public TimeSpan m_end = new TimeSpan();
         public byte m_channel_id;
 
         public bool m_sended_message;

@@ -83,7 +83,7 @@ namespace Pangya_GameServer.Game.System
                 m_load = true;
 
                 if (m_comet_refill.Count == 0)
-                    _smp.message_pool.getInstance().push(new message("[CometRefillSystem::initialize][Warning] Not Loaded.", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                    _smp.message_pool.getInstance().push(new message("[CometRefillSystem::initialize][Warning] Not Loaded!", type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
             catch
             {

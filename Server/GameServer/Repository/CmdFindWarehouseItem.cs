@@ -10,8 +10,8 @@ namespace Pangya_GameServer.Repository
     {
         public CmdFindWarehouseItem()
         {
-            this.m_uid = 0u;
-            this.m_typeid = 0u;
+            this.m_uid = 0;
+            this.m_typeid = 0;
             this.m_wi = new WarehouseItemEx();
         }
 
@@ -63,7 +63,7 @@ namespace Pangya_GameServer.Repository
 
             if (m_wi.id > 0)
             { // found
-                var i = 0U;
+                var i = 0;
 
                 m_wi._typeid = IFNULL<uint>(_result.data[2]);
                 m_wi.ano = IFNULL<int>(_result.data[3]);

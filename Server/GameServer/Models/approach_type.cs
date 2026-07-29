@@ -1,5 +1,5 @@
 ﻿using PangyaAPI.Utilities;
-using PangyaAPI.Utilities.BinaryModels;
+using PangyaAPI.Utilities.Models;
 
 namespace Pangya_GameServer.Models
 {
@@ -48,11 +48,10 @@ namespace Pangya_GameServer.Models
 
         }
         public void toPacket(PangyaBinaryWriter _packet)
-        {
-
+        { 
             _packet.WriteByte(numero);
             _packet.WriteByte(box_qntd);
-            _packet.WriteByte(tipo);
+            _packet.WriteByte((byte)tipo);
             _packet.WriteInt32(condition);
             _packet.WritePStr(nick);
         }
@@ -86,11 +85,49 @@ namespace Pangya_GameServer.Models
         public class uMissionFlag
         {
             public uint flag;
-            public uint players = 5;// : 5; // O m�nimo de player que pode ter para ativar a miss�o, 0 permite todos
-            public uint condition1 = 13;// : 13; // Condi��o que vai ter Ex: player rank 5 chip in completa a miss�o
-            public uint condition2 = 13;// : 13; // Condi��o 2 � a mesma da 1 se precisar da segunda
+
+            // máscaras
+            private const int PLAYERS_SHIFT = 0;
+            private const uint PLAYERS_MASK = 0x1F; // 5 bits
+
+            private const int COND1_SHIFT = 5;
+            private const uint COND1_MASK = 0x1FFF; // 13 bits
+
+            private const int COND2_SHIFT = 18;
+            private const uint COND2_MASK = 0x1FFF; // 13 bits
+
+            public uint players
+            {
+                get => (flag >> PLAYERS_SHIFT) & PLAYERS_MASK;
+                set
+                {
+                    flag &= ~(PLAYERS_MASK << PLAYERS_SHIFT);
+                    flag |= (value & PLAYERS_MASK) << PLAYERS_SHIFT;
+                }
+            }
+
+            public uint condition1
+            {
+                get => (flag >> COND1_SHIFT) & COND1_MASK;
+                set
+                {
+                    flag &= ~(COND1_MASK << COND1_SHIFT);
+                    flag |= (value & COND1_MASK) << COND1_SHIFT;
+                }
+            }
+
+            public uint condition2
+            {
+                get => (flag >> COND2_SHIFT) & COND2_MASK;
+                set
+                {
+                    flag &= ~(COND2_MASK << COND2_SHIFT);
+                    flag |= (value & COND2_MASK) << COND2_SHIFT;
+                }
+            }
         }
-         
+
+
         public uint numero = new uint();
         public uint box = new uint();
         public eMISSION_TYPE tipo = new eMISSION_TYPE();
@@ -116,9 +153,9 @@ namespace Pangya_GameServer.Models
             status = eSTATUS.IN_GAME;
             position = (sbyte)~0;
             distance = (uint)~0u;
-            box = 0u;
+            box = 0;
             rank_box = 0;
-            time = 0u;
+            time = 0;
         }
 
         public virtual void setLeftGame()
@@ -126,9 +163,9 @@ namespace Pangya_GameServer.Models
             status = eSTATUS.LEFT_GAME;
             position = (sbyte)~0;
             distance = (uint)~0u;
-            box = 0u;
+            box = 0;
             rank_box = 0;
-            time = 0u;
+            time = 0;
         }
 
         public eSTATUS status = new eSTATUS();
@@ -210,9 +247,9 @@ namespace Pangya_GameServer.Models
 
         public approach_dados_ex(uint _ul = 0u) : base(_ul)
         {
-            this.total_distance = 0u;
-            this.total_time = 0u;
-            this.total_box = 0u;
+            this.total_distance = 0;
+            this.total_time = 0;
+            this.total_box = 0;
             this.state = new uState();
             this.state_quit = eSTATE_QUIT.SQ_IN_GAME;
         }
@@ -222,9 +259,9 @@ namespace Pangya_GameServer.Models
 
             base.clear();
 
-            total_distance = 0u;
-            total_time = 0u;
-            total_box = 0u;
+            total_distance = 0;
+            total_time = 0;
+            total_box = 0;
             state.ucState = 0;
             state_quit = eSTATE_QUIT.SQ_IN_GAME;
         }

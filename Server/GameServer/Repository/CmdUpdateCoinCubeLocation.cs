@@ -1,8 +1,9 @@
-﻿using System;
-using Pangya_GameServer.Models;
+﻿using Pangya_GameServer.Models;
 using PangyaAPI.IFF.JP.Extensions;
 using PangyaAPI.SQL;
 using PangyaAPI.Utilities;
+using System;
+using System.Globalization;
 namespace Pangya_GameServer.Repository
 {
     public class CmdUpdateCoinCubeLocation : Pangya_DB
@@ -51,6 +52,17 @@ namespace Pangya_GameServer.Repository
             }
 
             Response r = null;
+            string x = m_ccu.cube.location.x.ToString(CultureInfo.InvariantCulture);
+            string y = m_ccu.cube.location.y.ToString(CultureInfo.InvariantCulture);
+            string z = m_ccu.cube.location.z.ToString(CultureInfo.InvariantCulture);
+
+            string args = string.Format("{0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}",
+                (ushort)m_ccu.course_id,
+                (ushort)m_ccu.hole_number,
+                (int)m_ccu.cube.tipo,
+                (int)m_ccu.cube.flag_location,
+                m_ccu.cube.rate,
+                x, y, z);
 
             if (m_ccu.type == CoinCubeUpdate.eTYPE.UPDATE)
             {
@@ -60,21 +72,17 @@ namespace Pangya_GameServer.Repository
                     throw new exception("[CmdUpdateCoinCubeLocation::prepareConsulta][Error] invalid coin/cube id(" + Convert.ToString(m_ccu.cube.id) + ") to Update in Database", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PANGYA_DB,
                         4, 0));
                 }
+              
 
-                r = procedure(
-                    m_szConsulta[1],
-                    Convert.ToString(m_ccu.cube.id) + ", " + Convert.ToString((ushort)m_ccu.course_id) + ", " + Convert.ToString((ushort)m_ccu.hole_number) + ", " + Convert.ToString(m_ccu.cube.tipo) + ", " + Convert.ToString(m_ccu.cube.flag_location) + ", " + Convert.ToString(m_ccu.cube.rate) + ", " + Convert.ToString(m_ccu.cube.location.x) + ", " + Convert.ToString(m_ccu.cube.location.y) + ", " + Convert.ToString(m_ccu.cube.location.z));
+                r = procedure(m_szConsulta[1],
+                    Convert.ToString(m_ccu.cube.id) + ", " + args);
 
                 checkResponse(r, "Nao conseguiu atualizar o Coin/Cube[ID=" + Convert.ToString(m_ccu.cube.id) + ", COURSE_ID=" + Convert.ToString((ushort)m_ccu.course_id) + ", HOLE=" + Convert.ToString((ushort)m_ccu.hole_number) + ", TIPO=" + Convert.ToString(m_ccu.cube.tipo) + ", TIPO_LOCATION=" + Convert.ToString(m_ccu.cube.flag_location) + ", RATE=" + Convert.ToString(m_ccu.cube.rate) + ", X=" + Convert.ToString(m_ccu.cube.location.x) + ", Y=" + Convert.ToString(m_ccu.cube.location.y) + ", Z=" + Convert.ToString(m_ccu.cube.location.z) + "]");
 
             }
             else
-            {
-
-                // Add new Coin/Cube Location
-                r = procedure(
-                    m_szConsulta[0],
-                    Convert.ToString((ushort)m_ccu.course_id) + ", " + Convert.ToString((ushort)m_ccu.hole_number) + ", " + Convert.ToString(m_ccu.cube.tipo) + ", " + Convert.ToString(m_ccu.cube.flag_location) + ", " + Convert.ToString(m_ccu.cube.rate) + ", " + Convert.ToString(m_ccu.cube.location.x) + ", " + Convert.ToString(m_ccu.cube.location.y) + ", " + Convert.ToString(m_ccu.cube.location.z));
+            { 
+                r = procedure(m_szConsulta[0], args);
 
                 checkResponse(r, "Nao conseguiu adicionar o Coin/Cube[COURSE_ID=" + Convert.ToString((ushort)m_ccu.course_id) + ", HOLE=" + Convert.ToString((ushort)m_ccu.hole_number) + ", TIPO=" + Convert.ToString(m_ccu.cube.tipo) + ", TIPO_LOCATION=" + Convert.ToString(m_ccu.cube.flag_location) + ", RATE=" + Convert.ToString(m_ccu.cube.rate) + ", X=" + Convert.ToString(m_ccu.cube.location.x) + ", Y=" + Convert.ToString(m_ccu.cube.location.y) + ", Z=" + Convert.ToString(m_ccu.cube.location.z) + "]");
             }

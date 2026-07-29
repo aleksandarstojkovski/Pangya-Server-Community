@@ -3,18 +3,76 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net.NetworkInformation;
-using System.Net.Sockets; 
+using System.Net.Sockets;
+using System.Threading;
+using System.Threading.Tasks;
 namespace PangyaAPI.Utilities
 {
     public static class TcpClientEx
     {
-        public static (bool check, byte[] _buffer, int len) Read(this TcpClient client)
+        public static bool IsClientConnected(this TcpClient client)
         {
-            if (SocketConnected(client.Client))
-                return client.Client.Read();
-            else
-                return (false, new byte[0], 0);
-        } 
+            try
+            {
+                var socket = client.Client;
+
+                // Se o socket diz que não está conectado, nem perdemos tempo
+                if (socket == null) return false;
+
+                // Se o socket diz que não está conectado, nem perdemos tempo
+                if (!socket.Connected) return false;
+
+                // Poll retorna true se:
+                // 1. Há dados esperando para serem lidos (conexão OK)
+                // 2. A conexão foi fechada/resetada (conexão RUIM)
+                if (socket.Poll(0, SelectMode.SelectRead))
+                {
+                    byte[] buffer = new byte[1];
+                    // Se tentarmos ler (Peek) e retornar 0, a conexão caiu definitivamente
+                    if (socket.Receive(buffer, SocketFlags.Peek) == 0)
+                    {
+                        return false;
+                    }
+                }
+                return true;
+            }
+            catch (SocketException)
+            {
+                return false;
+            }
+        }
+        public static void SafeClose(this TcpClient client)
+        {
+            if (client == null)
+                return;
+
+            try
+            {
+                var socket = client.Client;
+
+                if (socket != null && socket.Connected)
+                {
+                    try
+                    {
+                        socket.Shutdown(SocketShutdown.Both);
+                    }
+                    catch
+                    {
+                        // normal: socket já morto
+                    }
+                }
+            }
+            catch { }
+
+            try
+            {
+                client.Close(); // Fecha stream + socket
+            }
+            catch { }
+        }
+
+
+         
 
         public static bool Send(this TcpClient client, byte[] buffer, int len = 0)
         {
@@ -64,7 +122,9 @@ namespace PangyaAPI.Utilities
         }
 
         public static bool Shutdown(this TcpClient _sock, SocketShutdown how)
-        { Shutdown(_sock.Client, how); return true; }
+        {
+            Thread.Sleep(3000);
+            Shutdown(_sock.Client, how); return true; }
 
         public static bool Shutdown(this Socket _sock, SocketShutdown how)
         { _sock.Shutdown(how); return true; }
@@ -79,7 +139,58 @@ namespace PangyaAPI.Utilities
             return true;
         }
 
-        public static (bool Success, byte[] Buffer, int Length) Read(this Socket stream)
+        public static async Task<(bool check, byte[] _buffer, int len)> ReadAsync(this TcpClient client)
+        {
+            if (client != null && client.Connected)
+                return await client.Client.ReadAsync();
+
+            return (false, Array.Empty<byte>(), 0);
+        }
+
+        public static async Task<(bool Success, byte[] Buffer, int Length)> ReadAsync(this Socket socket)
+        {
+            if (socket == null || !socket.Connected)
+                return (false, Array.Empty<byte>(), 0);
+
+            // 8 KB é um bom tamanho para Pangya (pacotes raramente passam disso)
+            byte[] buffer = new byte[8192];
+
+            try
+            {
+                // Usa a versão nativa assíncrona do .NET que não bloqueia threads
+                int bytesRead = await socket.ReceiveAsync(new ArraySegment<byte>(buffer), SocketFlags.None);
+
+                if (bytesRead == 0)
+                {
+                    // Conexão encerrada graciosamente pelo outro lado
+                    return (false, Array.Empty<byte>(), 0);
+                }
+
+                // Criamos o array de retorno apenas com o tamanho lido
+                byte[] result = new byte[bytesRead];
+                Buffer.BlockCopy(buffer, 0, result, 0, bytesRead);
+
+                return (true, result, bytesRead);
+            }
+            catch (ObjectDisposedException)
+            {
+                // Ocorre se o socket for fechado por outra thread enquanto lia
+                Debug.WriteLine("[ReadAsync] Socket foi descartado.");
+                return (false, Array.Empty<byte>(), 0);
+            }
+            catch (SocketException ex)
+            {
+                Debug.WriteLine($"[ReadAsync] Erro de rede: {ex.SocketErrorCode}");
+                return (false, Array.Empty<byte>(), 0);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[ReadAsync] Erro: {ex.Message}");
+                return (false, Array.Empty<byte>(), 0);
+            }
+        }
+
+        public static (bool Success, byte[] Buffer, int Length) Read(this TcpClient stream)
         {
             if (!stream.Connected)
             {
@@ -90,7 +201,7 @@ namespace PangyaAPI.Utilities
             byte[] buffer = new byte[8192]; // 8 KB é suficiente na maioria dos casos
             try
             {
-                int bytesRead = stream.Receive(buffer, 0, buffer.Length, SocketFlags.None);
+                int bytesRead = stream.GetStream().Read(buffer, 0, buffer.Length);
 
                 if (bytesRead == 0)
                 {
@@ -114,6 +225,7 @@ namespace PangyaAPI.Utilities
                 return (false, Array.Empty<byte>(), 0);
             }
         }
+
 
         public static (bool Success, byte[] Buffer, int Length) Read(this NetworkStream stream)
         {

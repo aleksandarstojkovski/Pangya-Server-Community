@@ -1,7 +1,9 @@
-﻿using System.Collections.Generic;
-using Pangya_GameServer.Models;
+﻿using Pangya_GameServer.Models;
 using PangyaAPI.SQL;
 using PangyaAPI.Utilities;
+using System.Collections.Generic;
+using System.Reflection;
+using System.Xml.Linq;
 
 namespace Pangya_GameServer.Repository
 {
@@ -49,6 +51,8 @@ namespace Pangya_GameServer.Repository
                 m_lr.Clear();
             }
 
+           string m_szConsulta = "SELECT " + makeEscapeKeyword("index") + ", " + makeEscapeKeyword("name") + ", " + makeEscapeKeyword("type") + ", days_to_gift, n_times_gift, item_typeid, item_qntd, item_qntd_time, is_end, end_date FROM pangya.pangya_login_reward WHERE is_end = 0";
+            
             var r = consulta(m_szConsulta);
 
             checkResponse(r, "nao conseguiu pegar o Login Reward Info");
@@ -57,7 +61,5 @@ namespace Pangya_GameServer.Repository
         }
 
         private List<stLoginReward> m_lr = new List<stLoginReward>();
-
-        private const string m_szConsulta = "(SELECT [index], [name], [type], days_to_gift, n_times_gift, item_typeid, item_qntd, item_qntd_time, is_end, end_date	FROM pangya.pangya_login_reward WHERE is_end = 0)";
     }
 }

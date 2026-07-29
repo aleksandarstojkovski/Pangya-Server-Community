@@ -96,9 +96,8 @@ namespace Pangya_GameServer.Repository
                     4, 0));
             }
 
-            var r = procedure(
-                m_szConsulta,
-                Convert.ToString(m_uid_from) + ", " + Convert.ToString(m_uid_to) + ", " + Convert.ToString(m_mail_id) + ", " + Convert.ToString(m_item.id) + ", " + Convert.ToString(m_item._typeid) + ", " + Convert.ToString((ushort)m_item.flag_time) + ", " + Convert.ToString((m_item.qntd > 0xFFu) ? m_item.qntd : m_item.STDA_C_ITEM_QNTD32) + ", " + Convert.ToString(m_item.c[3]));
+            var r = procedure(m_szConsulta,
+                Convert.ToString(m_uid_from) + ", " + Convert.ToString(m_uid_to) + ", " + Convert.ToString(m_mail_id) + ", " + Convert.ToString(m_item.id) + ", " + Convert.ToString(m_item._typeid) + ", " + Convert.ToString((ushort)m_item.flag_time) + ", " + Convert.ToString((m_item.qntd > 0xFFu) ? m_item.qntd : m_item.STDA_C_ITEM_QNTD) + ", " + Convert.ToString(m_item.c[3]));
 
 
             checkResponse(r, "PLAYER[UID=" + Convert.ToString(m_uid_from) + "] nao conseguiu adicionar item[TYPEID=" + Convert.ToString(m_item._typeid) + ", ID=" + Convert.ToString(m_item.id) + "] no mail[ID=" + Convert.ToString(m_mail_id) + "] do PLAYER[UID=" + Convert.ToString(m_uid_to) + "]");

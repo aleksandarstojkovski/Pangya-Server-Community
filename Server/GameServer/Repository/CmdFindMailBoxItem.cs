@@ -8,8 +8,8 @@ namespace Pangya_GameServer.Repository
     {
         public CmdFindMailBoxItem()
         {
-            this.m_uid = 0u;
-            this.m_typeid = 0u;
+            this.m_uid = 0;
+            this.m_typeid = 0;
             this.m_has_found = false;
         }
 
@@ -56,7 +56,7 @@ namespace Pangya_GameServer.Repository
 
             if (_typeid != -1 && (uint)_typeid != m_typeid)
             {
-                throw new exception("[CmdFindMailBoxItem::lineResult][Error] typeid que retornou eh diferento do requisitado. [REQUEST=" + Convert.ToString(m_uid) + ", RETURN=" + Convert.ToString(_typeid) + "]", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PANGYA_DB,
+                throw new exception("[CmdFindMailBoxItem::lineResult][Error] typeid que retornou é diferento do requisitado. [REQUEST=" + Convert.ToString(m_uid) + ", RETURN=" + Convert.ToString(_typeid) + "]", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PANGYA_DB,
                     3, 0));
             }
             else
@@ -82,8 +82,7 @@ namespace Pangya_GameServer.Repository
 
             m_has_found = false;
 
-            var r = procedure(
-                m_consulta,
+            var r = procedure(m_consulta,
                 Convert.ToString(m_uid) + ", " + Convert.ToString(m_typeid));
 
             checkResponse(r, "nao conseguiu encontrar o item[TYPEID=" + Convert.ToString(m_typeid) + "] no Mail Box do PLAYER[UID=" + Convert.ToString(m_uid) + "].");

@@ -6,7 +6,7 @@ namespace Pangya_GameServer.Repository
     {
         public CmdUpdateDolfiniLockerPang()
         {
-            this.m_uid = 0u;
+            this.m_uid = 0;
             this.m_pang = 0Ul;
         }
 

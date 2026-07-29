@@ -46,7 +46,7 @@ namespace PangyaAPI.IFF.JP.Models.Data
         {
             int count = 0;
 
-            for (var i = 0u; i < (10); ++i)
+            for (var i = 0; i <  10; ++i)
                 count += filter[i];
 
             return count == 0;

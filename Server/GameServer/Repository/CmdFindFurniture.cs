@@ -11,8 +11,8 @@ namespace Pangya_GameServer.Repository
     {
         public CmdFindFurniture(bool _waiter = false) : base(_waiter)
         {
-            this.m_uid = 0u;
-            this.m_typeid = 0u;
+            this.m_uid = 0;
+            this.m_typeid = 0;
             this.m_mri = new MyRoomItem();
         }
 
@@ -78,7 +78,7 @@ namespace Pangya_GameServer.Repository
         protected override Response prepareConsulta()
         {
 
-            if (m_typeid == 0 || sIff.getInstance().getItemGroupIdentify(m_typeid) != sIff.getInstance().FURNITURE)
+            if (m_typeid == 0 || sIff.getInstance().getItemGroupIdentify(m_typeid) != PangyaAPI.IFF.JP.Models.Flags.IFF_GROUP.FURNITURE)
             {
                 throw new exception("[CmdFindFurniture::prepareConsulta][Error] _typeid furniture is invalid", STDA_MAKE_ERROR(STDA_ERROR_TYPE.PANGYA_DB,
                     4, 0));
@@ -86,8 +86,7 @@ namespace Pangya_GameServer.Repository
 
             m_mri.id = -1;
 
-            var r = procedure(
-                m_szConsulta,
+            var r = procedure(m_szConsulta,
                 Convert.ToString(m_uid) + ", " + Convert.ToString(m_typeid));
 
             checkResponse(r, "nao conseguiu encontrar o furniture[TYPEID=" + Convert.ToString(m_typeid) + "] do PLAYER[TYPEID=" + Convert.ToString(m_uid) + "]");

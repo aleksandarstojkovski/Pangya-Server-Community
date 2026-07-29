@@ -2,7 +2,7 @@
 using System.Linq;
 using System.Threading;
 using PangyaAPI.Utilities;
-using PangyaAPI.Utilities.BinaryModels;
+using PangyaAPI.Utilities.Models;
 
 namespace Pangya_GameServer.Models
 {
@@ -139,6 +139,13 @@ namespace Pangya_GameServer.Models
         }
         public void clear()
         {
+            uid = new uint();
+            rank = new uint();
+            default_hair = 0;
+            default_shirts = 0;
+            parts_typeid = new uint[24];
+            auxparts = new uint[5];
+            parts_id = new uint[24];
         }
         public uint uid = new uint();
         public uint rank = new uint();
@@ -257,9 +264,7 @@ namespace Pangya_GameServer.Models
 
             timer_ctx tc = null;
 
-            @lock();
-
-            // C++ TO C# CONVERTER TASK: Lambda expressions cannot be assigned to 'var':
+            @lock(); 
             var it = m_timers.FirstOrDefault(_el =>
             {
                 return _el.m_player == _player;
@@ -278,7 +283,7 @@ namespace Pangya_GameServer.Models
         // lock
         public void @lock()
         {
-            Monitor.Enter(m_cs);
+            //Monitor.Exit(m_cs);
             m_lock = true;
         }
 
@@ -293,7 +298,7 @@ namespace Pangya_GameServer.Models
             }
 
             m_lock = false;
-            Monitor.Exit(m_cs);
+            //Monitor.Exit(m_cs);
         }
 
         public List<timer_ctx> getTimers()
@@ -304,8 +309,7 @@ namespace Pangya_GameServer.Models
         protected List<timer_ctx> m_timers = new List<timer_ctx>();
 
         protected bool m_lock;
-
-        protected object m_cs = new object();
+         
     }
 
     // Player Lock Manager
@@ -336,7 +340,7 @@ namespace Pangya_GameServer.Models
             public void @lock()
             {
 
-                Monitor.Enter(m_cs);
+                //Monitor.Exit(m_cs);
                 m_lock = true;
             }
 
@@ -351,13 +355,12 @@ namespace Pangya_GameServer.Models
 
                 m_lock = false;
 
-                Monitor.Exit(m_cs);
+                //Monitor.Exit(m_cs);
             }
 
             public Player m_player;
 
-            protected bool m_lock;
-            protected object m_cs = new object();
+            protected bool m_lock; 
         }
 
         public LockManager()
@@ -398,7 +401,7 @@ namespace Pangya_GameServer.Models
 
             var it = findLocker(_player);
 
-            if (it != m_lockers.end())
+            if (it != null)
             {
                 it.@lock();
             }
@@ -424,7 +427,7 @@ namespace Pangya_GameServer.Models
 
             var it = findLocker(_player);
 
-            if (it != m_lockers.end())
+            if (it != null)
             {
                 it.unlock();
             }
@@ -454,36 +457,27 @@ namespace Pangya_GameServer.Models
 
             m_lockers.Add(it);
 
-            return (it != m_lockers.end() ? (it) : null);
+            return (it != null ? (it) : null);
         }
 
         protected void @lock()
         {
-
-            Monitor.Enter(m_cs);
-
             m_lock = true;
         }
 
         protected void unlock()
         {
-
-            // Não está bloqueado para poder desbloquear
             if (!m_lock)
             {
                 return;
             }
 
             m_lock = false;
-
-            Monitor.Exit(m_cs);
         }
 
         protected List<lock_ctx> m_lockers = new List<lock_ctx>();
 
         protected bool m_lock;
-
-        object m_cs = new object();
     }
 
     public enum STATE_TURN : byte
@@ -517,7 +511,7 @@ namespace Pangya_GameServer.Models
 
         public void @lock()
         {
-            Monitor.Enter(m_cs);
+            //Monitor.Exit(m_cs);
             m_lock = true;
         }
 
@@ -532,7 +526,7 @@ namespace Pangya_GameServer.Models
 
             m_lock = false;
 
-            Monitor.Exit(m_cs);
+            //Monitor.Exit(m_cs);
         }
 
         public STATE_TURN getState()
@@ -557,8 +551,6 @@ namespace Pangya_GameServer.Models
 
         protected STATE_TURN m_state = new STATE_TURN();
 
-        protected bool m_lock;
-
-        object m_cs = new object();
+        protected bool m_lock; 
     }
 }

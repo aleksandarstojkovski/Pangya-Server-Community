@@ -3,14 +3,13 @@
 namespace PangyaAPI.IFF.JP.Models.Data
 {
     #region Struct GrandPrixRankReward.iff
-    [StructLayout(LayoutKind.Sequential, Pack = 4)]
-
+    [StructLayout(LayoutKind.Sequential, Pack = 4)] 
     public class GrandPrixRankReward
     {
         public uint Active { get; set; }
         public uint ID { get; set; }
         public uint Rank { get; set; }
-        [field: MarshalAs(UnmanagedType.Struct, SizeConst = 40)]
+        [field: MarshalAs(UnmanagedType.Struct)]
         public Reward reward { get; set; }
         public uint Trophy { get; set; }
 

@@ -1,6 +1,6 @@
 ﻿using System;
 using PangyaAPI.Utilities.Log;
-namespace LoginServer
+namespace Pangya_LoginServer
 {
     public class LoginServer
     {

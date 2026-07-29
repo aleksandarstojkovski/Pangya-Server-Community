@@ -11,7 +11,7 @@ using PangyaAPI.IFF.JP.Models.Data;
 using PangyaAPI.IFF.JP.Models.Flags;
 using PangyaAPI.Network.PangyaPacket;
 using PangyaAPI.Utilities;
-using PangyaAPI.Utilities.BinaryModels;
+using PangyaAPI.Utilities.Models;
 using PangyaAPI.Utilities.Log;
 using static Pangya_GameServer.Models.DefineConstants;
 namespace Pangya_GameServer.Game.Base
@@ -31,26 +31,15 @@ namespace Pangya_GameServer.Game.Base
             this.m_entra_depois_flag = -1;
             m_medal = new Medal[12];
 
-            for (var i = 0u; i < 12; ++i)
+            for (var i = 0; i < 12; ++i)
                 m_medal[i] = new Medal();
         }
 
-        protected override void Dispose(bool disposing)
-        {
-            if (disposing)
-            {
-                base.Dispose(disposing);
-
-                _smp.message_pool.getInstance().push(new message("[TourneyBase::~TourneyBase][Log] TourneyBase destroyed on Room[Number=" + (m_ri.numero) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
-
-            }
-        }
 
         public abstract void changeHole(Player _session);
         public abstract void finishHole(Player _session);
         public virtual void timeIsOver()
         {
-            _smp.message_pool.getInstance().push(new message("[Tourney::timeIsOver][Log] Tempo Acabou no Tourney. na sala[NUMERO=" + (m_ri.numero) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
         }
 
         public override void sendInitialData(Player _session)
@@ -145,23 +134,10 @@ namespace Pangya_GameServer.Game.Base
             try
             {
 
-                stInitHole ctx_hole = new stInitHole();
                 #region Read Packet
-                ctx_hole.numero = _packet.ReadByte();
-                ctx_hole.option = _packet.ReadUInt32();
-                ctx_hole.ulUnknown = _packet.ReadUInt32();
-                ctx_hole.par = _packet.ReadByte();
-                ctx_hole.tee = new stXZLocation
-                {
-                    x = _packet.ReadSingle(),
-                    z = _packet.ReadSingle()
-                };
-                ctx_hole.pin = new stXZLocation
-                {
-                    x = _packet.ReadSingle(),
-                    z = _packet.ReadSingle()
-                };
+                var ctx_hole = new stInitHole().ToRead(_packet);
                 #endregion
+
                 var hole = m_course.findHole(ctx_hole.numero);
 
                 if (hole == null)
@@ -190,7 +166,7 @@ namespace Pangya_GameServer.Game.Base
                 }
 
                 // Gera degree para o player ou pega o degree sem gerar que é do modo do hole repeat
-                pgi.degree = (m_ri.getModo() == RoomInfo.eMODO.M_REPEAT) ? hole.getWind().degree.getDegree() : hole.getWind().degree.getShuffleDegree();
+                pgi.degree = (m_ri.getModo() == RoomInfo.ROOM_INFO_MODO.M_REPEAT) ? hole.getWind().degree.getDegree() : hole.getWind().degree.getShuffleDegree();
 
                 // Resposta de tempo do hole
                 p.init_plain(0x9E);
@@ -214,10 +190,8 @@ namespace Pangya_GameServer.Game.Base
                 packet_func.session_send(p,
                     _session, 1);
 
-                // envia tempo decorrido do Tourney
-                // Resposta tempo percorrido do Tourney
-                sendRemainTime(_session);
-
+                // Resposta tempo percorrido do Tourney 
+                sendRemainTime(_session);//nao envia no approach, buga o modo todo...
             }
             catch (exception e)
             {
@@ -258,8 +232,6 @@ namespace Pangya_GameServer.Game.Base
                     packet_func.game_broadcast(this,
                         p, 1);
                 }
-                _smp.message_pool.getInstance().push(new message($"[{GetType().Name}::requestFinishLoadHole][Log] OK", type_msg.CL_FILE_LOG_AND_CONSOLE));
-
                 // Resposta passa o oid do player que vai começa o Hole
                 p.init_plain(0x53);
 
@@ -294,7 +266,7 @@ namespace Pangya_GameServer.Game.Base
                 pgi.finish_char_intro = 1;
 
                 // Zera todas as tacada num dos players se for camp normal se for short game coloca o n mero de tacadas inicial
-                if (m_ri.natural.short_game == 1)
+                if (m_ri.special_flag_mod.short_game)
                 { // Short Game
 
                     var hole = m_course.findHole(pgi.hole);
@@ -326,9 +298,6 @@ namespace Pangya_GameServer.Game.Base
 
                 // Giveup Flag
                 pgi.data.giveup = 0;
-
-                Console.WriteLine($"[DEBUG] {GetType().Name} - Player {pgi.uid} terminou intro");
-
             }
             catch (exception e)
             {
@@ -341,73 +310,10 @@ namespace Pangya_GameServer.Game.Base
         {
             ////REQUEST_BEGIN("FinishHoleData");
 
-            UserInfoEx ui = new UserInfoEx();
             try
             {
                 #region Read Packet
-
-                ui.tacada = p.ReadInt32();
-                ui.putt = p.ReadInt32();
-                ui.tempo = p.ReadInt32();
-                ui.tempo_tacada = p.ReadInt32();
-                ui.best_drive = p.ReadSingle();
-                ui.acerto_pangya = p.ReadInt32();
-                ui.timeout = p.ReadInt32();
-                ui.ob = p.ReadInt32();
-                ui.total_distancia = p.ReadInt32();
-                ui.hole = p.ReadInt32();
-                ui.hole_in = p.ReadInt32();
-                ui.hio = p.ReadInt32();
-                ui.bunker = p.ReadInt16();
-                ui.fairway = p.ReadInt32();
-                ui.albatross = p.ReadInt32();
-                ui.mad_conduta = p.ReadInt32();
-                ui.putt_in = p.ReadInt32();
-                ui.best_long_putt = p.ReadSingle();
-                ui.best_chip_in = p.ReadSingle();
-                ui.exp = p.ReadUInt32();
-                ui.level = p.ReadByte();
-                ui.pang = p.ReadUInt64();
-                ui.media_score = p.ReadInt32();
-                ui.best_score = p.ReadBytes(5);
-                ui.event_flag = p.ReadByte();
-                ui.best_pang = new long[5];
-                for (int i = 0; i < 5; i++)
-                    ui.best_pang[i] = p.ReadInt64();
-                ui.sum_pang = p.ReadInt64();
-                ui.jogado = p.ReadInt32();
-                ui.team_hole = p.ReadInt32();
-                ui.team_win = p.ReadInt32();
-                ui.team_game = p.ReadInt32();
-                ui.ladder_point = p.ReadInt32();
-                ui.ladder_hole = p.ReadInt32();
-                ui.ladder_win = p.ReadInt32();
-                ui.ladder_lose = p.ReadInt32();
-                ui.ladder_draw = p.ReadInt32();
-                ui.combo = p.ReadInt32();
-                ui.all_combo = p.ReadInt32();
-                ui.quitado = p.ReadInt32();
-                ui.skin_pang = p.ReadInt64();
-                ui.skin_win = p.ReadInt32();
-                ui.skin_lose = p.ReadInt32();
-                ui.skin_all_in_count = p.ReadInt32();
-                ui.skin_run_hole = p.ReadInt32();
-                ui.skin_strike_point = p.ReadInt32();
-                ui.jogados_disconnect = p.ReadInt32();
-                ui.event_value = p.ReadInt16();
-                ui.disconnect = p.ReadInt32();
-                ui.medal = new stMedal
-                {
-                    lucky = p.ReadInt32(),
-                    fast = p.ReadInt32(),
-                    best_drive = p.ReadInt32(),
-                    best_chipin = p.ReadInt32(),
-                    best_puttin = p.ReadInt32(),
-                    best_recovery = p.ReadInt32(),
-                };
-                ui.sys_school_serie = p.ReadInt32();
-                ui.game_count_season = p.ReadInt32();
-                ui._16bit_nao_sei = p.ReadInt16();
+                var ui = new UserInfoEx().ToRead(p);
                 #endregion
                 // aqui o cliente passa mad_conduta com o hole_in, trocados, mad_conduto <-> hole_in
 
@@ -445,50 +351,11 @@ namespace Pangya_GameServer.Game.Base
 
         public override void requestInitShot(Player _session, packet _packet)
         {
-
-            ShotDataEx sd = new ShotDataEx();
-
             try
             {
                 // Power Shot
-                #region Read Shot Sync Data
-                sd.option = _packet.ReadUInt16();
-
-                if (sd.option == 1)
-                {
-                    sd.power_shot.option = _packet.ReadByte();
-                    sd.power_shot.decrease_power_shot = _packet.ReadInt32();
-                    sd.power_shot.increase_power_shot = _packet.ReadInt32();
-                }
-
-                //READ SHOTDataBase primeiro, primeiro se lê a classe base, e depois a classe que herda.
-
-                sd.bar_point[0] = _packet.ReadSingle();
-                sd.bar_point[1] = _packet.ReadSingle();
-
-                sd.ball_effect[0] = _packet.ReadSingle();
-                sd.ball_effect[1] = _packet.ReadSingle();
-
-                sd.acerto_pangya_flag = _packet.ReadByte();
-                sd.special_shot.ulSpecialShot = _packet.ReadUInt32();
-                sd.time_hole_sync = _packet.ReadUInt32();
-                sd.mira = _packet.ReadSingle();
-
-                sd.time_shot = _packet.ReadUInt32();
-                sd.bar_point1 = _packet.ReadSingle();
-                sd.club = _packet.ReadByte();
-
-                sd.fUnknown[0] = _packet.ReadSingle();
-                sd.fUnknown[1] = _packet.ReadSingle();
-
-                sd.impact_zone_pixel = _packet.ReadSingle();
-
-                sd.natural_wind[0] = _packet.ReadInt32();
-                sd.natural_wind[1] = _packet.ReadInt32();
-
-                //READ SHOTDATA
-                sd.spend_time_game = _packet.ReadSingle();
-
+                #region Read Shot Sync Data 
+                var sd = new ShotDataEx().ToRead(_packet);
                 #endregion
 
                 INIT_PLAYER_INFO("requestInitShot",
@@ -497,17 +364,16 @@ namespace Pangya_GameServer.Game.Base
 
                 pgi.shot_data = sd;
 
+                pgi.alwaysDetect.Analyze(_session, sd, pgi.effect_flag_shot);
             }
             catch (exception e)
             {
-
                 _smp.message_pool.getInstance().push(new message("[TourneyBase::requestInitShot][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
 
         public override void requestSyncShot(Player _session, packet _packet)
         {
-
             ShotSyncData ssd = new ShotSyncData();
             try
             {
@@ -529,7 +395,6 @@ namespace Pangya_GameServer.Game.Base
             }
             catch (exception e)
             {
-
                 _smp.message_pool.getInstance().push(new message("[TourneyBase::requestSyncShot][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
@@ -553,7 +418,7 @@ namespace Pangya_GameServer.Game.Base
 
                 List<uArrow> setas = new List<uArrow>();
 
-                for (var i = 0u; i < count_seta; ++i)
+                for (var i = 0; i < count_seta; ++i)
                 {
                     setas.Add(new uArrow(_packet.ReadUInt32()));
                 }
@@ -561,7 +426,6 @@ namespace Pangya_GameServer.Game.Base
             }
             catch (exception e)
             {
-
                 _smp.message_pool.getInstance().push(new message("[TourneyBase::requestInitShotArrowSeq][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
@@ -678,45 +542,70 @@ namespace Pangya_GameServer.Game.Base
 
         public override void requestChangeStateBarSpace(Player _session, packet _packet)
         {
-            ////REQUEST_BEGIN("ChangeStateBarSpace");
-
-            var p = new PangyaBinaryWriter();
-
             try
             {
-
                 byte state = _packet.ReadUInt8();
-                float point = _packet.ReadFloat();
+                float clientPoint = _packet.ReadFloat();
 
-                INIT_PLAYER_INFO("requestChangeStateBarSpace",
-                    "tentou mudar o estado[STATE=" + Convert.ToString((ushort)state) + ", POINT=" + Convert.ToString(point) + "] da barra de espaco no jogo",
-                   _session, out PlayerGameInfo pgi);
+                INIT_PLAYER_INFO(
+                    "requestChangeStateBarSpace",
+                    $"STATE={(ushort)state}, POINT={clientPoint}",
+                    _session,
+                    out PlayerGameInfo pgi
+                );
 
-                if (!pgi.bar_space.setStateAndPoint(state, point))
+                // valida estado
+                if (!pgi.bar_space.setState(state))
                 {
-                    throw new exception("[TourneyBase::requestChangeStateBarSpace][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou mudar o estado da barra de espaco[STATE=" + Convert.ToString((ushort)state) + " POINT=" + Convert.ToString(point) + "] no jogo, mas o estado eh desconhecido, Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.TOURNEY_BASE,
-                        5, 0));
+                    throw new exception(
+                        "[requestChangeStateBarSpace::Error] Estado inválido ou fora de ordem",
+                        ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.TOURNEY_BASE, 10, 0)
+                    );
                 }
 
-                if (state == 3)
+                // guarda ponto enviado pelo client
+                pgi.bar_space.setServerPoint(state, clientPoint);
+
+                // soltou a barra (impact)
+                if (state == 3) // soltou
                 {
-                    pgi.bar_space.setState(0); // Volta para 1 depois que taca, era esse meu comentário no antigo
+                    float serverPoint = pgi.bar_space.CalculateServerPoint();
+                    float diff = Math.Abs(serverPoint - clientPoint);
 
-                    pgi.tempo = 0; // Reseta o tempo
+                    // adiciona ao detector
+                    pgi.bar_space_analize.Add(diff);
+
+                    // só LOGA se realmente suspeito
+                    if (pgi.bar_space_analize.IsSuspicious(out float avg))
+                    {
+                        _smp.message_pool.getInstance().push(
+                            new message(
+                                $"[TourneyBase::requestChangeStateBarSpace][Hacker] UID={_session.m_pi.uid} avgDiff={avg:0.000}",
+                                type_msg.CL_FILE_LOG_AND_CONSOLE
+                            )
+                        );
+
+                        // aqui futuramente:
+                        // Flag, Kick, Watchlist, etc
+                    }
+
+                    pgi.bar_space.clear();
+                    pgi.tempo = 0;
                 }
-
             }
             catch (exception e)
             {
-
-                _smp.message_pool.getInstance().push(new message("[TourneyBase::requestChangeStateBarSpace][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
+                _smp.message_pool.getInstance().push(
+                    new message(
+                        "[TourneyBase::requestChangeStateBarSpace][Error] " + e.getFullMessageError(),
+                        type_msg.CL_FILE_LOG_AND_CONSOLE
+                    )
+                );
             }
         }
 
         public override void requestActivePowerShot(Player _session, packet _packet)
         {
-            ////REQUEST_BEGIN("ActivePowerShot");
-
             var p = new PangyaBinaryWriter();
 
             try
@@ -732,17 +621,14 @@ namespace Pangya_GameServer.Game.Base
 
                 if (ps == 1)//ps1
                 {
-                    _smp.message_pool.getInstance().push(new message($"[TourneyBase::requestActivePowerShot] [Log]: Enable One Power Shot Gauge", type_msg.CL_ONLY_CONSOLE_DEBUG));
                 }
                 else if (ps == 2)//ps2
                 {
-                    _smp.message_pool.getInstance().push(new message($"[TourneyBase::requestActivePowerShot] [Log]: Enable Double Power Shot Gauge", type_msg.CL_ONLY_CONSOLE_DEBUG));
-                }
+                 }
                 else
-                 if (ps == 0)//desativado
-                {
-                    _smp.message_pool.getInstance().push(new message($"[TourneyBase::requestActivePowerShot] [Log]: Disable Power Shot Gauge", type_msg.CL_ONLY_CONSOLE_DEBUG));
-                }
+                    if (ps == 0)//desativado
+                    {
+                     }
                 // Resposta para Active Power Shot
                 p.init_plain(0x58);
 
@@ -751,7 +637,6 @@ namespace Pangya_GameServer.Game.Base
 
                 packet_func.session_send(p,
                     _session, 1);
-
             }
             catch (exception e)
             {
@@ -762,20 +647,18 @@ namespace Pangya_GameServer.Game.Base
 
         public override void requestChangeClub(Player _session, packet _packet)
         {
-            ////REQUEST_BEGIN("ChangeClub");
-
             var p = new PangyaBinaryWriter();
 
             try
             {
-
                 byte club = _packet.ReadUInt8();
+
 
                 INIT_PLAYER_INFO("requestChangeClub",
                     "tentou trocar taco no jogo",
                    _session, out PlayerGameInfo pgi);
 
-                pgi.club = club;
+                pgi.club = club;//otimo para o changeSpaceBar....
 
                 // Resposta para Change Club
                 p.init_plain(0x59);
@@ -811,7 +694,7 @@ namespace Pangya_GameServer.Game.Base
 
                 if (item_typeid == 0)
                 {
-                    throw new exception("[TourneyBase::requestActiveItem][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou usar active item[TYPEID=" + Convert.ToString(item_typeid) + "] no jogo, mas o item_typeid eh invalido(zero). Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.TOURNEY_BASE,
+                    throw new exception("[TourneyBase::requestActiveItem][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou usar active item[TYPEID=" + Convert.ToString(item_typeid) + "] no jogo, mas o item_typeid é invalido(zero). Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.TOURNEY_BASE,
                         7, 0));
                 }
 
@@ -823,9 +706,9 @@ namespace Pangya_GameServer.Game.Base
                         77, 0));
                 }
 
-                if (sIff.getInstance().getItemGroupIdentify(item_typeid) != sIff.getInstance().ITEM || !sIff.getInstance().IsItemEquipable(item_typeid))
+                if (sIff.getInstance().getItemGroupIdentify(item_typeid) != IFF_GROUP.ITEM || !sIff.getInstance().IsItemEquipable(item_typeid))
                 {
-                    throw new exception("[TourneyBase::requestActiveItem][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou usar active item[TYPEID=" + Convert.ToString(item_typeid) + "] no jogo, mas o item nao eh equipavel(usar). Hacker ou Bug.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.TOURNEY_BASE,
+                    throw new exception("[TourneyBase::requestActiveItem][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou usar active item[TYPEID=" + Convert.ToString(item_typeid) + "] no jogo, mas o item nao é equipavel(usar). Hacker ou Bug.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.TOURNEY_BASE,
                         78, 0));
                 }
 
@@ -868,7 +751,7 @@ namespace Pangya_GameServer.Game.Base
 
                 var it = pgi.used_item.v_active.find(pWi._typeid);
 
-                if (it.Key == 0)
+                if (it.Value == null)
                 {
                     throw new exception("[TourneyBase::requestActiveItem][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou usar active item[TYPEID=" + Convert.ToString(item_typeid) + "] no jogo, mas ele nao equipou esse item. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.TOURNEY_BASE,
                         9, 0));
@@ -1048,7 +931,7 @@ namespace Pangya_GameServer.Game.Base
 
                     var it = pgi.used_item.v_passive.find(pWi._typeid);
 
-                    if (it.Key == 0)
+                    if (it.Value == null)
                     {
                         throw new exception("[TourneyBase::requestActiveBooster][Error] PLAYER[UID = " + Convert.ToString(_session.m_pi.uid) + "] tentou ativar time booster, mas ele nao tem ele no item passive usados do server. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.TOURNEY_BASE,
                             13, 0));
@@ -1090,8 +973,6 @@ namespace Pangya_GameServer.Game.Base
 
         public override void requestActiveReplay(Player _session, packet _packet)
         {
-            ////REQUEST_BEGIN("ActiveReplay");
-
             var p = new PangyaBinaryWriter();
 
             try
@@ -1101,7 +982,7 @@ namespace Pangya_GameServer.Game.Base
 
                 if (_typeid == 0)
                 {
-                    throw new exception("[TourneyBase::requestActiveReplay][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou ativar Replay[TYPEID=" + Convert.ToString(_typeid) + "], mas o typeid eh invalido(zero). Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.TOURNEY_BASE,
+                    throw new exception("[TourneyBase::requestActiveReplay][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou ativar Replay[TYPEID=" + Convert.ToString(_typeid) + "], mas o typeid é invalido(zero). Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.TOURNEY_BASE,
                         200, 0));
                 }
 
@@ -1133,11 +1014,7 @@ namespace Pangya_GameServer.Game.Base
                     throw new exception("[TourneyBase::requestActiveReplay][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou ativar Replay[TYPEID=" + Convert.ToString(_typeid) + "], nao conseguiu deletar ou atualizar qntd do item[TYPEID=" + Convert.ToString(item._typeid) + ", ID=" + Convert.ToString(item.id) + "]", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.TOURNEY_BASE,
                         203, 0));
                 }
-
-#if DEBUG
-                _smp.message_pool.getInstance().push(new message("[TourneyBase::requestActiveReplay][Log] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] ativou replay e ficou com " + Convert.ToString(item.stat.qntd_dep) + " + fita(s)", type_msg.CL_FILE_LOG_AND_CONSOLE));
-#endif // DEBUG
-
+                 
                 // UPDATE ON GAME
                 // Resposta para o Active Replay
                 p.init_plain(0xA4);
@@ -1189,12 +1066,12 @@ namespace Pangya_GameServer.Game.Base
                 CutinInformation pCutin = null;
 
                 // Cutin Padrão que o player equipa, quando o cliente envia o cutin type é que é efeito por roupas equipadas
-                if (sIff.getInstance().getItemGroupIdentify(ac.char_typeid) == sIff.getInstance().CHARACTER && ac.active == 1)
+                if (sIff.getInstance().getItemGroupIdentify(ac.char_typeid) == PangyaAPI.IFF.JP.Models.Flags.IFF_GROUP.CHARACTER && ac.active == 1)
                 {
 
                     if (s.m_pi.ei.char_info._typeid != ac.char_typeid)
                     {
-                        throw new exception("[TourneyBase::requestActiveCutin][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou activar cutin[CHAR_TYPEID=" + Convert.ToString(ac.char_typeid) + ", TIPO=" + Convert.ToString(ac.tipo) + ", OPT=" + Convert.ToString(ac.opt) + ",  ACTIVE=" + Convert.ToString(ac.active) + "] de um PLAYER[UID=" + Convert.ToString(ac.uid) + "], mas o character typeid passado nao eh igual ao equipado do player. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.TOURNEY_BASE,
+                        throw new exception("[TourneyBase::requestActiveCutin][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou activar cutin[CHAR_TYPEID=" + Convert.ToString(ac.char_typeid) + ", TIPO=" + Convert.ToString(ac.tipo) + ", OPT=" + Convert.ToString(ac.opt) + ",  ACTIVE=" + Convert.ToString(ac.active) + "] de um PLAYER[UID=" + Convert.ToString(ac.uid) + "], mas o character typeid passado nao é igual ao equipado do player. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.TOURNEY_BASE,
                             4, 0x5200104));
                     }
 
@@ -1202,7 +1079,7 @@ namespace Pangya_GameServer.Game.Base
 
                     var end = (s.m_pi.ei.char_info.cut_in.Length);
 
-                    for (var i = 0u; i < end; ++i)
+                    for (var i = 0; i < end; ++i)
                     {
 
                         if (s.m_pi.ei.char_info.cut_in[i] > 0)
@@ -1231,7 +1108,7 @@ namespace Pangya_GameServer.Game.Base
                     }
 
                 }
-                else if (sIff.getInstance().getItemGroupIdentify(ac.char_typeid) == sIff.getInstance().SKIN && ac.active == 0)
+                else if (sIff.getInstance().getItemGroupIdentify(ac.char_typeid) == PangyaAPI.IFF.JP.Models.Flags.IFF_GROUP.SKIN && ac.active == 0)
                 {
 
                     // Verificar se ele tem os itens para ativar esse Cutin
@@ -1313,7 +1190,7 @@ namespace Pangya_GameServer.Game.Base
 
                 if (r._typeid == 0)
                 {
-                    throw new exception("[TourneyBase::requestActiveRing][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou ativar Anel[TYPEID=" + Convert.ToString(r._typeid) + "], mas o typeid eh invalido(zero). Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.TOURNEY_BASE,
+                    throw new exception("[TourneyBase::requestActiveRing][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou ativar Anel[TYPEID=" + Convert.ToString(r._typeid) + "], mas o typeid é invalido(zero). Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.TOURNEY_BASE,
                         30, 0x330001));
                 }
 
@@ -1380,14 +1257,14 @@ namespace Pangya_GameServer.Game.Base
 
                 stRingGround rg = new stRingGround
                 {
-                    efeito = _packet.ReadUInt32()
+                    efeito = (AbilityEffect)_packet.ReadUInt32()
                 };
                 rg.ring[0] = _packet.ReadUInt32();
                 rg.ring[1] = _packet.ReadUInt32();
                 rg.option = _packet.ReadUInt32();
 
                 // Log para saber qual é o efeito 31(0x1F)
-                if ((AbilityEffect)(rg.efeito) == AbilityEffect.UNKNOWN_31)
+                if (rg.efeito == AbilityEffect.UNKNOWN_31)//efeito 31, e o taco
                 {
                     _smp.message_pool.getInstance().push(new message("[TourneyBase::requestActiveRingGround][Log] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] ativou o efeito 0x1F(31) com os itens[TYPEID_1=" + Convert.ToString(rg.ring[0]) + ", TYPEID_2=" + Convert.ToString(rg.ring[1]) + "] e OPTION=" + Convert.ToString(rg.option), type_msg.CL_FILE_LOG_AND_CONSOLE));
                 }
@@ -1404,7 +1281,7 @@ namespace Pangya_GameServer.Game.Base
                         51, 0x340002));
                 }
 
-                if (sIff.getInstance().getItemGroupIdentify(rg.ring[0]) == sIff.getInstance().AUX_PART)
+                if (sIff.getInstance().getItemGroupIdentify(rg.ring[0]) == IFF_GROUP.AUX_PART)
                 { // Anel
 
                     var pRing = _session.m_pi.findWarehouseItemByTypeid(rg.ring[0]);
@@ -1440,7 +1317,7 @@ namespace Pangya_GameServer.Game.Base
                     }
 
                 }
-                else if (sIff.getInstance().getItemGroupIdentify(rg.ring[0]) == sIff.getInstance().PART)
+                else if (sIff.getInstance().getItemGroupIdentify(rg.ring[0]) == IFF_GROUP.PART)
                 { // Part
 
                     var pRing = _session.m_pi.findWarehouseItemByTypeid(rg.ring[0]);
@@ -1450,8 +1327,8 @@ namespace Pangya_GameServer.Game.Base
                         throw new exception("[TourneyBase::requestActiveRingGround][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou ativar Anel de Terreno[TYPE=" + Convert.ToString(rg.efeito) + ", RING[0]=" + Convert.ToString(rg.ring[0]) + ", RING[1]=" + Convert.ToString(rg.ring[1]) + ", OPTION=" + Convert.ToString(rg.option) + "], mas ele nao tem o Part[0]. hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.TOURNEY_BASE,
                             52, 0x340002));
                     }
-
-                    if (!_session.m_pi.ei.char_info.auxparts.Any(c => c == rg.ring[0]))
+                    //etava como aux ring
+                    if (!_session.m_pi.ei.char_info.parts_typeid.Any(c => c == rg.ring[0]))
                     {
                         throw new exception("[TourneyBase::requestActiveRingGround][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou ativar Anel de Terreno[TYPE=" + Convert.ToString(rg.efeito) + ", RING[0]=" + Convert.ToString(rg.ring[0]) + ", RING[1]=" + Convert.ToString(rg.ring[1]) + ", OPTION=" + Convert.ToString(rg.option) + "], mas ele nao esta com o Part[0] equipado", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.TOURNEY_BASE,
                             53, 0x340003));
@@ -1476,7 +1353,7 @@ namespace Pangya_GameServer.Game.Base
                     }
 
                 }
-                else if (sIff.getInstance().getItemGroupIdentify(rg.ring[0]) == sIff.getInstance().MASCOT)
+                else if (sIff.getInstance().getItemGroupIdentify(rg.ring[0]) == IFF_GROUP.MASCOT)
                 {
 
                     var pMascot = _session.m_pi.findMascotByTypeid(rg.ring[0]);
@@ -1498,7 +1375,7 @@ namespace Pangya_GameServer.Game.Base
                                 52, 0x340002));
                         }
 
-                        if (!_session.m_pi.ei.char_info.auxparts.Any(c => c == rg.ring[1]))
+                        if (!_session.m_pi.ei.char_info.parts_typeid.Any(c => c == rg.ring[1]))
                         {
                             throw new exception("[TourneyBase::requestActiveRingGround][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou ativar Anel de Terreno[TYPE=" + Convert.ToString(rg.efeito) + ", RING[0]=" + Convert.ToString(rg.ring[0]) + ", RING[1]=" + Convert.ToString(rg.ring[1]) + ", OPTION=" + Convert.ToString(rg.option) + "], mas ele nao esta com o Part[1] equipado", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.TOURNEY_BASE,
                                 53, 0x340003));
@@ -1506,9 +1383,8 @@ namespace Pangya_GameServer.Game.Base
                     }
                 }
 
-                // Adiciona o efeito que foi ativado
-                //checkEffectItemAndSet(_session, rg.ring[0]);
-                setEffectActiveInShot(_session, enumToBitValue((AbilityEffect)rg.efeito));
+                // Adiciona o efeito que foi ativado 
+                setEffectActiveInShot(_session, enumToBitValue(rg.efeito));
 
                 // Resposta para o Active Ring Terreno
                 p.init_plain(0x266);
@@ -1684,7 +1560,7 @@ namespace Pangya_GameServer.Game.Base
 
                 if (_typeid == 0)
                 {
-                    throw new exception("[TourneyBase::requestActiveRingMiracleSignJP][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou ativar 'Anel'[TYPEID=" + Convert.ToString(_typeid) + "] Olho Magico JP, mas o typeid eh invalido(zero)", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.TOURNEY_BASE,
+                    throw new exception("[TourneyBase::requestActiveRingMiracleSignJP][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou ativar 'Anel'[TYPEID=" + Convert.ToString(_typeid) + "] Olho Magico JP, mas o typeid é invalido(zero)", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.TOURNEY_BASE,
                         70, 0x350001));
                 }
 
@@ -1702,7 +1578,7 @@ namespace Pangya_GameServer.Game.Base
                         72, 0x350003));
                 }
 
-                if (sIff.getInstance().getItemGroupIdentify(_typeid) == sIff.getInstance().AUX_PART)
+                if (sIff.getInstance().getItemGroupIdentify(_typeid) == PangyaAPI.IFF.JP.Models.Flags.IFF_GROUP.AUX_PART)
                 { // Anel
 
                     if (!_session.m_pi.ei.char_info.auxparts.Any(c => c == _typeid))
@@ -1712,7 +1588,7 @@ namespace Pangya_GameServer.Game.Base
                     }
 
                 }
-                else if (sIff.getInstance().getItemGroupIdentify(_typeid) == sIff.getInstance().PART)
+                else if (sIff.getInstance().getItemGroupIdentify(_typeid) == PangyaAPI.IFF.JP.Models.Flags.IFF_GROUP.PART)
                 { // Part
 
                     if (_session.m_pi.ei.char_info.parts_typeid.Any(c => c == _typeid))
@@ -1765,7 +1641,7 @@ namespace Pangya_GameServer.Game.Base
 
                 if (_typeid == 0)
                 {
-                    throw new exception("[TourneyBase::ActiveWing][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou ativar Asa[TYPEID=" + Convert.ToString(_typeid) + "], mas o typeid eh invalido(zero)", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.TOURNEY_BASE,
+                    throw new exception("[TourneyBase::ActiveWing][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou ativar Asa[TYPEID=" + Convert.ToString(_typeid) + "], mas o typeid é invalido(zero)", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.TOURNEY_BASE,
                         90, 0x360001));
                 }
 
@@ -1851,7 +1727,7 @@ namespace Pangya_GameServer.Game.Base
 
                 if (_typeid == 0)
                 {
-                    throw new exception("[TourneyBase::requestActiveGlove][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou ativar Luva[TYPEID=" + Convert.ToString(_typeid) + "], mas o typeid eh invalido(zero). Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.TOURNEY_BASE,
+                    throw new exception("[TourneyBase::requestActiveGlove][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou ativar Luva[TYPEID=" + Convert.ToString(_typeid) + "], mas o typeid é invalido(zero). Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.TOURNEY_BASE,
                         110, 0x370001));
                 }
 
@@ -1869,7 +1745,7 @@ namespace Pangya_GameServer.Game.Base
                         112, 0x370003));
                 }
 
-                if (sIff.getInstance().getItemGroupIdentify(_typeid) == sIff.getInstance().PART)
+                if (sIff.getInstance().getItemGroupIdentify(_typeid) == PangyaAPI.IFF.JP.Models.Flags.IFF_GROUP.PART)
                 { // Luva
 
                     if (!_session.m_pi.ei.char_info.parts_typeid.Any(c => c == _typeid))
@@ -1879,7 +1755,7 @@ namespace Pangya_GameServer.Game.Base
                     }
 
                 }
-                else if (sIff.getInstance().getItemGroupIdentify(_typeid) == sIff.getInstance().AUX_PART)
+                else if (sIff.getInstance().getItemGroupIdentify(_typeid) == PangyaAPI.IFF.JP.Models.Flags.IFF_GROUP.AUX_PART)
                 { // Anel
                     if (!_session.m_pi.ei.char_info.auxparts.Any(c => c == _typeid))
                     {
@@ -1935,11 +1811,11 @@ namespace Pangya_GameServer.Game.Base
 
                 if (ec._typeid == 0)
                 {
-                    throw new exception("[TourneyBase::ActiveEarcuff][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou ativar Earcuff'Mascot'[TYPEID=" + Convert.ToString(ec._typeid) + ", ANGLE_SENTIDO=" + Convert.ToString((ushort)ec.angle) + ", X_ANGLE=" + Convert.ToString(ec.x_point_angle) + "], mas o typeid eh invalido. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.TOURNEY_BASE,
+                    throw new exception("[TourneyBase::ActiveEarcuff][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou ativar Earcuff'Mascot'[TYPEID=" + Convert.ToString(ec._typeid) + ", ANGLE_SENTIDO=" + Convert.ToString((ushort)ec.angle) + ", X_ANGLE=" + Convert.ToString(ec.x_point_angle) + "], mas o typeid é invalido. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.TOURNEY_BASE,
                         130, 0x380001));
                 }
 
-                if (sIff.getInstance().getItemGroupIdentify(ec._typeid) == sIff.getInstance().PART)
+                if (sIff.getInstance().getItemGroupIdentify(ec._typeid) == PangyaAPI.IFF.JP.Models.Flags.IFF_GROUP.PART)
                 { // Earcuff
 
                     if (_session.m_pi.ei.char_info == null)
@@ -1962,7 +1838,7 @@ namespace Pangya_GameServer.Game.Base
                     }
 
                 }
-                else if (sIff.getInstance().getItemGroupIdentify(ec._typeid) == sIff.getInstance().MASCOT)
+                else if (sIff.getInstance().getItemGroupIdentify(ec._typeid) == PangyaAPI.IFF.JP.Models.Flags.IFF_GROUP.MASCOT)
                 { // Mascot Dragon
 
                     var pMi = _session.m_pi.findMascotByTypeid(ec._typeid);
@@ -1979,11 +1855,7 @@ namespace Pangya_GameServer.Game.Base
                             135, 0x380006));
                     }
                 }
-
-#if DEBUG
-                _smp.message_pool.getInstance().push(new message("[TourneyBase::requestActiveEarcuff][Log] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] Typeid=" + Convert.ToString(ec._typeid) + ", ANG_DIRECTION=" + Convert.ToString((ushort)ec.angle) + ", ANG=" + Convert.ToString(ec.x_point_angle), type_msg.CL_FILE_LOG_AND_CONSOLE));
-#endif // DEBUG
-
+                 
                 INIT_PLAYER_INFO("requestActiveEarcuff",
                     "tentou ativar o efeito earcuff de direcao de vento",
                    _session, out PlayerGameInfo pgi);
@@ -2027,7 +1899,7 @@ namespace Pangya_GameServer.Game.Base
         public override void requestUpdateTrofel()
         {
 
-            uint soma = 0u;
+            uint soma = 0;
 
             m_player_info.ToList().ForEach(_el =>
             {
@@ -2039,7 +1911,7 @@ namespace Pangya_GameServer.Game.Base
 
             uint new_trofel = STDA_MAKE_TROFEL(soma, (int)m_player_info.Count());
 
-            // Check se o trofeu anterior era o GM e se o novo não é mais, aí tira a flag de GM da sala
+            // Check se o trofeu anterior era o GM e se o novo não é mais, aí tira a type de GM da sala
             if (m_ri.trofel == TROFEL_GM_EVENT_TYPEID && new_trofel != TROFEL_GM_EVENT_TYPEID)
             {
                 m_ri.flag_gm = 0;
@@ -2177,71 +2049,8 @@ namespace Pangya_GameServer.Game.Base
             try
             {
 
-                UserInfoEx ui = new UserInfoEx();
                 #region Read Packet
-
-                ui.tacada = p.ReadInt32();
-                ui.putt = p.ReadInt32();
-                ui.tempo = p.ReadInt32();
-                ui.tempo_tacada = p.ReadInt32();
-                ui.best_drive = p.ReadSingle();
-                ui.acerto_pangya = p.ReadInt32();
-                ui.timeout = p.ReadInt32();
-                ui.ob = p.ReadInt32();
-                ui.total_distancia = p.ReadInt32();
-                ui.hole = p.ReadInt32();
-                ui.hole_in = p.ReadInt32();
-                ui.hio = p.ReadInt32();
-                ui.bunker = p.ReadInt16();
-                ui.fairway = p.ReadInt32();
-                ui.albatross = p.ReadInt32();
-                ui.mad_conduta = p.ReadInt32();
-                ui.putt_in = p.ReadInt32();
-                ui.best_long_putt = p.ReadSingle();
-                ui.best_chip_in = p.ReadSingle();
-                ui.exp = p.ReadUInt32();
-                ui.level = p.ReadByte();
-                ui.pang = p.ReadUInt64();
-                ui.media_score = p.ReadInt32();
-                ui.best_score = p.ReadBytes(5);
-                ui.event_flag = p.ReadByte();
-                ui.best_pang = new long[5];
-                for (int i = 0; i < 5; i++)
-                    ui.best_pang[i] = p.ReadInt64();
-                ui.sum_pang = p.ReadInt64();
-                ui.jogado = p.ReadInt32();
-                ui.team_hole = p.ReadInt32();
-                ui.team_win = p.ReadInt32();
-                ui.team_game = p.ReadInt32();
-                ui.ladder_point = p.ReadInt32();
-                ui.ladder_hole = p.ReadInt32();
-                ui.ladder_win = p.ReadInt32();
-                ui.ladder_lose = p.ReadInt32();
-                ui.ladder_draw = p.ReadInt32();
-                ui.combo = p.ReadInt32();
-                ui.all_combo = p.ReadInt32();
-                ui.quitado = p.ReadInt32();
-                ui.skin_pang = p.ReadInt64();
-                ui.skin_win = p.ReadInt32();
-                ui.skin_lose = p.ReadInt32();
-                ui.skin_all_in_count = p.ReadInt32();
-                ui.skin_run_hole = p.ReadInt32();
-                ui.skin_strike_point = p.ReadInt32();
-                ui.jogados_disconnect = p.ReadInt32();
-                ui.event_value = p.ReadInt16();
-                ui.disconnect = p.ReadInt32();
-                ui.medal = new stMedal
-                {
-                    lucky = p.ReadInt32(),
-                    fast = p.ReadInt32(),
-                    best_drive = p.ReadInt32(),
-                    best_chipin = p.ReadInt32(),
-                    best_puttin = p.ReadInt32(),
-                    best_recovery = p.ReadInt32(),
-                };
-                ui.sys_school_serie = p.ReadInt32();
-                ui.game_count_season = p.ReadInt32();
-                ui._16bit_nao_sei = p.ReadInt16();
+                var ui = new UserInfoEx().ToRead(p);
                 #endregion
                 // aqui o cliente passa mad_conduta com o hole_in, trocados, mad_conduto <-> hole_in
 
@@ -2274,9 +2083,6 @@ namespace Pangya_GameServer.Game.Base
                     stopTime();
 
                 m_timer = sgs.gs.getInstance().MakeTime(m_ri.time_30s, () => end_time(this, null), new List<long>(), PangyaSyncTimer.TIMER_TYPE.NORMAL);
-
-                _smp.message_pool.getInstance().push(new message("[TourneyBase::startTime][Log] Criou o Timer[Tempo=" + ((m_ri.time_30s > 0) ? m_ri.time_30s / 60000 : 0) + "min, STATE=" + (m_timer.getState()) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
-
             }
             catch (Exception e)
             {
@@ -2286,7 +2092,7 @@ namespace Pangya_GameServer.Game.Base
             }
         }
 
-        protected override void requestTranslateSyncShotData(Player _session, ShotSyncData _ssd)
+        public override void requestTranslateSyncShotData(Player _session, ShotSyncData _ssd)
         {
             //CHECK_SESSION_BEGIN("requestTranslateSyncShotData");
 
@@ -2366,7 +2172,7 @@ namespace Pangya_GameServer.Game.Base
             }
         }
 
-        protected override void requestReplySyncShotData(Player _session)
+        public override void requestReplySyncShotData(Player _session)
         {
             //CHECK_SESSION_BEGIN("requestReplySyncShotData");
 
@@ -2388,7 +2194,6 @@ namespace Pangya_GameServer.Game.Base
 
         public virtual void sendRemainTime(Player _session)
         {
-
             var elapsed = (DateTime.Now - m_start_time).Ticks;
 
             long remain_time = 0;
@@ -2422,7 +2227,8 @@ namespace Pangya_GameServer.Game.Base
             packet_func.game_broadcast(this,
                 p, 1);
         }
-        public void updateTreasureHunterPoint(Player _session)
+        
+public void updateTreasureHunterPoint(Player _session)
         {
 
             INIT_PLAYER_INFO("updateTreasureHunterPoint",
@@ -2444,14 +2250,14 @@ namespace Pangya_GameServer.Game.Base
             }
 
             // Calcule Treasure Pontos
-            if (m_ri.getTipo() == RoomInfo.TIPO.SPECIAL_SHUFFLE_COURSE)
+            if (m_ri.getTipo() == RoomInfo.ROOM_INFO_TYPE.SPECIAL_SHUFFLE_COURSE)
             {
 
-                pgi.thi.treasure_point += sTreasureHunterSystem.getInstance().calcPointSSC(pgi.data.tacada_num, hole.getPar().par) + pgi.thi.getPoint(pgi.data.tacada_num, hole.getPar().par);
+                pgi.thi.treasure_point += (uint)(sTreasureHunterSystem.getInstance().calcPointSSC(pgi.data.tacada_num, hole.getPar().par) + pgi.thi.getPoint(pgi.data.tacada_num, hole.getPar().par));
             }
             else
             {
-                pgi.thi.treasure_point += sTreasureHunterSystem.getInstance().calcPointNormal(pgi.data.tacada_num, hole.getPar().par) + pgi.thi.getPoint(pgi.data.tacada_num, hole.getPar().par);
+                pgi.thi.treasure_point += (uint)(sTreasureHunterSystem.getInstance().calcPointNormal(pgi.data.tacada_num, hole.getPar().par) + pgi.thi.getPoint(pgi.data.tacada_num, hole.getPar().par));
             }
 
             // Mostra score board
@@ -2489,7 +2295,7 @@ namespace Pangya_GameServer.Game.Base
             if (!v_item.Any())
             {
                 _smp.message_pool.getInstance().push(new message(
-                    "[VersusBase::requestDrawTreasureHunterItem][Warning] Nenhum item sorteado pelo sistema de Treasure Hunter.",
+                    "[TourneyBase::requestDrawTreasureHunterItem][Warning] Nenhum item sorteado pelo sistema de Treasure Hunter.",
                     type_msg.CL_FILE_LOG_AND_CONSOLE));
                 return;
             }
@@ -2577,7 +2383,8 @@ namespace Pangya_GameServer.Game.Base
             packet_func.game_broadcast(this,
                 p, 1);
         }
-        public void sendDropItem(Player _session)
+        
+public void sendDropItem(Player _session)
         {
 
             INIT_PLAYER_INFO("sendDropItem",
@@ -2607,7 +2414,7 @@ namespace Pangya_GameServer.Game.Base
 
             var p = new PangyaBinaryWriter((ushort)0x79);
 
-            p.WriteUInt32(pgi.data.exp);
+            p.WriteInt32(pgi.data.exp);
 
             p.WriteUInt32(m_ri.trofel);
 
@@ -2615,7 +2422,7 @@ namespace Pangya_GameServer.Game.Base
             p.WriteByte((byte)pgi.team); // Team Win, 0 - vermelho, 1 - Azul, 2 nenhum
 
             // Medalhas 
-            for (var i = 0u; i < (m_medal.Length); ++i)
+            for (var i = 0; i < (m_medal.Length); ++i)
             {
                 p.WriteBytes(m_medal[i].ToArray());
             }
@@ -2626,7 +2433,8 @@ namespace Pangya_GameServer.Game.Base
             packet_func.session_send(p,
                 _session, 1);
         }
-        public void sendTreasureHunterItemDrawGUI(Player _session)
+        
+public void sendTreasureHunterItemDrawGUI(Player _session)
         {
 
             INIT_PLAYER_INFO("sendTreasureHunterItemDrawGUI",
@@ -2649,7 +2457,8 @@ namespace Pangya_GameServer.Game.Base
             packet_func.session_send(p,
                 _session, 1);
         }
-        public void sendTimeIsOver(Player _session)
+        
+public void sendTimeIsOver(Player _session)
         {
 
             var p = new PangyaBinaryWriter((ushort)0x8C);
@@ -2757,7 +2566,8 @@ namespace Pangya_GameServer.Game.Base
                 }
             }
         }
-        public void achievement_top_3_1st(Player _session)
+        
+public void achievement_top_3_1st(Player _session)
         {
             //CHECK_SESSION_BEGIN("achievement_top_3_1st");
 
@@ -2807,15 +2617,13 @@ namespace Pangya_GameServer.Game.Base
                 }
 
                 // Bogey+ ou errou pangya ou bunker não calcula
-                if (pgi.data.tacada_num > hole.getPar().par
-                    || pgi.shot_data.acerto_pangya_flag != 4
-                    || _ssd.bunker_flag != 0)
+                if (pgi.data.tacada_num > hole.getPar().par || pgi.shot_data.acerto_pangya_flag != 4 || _ssd.bunker_flag != 0)
                 {
                     return; // Sai, tacada bogey não calcula spinning cube
                 }
 
                 // Calcule Shot Cube
-                sCoinCubeLocationUpdateSystem.getInstance().pushOrderToCalcule(new CalculeCoinCubeUpdateOrder(CalculeCoinCubeUpdateOrder.eTYPE.CUBE, _session.m_pi.uid, pgi.location, hole.getPinLocation(), pgi.shot_data_for_cube, (byte)(m_ri.getMap()), (byte)(m_ri.modo == (byte)RoomInfo.eMODO.M_REPEAT ? hole.getHoleRepeat() : hole.getNumero())));
+                sCoinCubeLocationUpdateSystem.getInstance().pushOrderToCalcule(new CalculeCoinCubeUpdateOrder(CalculeCoinCubeUpdateOrder.eTYPE.CUBE, _session.m_pi.uid, pgi.location, hole.getPinLocation(), pgi.shot_data_for_cube, (byte)(m_ri.getMap()), (byte)(m_ri.modo == (byte)RoomInfo.ROOM_INFO_MODO.M_REPEAT ? hole.getHoleRepeat() : hole.getNumero())));
             }
             catch (exception e)
             {
@@ -2823,7 +2631,8 @@ namespace Pangya_GameServer.Game.Base
                 _smp.message_pool.getInstance().push(new message("[TourneyBase::calcule_shot_to_spinning_cube][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
-        public void calcule_shot_to_coin(Player _session, ShotSyncData _ssd)
+        
+public void calcule_shot_to_coin(Player _session, ShotSyncData _ssd)
         {
             //CHECK_SESSION_BEGIN("calcule_shot_to_coin");
 
@@ -2849,9 +2658,7 @@ namespace Pangya_GameServer.Game.Base
                 }
 
                 // Bogey+ ou errou pangya ou bunker não calcula
-                if (pgi.data.tacada_num > hole.getPar().par
-                    || pgi.shot_data.acerto_pangya_flag != 4
-                    || _ssd.bunker_flag != 0)
+                if (pgi.data.tacada_num > hole.getPar().par || pgi.shot_data.acerto_pangya_flag != 4 || _ssd.bunker_flag != 0)
                 {
                     return; // Sai, tacada bogey não calcula coin
                 }
@@ -2862,7 +2669,7 @@ namespace Pangya_GameServer.Game.Base
                 }
 
                 // Calcule Shot Coin
-                sCoinCubeLocationUpdateSystem.getInstance().pushOrderToCalcule(new CalculeCoinCubeUpdateOrder(CalculeCoinCubeUpdateOrder.eTYPE.COIN, _session.m_pi.uid, _ssd.location, hole.getPinLocation(), pgi.shot_data_for_cube, m_ri.getMap(), (byte)(m_ri.getModo() == RoomInfo.eMODO.M_REPEAT ? hole.getHoleRepeat() : hole.getNumero())));
+                sCoinCubeLocationUpdateSystem.getInstance().pushOrderToCalcule(new CalculeCoinCubeUpdateOrder(CalculeCoinCubeUpdateOrder.eTYPE.COIN, _session.m_pi.uid, _ssd.location, hole.getPinLocation(), pgi.shot_data_for_cube, m_ri.getMap(), (byte)(m_ri.getModo() == RoomInfo.ROOM_INFO_MODO.M_REPEAT ? hole.getHoleRepeat() : hole.getNumero())));
 
             }
             catch (exception e)
@@ -2895,14 +2702,14 @@ namespace Pangya_GameServer.Game.Base
                 var weather = _packet.ReadByte();
 
                 // Log
-                _smp.message_pool.getInstance().push(new message("[VersusBase::requestExecCCGChangeWeather][Log] [GM] PLAYER[UID=" + (_session.m_pi.uid) + "] trocou o tempo(weather) da sala[NUMERO="
+                _smp.message_pool.getInstance().push(new message("[TourneyBase::requestExecCCGChangeWeather][Log] [GM] PLAYER[UID=" + (_session.m_pi.uid) + "] trocou o tempo(weather) da sala[NUMERO="
                          + (m_ri.numero) + ", WEATHER=" + (weather) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
                 // UPDATE ON GAME
                 PangyaBinaryWriter p = new PangyaBinaryWriter((ushort)0x9E);
 
                 p.WriteUInt16(weather);
-                p.WriteByte(1); // Acho que seja flag, não sei, vou deixar 1 por ser o GM que mudou
+                p.WriteByte(1); // Acho que seja type, não sei, vou deixar 1 por ser o GM que mudou
 
                 packet_func.game_broadcast(this,
                     p, 1);
@@ -2911,7 +2718,7 @@ namespace Pangya_GameServer.Game.Base
             catch (exception e)
             {
 
-                _smp.message_pool.getInstance().push(new message("[VersusBase::requestExecCCGChangeWeather][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
+                _smp.message_pool.getInstance().push(new message("[TourneyBase::requestExecCCGChangeWeather][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
 
                 throw;
             }
@@ -2931,6 +2738,14 @@ namespace Pangya_GameServer.Game.Base
             }
 
             return 0;
+        }
+         
+
+        public override void Dispose(bool disposing)
+        {
+            if (disposedValue) return; // Evita executar duas vezes 
+             
+            base.Dispose(true); 
         }
     }
 }

@@ -8,7 +8,7 @@ namespace Pangya_GameServer.Repository
     {
         public CmdDeleteDolfiniLockerItem(bool _waiter = false) : base(_waiter)
         {
-            this.m_uid = 0u;
+            this.m_uid = 0;
             this.m_index = 0Ul;
         }
 

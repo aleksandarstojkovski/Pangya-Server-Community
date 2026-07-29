@@ -11,7 +11,7 @@ namespace Pangya_GameServer.Repository
         public static uint T_ADVANCER = 2;
         public CmdTutoEventClear(bool _waiter = false) : base(_waiter)
         {
-            this.m_uid = 0u;
+            this.m_uid = 0;
             this.m_type = T_ROOKIE;
         }
 

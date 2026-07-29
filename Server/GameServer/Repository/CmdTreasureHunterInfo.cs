@@ -28,8 +28,7 @@ namespace Pangya_GameServer.Repository
         {
 
             v_thi.Clear();
-            var r = procedure(
-                m_szConsulta, "");
+            var r = procedure(m_szConsulta, "");
 
             checkResponse(r, "nao conseguiu pegar Treasure Hunter do server");
 

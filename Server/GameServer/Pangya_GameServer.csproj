@@ -7,8 +7,8 @@
     <ProjectGuid>{9CD7A0B3-C309-4568-B28D-153FE91FA17C}</ProjectGuid>
     <OutputType>Exe</OutputType>
     <RootNamespace>Pangya_GameServer</RootNamespace>
-    <AssemblyName>Game</AssemblyName>
-    <TargetFrameworkVersion>v4.6.1</TargetFrameworkVersion>
+    <AssemblyName>GameServer</AssemblyName>
+    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
     <Deterministic>true</Deterministic>
@@ -28,13 +28,15 @@
     <UseApplicationTrust>false</UseApplicationTrust>
     <BootstrapperEnabled>true</BootstrapperEnabled>
     <TargetFrameworkProfile />
+    <NuGetPackageImportStamp>
+    </NuGetPackageImportStamp>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <PlatformTarget>AnyCPU</PlatformTarget>
     <DebugSymbols>true</DebugSymbols>
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
-    <OutputPath>..\Build\GameServer\</OutputPath>
+    <OutputPath>..\Build\GameServer2\</OutputPath>
     <DefineConstants>TRACE;DEBUG</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
@@ -44,7 +46,7 @@
     <PlatformTarget>AnyCPU</PlatformTarget>
     <DebugType>pdbonly</DebugType>
     <Optimize>false</Optimize>
-    <OutputPath>GameServer\</OutputPath>
+    <OutputPath>..\Build\GameServer\</OutputPath>
     <DefineConstants>TRACE;DEBUG</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>5</WarningLevel>
@@ -53,12 +55,35 @@
   <PropertyGroup>
     <StartupObject>Pangya_GameServer.GameServer</StartupObject>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'">
+    <DebugSymbols>true</DebugSymbols>
+    <OutputPath>..\Build\GameServer2\</OutputPath>
+    <DefineConstants>TRACE;DEBUG</DefineConstants>
+    <DebugType>full</DebugType>
+    <PlatformTarget>x64</PlatformTarget>
+    <LangVersion>7.3</LangVersion>
+    <ErrorReport>prompt</ErrorReport>
+    <CodeAnalysisRuleSet>AllRules.ruleset</CodeAnalysisRuleSet>
+    <Prefer32Bit>true</Prefer32Bit>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'">
+    <OutputPath>..\Build\GameServer\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <WarningLevel>5</WarningLevel>
+    <DebugType>pdbonly</DebugType>
+    <PlatformTarget>x64</PlatformTarget>
+    <LangVersion>7.3</LangVersion>
+    <ErrorReport>prompt</ErrorReport>
+    <Prefer32Bit>true</Prefer32Bit>
+    <Optimize>true</Optimize>
+  </PropertyGroup>
   <ItemGroup>
     <Reference Include="Microsoft.Build.Framework" />
     <Reference Include="System" />
     <Reference Include="System.Core" />
-    <Reference Include="System.ValueTuple, Version=4.0.1.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
-      <HintPath>..\packages\System.ValueTuple.4.3.0\lib\netstandard1.0\System.ValueTuple.dll</HintPath>
+    <Reference Include="System.Data.Odbc, Version=10.0.0.3, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.Data.Odbc.10.0.3\lib\net462\System.Data.Odbc.dll</HintPath>
     </Reference>
     <Reference Include="System.Xml.Linq" />
     <Reference Include="System.Data.DataSetExtensions" />
@@ -68,6 +93,11 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Game\FilterRoom.cs" />
+    <Compile Include="Game\GameModes\Approach.cs" />
+    <Compile Include="Game\System\Class1.cs" />
+    <Compile Include="Models\room_event_type.cs" />
+    <Compile Include="PangyaEnums\PlayerReason.cs" />
     <Compile Include="Repository\CmdAchievementInfo.cs" />
     <Compile Include="Repository\CmdAddBall.cs" />
     <Compile Include="Repository\CmdAddCaddie.cs" />
@@ -163,6 +193,7 @@
     <Compile Include="Repository\CmdInsertTicker.cs" />
     <Compile Include="Repository\CmdInsertTicketReport.cs" />
     <Compile Include="Repository\CmdInsertTicketReportData.cs" />
+    <Compile Include="Repository\CmdWebShopPoint.cs" />
     <Compile Include="Repository\CmdItemBuffInfo.cs" />
     <Compile Include="Repository\CmdItemLeftFromEmail.cs" />
     <Compile Include="Repository\CmdLastPlayerGameInfo.cs" />
@@ -188,6 +219,7 @@
     <Compile Include="Repository\CmdItemBuyShopLog.cs" />
     <Compile Include="Repository\CmdPersonalShopLog.cs" />
     <Compile Include="Repository\CmdPlayerInfo.cs" />
+    <Compile Include="Repository\CmdPlayerLogout.cs" />
     <Compile Include="Repository\CmdPremiumTicketInfo.cs" />
     <Compile Include="Repository\CmdPutItemMailBox.cs" />
     <Compile Include="Repository\CmdRegisterLogonServer.cs" />
@@ -301,7 +333,6 @@
     <Compile Include="Game\cLoginTask.cs" />
     <Compile Include="Game\CourseManager.cs" />
     <Compile Include="Game\Dupla.cs" />
-    <Compile Include="Game\GameModes\Approach.cs" />
     <Compile Include="Game\GameModes\ChipInPractice.cs" />
     <Compile Include="Game\GameModes\GrandZodiac.cs" />
     <Compile Include="Game\GameModes\GuildBattle.cs" />
@@ -313,8 +344,8 @@
     <Compile Include="Game\Manager\CardEquipManager.cs" />
     <Compile Include="Game\Manager\CardManager.cs" />
     <Compile Include="Game\Manager\LoginManager.cs" />
-    <Compile Include="Game\Manager\RoomGrandZodiacEvent.cs" />
-    <Compile Include="Game\Manager\RoomGrandPrix.cs" />
+    <Compile Include="Game\GameModes\Event\RoomGrandZodiacEvent.cs" />
+    <Compile Include="Game\GameModes\Event\RoomGrandPrix.cs" />
     <Compile Include="Game\System\ApproachMissionSystem.cs" />
     <Compile Include="Game\System\GoldenTimeSystem.cs" />
     <Compile Include="Game\System\GrandZodiacEvent.cs" />
@@ -325,7 +356,7 @@
     <Compile Include="Game\Manager\ItemManager.cs" />
     <Compile Include="Game\Manager\MailBoxManager.cs" />
     <Compile Include="Game\Manager\PersonalShopManager.cs" />
-    <Compile Include="Game\Manager\RoomBotGMEvent.cs" />
+    <Compile Include="Game\GameModes\Event\RoomBotGMEvent.cs" />
     <Compile Include="Game\Manager\RoomManager.cs" />
     <Compile Include="Game\PersonalShop.cs" />
     <Compile Include="Game\GameModes\Practice.cs" />
@@ -382,7 +413,7 @@
     <Compile Include="Session\Player.cs" />
     <Compile Include="Game Server.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="GameServerTcp\GameServer.cs" />
+    <Compile Include="GameServerTcp\GameService.cs" />
     <Compile Include="Game\Manager\PlayerManager.cs" />
     <Compile Include="UTIL\Ball3D.cs" />
     <Compile Include="UTIL\club3d.cs" />
@@ -393,7 +424,31 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
+    <None Include="config\personal_config.ini">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="config\socket_config.ini">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="data\pangya_jp.iff">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <None Include="packages.config" />
+    <None Include="server.ini">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <BootstrapperPackage Include=".NETFramework,Version=v4.8">
+      <Visible>False</Visible>
+      <ProductName>Microsoft .NET Framework 4.8 %28x86 e x64%29</ProductName>
+      <Install>true</Install>
+    </BootstrapperPackage>
+    <BootstrapperPackage Include="Microsoft.Net.Framework.3.5.SP1">
+      <Visible>False</Visible>
+      <ProductName>.NET Framework 3.5 SP1</ProductName>
+      <Install>false</Install>
+    </BootstrapperPackage>
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\PangyaAPI\PangyaAPI.IFF.JP\PangyaAPI.IFF.JP.csproj">
@@ -413,18 +468,9 @@
       <Name>PangyaAPI.Utilities</Name>
     </ProjectReference>
   </ItemGroup>
-  <ItemGroup>
-    <BootstrapperPackage Include=".NETFramework,Version=v4.8">
-      <Visible>False</Visible>
-      <ProductName>Microsoft .NET Framework 4.8 %28x86 e x64%29</ProductName>
-      <Install>true</Install>
-    </BootstrapperPackage>
-    <BootstrapperPackage Include="Microsoft.Net.Framework.3.5.SP1">
-      <Visible>False</Visible>
-      <ProductName>.NET Framework 3.5 SP1</ProductName>
-      <Install>false</Install>
-    </BootstrapperPackage>
-  </ItemGroup>
-  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <PropertyGroup>
+    <PostBuildEvent>
+    </PostBuildEvent>
+  </PropertyGroup>
 </Project>

@@ -9,8 +9,8 @@ namespace Pangya_GameServer.Repository
     {
         public CmdInsertTicker(bool _waiter = false) : base(_waiter)
         {
-            this.m_uid = 0u;
-            this.m_server_uid = 0u;
+            this.m_uid = 0;
+            this.m_server_uid = 0;
             this.m_msg = "";
         }
 
@@ -76,20 +76,9 @@ namespace Pangya_GameServer.Repository
                     4, 0));
             }
 
-            var r = procedureWithParams(m_szConsulta, new string[] {
-    "@IDUSER",
-    "@SERVER_OWNER",
-    "@MSG"
-}, new SqlDbType[] {
-     SqlDbType.Int,
-    SqlDbType.Int,
-    SqlDbType.NVarChar
-}, new object[] {
-    m_uid,
-    m_server_uid,
-    m_msg                       // Ex: "2025-06-20 14:32:00"
-},
-ParameterDirection.Input // <- Aqui o mais importante!
+            var r = procedure(m_szConsulta, m_uid + ", " +
+    m_server_uid + ", " +
+    makeText(m_msg)
 );
             checkResponse(r, "nao conseguiu adicionar um Ticker[MESSAGE=" + m_msg + "] para o PLAYER[UID=" + Convert.ToString(m_uid) + "] no Server[UID=" + Convert.ToString(m_server_uid) + "]");
 

@@ -104,31 +104,22 @@ namespace Pangya_GameServer.Repository
 
         protected override Response prepareConsulta()
         {
-            if (m_uid == 0)
-            {
-                throw new Exception($"[CmdMailBoxInfo::PrepareConsulta][Error] m_uid is invalid(0).");
-            }
-
-            if (m_page <= 0)
-            {
-                throw new Exception($"[CmdMailBoxInfo::PrepareConsulta][Error] m_page({m_page}) is invalid.");
-            }
+            // 1. Validation
+            if (m_uid == 0) throw new Exception("[CmdMailBoxInfo] m_uid is invalid (0).");
+            if (m_page <= 0) throw new Exception($"[CmdMailBoxInfo] m_page ({m_page}) is invalid.");
 
             v_mb.Clear();
             m_total_page = 0;
 
-            Response r = null;
+            // 2. Query Execution
+            // Using string interpolation for cleaner parameter passing
+            Response r = (m_type == TYPE.NORMAL)
+                ? procedure(m_szConsulta[0], $"{m_uid}, {m_page - 1}")
+                : procedure(m_szConsulta[1], $"{m_uid}");
 
-            if (m_type == TYPE.NORMAL)
-            {
-                r = procedure(m_szConsulta[0], $"{m_uid}, {m_page - 1}");
-            }
-            else if (m_type == TYPE.NAO_LIDO)
-            {
-                r = procedure(m_szConsulta[1], $"{m_uid}");
-            }
-
-            checkResponse(r, $"Failed to get email(s) {(m_type == TYPE.NAO_LIDO ? "Not read" : "")} from mailbox for player: {m_uid}");
+            // 3. Response Check
+            string mailTypeName = (m_type == TYPE.NAO_LIDO) ? "unread" : "all";
+            checkResponse(r, $"Failed to get {mailTypeName} emails from mailbox for player: {m_uid}");
 
             return r;
         }
@@ -143,7 +134,7 @@ namespace Pangya_GameServer.Repository
             mb.tempo_qntd = IFNULL(_result.data[11]);
             mb.pang = IFNULL(_result.data[12]);
             mb.cookie = IFNULL(_result.data[13]);
-            mb.gm_id = IFNULL(_result.data[14]);
+            mb.gm_id = IFNULL<int>(_result.data[14]);
             mb.flag_gift = IFNULL(_result.data[15]);
             mb.ucc_img_mark = is_valid_c_string(_result.data[16].ToString()) ? _result.data[16].ToString() : "";
             mb.type = (short)IFNULL(_result.data[17]);

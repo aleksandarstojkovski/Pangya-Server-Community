@@ -7,14 +7,14 @@ namespace PangyaAPI.Network.Repository
 {
     public class CmdUpdateRateConfigInfo : Pangya_DB
     {
-        int m_server_uid = -1; 
+        int m_server_uid = -1;
         RateConfigInfo m_rci;
 
         public CmdUpdateRateConfigInfo(int _uid, RateConfigInfo _rate)
         {
             m_server_uid = _uid;
             m_rci = _rate;
-        } 
+        }
         protected override void lineResult(ctx_res _result, uint _index_result)
         {
             //somente update!
@@ -26,7 +26,7 @@ namespace PangyaAPI.Network.Repository
             if (m_server_uid == -1)
                 throw new Exception("[CmdUpdateRateConfigInfo][Error] server_uid[VALUE=" + (m_server_uid) + "] is invalid.");
 
-             
+
             var r = procedure("pangya.ProcUpdateRateConfigInfo", (m_server_uid) + ", " + (m_rci.grand_zodiac_event_time)
                 + ", " + (m_rci.scratchy) + ", " + (m_rci.papel_shop_rare_item)
                 + ", " + (m_rci.papel_shop_cookie_item) + ", " + (m_rci.treasure)
@@ -44,6 +44,11 @@ namespace PangyaAPI.Network.Repository
         public RateConfigInfo GetInfo()
         {
             return this.m_rci;
-        } 
+        }
+
+        public int getServerUID()
+        {
+            return this.m_server_uid;
+        }
     }
 }

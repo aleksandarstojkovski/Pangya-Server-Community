@@ -18,7 +18,7 @@ namespace Pangya_GameServer.Game.Manager
         public PlayerMailBox()
         {
             this.m_emails = new Dictionary<int, EmailInfoEx>();
-            this.m_uid = 0u;
+            this.m_uid = 0;
             this.m_last_update = DateTime.Now;
 
         }
@@ -39,7 +39,7 @@ namespace Pangya_GameServer.Game.Manager
         }
         public void clear()
         {
-            m_uid = 0u;
+            m_uid = 0;
 
             if (m_emails.Count > 0)
             {
@@ -426,34 +426,16 @@ namespace Pangya_GameServer.Game.Manager
                     case 1:
                         {
                             var cmdIlfe = (CmdItemLeftFromEmail)_pangya_db;
-
-                            _smp.message_pool.getInstance().push(new message($"[PlayerMailBox::SQLDBResponse][Debug] PLAYER[UID={pmb.m_uid}] successfully retrieved items from Email[ID={cmdIlfe.getEmailID()}].", type_msg.CL_FILE_LOG_AND_CONSOLE));
                             break;
                         }
                     case 2:
                         {
-                            var cmdDe = (CmdDeleteEmail)_pangya_db;
-
-                            // Lambda para formatar os IDs dos e-mails
-                            Func<uint[], uint, string> lambdaPrintAllEmailIds = (emailIds, count) =>
-                            {
-                                var ret = "";
-                                if (emailIds == null) return ret;
-
-                                for (var i = 0; i < count; i++)
-                                    ret += (i == 0) ? emailIds[i].ToString() : $", {emailIds[i]}";
-
-                                return ret;
-                            };
-
-                            _smp.message_pool.getInstance().push(new message($"[PlayerMailBox::SQLDBResponse][Debug] PLAYER[UID={pmb.m_uid}] successfully deleted email ID(s){{{lambdaPrintAllEmailIds(cmdDe.getEmailID(), cmdDe.getCount())}}}.", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                            var cmdDe = (CmdDeleteEmail)_pangya_db; 
                             break;
                         }
                     case 3:
                         {
                             var cmdUe = (CmdUpdateEmail)_pangya_db;
-
-                            _smp.message_pool.getInstance().push(new message($"[PlayerMailBox::SQLDBResponse][Debug] PLAYER[UID={cmdUe.getUID()}] successfully updated Email[ID={cmdUe.getEmail().id}, LIDA_YN={(ushort)cmdUe.getEmail().lida_yn}, VISIT_COUNT={cmdUe.getEmail().visit_count}].", type_msg.CL_FILE_LOG_AND_CONSOLE));
                             break;
                         }
                     case 0:

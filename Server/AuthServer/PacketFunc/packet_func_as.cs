@@ -3,21 +3,19 @@ using PangyaAPI.Utilities.Log;
 using PangyaAPI.Utilities;
 using System;
 using System.Collections.Generic;
-using AuthServer.Session;
+using Pangya_AuthServer.Session;
 using sas;
-using AuthServer.AuthServerTcp;
+using Pangya_AuthServer.AuthServerTcp;
 using PangyaAPI.Network.PangyaUtil;
-using PangyaAPI.Utilities.BinaryModels;
+using PangyaAPI.Utilities.Models;
 
-namespace AuthServer.PacketFunc
+namespace Pangya_AuthServer.PacketFunc
 {
     public class packet_func : packet_func_base
     {
         // Cliente
         public static int packet001(object param, ParamDispatch pd)
         {
-
-
 
             try
             {
@@ -80,15 +78,10 @@ namespace AuthServer.PacketFunc
         }
 
         public static int packet004(object param, ParamDispatch pd)
-        {
-
-
-
+        { 
             try
-            {
-
-                @as.getInstance().requestInfoPlayer((Player)pd._session, pd._packet);
-
+            { 
+                @as.getInstance().requestInfoPlayer((Player)pd._session, pd._packet); 
             }
             catch (exception e)
             {
@@ -120,10 +113,7 @@ namespace AuthServer.PacketFunc
         }
 
         public static int packet006(object param, ParamDispatch pd)
-        {
-
-
-
+        { 
             try
             {
 
@@ -140,15 +130,27 @@ namespace AuthServer.PacketFunc
         }
 
         public static int packet007(object param, ParamDispatch pd)
-        {
-
-
-
+        { 
             try
             {
 
                 @as.getInstance().requestSendReplyToOtherServer((Player)pd._session, pd._packet);
 
+            }
+            catch (exception e)
+            {
+
+                _smp.message_pool.getInstance().push(new message("[packet_func::packet007][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
+            }
+
+            return 0;
+        }
+
+        public static int packet0FF(object param, ParamDispatch pd)
+        {
+            try
+            { 
+                @as.getInstance().requestSendPongInfo((Player)pd._session, pd._packet); 
             }
             catch (exception e)
             {

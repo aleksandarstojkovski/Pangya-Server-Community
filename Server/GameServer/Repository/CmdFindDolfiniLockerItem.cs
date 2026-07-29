@@ -10,8 +10,8 @@ namespace Pangya_GameServer.Repository
     {
         public CmdFindDolfiniLockerItem(bool _waiter = false) : base(_waiter)
         {
-            this.m_uid = 0u;
-            this.m_typeid = 0u;
+            this.m_uid = 0;
+            this.m_typeid = 0;
             this.m_dli = new DolfiniLockerItem();
         }
 

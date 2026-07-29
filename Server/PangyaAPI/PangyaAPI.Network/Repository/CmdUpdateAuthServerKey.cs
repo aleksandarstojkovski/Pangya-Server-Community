@@ -33,7 +33,7 @@ namespace PangyaAPI.Network.Repository
                 key = (m_ask.key);
 
 
-            var r = procedure("pangya.ProcUpdateAuthServerKey", m_ask.server_uid.ToString() + ", " + m_ask.key + ", " + m_ask.valid.ToString());
+            var r = procedure("pangya.ProcUpdateAuthServerKey", m_ask.server_uid.ToString() + ", " + makeText(m_ask.key) + ", " + m_ask.valid.ToString());
 
             checkResponse(r, "nao conseguiu atualizar Auth Server Key[SERVER_UID=" + (m_ask.server_uid)
                         + ", KEY=" + key + ", VALID=" + m_ask.valid + "]");

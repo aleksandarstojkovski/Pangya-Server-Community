@@ -45,12 +45,12 @@ namespace Pangya_GameServer.Repository
 
                     if (!(_result.data[0] is DBNull))
                     {
-                        rt.m_start.CreateTime(_translateDate(_result.data[0]));
+                        rt.m_start = TimeSpan.Parse(_result.data[0].ToString());
                     }
 
                     if (!(_result.data[1] is DBNull))
                     {
-                        rt.m_end.CreateTime(_translateDate(_result.data[1]));
+                        rt.m_end = TimeSpan.Parse(_result.data[1].ToString());
                     }
 
                     rt.m_channel_id = (byte)IFNULL(_result.data[2]);
@@ -62,13 +62,15 @@ namespace Pangya_GameServer.Repository
                 {
 
                     checkColumnNumber(4);
-
-                    IFNULL(_result.data[0]);
-                    IFNULL(_result.data[1]);
-                    IFNULL(_result.data[2]);
-                    IFNULL(_result.data[3]);
+                    var reward = new stReward
+                    {
+                        _typeid = IFNULL(_result.data[0]),
+                        qntd = IFNULL(_result.data[1]),
+                        qntd_time = IFNULL(_result.data[2]),
+                        rate = IFNULL(_result.data[3])
+                    };
                     // Reward
-                    m_reward.Add(new stReward());
+                    m_reward.Add(reward);
                 }
 
             }
@@ -93,6 +95,6 @@ namespace Pangya_GameServer.Repository
         private List<stRangeTime> m_time = new List<stRangeTime>();
         public int tipo;
 
-        private string[] m_szConsulta = { "SELECT inicio_time, fim_time, channel_id FROM pangya.pangya_bot_gm_event_time WHERE valid = 1;", " SELECT typeid, qntd, qntd_time, rate FROM pangya.pangya_bot_gm_event_reward WHERE valid = 1" };
+        private string[] m_szConsulta = { "SELECT inicio_time, fim_time, channel_id FROM pangya.pangya_bot_gm_event_time WHERE valid = 1;", "SELECT typeid, qntd, qntd_time, rate FROM pangya.pangya_bot_gm_event_reward WHERE valid = 1" };
     }
 }

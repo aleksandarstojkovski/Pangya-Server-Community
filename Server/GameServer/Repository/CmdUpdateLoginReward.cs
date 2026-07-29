@@ -56,7 +56,10 @@ namespace Pangya_GameServer.Repository
                     4, 0));
             }
 
-            var r = consulta(m_szConsulta[0] + (m_is_end ? "1" : "0") + m_szConsulta[1] + Convert.ToString(m_id));
+            var _end = m_is_end ? 1 : 0;
+
+            var query = $"UPDATE pangya.pangya_login_reward SET is_end = {_end} WHERE {makeEscapeKeyword("index")} = {m_id}";
+            var r = consulta(query);
 
             checkResponse(r, "nao conseguiu atualizar o Login Reward[ID=" + Convert.ToString(m_id) + ", IS_END=" + (m_is_end ? "TRUE" : "FALSE") + "]");
 
@@ -66,7 +69,5 @@ namespace Pangya_GameServer.Repository
         private ulong m_id = new ulong();
 
         private bool m_is_end;
-
-        private string[] m_szConsulta = { "UPDATE pangya.pangya_login_reward SET is_end = ", " WHERE [index] = " };
     }
 }

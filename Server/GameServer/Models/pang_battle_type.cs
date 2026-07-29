@@ -14,14 +14,14 @@ namespace Pangya_GameServer.Models
         public PangBattleHolePang(uint _pang)
         {
             this.pang = _pang;
-            this.pang_extra = 0u;
+            this.pang_extra = 0;
             this.player_win = -3;
             this.vezes = 1;
         }
         public void clear()
         {
-            pang = 0u;
-            pang_extra = 0u;
+            pang = 0;
+            pang_extra = 0;
             player_win = -3; // Padrão -3
             vezes = 1;
         }
@@ -43,14 +43,14 @@ namespace Pangya_GameServer.Models
             m_hole = -1;
             m_hole_extra = -1;
             m_hole_extra_flag = false;
-            m_count_finish_hole = 0u; m_player_win_pb = -1;
+            m_count_finish_hole = 0; m_player_win_pb = -1;
             if (v_player_win.Count > 0)
             {
                 v_player_win.Clear();
             }
         }
         public short m_hole;
-        public bool m_hole_extra_flag; // Hole Extra, flag true está no hole extra, false não
+        public bool m_hole_extra_flag; // Hole Extra, type true está no hole extra, false não
         public short m_hole_extra; // Sequência do hole extra, para pegar no course, para fazer os calculos no Approach
         public uint m_count_finish_hole = new uint(); // Número(Soma) de holes que foram terminados
         public int m_player_win_pb = new int(); // Player que ganhou o Pang Battle

@@ -1,22 +1,26 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
+﻿using Pangya_GameServer.Game.Base;
+using Pangya_GameServer.Game.System;
 using Pangya_GameServer.Models;
 using Pangya_GameServer.PacketFunc;
-
 using PangyaAPI.IFF.JP.Extensions;
+using PangyaAPI.IFF.JP.Models.Flags;
 using PangyaAPI.Network.PangyaPacket;
 using PangyaAPI.Utilities;
-using PangyaAPI.Utilities.BinaryModels;
+using PangyaAPI.Utilities.Models;
 using PangyaAPI.Utilities.Log;
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
+using System.Threading;
 using static Pangya_GameServer.Models.DefineConstants;
+using static PangyaAPI.Utilities.Tools;
 namespace Pangya_GameServer.Game.Base
 {
     /// <summary>
     /// class responsavel pelo grand zodiac
     /// </summary>
-    public abstract class GrandZodiacBase : TourneyBase, IDisposable
+    public abstract class GrandZodiacBase : TourneyBase
     {
         public int m_golden_beam_state = 0;                  // Status do golden beam
 
@@ -24,55 +28,42 @@ namespace Pangya_GameServer.Game.Base
 
         public List<double> m_initial_values_seed = new List<double>();              // Valores que passa com o pacote1EC
 
-        private AutoResetEvent m_hEvent_sync_hole = new AutoResetEvent(false);
-        private AutoResetEvent m_hEvent_sync_hole_pulse = new AutoResetEvent(false);
+        protected IntPtr m_hEvent_sync_hole;//
+        protected IntPtr m_hEvent_sync_hole_pulse;//trocar, para IntPtr se possivel
 
+        protected List<stReward> m_rewards = new List<stReward>();
         stStateGrandZodiacSync m_state_gz = new stStateGrandZodiacSync();
-        protected Thread m_thread_sync_first_hole;
+        protected PangyaThread m_thread_sync_first_hole;
         public GrandZodiacBase(List<Player> _players,
         RoomInfoEx _ri, RateValue _rv,
         bool _channel_rookie) : base(_players, _ri, _rv, _channel_rookie)
         {
-            //Cria a thread que vai sincronizar os player no hole
-            m_thread_sync_first_hole = new Thread(syncFirstHole)
-            {
-                IsBackground = true  // Opcional: encerra com o app
-            };
+
+
             // Aqui tem que inicializar os players info
             initAllPlayerInfo();
 
             init_values_seed();
 
-            m_thread_sync_first_hole.Start();
-        }
-
-        public abstract void startGoldenBeam();
-        public abstract void endGoldenBeam();
-        public new PlayerGrandZodiacInfo INIT_PLAYER_INFO(string _method, string _msg, Player __session)
-        {
-            var pgi = getPlayerInfo((__session));
-            if (pgi == null)
-                throw new exception($"[{GetType().Name}::" + _method + "][Error] PLAYER[UID=" + __session.m_pi.uid + "] " + _msg + ", mas o game nao tem o info dele guardado. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME, 1, 4));
-
-            return (PlayerGrandZodiacInfo)pgi;
-        }
-
-        protected override void Dispose(bool disposing)
-        {
-            if (disposing)
+            // Cria evento que vai para a thRead sync hole
+            if ((m_hEvent_sync_hole = CreateEvent(IntPtr.Zero,
+        true, false, null)) == IntPtr.Zero)
             {
-                Interlocked.Exchange(ref m_golden_beam_state, 0);
-
-                if (!m_mp_golden_beam_player.empty())
-                    m_mp_golden_beam_player.Clear();
-
-                if (!m_initial_values_seed.empty())
-                    m_initial_values_seed.Clear();
-
-                // Termina a thread sync first hole
-                finish_thread_sync_first_hole();
-                base.Dispose(disposing);
+                throw new exception("[GrandZodiacBase::GrandZodiacBase][Error] ao criar evento sync hole.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.APPROACH,
+                    1050, GetLastError()));
             }
+
+            // Cria evento que vai pulsar a thRead sync hole para ir mais r pido quando um player tacar
+            if ((m_hEvent_sync_hole_pulse = CreateEvent(IntPtr.Zero,
+                        false, false, null)) == IntPtr.Zero)
+            {
+                throw new exception("[GrandZodiacBase::GrandZodiacBase][Error] ao criar evento sync hole pulse.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.APPROACH,
+                    1050, GetLastError()));
+            }
+
+            // Cria a thRead que vai sincronizar os player no hole
+            m_thread_sync_first_hole = new PangyaThread(1060, obj => syncFirstHole(), this, ThreadPriority.AboveNormal);
+
         }
 
         private void finish_thread_sync_first_hole()
@@ -81,37 +72,29 @@ namespace Pangya_GameServer.Game.Base
             {
                 if (m_thread_sync_first_hole != null)
                 {
-                    // Sinaliza o evento
-                    m_hEvent_sync_hole.Set();
-
+                    if (m_hEvent_sync_hole != INVALID_HANDLE_VALUE)
+                        SetEvent(m_hEvent_sync_hole);
+                   
                     // Espera a thread terminar
-                    m_thread_sync_first_hole.Join();
-
-                    m_thread_sync_first_hole = null;
+                    m_thread_sync_first_hole.waitThreadFinish(-1); 
                 }
             }
-            catch (Exception ex)
+            catch (exception ex)
             {
-                Console.WriteLine($"[GrandZodiacBase::FinishThreadSyncFirstHole][ErrorSystem] {ex.Message}");
-
-                try
-                {
-                    // Tenta abortar se ainda existir
-                    m_thread_sync_first_hole?.Interrupt();
-                    m_thread_sync_first_hole = null;
-                }
-                catch { }
-
+                Console.WriteLine($"[GrandZodiacBase::FinishThreadSyncFirstHole][ErrorSystem] {ex.getFullMessageError()}");  
             }
-            finally
-            {
-                // Libera os eventos
-                m_hEvent_sync_hole?.Dispose();
-                m_hEvent_sync_hole = null;
 
-                m_hEvent_sync_hole_pulse?.Dispose();
-                m_hEvent_sync_hole_pulse = null;
-            }
+
+            m_thread_sync_first_hole = null;
+
+            if (m_hEvent_sync_hole != INVALID_HANDLE_VALUE)
+                CloseHandle(m_hEvent_sync_hole);
+
+            if (m_hEvent_sync_hole_pulse != INVALID_HANDLE_VALUE)
+                CloseHandle(m_hEvent_sync_hole_pulse);
+
+            m_hEvent_sync_hole = IntPtr.Zero;
+            m_hEvent_sync_hole_pulse = IntPtr.Zero;
         }
 
         public override bool deletePlayer(Player _session, int _option)
@@ -191,10 +174,18 @@ namespace Pangya_GameServer.Game.Base
 
         public void deleteAllPlayer()
         {
-
-            while (!m_players.empty())
+            // Percorre de trás para frente
+            for (int i = m_players.Count - 1; i >= 0; i--)
             {
-                deletePlayer(m_players.begin(), 0);
+                var player = m_players[i];
+                if (player != null)
+                {
+                    var pgi = getPlayerInfo(player);
+                    if (pgi != null)
+                    {
+                        deletePlayer(player, 0);
+                    }
+                }
             }
         }
 
@@ -237,24 +228,10 @@ namespace Pangya_GameServer.Game.Base
 
             try
             {
-                stInitHole ctx_hole = new stInitHole();
                 #region Read Packet
-                ctx_hole.numero = _packet.ReadByte();
-                ctx_hole.option = _packet.ReadUInt32();
-                ctx_hole.ulUnknown = _packet.ReadUInt32();
-                ctx_hole.par = _packet.ReadByte();
-                ctx_hole.tee = new stXZLocation
-                {
-                    x = _packet.ReadSingle(),
-                    z = _packet.ReadSingle()
-                };
-                ctx_hole.pin = new stXZLocation
-                {
-                    x = _packet.ReadSingle(),
-                    z = _packet.ReadSingle()
-                };
+                stInitHole ctx_hole = new stInitHole().ToRead(_packet);
                 #endregion
-                 
+
                 var hole = m_course.findHole(ctx_hole.numero);
 
                 if (hole == null)
@@ -283,7 +260,7 @@ namespace Pangya_GameServer.Game.Base
                 }
 
                 // Gera degree para o player ou pega o degree sem gerar que   do modo do hole repeat
-                pgi.degree = (m_ri.getModo() == RoomInfo.eMODO.M_REPEAT) ? hole.getWind().degree.getDegree() : hole.getWind().degree.getShuffleDegree();
+                pgi.degree = (m_ri.getModo() == RoomInfo.ROOM_INFO_MODO.M_REPEAT) ? hole.getWind().degree.getDegree() : hole.getWind().degree.getShuffleDegree();
 
                 // Resposta de tempo do hole
                 p.init_plain(0x9E);
@@ -329,9 +306,7 @@ namespace Pangya_GameServer.Game.Base
             {
 
                 var size_cup = _packet.ReadUInt32();
-
-                _smp.message_pool.getInstance().push(new message("[GrandZodiacBase::requestFinishLoadHole][Log] PLAYER[UID=" + (_session.m_pi.uid) + ", SIZE_CUP=" + (size_cup) + "] na sala[NUMERO=" + (m_ri.numero) + "].", type_msg.CL_FILE_LOG_AND_CONSOLE));
-
+                 
                 var pgi = INIT_PLAYER_INFO("requestFinishLoadHole",
                     "tentou finalizar carregamento do hole no jogo",
                     _session);
@@ -382,7 +357,7 @@ namespace Pangya_GameServer.Game.Base
 
                 pgi.finish_char_intro = 1;
 
-                pgi.data.tacada_num = 0u;
+                pgi.data.tacada_num = 0;
 
                 // Giveup Flag
                 pgi.data.giveup = 0;
@@ -396,9 +371,9 @@ namespace Pangya_GameServer.Game.Base
         }
 
         public override void requestInitShot(Player _session, packet _packet)
-        { 
+        {
             try
-            { 
+            {
                 ShotDataEx sd = new ShotDataEx();
 
                 // Power Shot
@@ -573,7 +548,7 @@ namespace Pangya_GameServer.Game.Base
             {
 
                 double value = _packet.ReadDouble();
-                  
+
             }
             catch (exception e)
             {
@@ -627,7 +602,7 @@ namespace Pangya_GameServer.Game.Base
                 _smp.message_pool.getInstance().push(new message("[GrandZodiacBase::sendRemainTime][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
-        protected override void requestFinishHole(Player _session, int option)
+        public override void requestFinishHole(Player _session, int option)
         {
 
             var pgi = INIT_PLAYER_INFO("requestFinishHole",
@@ -672,12 +647,10 @@ namespace Pangya_GameServer.Game.Base
 
                 pgi.m_gz.hole_in_one++;
 
-                _smp.message_pool.getInstance().push(new message("[GrandZodiacBase::requestFinishHole][Log] PLAYER[UID=" + (_session.m_pi.uid) + "] terminou o hole[COURSE=" + (hole.getCourse()) + ", NUMERO=" + (hole.getNumero()) + ", HIO=" + (pgi.m_gz.hole_in_one) + " +, PAR=" + (hole.getPar().par) + ", SHOT=" + (tacada_hole) + ", SCORE=" + (score_hole) + ", SCORE TOTAL=" + (tacada_hole + score_hole) + ", TOTAL_SHOT=" + (pgi.data.total_tacada_num) + ", TOTAL_SCORE=" + (pgi.data.score) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
-
                 // Zera dados
-                pgi.data.time_out = 0u;
+                pgi.data.time_out = 0;
 
-                pgi.data.tacada_num = 0u;
+                pgi.data.tacada_num = 0;
 
                 // Zera o score, que o Grand Zodiac usa o total_score
                 pgi.data.score = 0;
@@ -686,16 +659,16 @@ namespace Pangya_GameServer.Game.Base
                 pgi.data.giveup = 0;
 
                 // Zera as penalidades do hole
-                pgi.data.penalidade = 0u;
+                pgi.data.penalidade = 0;
 
             }
             else if (option == 1)
             { // N o acabou o hole ent o faz os calculos para o jogo todo
 
                 // Zera dados
-                pgi.data.time_out = 0u;
+                pgi.data.time_out = 0;
 
-                pgi.data.tacada_num = 0u;
+                pgi.data.tacada_num = 0;
 
                 // Zera o score, que o Grand Zodiac usa o total_score
                 pgi.data.score = 0;
@@ -704,7 +677,7 @@ namespace Pangya_GameServer.Game.Base
                 pgi.data.giveup = 0;
 
                 // Zera as penalidades do hole do player
-                pgi.data.penalidade = 0u;
+                pgi.data.penalidade = 0;
             }
 
             // Aqui tem que atualiza o PGI direitinho com outros dados
@@ -745,12 +718,12 @@ namespace Pangya_GameServer.Game.Base
 
                     pgi.progress.score[it.Key - 1] = it.Value.getPar().range_score[1]; // Max Score
 
-                    pgi.progress.tacada[it.Key - 1] = (uint)it.Value.getPar().total_shot;
+                    pgi.progress.tacada[it.Key - 1] = it.Value.getPar().total_shot;
                 }
             }
         }
 
-        protected override void requestUpdateItemUsedGame(Player _session)
+        public override void requestUpdateItemUsedGame(Player _session)
         {
 
             var pgi = INIT_PLAYER_INFO("requestUpdateItemUsedGame",
@@ -777,14 +750,14 @@ namespace Pangya_GameServer.Game.Base
                     }
 
                 }
-                else if (sIff.getInstance().getItemGroupIdentify(el.Value._typeid) == sIff.getInstance().BALL/* / *Ball * /*/ || sIff.getInstance().getItemGroupIdentify(el.Value._typeid) == sIff.getInstance().AUX_PART)
+                else if (sIff.getInstance().getItemGroupIdentify(el.Value._typeid) == PangyaAPI.IFF.JP.Models.Flags.IFF_GROUP.BALL/* / *Ball * /*/ || sIff.getInstance().getItemGroupIdentify(el.Value._typeid) == PangyaAPI.IFF.JP.Models.Flags.IFF_GROUP.AUX_PART)
                 {
                     el.Value.count = (pgi.data.total_tacada_num / 4); // uma comet e um anel por 4 tacadas
                 }
             }
         }
 
-        protected override void requestTranslateSyncShotData(Player _session, ShotSyncData _ssd)
+        public override void requestTranslateSyncShotData(Player _session, ShotSyncData _ssd)
         {
             //CHECK_SESSION_BEGIN("requestTranslateSyncShotData");
 
@@ -812,9 +785,6 @@ namespace Pangya_GameServer.Game.Base
                     // Last Location Player
                     var last_location = pgi.location;
 
-                    // Update Location Player, aqui no outro server, eu n o setava a location do player
-                    //pgi->location.x = _ssd.location.x;
-                    //pgi->location.z = _ssd.location.z;
 
                     // Update Pang and Bonus Pang
                     pgi.data.pang = _ssd.pang;
@@ -832,7 +802,7 @@ namespace Pangya_GameServer.Game.Base
             }
         }
 
-        protected override void requestSaveInfo(Player _session, int option)
+        public override void requestSaveInfo(Player _session, int option)
         {
 
             var pgi = INIT_PLAYER_INFO("requestSaveInfo",
@@ -841,11 +811,6 @@ namespace Pangya_GameServer.Game.Base
 
             try
             {
-
-#if DEBUG
-                _smp.message_pool.getInstance().push(new message("[GrandZodiacBase::requestSaveInfo][Log] PLAYER[UID=" + (_session.m_pi.uid) + "] UserInfo[" + pgi.ui.ToString() + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
-#endif // DEBUG
-
                 if (option == 1)
                 { // Saiu
 
@@ -870,7 +835,7 @@ namespace Pangya_GameServer.Game.Base
                 ulong total_pang = (pgi.data.pang + pgi.data.bonus_pang);
 
                 // Adiciona o Jackpot, se ele ganhou
-                if (option != 1 && pgi.m_gz.jackpot > 0Ul)
+                if (option != 1 && pgi.m_gz.jackpot > 0)
                 {
                     total_pang += pgi.m_gz.jackpot;
                 }
@@ -886,10 +851,6 @@ namespace Pangya_GameServer.Game.Base
                 {
                     _session.m_pi.consomePang((ulong)(Convert.ToInt64(total_pang) * -1)); // consome Pangs
                 }
-
-                // Log
-                _smp.message_pool.getInstance().push(new message("[GrandZodiacBase::requestSaveInfo][Log] PLAYER[UID=" + (_session.m_pi.uid) + "] " + (option == 0 ? "Terminou o Grand Zodiac " : "Saiu do Grand Zodiac ") + " com [TOTAL_SCORE=" + (pgi.m_gz.total_score) + ", TOTAL_HIO=" + (pgi.m_gz.hole_in_one) + ", TOTAL_PONTOS=" + (pgi.m_gz.pontos) + ", TOTAL_TACADAS=" + (pgi.data.total_tacada_num) + ", TOTAL_PANG=" + (total_pang) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
-
             }
             catch (exception e)
             {
@@ -897,7 +858,7 @@ namespace Pangya_GameServer.Game.Base
             }
         }
 
-        protected override void requestCalculeRankPlace()
+        public override void requestCalculeRankPlace()
         {
 
             if (!m_player_order.empty())
@@ -969,7 +930,7 @@ namespace Pangya_GameServer.Game.Base
             return ((PlayerGrandZodiacInfo)_pgi1).m_gz.total_score > ((PlayerGrandZodiacInfo)(_pgi2)).m_gz.total_score ? 1 : 0;
         }
 
-        protected override void requestReplySyncShotData(Player _session)
+        public override void requestReplySyncShotData(Player _session)
         {
             //CHECK_SESSION_BEGIN("requestReplySyncShotData");
 
@@ -1030,9 +991,9 @@ namespace Pangya_GameServer.Game.Base
                         p.WriteUInt32(pgzi.m_gz.position);
                         p.WriteInt32(pgzi.m_gz.total_score);
                         p.WriteUInt32(pgzi.m_gz.hole_in_one);
-                        p.WriteUInt32(pgzi.data.total_tacada_num);
+                        p.WriteInt32(pgzi.data.total_tacada_num);
                         p.WriteUInt32(pgzi.m_gz.pontos);
-                        p.WriteUInt32(pgzi.data.exp);
+                        p.WriteInt32(pgzi.data.exp);
                         p.WriteUInt64(pgzi.data.pang);
                         p.WriteUInt64(pgzi.data.bonus_pang);
                         p.WriteUInt64(pgzi.m_gz.jackpot);
@@ -1106,7 +1067,8 @@ namespace Pangya_GameServer.Game.Base
 
             return 0;
         }
-        public void init_values_seed()
+        
+public void init_values_seed()
         {
 
             if (!m_initial_values_seed.empty())
@@ -1118,12 +1080,13 @@ namespace Pangya_GameServer.Game.Base
 
             double var_d = ((rnd.Next() % 1000) / 100.0f) + 1.0f;
 
-            for (var i = 0u; i < 10u; ++i)
-            { 
-                m_initial_values_seed.Add((var_d + i * ((rnd.Next() % 10) / 10.0f) + 1.0f)); 
+            for (var i = 0; i < 10u; ++i)
+            {
+                m_initial_values_seed.Add((var_d + i * ((rnd.Next() % 10) / 10.0f) + 1.0f));
             }
         }
-        public void nextHole(Player _session)
+        
+public void nextHole(Player _session)
         {
 
             try
@@ -1214,15 +1177,13 @@ namespace Pangya_GameServer.Game.Base
 
             // Set
             _pgi.init_first_hole_gz = 1;
-            if (m_hEvent_sync_hole_pulse != null)
-            {
-                m_hEvent_sync_hole_pulse.Set();
-            }
+            if (m_hEvent_sync_hole_pulse != INVALID_HANDLE_VALUE)
+                SetEvent(m_hEvent_sync_hole_pulse);
         }
         public bool checkAllInitFirstHole()
         {
 
-            uint count = 0u;
+            uint count = 0;
 
             // Check
             m_players.ForEach(_el =>
@@ -1247,7 +1208,8 @@ namespace Pangya_GameServer.Game.Base
 
             return (count == m_players.Count);
         }
-        public void clearInitFirstHole()
+        
+public void clearInitFirstHole()
         {
             clear_all_init_first_hole();
         }
@@ -1262,7 +1224,7 @@ namespace Pangya_GameServer.Game.Base
                 return false;
             }
 
-            uint count = 0u;
+            uint count = 0;
             bool ret = false;
             // Set
             _pgi.init_first_hole_gz = 1;
@@ -1298,7 +1260,8 @@ namespace Pangya_GameServer.Game.Base
 
             return ret;
         }
-        public void setEndGame(PlayerGrandZodiacInfo _pgi)
+        
+public void setEndGame(PlayerGrandZodiacInfo _pgi)
         {
 
             if (_pgi == null)
@@ -1311,15 +1274,13 @@ namespace Pangya_GameServer.Game.Base
             // Set
             _pgi.end_game = 1;
 
-            if (m_hEvent_sync_hole_pulse != null)
-            {
-                m_hEvent_sync_hole_pulse.Set();
-            }
+            if (m_hEvent_sync_hole_pulse != INVALID_HANDLE_VALUE)
+                SetEvent(m_hEvent_sync_hole_pulse);
         }
         public bool checkAllEndGame()
         {
 
-            uint count = 0u;
+            uint count = 0;
 
             // Check
             m_players.ForEach(_el =>
@@ -1344,7 +1305,8 @@ namespace Pangya_GameServer.Game.Base
 
             return (count == m_players.Count);
         }
-        public void clearEndGame()
+        
+public void clearEndGame()
         {
             clear_all_end_game();
         }
@@ -1359,7 +1321,7 @@ namespace Pangya_GameServer.Game.Base
                 return false;
             }
 
-            uint count = 0u;
+            uint count = 0;
             bool ret = false;
             // Set
             _pgi.end_game = 1;
@@ -1395,7 +1357,8 @@ namespace Pangya_GameServer.Game.Base
 
             return ret;
         }
-        public void clear_all_init_first_hole()
+        
+public void clear_all_init_first_hole()
         {
 
             m_players.ForEach(_el =>
@@ -1415,7 +1378,8 @@ namespace Pangya_GameServer.Game.Base
 
 
         }
-        public void clear_all_end_game()
+        
+public void clear_all_end_game()
         {
 
             m_players.ForEach(_el =>
@@ -1433,7 +1397,8 @@ namespace Pangya_GameServer.Game.Base
                 }
             });
         }
-        public void sendReplyInitShotAndSyncShot(Player _session)
+        
+public void sendReplyInitShotAndSyncShot(Player _session)
         {
 
             try
@@ -1563,23 +1528,20 @@ namespace Pangya_GameServer.Game.Base
         }
 
 
-        public void syncFirstHole()
+        public object syncFirstHole()
         {
+            var datetime = Stopwatch.StartNew();
+            TimeSpan ts = datetime.Elapsed;
             try
             {
-                _smp.message_pool.getInstance().push(new message("[RoomBotGMEvent::waitTimeStart][Log] waitTimeStart iniciado com sucesso!", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                string elapsedTime = String.Format("{0:00}:{1:00}:{2:00}", ts.Hours, ts.Minutes, ts.Seconds);
 
-                int retWait = WaitHandle.WaitTimeout;
+                _smp.message_pool.getInstance().push(new message($"[GrandZodiacBase::syncFirstHole][Log] Partida comecou: {elapsedTime}", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
-                if (m_hEvent_sync_hole == null || m_hEvent_sync_hole_pulse == null)
-                    throw new InvalidOperationException("Eventos de espera não foram inicializados.");
+                uint retWait = WAIT_TIMEOUT;//
+                IntPtr[] wait_events = { m_hEvent_sync_hole, m_hEvent_sync_hole_pulse };
 
-                WaitHandle[] waitEvents = new WaitHandle[] {
-    m_hEvent_sync_hole,
-    m_hEvent_sync_hole_pulse
-};
-
-                while ((retWait = WaitHandle.WaitAny(waitEvents, 1000)) == WaitHandle.WaitTimeout || retWait == 1)
+                while ((retWait = WaitForMultipleObjects((uint)wait_events.Length, wait_events, false, 1000 /*1 segundo*/)) == WAIT_TIMEOUT || retWait == (WAIT_OBJECT_0 + 1))
                 {
                     try
                     {
@@ -1690,12 +1652,8 @@ namespace Pangya_GameServer.Game.Base
                                 {
 
                                     if (checkAllEndGame())
-                                    {
-
+                                    { 
                                         clearEndGame();
-
-                                        // Log
-                                        _smp.message_pool.getInstance().push(new message("[GrandZodiacBase::syncFirstHole][Log] Grand Zodiac Game End.", type_msg.CL_FILE_LOG_AND_CONSOLE));
                                     }
 
                                     break;
@@ -1715,12 +1673,58 @@ namespace Pangya_GameServer.Game.Base
                     }
                 }
 
+                //para o tempo
+                datetime.Stop();
+                ts = datetime.Elapsed;
+                elapsedTime = String.Format("{0:00}:{1:00}:{2:00}", ts.Hours, ts.Minutes, ts.Seconds);
+
+                _smp.message_pool.getInstance().push(new message($"[GrandZodiacBase::syncFirstHole][Log] Partida Finalizada. Tempo total: {elapsedTime}", type_msg.CL_FILE_LOG_AND_CONSOLE));
+
             }
             catch (exception e)
             {
                 _smp.message_pool.getInstance().push(new message("[GrandZodiacBase::syncFirstHole][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
-            _smp.message_pool.getInstance().push(new message("[GrandZodiacBase::syncFirstHole][Log] Saindo de syncHoleTime()...", type_msg.CL_ONLY_FILE_LOG));
+            return null;
+        }
+
+
+        public abstract void startGoldenBeam();
+        public abstract void endGoldenBeam();
+        public new PlayerGrandZodiacInfo INIT_PLAYER_INFO(string _method, string _msg, Player __session)
+        {
+            var pgi = getPlayerInfo((__session));
+            if (pgi == null)
+                throw new exception($"[{GetType().Name}::" + _method + "][Error] PLAYER[UID=" + __session.m_pi.uid + "] " + _msg + ", mas o game nao tem o info dele guardado. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME, 1, 4));
+
+            return (PlayerGrandZodiacInfo)pgi;
+        }
+
+        public override void Dispose(bool disposing)
+        {
+
+            if (disposedValue) return;
+
+            if (disposing)
+            {
+                Interlocked.Exchange(ref m_golden_beam_state, 0);
+
+                if (!m_mp_golden_beam_player.empty())
+                    m_mp_golden_beam_player.Clear();
+
+                if (!m_initial_values_seed.empty())
+                    m_initial_values_seed.Clear();
+
+                // Termina a thread sync first hole
+                finish_thread_sync_first_hole();
+                deleteAllPlayer();
+            }
+            base.Dispose(true);
+        }
+
+        ~GrandZodiacBase()
+        {
+            Dispose(false);
         }
     }
 }

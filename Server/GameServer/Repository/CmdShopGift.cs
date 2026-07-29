@@ -46,7 +46,8 @@ namespace Pangya_GameServer.Repository
 
         protected override Response prepareConsulta()
         {
-            var r = consulta("SELECT [gift_id], [gift_name] ,[item_name] ,[item_typeid] ,[item_qntd] ,[item_qntd_time] ,[item_period] ,[required_price] ,[end_date] FROM [pangya].[pangya].[pangya_shop_gift]");
+            var str = makeEscapeKeyword("gift_id") + ", " + makeEscapeKeyword("gift_name") + ", " + makeEscapeKeyword("item_name") + ", " + makeEscapeKeyword("item_typeid") + ", " + makeEscapeKeyword("item_qntd") + ", " + makeEscapeKeyword("item_qntd_time") + ", " + makeEscapeKeyword("item_period") + ", " + makeEscapeKeyword("required_price") + ", " + makeEscapeKeyword("end_date") + "FROM" + makeEscapeKeyword("pangya") + "." + makeEscapeKeyword("pangya_shop_gift");
+            var r = consulta("SELECT " + str);
             checkResponse(r, "nao conseguiu pegar as info gift shop");
             return r;
         }

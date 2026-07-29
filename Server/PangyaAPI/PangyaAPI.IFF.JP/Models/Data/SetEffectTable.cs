@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Runtime.InteropServices;
-using PangyaAPI.Utilities.BinaryModels;
+using PangyaAPI.Utilities.Models;
 namespace PangyaAPI.IFF.JP.Models.Data
 {
     #region Struct SetEffectTable.iff

@@ -1,23 +1,24 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using Pangya_GameServer.Game.Base;
+﻿using Pangya_GameServer.Game.Base;
 using Pangya_GameServer.Game.Manager;
 using Pangya_GameServer.Game.System;
 using Pangya_GameServer.Models;
 using Pangya_GameServer.PacketFunc;
-
 using Pangya_GameServer.UTIL;
 using PangyaAPI.IFF.JP.Extensions;
 using PangyaAPI.IFF.JP.Models.Data;
 using PangyaAPI.Network.PangyaPacket;
+using PangyaAPI.Network.PangyaSession;
 using PangyaAPI.Utilities;
-using PangyaAPI.Utilities.BinaryModels;
+using PangyaAPI.Utilities.Models;
 using PangyaAPI.Utilities.Log;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
 using static Pangya_GameServer.Models.DefineConstants;
 using static PangyaAPI.Utilities.Tools;
 using static PangyaAPI.Utilities.UtilTime;
+using PangyaAPI.IFF.JP.Models.Flags;
 namespace Pangya_GameServer.Game.GameModes
 {
     /// <summary>
@@ -82,11 +83,15 @@ namespace Pangya_GameServer.Game.GameModes
             }
         }
 
-        public GrandPrix(List<Player> _players,
-      RoomInfoEx _ri, RateValue _rv,
-      bool _channel_rookie, GrandPrixData _gp) : base(_players, _ri, _rv, _channel_rookie)
+        public GrandPrix(List<Player> _players,   RoomInfoEx _ri, RateValue _rv, bool _channel_rookie, GrandPrixData _gp) : base(_players, _ri, _rv, _channel_rookie)
         {
             this.m_gp = _gp;
+            m_gp_reward = new List<GrandPrixRankReward>();
+            m_bot = new List<Bot>();
+            m_grand_prix_state = false;
+            m_timer_manager = new TimerManager();
+            m_timer_manager_rule = new TimerManager();
+            m_lock_manager = new LockManager();
 
             // Treasure Hunter System. diminui o Course Jogado
             if (!sTreasureHunterSystem.getInstance().isLoad())
@@ -111,8 +116,20 @@ namespace Pangya_GameServer.Game.GameModes
             // Load Grand Prix Rank Reward from iff
             m_gp_reward = sIff.getInstance().findGrandPrixRankReward(m_gp.TypeID_Link);
 
-            // Classifica o GrandPrixRankReward do menor rank para o maior
-            m_gp_reward.Sort((a, b) => a.Rank.CompareTo(b.Rank));
+            if (m_gp == null) 
+            {
+                _smp.message_pool.getInstance().push(new message("[GrandPrix::Error] m_gp está NULL", type_msg.CL_FILE_LOG_AND_CONSOLE));
+            }
+
+            // Log para verificar o carregamento
+            if (m_gp_reward != null && m_gp_reward.Count > 0)
+            {
+                m_gp_reward.Sort((a, b) => a.Rank.CompareTo(b.Rank));
+            }
+            else
+            {
+                _smp.message_pool.getInstance().push(new message("[GrandPrix::Error] Falha crítica: m_gp_reward retornou NULL ou nao tem premios para o GP TypeID: " + m_gp.TypeID_Link, type_msg.CL_FILE_LOG_AND_CONSOLE));
+            }
 
             // Init Bots
             init_bots();
@@ -172,8 +189,15 @@ namespace Pangya_GameServer.Game.GameModes
             m_state = init_game();
         }
 
-        protected override void Dispose(bool disposing)
+        ~GrandPrix()
         {
+            Dispose(false);
+        }
+
+        public override void Dispose(bool disposing)
+        {
+            if (disposedValue) return;
+
             if (disposing)
             {
                 m_grand_prix_state = false;
@@ -197,11 +221,10 @@ namespace Pangya_GameServer.Game.GameModes
 
                 // Clear timers
                 clear_timers();
-
-                _smp.message_pool.getInstance().push(new message("[GrandPrix::~GrandPrix][Log] Grand Prix destroyed on Room[Number=" + Convert.ToString(m_ri.numero) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
-
-                base.Dispose(disposing);
+                LogDestruction();
             }
+            base.Dispose(true);
+
         }
 
         public override void sendInitialData(Player _session)
@@ -251,15 +274,12 @@ namespace Pangya_GameServer.Game.GameModes
                         base.sendInitialData(el);
                     }
                 }
-
-
             }
             catch (exception e)
             {
 
                 _smp.message_pool.getInstance().push(new message("[GrandPrix::sendInitialData][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
-
         }
 
 
@@ -271,6 +291,9 @@ namespace Pangya_GameServer.Game.GameModes
                 throw new exception("[GrandPrix::deletePlayer][Error] tentou deletar um player, mas o seu endereco eh null.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.TOURNEY,
                     50, 0));
             }
+
+            if (getPlayerInfo((_session)) == null)
+                return true;
 
             bool ret = false;
 
@@ -305,7 +328,7 @@ namespace Pangya_GameServer.Game.GameModes
                             requestSaveInfo((it), (_option == 0x800) ? 5 /*N o conta quit*/ : 1); // Quitou ou tomou DC
                         }
 
-                        //pgi.flag = PlayerGameInfo::eFLAG_GAME::QUIT;
+                        //pgi.PCBangMascot = PlayerGameInfo::eFLAG_GAME::QUIT;
                         setGameFlag(pgi, PlayerGameInfo.eFLAG_GAME.QUIT);
 
                         // Resposta Player saiu do Jogo, tira ele do list de score
@@ -405,14 +428,24 @@ namespace Pangya_GameServer.Game.GameModes
 
             return ret;
         }
+
         public void deleteAllPlayer()
         {
-
-            while (!m_players.empty())
+            // Percorre de trás para frente
+            for (int i = m_players.Count - 1; i >= 0; i--)
             {
-                deletePlayer(m_players.begin(), 0);
+                var player = m_players[i];
+                if (player != null)
+                {
+                    var pgi = getPlayerInfo(player);
+                    if (pgi != null)
+                    {
+                        deletePlayer(player, 0);
+                    }
+                }
             }
         }
+
         public override void requestFinishCharIntro(Player _session, packet _packet)
         {
             ////REQUEST_BEGIN("FinishCharIntro");
@@ -431,7 +464,7 @@ namespace Pangya_GameServer.Game.GameModes
 
                 m_lock_manager.@lock(_session);
 
-                // Aqui zera a flag finish hole2 do player
+                // Aqui zera a PCBangMascot finish hole2 do player
                 pgi.finish_hole2 = 0;
                 pgi.finish_hole3 = 0;
 
@@ -549,7 +582,7 @@ namespace Pangya_GameServer.Game.GameModes
 
                 m_lock_manager.@lock(_session);
 
-                // Limpa a flag init shot
+                // Limpa a PCBangMascot init shot
                 pgi.init_shot = 0;
 
                 m_lock_manager.unlock(_session);
@@ -585,7 +618,7 @@ namespace Pangya_GameServer.Game.GameModes
                 // Resposta terminou o hole
                 updateFinishHole(_session, 1); // Terminou
 
-                // Troquei o clear hole e giveup pelo a flag finish hole. Agora est  OK
+                // Troquei o clear hole e giveup pelo a PCBangMascot finish hole. Agora est  OK
                 if (checkAllClearHole())
                 {
 
@@ -616,7 +649,7 @@ namespace Pangya_GameServer.Game.GameModes
                 if (pgi.data.time_out == 0u && pgi.data.giveup == 0u)
                 {
                     // Adiciona as penalidade para as tacadas do player
-                    pgi.data.tacada_num += pgi.data.penalidade;
+                    pgi.data.tacada_num += (int)pgi.data.penalidade;
                 }
 
                 // finaliza os dados do hole Game::requestfinishHole
@@ -655,8 +688,6 @@ namespace Pangya_GameServer.Game.GameModes
             try
             {
 
-                // ! Teste
-                //_smp.message_pool.getInstance().push(new message("[GrandPrix::requestInitShot][Log] PLAYER[UID=" + (_session.m_pi.uid) + "] Recebi", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
                 ONCE_PER_SHOT("requestInitShot",
                     "tentou iniciar tacada no jogo",
@@ -687,13 +718,6 @@ namespace Pangya_GameServer.Game.GameModes
 
             try
             {
-
-                // ! Teste
-                //Sleep(5000);
-
-                // ! Teste
-                _smp.message_pool.getInstance().push(new message("[GrandPrix::requestSyncShot][Log] PLAYER[UID=" + (_session.m_pi.uid) + "] Recebi", type_msg.CL_FILE_LOG_AND_CONSOLE));
-
                 ONCE_PER_SHOT("requestInitShot",
                    "tentou iniciar tacada no jogo",
                    "sync_shot_flag", _session, out PlayerGameInfo pgi, () => { return; });
@@ -781,6 +805,7 @@ namespace Pangya_GameServer.Game.GameModes
                 }
             }
         }
+
         public void startTime(object _quem)
         {
 
@@ -802,10 +827,6 @@ namespace Pangya_GameServer.Game.GameModes
                             throw new exception("[GrandPrix::startTime][Error] PLAYER[UID=" + Convert.ToString(p.m_pi.uid) + "] nao conseguiu criar um timer_ctx para poder criar um timer para o player. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GRAND_PRIX,
                                 1050, 0));
                         }
-#if DEBUG
-                        _smp.message_pool.getInstance().push(new message("[GrandPrix::startTime][Log] Criou o Timer[Tempo=" + Convert.ToString(m_gp.TimeHole * 1000) + "seg" + ", STATE=" + Convert.ToString(timer.m_timer.getState()) + "] para o PLAYER[UID=" + Convert.ToString(p.m_pi.uid) + "].", type_msg.CL_FILE_LOG_AND_CONSOLE));
-#endif // DEBUG
-
                     }
                     else
                     {
@@ -816,11 +837,8 @@ namespace Pangya_GameServer.Game.GameModes
                             if (timer.m_timer.getState() != PangyaSyncTimer.TIMER_STATE.STOP || timer.m_timer.getState() != PangyaSyncTimer.TIMER_STATE.FINISH)
                                 timer.m_timer.Stop();
 
-
                             // inicia ele novamente, melhor desta forma
                             timer.m_timer = sgs.gs.getInstance().MakeTime((uint)(m_gp.TimeHole * 1000), null, () => end_time(this, _quem), PangyaSyncTimer.TIMER_TYPE.NORMAL);
-
-                            _smp.message_pool.getInstance().push(new message("[GrandPrix::startTime][Log] Criou o Timer[Tempo=" + Convert.ToString(m_gp.TimeHole) + "seg" + ", STATE=" + Convert.ToString(timer.m_timer.getState()) + "] para o PLAYER[UID=" + Convert.ToString(p.m_pi.uid) + "].", type_msg.CL_FILE_LOG_AND_CONSOLE));
                         }
                     }
 
@@ -846,17 +864,16 @@ namespace Pangya_GameServer.Game.GameModes
 
 
                     Player p = (Player)(_quem);
-
+if(p != null)
+{
+	
                     var timer = m_timer_manager.findTimer(p);
 
                     if (timer.m_timer.getState() != PangyaSyncTimer.TIMER_STATE.STOP || timer.m_timer.getState() != PangyaSyncTimer.TIMER_STATE.FINISH)
                     {
-
                         timer.m_timer.Stop();
-#if DEBUG
-                        _smp.message_pool.getInstance().push(new message("[GrandPrix::stopTime][Log] Parou o Timer[Tempo=" + Convert.ToString(m_gp.TimeHole) + "seg" + ", STATE=" + Convert.ToString(timer.m_timer.getState()) + "] para o PLAYER[UID=" + Convert.ToString(p.m_pi.uid) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
-#endif // DEBUG
                     }
+}
                 }
 
             }
@@ -917,15 +934,10 @@ namespace Pangya_GameServer.Game.GameModes
                                         1020, 0));
                                 }
 
-                                pgi.data.tacada_num = (uint)hole.getPar().total_shot; // Give up
+                                pgi.data.tacada_num = hole.getPar().total_shot; // Give up
 
                                 // Fez time out
                                 pgi.data.time_out = 1;
-                                //pgi->data.giveup = 1;
-
-#if DEBUG
-                                _smp.message_pool.getInstance().push(new message("[GrandPrix::stopTime][Log] Acabou o tempo do hole Timer[Tempo=" + Convert.ToString(m_gp.TimeHole) + "seg" + ", STATE=" + Convert.ToString(timer.m_timer.getState()) + "] do PLAYER[UID=" + Convert.ToString(s.m_pi.uid) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
-#endif // DEBUG
 
                                 // Envia para o player que o tempo do hole acabou
                                 var p = new PangyaBinaryWriter((ushort)0x259);
@@ -962,7 +974,7 @@ namespace Pangya_GameServer.Game.GameModes
             }
         }
 
-        protected override void requestCalculeRankPlace()
+        public override void requestCalculeRankPlace()
         {
 
             if (!m_player_order.empty())
@@ -986,7 +998,7 @@ namespace Pangya_GameServer.Game.GameModes
             m_player_order.Sort(sort_player_rank);
         }
 
-        protected override bool init_game()
+        public override bool init_game()
         {
 
             if (m_players.Count > 0)
@@ -1065,7 +1077,7 @@ namespace Pangya_GameServer.Game.GameModes
 
             return 0;
         }
-        protected override void requestTranslateSyncShotData(Player _session, ShotSyncData _ssd)
+        public override void requestTranslateSyncShotData(Player _session, ShotSyncData _ssd)
         {
             //CHECK_SESSION_BEGIN("requestTranslateSyncShotData");
 
@@ -1151,7 +1163,7 @@ namespace Pangya_GameServer.Game.GameModes
                     if (_ssd.state_shot.display.acerto_hole || pgi.data.giveup > 0)
                     {
 
-                        // seta flag finish hole2 do player
+                        // seta PCBangMascot finish hole2 do player
                         pgi.finish_hole2 = 1;
 
                         // Para o tempo do player
@@ -1176,6 +1188,7 @@ namespace Pangya_GameServer.Game.GameModes
                 _smp.message_pool.getInstance().push(new message("[GrandPrix::requestTranslateSyncShotData][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
+
         public void init_bots()
         {
 
@@ -1261,10 +1274,10 @@ namespace Pangya_GameServer.Game.GameModes
                 }
 
                 // Verifica se tem a quantidade necessária de bots para sortear
-                if (Convert.ToInt64(lottery.GetLimitProbilidade() / 1000u) < qntd)
+                if (Convert.ToInt64(lottery.getLimitProbilidade() / 1000u) < qntd)
                 {
 
-                    var rest_qntd = Convert.ToUInt64(qntd - (long)(lottery.GetLimitProbilidade() / 1000));
+                    var rest_qntd = Convert.ToUInt64(qntd - (long)(lottery.getLimitProbilidade() / 1000));
 
                     foreach (var el in gp_ai)
                     {
@@ -1345,7 +1358,7 @@ namespace Pangya_GameServer.Game.GameModes
                 for (var i = 0; i < qntd; ++i)
                 {
 
-                    if ((lc = lottery.SpinRoleta(true)) != null)
+                    if ((lc = lottery.spinRoleta(true)) != null)
                     {
                         bot.id = Convert.ToUInt32(lc.Value);// talvez aqui esteja errado, por causa do lottery
 
@@ -1364,7 +1377,7 @@ namespace Pangya_GameServer.Game.GameModes
                                 // Score
                                 bot.med_shot_per_hole = (int)Math.Round(((bot.qntd_hole - j + 1) * media_all_par_hole + (bot.max_record - bot.record)) / (float)(bot.qntd_hole - j + 1));
 
-                                min_shot = (hole.getPar().par + ((m_ri.natural.short_game > 0) ? -2 /*Short Game*/ : hole.getPar().range_score[0]));
+                                min_shot = (hole.getPar().par + ((m_ri.special_flag_mod.short_game) ? -2 /*Short Game*/ : hole.getPar().range_score[0]));
 
                                 if (min_shot >= bot.med_shot_per_hole) // Limite de menor score do hole
                                 {
@@ -1404,7 +1417,7 @@ namespace Pangya_GameServer.Game.GameModes
                                         Bot.eTYPE_SCORE.MIN_SCORE,
                                         bot.type_score == Bot.eTYPE_SCORE.MIN_SCORE)), Bot.eTYPE_SCORE.MIN_SCORE);
 
-                                    if ((lc = lottery_score.SpinRoleta(true)) == null)
+                                    if ((lc = lottery_score.spinRoleta(true)) == null)
                                     {
 
                                         _smp.message_pool.getInstance().push(new message("[GrandPrix::init_bots][Warning] nao conseguiu rodar a roleta para o score do bot, usando o med_shot_per_hole.", type_msg.CL_FILE_LOG_AND_CONSOLE));
@@ -1472,7 +1485,7 @@ namespace Pangya_GameServer.Game.GameModes
                         // Clear Bot para new data
                         bot = new Bot();
 
-                    } // If lottery.SpinRoleta
+                    } // If lottery.spinRoleta
 
                 } // For Rest of Bot
 
@@ -1485,10 +1498,9 @@ namespace Pangya_GameServer.Game.GameModes
 
             } // If players.size < 30
         }
+
         public void consomeTicket()
         {
-
-            WarehouseItemEx pWi = null;
 
             foreach (var el in m_players)
             {
@@ -1497,13 +1509,8 @@ namespace Pangya_GameServer.Game.GameModes
                 {
 
                     // Tira o ticket Grand Prix do player
-                    pWi = el.m_pi.findWarehouseItemByTypeid(m_gp.ticket._typeid);
-
-                    if (pWi == null)
-                    {
-                        throw new exception("[GrandPrix::consomeTicket][Error] PLAYER[UID=" + Convert.ToString(el.m_pi.uid) + "] tentou comecar o jogo na sala[NUMERO=" + Convert.ToString(m_ri.numero) + ", MASTER=" + Convert.ToString(m_ri.master) + "], mas o player nao tem o Ticket[TYPEID=" + Convert.ToString(m_gp.ticket._typeid) + "] para jogar o Grand Prix. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GRAND_PRIX,
+                    var pWi = el.m_pi.findWarehouseItemByTypeid(m_gp.ticket._typeid) ?? throw new exception("[GrandPrix::consomeTicket][Error] PLAYER[UID=" + Convert.ToString(el.m_pi.uid) + "] tentou comecar o jogo na sala[NUMERO=" + Convert.ToString(m_ri.numero) + ", MASTER=" + Convert.ToString(m_ri.master) + "], mas o player nao tem o Ticket[TYPEID=" + Convert.ToString(m_gp.ticket._typeid) + "] para jogar o Grand Prix. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GRAND_PRIX,
                             9, 0x5900203));
-                    }
 
                     if (pWi.STDA_C_ITEM_QNTD < (short)m_gp.ticket.qntd)
                     {
@@ -1511,13 +1518,14 @@ namespace Pangya_GameServer.Game.GameModes
                             10, 0x5900203));
                     }
 
-                    stItem item = new stItem();
-
-                    item.type = 2;
-                    item.id = pWi.id;
-                    item._typeid = pWi._typeid;
-                    item.qntd = (int)m_gp.ticket.qntd;
-                    item.STDA_C_ITEM_QNTD = (short)((ushort)item.qntd * -1);
+                    stItem item = new stItem
+                    {
+                        type = 2,
+                        id = pWi.id,
+                        _typeid = pWi._typeid,
+                        qntd = (int)m_gp.ticket.qntd
+                    };
+                    item.STDA_C_ITEM_QNTD = (item.qntd * -1);
 
                     // Update On Server And Database
                     if (ItemManager.removeItem(item, el) <= 0)
@@ -1538,7 +1546,7 @@ namespace Pangya_GameServer.Game.GameModes
                     p.WriteInt32(item.id);
                     p.WriteUInt32(item.flag_time);
                     p.WriteBytes(item.stat.ToArray());
-                    p.WriteInt32((item.STDA_C_ITEM_TIME > 0) ? item.STDA_C_ITEM_TIME32 : item.STDA_C_ITEM_QNTD32);
+                    p.WriteInt32((item.STDA_C_ITEM_TIME > 0) ? item.STDA_C_ITEM_TIME : item.STDA_C_ITEM_QNTD);
                     p.WriteZeroByte(25);
 
                     packet_func.session_send(p,
@@ -1558,51 +1566,51 @@ namespace Pangya_GameServer.Game.GameModes
 
             }
         }
+
         public void requestFinishExpGame()
         {
 
             if (m_players.Count > 0)
             {
-
-                Player _session = null;
                 float stars = m_course.getStar();
                 int exp = 0;
 
-                // Exp padr o de hole do Grand Prix
+
+
+                // Exp padr�o de hole do Grand Prix
                 switch (m_ri.qntd_hole)
                 {
                     case 3:
-                        exp = 6;
+                        exp = 2;
                         break;
                     case 6:
-                        exp = 11;
+                        exp = 4;
                         break;
                     case 9:
-                        exp = 17;
+                        exp = 5;
                         break;
                     case 18:
-                        exp = 22;
+                        exp = 7;
                         break;
                     default:
-                        exp = 7;
+                        exp = 1;
                         break;
                 }
 
                 stars = (stars < 1.1f) ? 1.1f : stars;
 
-                stars = ((stars - 1.1f) * 0.375f) + 1.0f;
+                stars = ((stars - 1.1f) * 0.125f) + 1.0f;
 
                 exp = (int)(exp * stars);
-
                 // Grand Prix Rookie d  um pouco menos de experi ncia
                 if (sIff.getInstance().getGrandPrixAbaType(m_gp.ID) == GrandPrixData.GP_ABA.ROOKIE && sIff.getInstance().isGrandPrixNormal(m_gp.ID))
                 {
-                    exp = (int)(exp * 0.92f);
+                    exp = (int)(exp * 0.12f);
                 }
 
                 for (var i = 0; i < m_player_order.Count; ++i)
                 {
-
+                    Player _session = default;
                     if (m_player_order[i].flag != PlayerGameInfo.eFLAG_GAME.BOT
                         && m_player_order[i].flag == PlayerGameInfo.eFLAG_GAME.FINISH
                         && (_session = findSessionByUID(m_player_order[i].uid)) != null)
@@ -1614,14 +1622,13 @@ namespace Pangya_GameServer.Game.GameModes
                         // Exp que o player ganhou
                         if (m_player_order[i].level < 70 /*Ultimo level n o ganha exp*/)
                         {
-                            m_player_order[i].data.exp = (uint)exp;
+                            m_player_order[i].data.exp = exp;
                         }
-
-                        _smp.message_pool.getInstance().push(new message("[GrandPrix::requestFinishExpGame][Log] PLAYER[UID=" + Convert.ToString(m_player_order[i].uid) + "] ganhou " + Convert.ToString(m_player_order[i].data.exp) + " de experience.", type_msg.CL_FILE_LOG_AND_CONSOLE));
                     }
                 }
             }
         }
+
         public void requestMakeRankPlayerDisplayCharacter()
         {
 
@@ -1683,6 +1690,7 @@ namespace Pangya_GameServer.Game.GameModes
             m_rank_player_display_char.Sort((a, b) => a.rank.CompareTo(b.rank));
 
         }
+
         public void finish()
         {
 
@@ -1708,6 +1716,7 @@ namespace Pangya_GameServer.Game.GameModes
                 }
             }
         }
+
         public void requestFinishData(Player _session)
         {
 
@@ -1747,6 +1756,7 @@ namespace Pangya_GameServer.Game.GameModes
             // se sim atualiza no server, db e no jogo
             requestSaveGrandPrixClear(_session);
         }
+
         public void requestSaveGrandPrixClear(Player _session)
         {
 
@@ -1764,9 +1774,6 @@ namespace Pangya_GameServer.Game.GameModes
                 // Atualiza Grand Prix Clear do player
                 if (_session.m_pi.updateGrandPrixClear(m_gp.TypeID_Link, (int)position))
                 {
-
-                    // Atualizou o player ficou em um posi  o melhor no Grand Prix
-                    _smp.message_pool.getInstance().push(new message("[GrandPrix::requestSaveGrandPrixClear][Log] PLAYER[UID=" + Convert.ToString(position) + "] ficou em um posicao melhor no Grand Prix[TYPEID=" + Convert.ToString(m_gp.ID) + ", TYPEID_LINK=" + Convert.ToString(m_gp.TypeID_Link) + ", POSITION=" + Convert.ToString(position) + "].", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
                     // Update On Game
                     var p = new PangyaBinaryWriter((ushort)0x25A);
@@ -1805,7 +1812,7 @@ namespace Pangya_GameServer.Game.GameModes
             }
 
             // D  os Trof us para os 3 primeiros Player, bots est o exclu dos
-            if (!m_gp_reward.empty())
+            if (m_gp_reward.Count > 0)
             {
 
                 GrandPrixRankReward gprr = new GrandPrixRankReward();
@@ -1813,76 +1820,66 @@ namespace Pangya_GameServer.Game.GameModes
 
                 var p = new PangyaBinaryWriter();
 
-                // C++ TO C# CONVERTER TASK: Lambda expressions cannot be assigned to 'var':
-                var it = m_player_order.Find(_el => _el.uid == _session.m_pi.uid);
+                var it = m_player_order.FirstOrDefault(_el => _el.uid == _session.m_pi.uid);
 
                 if (it != null)
                 {
 
                     try
-                    {
-
-                        // Esse aqui se n o tiver o index ele lan a exception::out_of_range
+                    { 
                         int index = m_player_order.FindIndex(el => el.uid == _session.m_pi.uid);
-                        if (index != -1)
+                        if (index >= 0 && index < m_gp_reward.Count && m_gp_reward.Count > 0)//verifica se tem premios
                         {
                             gprr = m_gp_reward[index];
-                        }
 
-                        // Inicializa o Trof u
-                        item.type = 2;
-                        item.id = -1;
-                        item._typeid = gprr.Trophy;
-                        item.qntd = 1;
-                        item.STDA_C_ITEM_QNTD = (short)(short)item.qntd;
+                            // Inicializa o Trof u
+                            item.type = 2;
+                            item.id = -1;
+                            item._typeid = gprr.Trophy;
+                            item.qntd = 1;
+                            item.STDA_C_ITEM_QNTD = (short)item.qntd;
 
-                        // Update on Server and Database
-                        if (ItemManager.addItem(item,
-                            _session, 0, 0) >= ItemManager.RetAddItem.T_SUCCESS)
-                        {
+                            // Update on Server and Database
+                            if (ItemManager.addItem(item, _session, 0, 0) >= ItemManager.RetAddItem.T_SUCCESS)
+                            {
+                                // Update Trof u on Game
+                                p.init_plain(0x25C);
 
-                            // Adicionou o Trof u com sucesso para o player
-                            _smp.message_pool.getInstance().push(new message("[GrandPrix::sendTrofel][Log] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] ganhou Grand Prix Trofel[TYPEID=" + Convert.ToString(gprr.Trophy) + "] na Posicao[RANK=" + Convert.ToString(gprr.Rank) + "].", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                                p.WriteUInt32(0); // OK;
 
-                            // Update Trof u on Game
-                            p.init_plain(0x25C);
+                                p.WriteUInt32(gprr.Trophy);
 
-                            p.WriteUInt32(0); // OK;
+                                packet_func.session_send(p,
+                                    _session, 1);
 
-                            p.WriteUInt32(gprr.Trophy);
+                                // Update Item on Game (Trof u)
+                                p.init_plain(0x216);
 
-                            packet_func.session_send(p,
-                                _session, 1);
+                                p.WriteUInt32((uint)GetSystemTimeAsUnix());
+                                p.WriteUInt32(1u); // Count
 
-                            // Update Item on Game (Trof u)
-                            p.init_plain(0x216);
+                                p.WriteByte(item.type);
+                                p.WriteUInt32(item._typeid);
+                                p.WriteInt32(item.id);
+                                p.WriteUInt32(item.flag_time);
+                                p.WriteBytes(item.stat.ToArray());
+                                p.WriteInt32((item.STDA_C_ITEM_TIME > 0) ? item.STDA_C_ITEM_TIME : item.STDA_C_ITEM_QNTD);
+                                p.WriteZeroByte(25);
 
-                            p.WriteUInt32((uint)GetSystemTimeAsUnix());
-                            p.WriteUInt32(1u); // Count
+                                packet_func.session_send(p,
+                                    _session, 1);
 
-                            p.WriteByte(item.type);
-                            p.WriteUInt32(item._typeid);
-                            p.WriteInt32(item.id);
-                            p.WriteUInt32(item.flag_time);
-                            p.WriteBytes(item.stat.ToArray());
-                            p.WriteInt32((item.STDA_C_ITEM_TIME > 0) ? item.STDA_C_ITEM_TIME32 : item.STDA_C_ITEM_QNTD32);
-                            p.WriteZeroByte(25);
-
-                            packet_func.session_send(p,
-                                _session, 1);
-
+                            }
                         }
                         else
-                        {
-                            _smp.message_pool.getInstance().push(new message("[GrandPrix::sendTrofel][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou adicionar Grand Prix Trofel[TYPEID=" + Convert.ToString(item._typeid) + "] na Posicao[RANK=" + Convert.ToString(gprr.Rank) + "], mas nao conseguiu adicionar o item.", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                        { 
+                            _smp.message_pool.getInstance().push(new message("[GrandPrix::sendTrofel][Log] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] nao tem trofeu nessa room.", type_msg.CL_FILE_LOG_AND_CONSOLE));
                         }
-
                     }
-                    catch (IndexOutOfRangeException)
+                    catch (IndexOutOfRangeException e)
                     {
 
-                        //ignorar:  UNREFERENCED_PARAMETER(e);
-
+                        _smp.message_pool.getInstance().push(new message("[GrandPrix::sendTrofel][IndexOutOfRangeException] " + e.StackTrace, type_msg.CL_FILE_LOG_AND_CONSOLE));
                     }
                     catch (exception e)
                     {
@@ -1919,218 +1916,148 @@ namespace Pangya_GameServer.Game.GameModes
 
         public void sendRewardRankAndGrandPrix(Player _session)
         {
-
+            // 1. Garante que o rank foi calculado
             if (m_player_order.Count <= 0)
             {
                 requestCalculeRankPlace();
             }
 
-            // Encontra o player no vector de rank do Game
-            // C++ TO C# CONVERTER TASK: Lambda expressions cannot be assigned to 'var':
-            PlayerGameInfo it = m_player_order.Find(_el =>
-            {
-                return _el.uid == _session.m_pi.uid;
-            });
+            // 2. Encontra a info do player no ranking do jogo atual
+            PlayerGameInfo it = m_player_order.Find(_el => _el.uid == _session.m_pi.uid);
 
-            if (it != null)
+            if (it != null && m_gp != null && m_gp.ID != 0)
             {
-
                 List<stItem> v_item = new List<stItem>();
-                stItem item = new stItem();
 
-                // Reward Grand Prix
-                for (var i = 0; i < 5u; ++i)
+                // --- PARTE A: RECOMPENSA GERAL DO GRAND PRIX (PARTICIPAÇÃO) ---
+                for (int i = 0; i < 5; i++)
                 {
+                    if (m_gp.reward._typeid[i] == 0) continue;
 
-                    if (m_gp.reward._typeid[i] != 0)
+                    // Instancia um novo objeto stItem para não sobrescrever referências
+                    stItem itemGP = new stItem
                     {
+                        type = 2,
+                        id = -1,
+                        _typeid = m_gp.reward._typeid[i]
+                    };
 
-                        item = new stItem();
-
-                        item.type = 2;
-                        item.id = -1;
-                        item._typeid = m_gp.reward._typeid[i];
-
-                        if (m_gp.reward.time[i] > 0)
-                        {
-
-                            item.qntd = 1;
-                            item.STDA_C_ITEM_QNTD = 1;
-                            item.STDA_C_ITEM_TIME = (short)(short)m_gp.reward.time[i]; // Time em dias
-                            item.flag_time = 4; // Dias
-                            item.flag = 0x40; // Dias
-
-                        }
-                        else
-                        {
-
-                            item.qntd = (int)m_gp.reward.qntd[i];
-                            item.STDA_C_ITEM_QNTD = (short)item.qntd;
-                        }
-
-                        // Verifica se j  possui o item, o caddie item verifica se tem o caddie para depois verificar se tem o caddie item
-                        if ((sIff.getInstance().IsCanOverlapped(item._typeid) && sIff.getInstance().getItemGroupIdentify(item._typeid) != sIff.getInstance().CAD_ITEM) || !_session.m_pi.ownerItem(item._typeid))
-                        {
-
-                            if (ItemManager.isSetItem(item._typeid))
-                            {
-
-                                var v_stItem = ItemManager.getItemOfSetItem(_session,
-                                    item._typeid, false,
-                                    1 /*N o verifica o Level*/);
-
-                                if (!v_stItem.empty())
-                                {
-
-                                    // Verifica se pode ter mais de 1 item e se n o ver se n o tem o item
-                                    foreach (var el in v_stItem)
-                                    {
-                                        if ((sIff.getInstance().IsCanOverlapped(el._typeid) && sIff.getInstance().getItemGroupIdentify(el._typeid) != sIff.getInstance().CAD_ITEM) || !_session.m_pi.ownerItem(el._typeid))
-                                        {
-                                            v_item.Add(el);
-                                        }
-                                    }
-
-                                }
-
-                            }
-                            else
-                            {
-
-                                // Add o Item Normal
-                                v_item.Add(new stItem(item));
-                            }
-
-                        }
-                    }
-                }
-
-                // Reward Rank
-                GrandPrixRankReward gprr = new GrandPrixRankReward();
-
-                try
-                {
-                    int index = m_player_order.FindIndex(el => el.uid == _session.m_pi.uid);
-
-                    if (index >= 0 && index < m_gp_reward.Count)
+                    // Configuração de Tempo ou Quantidade
+                    if (m_gp.reward.time[i] > 0)
                     {
-                        gprr = m_gp_reward[index];
+                        itemGP.qntd = 1;
+                        itemGP.STDA_C_ITEM_QNTD = 1;
+                        itemGP.STDA_C_ITEM_TIME = (short)m_gp.reward.time[i];
+                        itemGP.flag_time = 4; // Dias
+                        itemGP.flag = 0x40;   // Flag de tempo
                     }
                     else
                     {
-                        // Trate o erro: index inválido
-                        throw new IndexOutOfRangeException("Índice para gprr inválido — jogador não encontrado ou dados inconsistentes.");
+                        itemGP.qntd = (int)m_gp.reward.qntd[i];
+                        itemGP.STDA_C_ITEM_QNTD = (short)itemGP.qntd;
                     }
 
-
-                    for (var i = 0; i < 5u; ++i)
+                    // Adiciona se puder acumular ou se o player não possuir
+                    if ((sIff.getInstance().IsCanOverlapped(itemGP._typeid) && sIff.getInstance().getItemGroupIdentify(itemGP._typeid) != IFF_GROUP.CAD_ITEM) || !_session.m_pi.ownerItem(itemGP._typeid))
                     {
-
-                        if (gprr.reward._typeid[i] != 0)
+                        if (ItemManager.isSetItem(itemGP._typeid))
                         {
+                            var v_stItem = ItemManager.getItemOfSetItem(_session, itemGP._typeid, false, 1);
+                            foreach (var el in v_stItem) v_item.Add(new stItem(el));
+                        }
+                        else
+                        {
+                            v_item.Add(itemGP);
+                        }
+                    }
+                }
 
-                            item = new stItem();
+                // --- PARTE B: RECOMPENSA DE RANK (POSIÇÃO) ---
+                int index = m_player_order.FindIndex(el => el.uid == _session.m_pi.uid);
 
-                            item.type = 2;
-                            item.id = -1;
-                            item._typeid = gprr.reward._typeid[i];
+                // CORREÇÃO: index >= 0 permite que o 1º lugar (índice 0) receba o prêmio
+                if (index >= 0 && index < m_gp_reward.Count && m_gp_reward.Count > 0)//verifica se tem premios
+                {
+                    GrandPrixRankReward gprr = m_gp_reward[index];
+
+                    if (gprr != null && gprr.ID != 0)
+                    {
+                        for (int i = 0; i < 5; i++)
+                        {
+                            if (gprr.reward._typeid[i] == 0) continue;
+
+                            stItem itemRank = new stItem
+                            {
+                                type = 2,
+                                id = -1,
+                                _typeid = gprr.reward._typeid[i]
+                            };
 
                             if (gprr.reward.time[i] > 0)
                             {
-
-                                item.qntd = 1;
-                                item.STDA_C_ITEM_QNTD = 1;
-                                item.STDA_C_ITEM_TIME = (short)(short)gprr.reward.time[i]; // Time em dias
-                                item.flag_time = 4; // Dias
-                                item.flag = 0x40; // Dias
-
+                                itemRank.qntd = 1;
+                                itemRank.STDA_C_ITEM_QNTD = 1;
+                                itemRank.STDA_C_ITEM_TIME = (short)gprr.reward.time[i];
+                                itemRank.flag_time = 4;
+                                itemRank.flag = 0x40;
                             }
                             else
                             {
-
-                                item.qntd = (int)gprr.reward.qntd[i];
-                                item.STDA_C_ITEM_QNTD = (short)item.qntd;
+                                itemRank.qntd = (int)gprr.reward.qntd[i];
+                                itemRank.STDA_C_ITEM_QNTD = (short)itemRank.qntd;
                             }
 
-                            // Verifica se j  possui o item, o caddie item verifica se tem o caddie para depois verificar se tem o caddie item
-                            if ((sIff.getInstance().IsCanOverlapped(item._typeid) && sIff.getInstance().getItemGroupIdentify(item._typeid) != sIff.getInstance().CAD_ITEM) || !_session.m_pi.ownerItem(item._typeid))
+                            // Verifica posse do item de rank
+                            if ((sIff.getInstance().IsCanOverlapped(itemRank._typeid) && sIff.getInstance().getItemGroupIdentify(itemRank._typeid) != IFF_GROUP.CAD_ITEM) || !_session.m_pi.ownerItem(itemRank._typeid))
                             {
-
-                                if (ItemManager.isSetItem(item._typeid))
+                                if (ItemManager.isSetItem(itemRank._typeid))
                                 {
-
-                                    var v_stItem = ItemManager.getItemOfSetItem(_session,
-                                        item._typeid, false,
-                                        1 /*N o verifica o Level*/);
-
-                                    if (!v_stItem.empty())
-                                    {
-
-                                        // Verifica se pode ter mais de 1 item e se n o ver se n o tem o item
-                                        foreach (var el in v_stItem)
-                                        {
-                                            if ((sIff.getInstance().IsCanOverlapped(el._typeid) && sIff.getInstance().getItemGroupIdentify(el._typeid) != sIff.getInstance().CAD_ITEM) || !_session.m_pi.ownerItem(el._typeid))
-                                            {
-                                                v_item.Add(item: new stItem(el));
-                                            }
-                                        }
-
-                                    }
-
+                                    var v_stItemRank = ItemManager.getItemOfSetItem(_session, itemRank._typeid, false, 1);
+                                    foreach (var el in v_stItemRank) v_item.Add(new stItem(el));
                                 }
                                 else
                                 {
-
-                                    // Add o Item Normal
-                                    v_item.Add(item: new stItem(item));
+                                    v_item.Add(itemRank);
                                 }
-
                             }
                         }
                     }
                 }
-                catch (IndexOutOfRangeException)
-                {
-                    //ignorar:  UNREFERENCED_PARAMETER(e);
-                }
 
+                // --- PARTE C: PROCESSAMENTO E ENVIO ---
                 if (v_item.Count > 0)
-                {
-
-                    // Update Item on Server And Database
-                    ItemManager.RetAddItem rai = ItemManager.addItem(v_item,
-                        _session, 0, 0);
+                { 
+                    // 1. Adiciona no Banco de Dados e Memória (O addItem que corrigimos o loop de remoção)
+                    var rai = ItemManager.addItem(v_item, _session.getUID(), 0, 0);
 
                     if (rai.fails.Count > 0 && rai.type != ItemManager.RetAddItem.T_SUCCESS_PANG_AND_EXP_AND_CP_POUCH)
                     {
-                        _smp.message_pool.getInstance().push(new message("[GrandPrix:sendRewardRankAndGrandPrix][WARNIG] nao conseguiu adicionar os Grand Prix Reward itens. Bug", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                        _smp.message_pool.getInstance().push(new message($"[GP:Reward][WARNING] Falha ao adicionar {rai.fails.Count} itens para UID: {_session.getUID()}", type_msg.CL_FILE_LOG_AND_CONSOLE));
                     }
 
-                    // Update on Game
+                    // 2. Monta e envia o pacote 0x216 (Update Item no Cliente)
                     var p = new PangyaBinaryWriter((ushort)0x216);
-
                     p.WriteUInt32((uint)GetSystemTimeAsUnix());
-                    p.WriteUInt32((uint)v_item.Count); // Count
+                    p.WriteUInt32((uint)v_item.Count);
 
                     foreach (var el in v_item)
                     {
                         p.WriteByte(el.type);
                         p.WriteUInt32(el._typeid);
-                        p.WriteInt32(el.id);
+                        p.WriteInt32(el.id); // Importante: O addItem deve ter atualizado esse id com o do DB
                         p.WriteUInt32(el.flag_time);
                         p.WriteBytes(el.stat.ToArray());
-                        p.WriteInt32((el.STDA_C_ITEM_TIME > 0) ? el.STDA_C_ITEM_TIME32 : el.STDA_C_ITEM_QNTD32);
+                        // Se for tempo, envia o tempo, senão a quantidade
+                        p.WriteInt32((el.STDA_C_ITEM_TIME > 0) ? el.STDA_C_ITEM_TIME : el.STDA_C_ITEM_QNTD);
                         p.WriteZeroByte(25);
                     }
 
-                    packet_func.session_send(p,
-                        _session, 1);
+                    packet_func.session_send(p, _session, 1);
                 }
-
             }
             else
             {
-                _smp.message_pool.getInstance().push(new message("[GrandPrix::sendRewardRankAndGrandPrix][WARNIG] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] nao esta no vector player order.", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                _smp.message_pool.getInstance().push(new message($"[GrandPrix::sendReward] Erro: Player UID {_session.m_pi.uid} ou GP m_gp inválidos.", type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
 
@@ -2233,7 +2160,7 @@ namespace Pangya_GameServer.Game.GameModes
             {
 
                 var pgi = INIT_PLAYER_INFO("checkAllShotPacket",
-                    "tentou verificar as flag de sincronizacao de tacada do player",
+                    "tentou verificar as PCBangMascot de sincronizacao de tacada do player",
                     _session);
 
                 m_lock_manager.@lock(_session);
@@ -2253,6 +2180,7 @@ namespace Pangya_GameServer.Game.GameModes
 
             return ret;
         }
+
         public void clearAllShotPacket(Player _session)
         {
 
@@ -2260,7 +2188,7 @@ namespace Pangya_GameServer.Game.GameModes
             {
 
                 var pgi = INIT_PLAYER_INFO("clearAllShotPacket",
-                    "tentou limpar as flag de sincronizacao de tacada do player",
+                    "tentou limpar as PCBangMascot de sincronizacao de tacada do player",
                     _session);
 
                 // Limpa as veriaveis da tacada
@@ -2306,6 +2234,7 @@ namespace Pangya_GameServer.Game.GameModes
             });
             return (count == m_players.Count);
         }
+
         public void setClearHole(PlayerGameInfo _pgi)
         {
 
@@ -2319,6 +2248,7 @@ namespace Pangya_GameServer.Game.GameModes
             // Set
             _pgi.finish_hole = 1;
         }
+
         public void clearAllClearHole()
         {
             clear_all_clear_hole();
@@ -2357,6 +2287,7 @@ namespace Pangya_GameServer.Game.GameModes
 
             return ret;
         }
+
         public void clear_all_clear_hole()
         {
 
@@ -2377,6 +2308,7 @@ namespace Pangya_GameServer.Game.GameModes
                 }
             });
         }
+
         public void clear_timers()
         {
 
@@ -2429,7 +2361,7 @@ namespace Pangya_GameServer.Game.GameModes
             {
 
                 // S  calcula se n o for short game e n o for grand prix rookie
-                if (!(m_ri.natural.short_game > 0) && !(sIff.getInstance().getGrandPrixAbaType(m_gp.ID) == GrandPrixData.GP_ABA.ROOKIE && sIff.getInstance().isGrandPrixNormal(m_gp.ID)))
+                if (!(m_ri.special_flag_mod.short_game) && !(sIff.getInstance().getGrandPrixAbaType(m_gp.ID) == GrandPrixData.GP_ABA.ROOKIE && sIff.getInstance().isGrandPrixNormal(m_gp.ID)))
                 {
                     calcule_shot_to_spinning_cube(_session, _ssd);
                 }
@@ -2449,7 +2381,7 @@ namespace Pangya_GameServer.Game.GameModes
             {
 
                 // S  calcula se n o for short game e n o for grand prix rookier
-                if (!(m_ri.natural.short_game > 0) && !(sIff.getInstance().getGrandPrixAbaType(m_gp.ID) == GrandPrixData.GP_ABA.ROOKIE && sIff.getInstance().isGrandPrixNormal(m_gp.ID)))
+                if (!(m_ri.special_flag_mod.short_game) && !(sIff.getInstance().getGrandPrixAbaType(m_gp.ID) == GrandPrixData.GP_ABA.ROOKIE && sIff.getInstance().isGrandPrixNormal(m_gp.ID)))
                 {
                     calcule_shot_to_coin(_session, _ssd);
                 }
@@ -2604,6 +2536,7 @@ namespace Pangya_GameServer.Game.GameModes
 
             return 0;
         }
+
         public void startTimeRule(object _quem)
         {
 
@@ -2634,11 +2567,6 @@ namespace Pangya_GameServer.Game.GameModes
                             throw new exception("[GrandPrix::startTimeRule][Error] PLAYER[UID=" + Convert.ToString(p.m_pi.uid) + "] nao conseguiu criar um timer_ctx para poder criar um timer rule para o player. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GRAND_PRIX,
                                 1050, 0));
                         }
-
-#if DEBUG
-                        _smp.message_pool.getInstance().push(new message("[GrandPrix::startTimeRule][Log] Criou o Timer Rule[Tempo=" + Convert.ToString(time_milli) + "seg" + ", STATE=" + Convert.ToString(timer.m_timer.getState()) + "] para o PLAYER[UID=" + Convert.ToString(p.m_pi.uid) + "].", type_msg.CL_FILE_LOG_AND_CONSOLE));
-#endif // DEBUG
-
                     }
                     else
                     {
@@ -2654,8 +2582,6 @@ namespace Pangya_GameServer.Game.GameModes
 
                             // inicia ele novamente
                             timer.m_timer = sgs.gs.getInstance().MakeTime(time_milli * 1000 /*milliseconds*/, null, () => end_time_rule(this, _quem), PangyaSyncTimer.TIMER_TYPE.NORMAL);
-
-                            _smp.message_pool.getInstance().push(new message("[GrandPrix::startTimeRule][Log] Reiniciou o Timer Rule[Tempo=" + Convert.ToString(time_milli) + "seg" + ", STATE=" + Convert.ToString(timer.m_timer.getState()) + "] para o PLAYER[UID=" + Convert.ToString(p.m_pi.uid) + "].", type_msg.CL_FILE_LOG_AND_CONSOLE));
                         }
                     }
 
@@ -2696,9 +2622,6 @@ namespace Pangya_GameServer.Game.GameModes
 
                         uint time_milli = ((eRULE)m_gp.rule == eRULE.TIME_10_SEC ? 10u : ((eRULE)m_gp.rule == eRULE.TIME_15_SEC ? 15u : 0u));
 
-#if DEBUG
-                        _smp.message_pool.getInstance().push(new message("[GrandPrix::stopTimeRule][Log] Parou o Timer Rule[Tempo=" + Convert.ToString(time_milli) + "seg" + ", STATE=" + Convert.ToString(timer.m_timer.getState()) + "] para o PLAYER[UID=" + Convert.ToString(p.m_pi.uid) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
-#endif // DEBUG
                     }
                 }
 
@@ -2756,10 +2679,6 @@ namespace Pangya_GameServer.Game.GameModes
                             }
 
                             uint time_milli = ((eRULE)m_gp.rule == eRULE.TIME_10_SEC ? 10u : ((eRULE)m_gp.rule == eRULE.TIME_15_SEC ? 15u : 0u));
-
-#if DEBUG
-                            _smp.message_pool.getInstance().push(new message("[GrandPrix::timeRuleIsOver][Log] Acabou o tempo do Timer Rule[Tempo=" + Convert.ToString(time_milli) + "seg" + ", STATE=" + Convert.ToString(timer.m_timer.getState()) + "] do PLAYER[UID=" + Convert.ToString(s.m_pi.uid) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
-#endif // DEBUG
                         }
 
                         m_lock_manager.unlock(s);

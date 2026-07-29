@@ -38,7 +38,7 @@ namespace Pangya_GameServer.Repository
 
             if (m_wi.id > 0)
             { // found
-                var i = 0u;
+                var i = 0;
 
                 m_wi._typeid = IFNULL(_result.data[2]);
                 m_wi.ano = IFNULL<int>(_result.data[3]);
@@ -116,8 +116,7 @@ namespace Pangya_GameServer.Repository
 
             m_wi = new WarehouseItemEx();
 
-            var r = procedure(
-                m_szConsulta,
+            var r = procedure(m_szConsulta,
                 Convert.ToString(m_id));
 
             checkResponse(r, "nao conseguiu executar o procedure para procurar a UCC[ID=" + Convert.ToString(m_id) + "]");

@@ -14,6 +14,6 @@
         CHAT_OUT_OF_SKINSGAME = 0x09,
         CHAT_ONLINE_MSG = 0x0A,
         CHAT_MAX = 0x80,              // 128
-        CHAT_GM = 0x80   // 128 (bit flag)
+        CHAT_GM = 0x80   // 128 (bit type)
     }
 }

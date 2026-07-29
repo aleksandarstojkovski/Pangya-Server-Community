@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Pangya_GameServer.Models;
 using PangyaAPI.IFF.JP.Extensions;
+using PangyaAPI.IFF.JP.Models.Flags;
 using PangyaAPI.SQL;
 
 namespace Pangya_GameServer.Repository
@@ -19,10 +20,7 @@ namespace Pangya_GameServer.Repository
 
         public CmdAchievementInfo(uint _uid)
         {
-            m_uid = _uid;
-
-            if (!sIff.getInstance().isLoad())
-                sIff.getInstance().initilation();
+            m_uid = _uid; 
         }
 
         protected override void lineResult(ctx_res _result, uint _index_result)
@@ -40,7 +38,7 @@ namespace Pangya_GameServer.Repository
             qsi._typeid = IFNULL(_result.data[5]);
             cii._typeid = IFNULL(_result.data[6]);
             cii.id = qsi.counter_item_id = IFNULL<int>(_result.data[7]);
-            cii.value = IFNULL(_result.data[8]);
+            cii.value = IFNULL<int>(_result.data[8]);
             qsi.clear_date_unix = IFNULL(_result.data[9]);
 
             if (!map_ai.ContainsKey(ai._typeid))
@@ -51,7 +49,7 @@ namespace Pangya_GameServer.Repository
             if (existingAi == null)
             {
                 ai.active = (byte)IFNULL(_result.data[0]);
-                ai.status = IFNULL(_result.data[3]);
+                ai.status = IFNULL<int>(_result.data[3]);
 
                 CheckAchievementRetorno(ai);
                 CheckQuestAchievement(ai, qsi);
@@ -59,7 +57,7 @@ namespace Pangya_GameServer.Repository
                 ai.v_qsi.Add(qsi);
 
                 if (cii.id > 0)
-                    ai.map_counter_item[(uint)cii.id] = cii;
+                    ai.map_counter_item[cii.id] = cii;
 
                 map_ai[ai._typeid].Add(ai);
             }
@@ -69,7 +67,7 @@ namespace Pangya_GameServer.Repository
                 existingAi.v_qsi.Add(qsi);
 
                 if (cii.id > 0)
-                    existingAi.map_counter_item[(uint)cii.id] = cii;
+                    existingAi.map_counter_item[cii.id] = cii;
             }
         }
 
@@ -86,16 +84,14 @@ namespace Pangya_GameServer.Repository
 
         private void CheckAchievementRetorno(AchievementInfoEx ai)
         {
-            var achievement = sIff.getInstance().findAchievement((uint)ai.id);
+            var achievement = sIff.getInstance().findAchievement(ai._typeid);
 
-            if (sIff.getInstance().getItemGroupIdentify((uint)ai.id) != sIff.getInstance().QUEST_ITEM && achievement != null)
+            if (sIff.getInstance().getItemGroupIdentify(ai._typeid) != IFF_GROUP.QUEST_ITEM && achievement != null)
             {
                 ai.quest_base_typeid = achievement.TypeID_Quest_Index;
             }
-            else if (sIff.getInstance().getItemGroupIdentify((uint)ai.id) == sIff.getInstance().ACHIEVEMENT)
-            {
-                Console.WriteLine($"[CmdAchievementInfo::LineResult][Warning] Achievement[TypeId={ai.id}] not found in .iff file for player: {m_uid}");
-            }
+            else if (sIff.getInstance().getItemGroupIdentify(ai._typeid) == IFF_GROUP.ACHIEVEMENT)
+                Console.WriteLine($"[CmdAchievementInfo::LineResult][Warning] Achievement[TypeId={ai._typeid}] not found in .iff file for player: {m_uid}");
         }
 
         private void CheckQuestAchievement(AchievementInfoEx ai, QuestStuffInfo qsi)

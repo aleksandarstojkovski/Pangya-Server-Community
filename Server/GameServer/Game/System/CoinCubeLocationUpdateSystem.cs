@@ -22,7 +22,7 @@ namespace Pangya_GameServer.Game.Manager
 
         private bool m_load;
 
-        private Thread m_thread;
+        private PangyaThread m_thread;
 
         private int m_continue_translate = new int();
 
@@ -40,10 +40,8 @@ namespace Pangya_GameServer.Game.Manager
             this.m_update_location_time = 0;
             m_continue_translate = 1;
             // Inicializa
-            initialize();
-            m_thread = new Thread(translateOrder);
-            m_thread.Start();
-
+            initialize(); 
+            m_thread = new PangyaThread(1063 /*Wait Time Start */, obj => translateOrder(), this, ThreadPriority.AboveNormal);
         }
 
         ~CoinCubeLocationUpdateSystem()
@@ -59,7 +57,7 @@ namespace Pangya_GameServer.Game.Manager
                 if (m_thread != null)
                 {
 
-                    m_thread.Abort();
+                    m_thread.waitThreadFinish(-1);
                     m_thread = null;
                 }
 
@@ -306,75 +304,55 @@ namespace Pangya_GameServer.Game.Manager
                     _cccuo.last_location.z, 1U));
         }
 
-        protected void checkAndAddCoinCube(byte _course_id,
-            byte _hole_number,
-            CubeEx _cube)
+        protected void checkAndAddCoinCube(byte _course_id, byte _hole_number, CubeEx _cube)
         {
+            // 1. Normalização da ID do curso
+            byte courseKey = (byte)(_course_id & 0x7F);
 
+            // 2. Garantir que o Course e o Hole existam (Criação sob demanda)
+            if (!m_course_coin_cube.ContainsKey(courseKey))
+                m_course_coin_cube.Add(courseKey, new Dictionary<byte, List<CubeEx>>());
 
-            var it_course = m_course_coin_cube.find(_course_id & 0x7Fu);
+            var holes = m_course_coin_cube[courseKey];
 
-            if (it_course.Key != 0 && it_course.Value != null)
+            if (!holes.ContainsKey(_hole_number))
+                holes.Add(_hole_number, new List<CubeEx>());
+
+            var cubeList = holes[_hole_number];
+
+            // 3. Lógica de Negócio: Verificar proximidade
+            float maxRange = 5.0f * SCALE_PANGYA;
+
+            // Procuramos um cubo do mesmo tipo que esteja perto o suficiente
+            var existingCube = cubeList.FirstOrDefault(c =>
+                c.tipo == _cube.tipo &&
+                CalculateDistance(c.location, _cube.location) <= maxRange
+            );
+
+            if (existingCube != null)
             {
-
-                var it_hole = it_course.Value.find(_hole_number);
-
-                if (it_hole.Key != 0 && it_hole.Value != null)
-                {
-
-                    // Verifica se o cube est� no raio de outro cube se n�o add o cube ou aumenta o rate do outro cube
-                    Location lc = new Location() { x = _cube.location.x, y = _cube.location.y, z = _cube.location.z };
-
-                    var it = it_hole.Value.FirstOrDefault(_el =>
-                    {
-                        return _el.tipo == _cube.tipo && Math.Abs(lc.diff(_el.location)) <= 5 * SCALE_PANGYA;
-                    });
-
-                    if (it != null)
-                    {
-                        it.rate++;
-                    }
-                    else
-                    {
-                        it_hole.Value.Add(_cube);
-                    }
-
-                }
-                else
-                {
-
-                    var ret = it_course.Value.insert(Tuple.Create(_hole_number, new List<CubeEx>() { _cube }));
-
-                    if (ret.Key == 0)
-                    {
-                        _smp.message_pool.getInstance().push(new message("[CoinCubeLocationUpdateSystem::checkAndAddCoinCube][Warning] nao conseguiu adicionar o map de hole com o Cube/Coin[TYPE=" + Convert.ToString(_cube.tipo) + ", X=" + Convert.ToString(_cube.location.x) + ", Y=" + Convert.ToString(_cube.location.y) + ", Z=" + Convert.ToString(_cube.location.z) + "] no Course[ID=" + Convert.ToString((ushort)_course_id) + ", HOLE=" + Convert.ToString((ushort)_hole_number) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
-                    }
-                }
-
+                // Se achou um perto, apenas aumenta o rate (spawn rate)
+                existingCube.rate++;
             }
             else
             {
-
-                var ret = m_course_coin_cube.insert(
-       Tuple.Create(
-           (byte)(_course_id & 0x7Fu),
-           new Dictionary<byte, List<CubeEx>> {
-            {
-                _hole_number, new List<CubeEx> { _cube }
+                // Se está longe de todos os outros, adiciona como um novo ponto de spawn
+                cubeList.Add(_cube);
             }
-           }
-       )
-   );
-
-
-                if (ret.Key == 0)
-                {
-                    _smp.message_pool.getInstance().push(new message("[CoinCubeLocationUpdateSystem::checkAndAddCoinCube][Warning] nao conseguiu adicionar o map de course com o Cube/Coin[TYPE=" + Convert.ToString(_cube.tipo) + ", X=" + Convert.ToString(_cube.location.x) + ", Y=" + Convert.ToString(_cube.location.y) + ", Z=" + Convert.ToString(_cube.location.z) + "] no Course[ID=" + Convert.ToString((ushort)_course_id) + ", HOLE=" + Convert.ToString((ushort)_hole_number) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
-                }
-            }
-
         }
 
+        /// <summary>
+        /// Calcula a distância entre dois pontos 3D (Pitágoras)
+        /// </summary>
+        private double CalculateDistance(Cube.stLocation a, Cube.stLocation b)
+        {
+            double deltaX = a.x - b.x;
+            double deltaY = a.y - b.y;
+            double deltaZ = a.z - b.z;
+
+            return Math.Sqrt((deltaX * deltaX) + (deltaY * deltaY) + (deltaZ * deltaZ));
+        }
+          
         protected void update_spawn_location()
         {
             // lambda 
@@ -394,7 +372,7 @@ namespace Pangya_GameServer.Game.Manager
             {
 
                 // Wiz City n�o atualiza nada
-                if ((el_course.Key & 0x7Fu) == (byte)RoomInfo.eCOURSE.WIZ_CITY)
+                if ((el_course.Key & 0x7Fu) == (byte)RoomInfo.ROOM_INFO_COURSE.WIZ_CITY)
                 {
                     continue;
                 }
@@ -480,7 +458,7 @@ namespace Pangya_GameServer.Game.Manager
                   );
 
 
-                        if (it_upt_cc != v_coin_cube_update.end())
+                        if (it_upt_cc != null)
                         {
 
                             // Update
@@ -686,7 +664,7 @@ namespace Pangya_GameServer.Game.Manager
             }
             catch (Exception e)
             {
-                _smp.message_pool.getInstance().push(new message("[CoinCubeLocationUpdateSystem::translateOrder][ErrorSystem] " + e.Message, type_msg.CL_FILE_LOG_AND_CONSOLE));
+                _smp.message_pool.getInstance().push(new message("[CoinCubeLocationUpdateSystem::translateOrder][ErrorSystem] " + e.StackTrace, type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
 
             _smp.message_pool.getInstance().push(new message("Saindo de translateOrder()...", 0));

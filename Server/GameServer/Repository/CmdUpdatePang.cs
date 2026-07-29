@@ -46,23 +46,39 @@ namespace Pangya_GameServer.Repository
         {
             m_type_update = _type_update;
         }
-
         protected override void lineResult(ctx_res _result, uint _index_result)
         {
 
             // Aqui � update ent�o nao usa o _result e nem o index
             return;
         }
-
         protected override Response prepareConsulta()
         {
-            var r = _update(m_szConsulta[0] + (m_type_update == T_UPDATE_PANG.INCREASE ? " + " : " - ") + Convert.ToString(m_pang) + m_szConsulta[1] + Convert.ToString(m_uid));
+            string m_consulta = "";
 
-            checkResponse(r, "nao conseguiu atualizar o pang[value=" + (m_type_update == T_UPDATE_PANG.INCREASE ? " + " : " - ") + Convert.ToString(m_pang) + "] do player: " + Convert.ToString(m_uid));
+            if (m_type_update == T_UPDATE_PANG.INCREASE)
+            {
+                // Resultado: UPDATE pangya.user_info SET pang = pang + 1000 WHERE UID = 9
+                m_consulta = $"{m_szConsulta[0]} + {m_pang} {m_szConsulta[1]} {m_uid}";
+            }
+            else
+            {
+                m_consulta = $@"
+            DECLARE @atual BIGINT;
+            DECLARE @reducao BIGINT = {m_pang};
+            SELECT @atual = pang FROM pangya.user_info WHERE UID = {m_uid};
+            
+            UPDATE pangya.user_info 
+            SET pang = CASE WHEN (@atual - @reducao) < 0 THEN 0 ELSE (@atual - @reducao) END 
+            WHERE UID = {m_uid}";
+            }
+
+            var r = _update(m_consulta);
+
+            checkResponse(r, "Não conseguiu atualizar o pang do player: " + m_uid);
 
             return r;
         }
-
         private uint m_uid = new uint();
         private ulong m_pang = new ulong();
         private T_UPDATE_PANG m_type_update;

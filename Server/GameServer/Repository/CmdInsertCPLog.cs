@@ -9,7 +9,7 @@ namespace Pangya_GameServer.Repository
     {
         public CmdInsertCPLog(bool _waiter = false) : base(_waiter)
         {
-            this.m_uid = 0u;
+            this.m_uid = 0;
             this.m_id = -1;
             this.m_cp_log = new CPLog(0);
         }
@@ -67,8 +67,7 @@ namespace Pangya_GameServer.Repository
 
             m_id = -1L;
 
-            var r = procedure(
-                m_szConsulta,
+            var r = procedure(m_szConsulta,
                 Convert.ToString(m_uid) + ", " + Convert.ToString((ushort)m_cp_log.getType()) + ", " + Convert.ToString(m_cp_log.getMailId()) + ", " + Convert.ToString(m_cp_log.getCookie()) + ", " + Convert.ToString(m_cp_log.getItemCount()));
 
             checkResponse(r, "nao conseguiu inserir o CPLog[" + m_cp_log.toString() + "] do PLAYER[UID=" + Convert.ToString(m_uid) + "]");

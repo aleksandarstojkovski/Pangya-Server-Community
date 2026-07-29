@@ -61,7 +61,7 @@ namespace Pangya_GameServer.Repository
 
             if (m_trd.finish_time.IsEmpty == false)
             {
-                finish_date = _formatDate(m_trd.finish_time.ConvertTime());
+                finish_date = makeText(_formatDate(m_trd.finish_time.ConvertTime()));
             }
 
             var r = procedure(m_szConsulta,

@@ -11,10 +11,7 @@ namespace PangyaAPI.Network.Repository
         {
             m_uid = _uid;
             m_option = _option;
-        }
-        public CmdRegisterLogon()
-        {
-        }
+        } 
 
         protected override void lineResult(ctx_res _result, uint _index_result)
         {
@@ -23,9 +20,7 @@ namespace PangyaAPI.Network.Repository
         }
 
         protected override Response prepareConsulta()
-        {
-
-
+        {          
             var r = procedure("pangya.ProcRegisterLogon", m_uid.ToString() + ", " + m_option.ToString());
 
             checkResponse(r, "nao conseguiu registrar o logon do player: " + (m_uid) + ", na option: " + (m_option));

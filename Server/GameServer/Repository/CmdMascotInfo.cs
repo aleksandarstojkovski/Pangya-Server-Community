@@ -49,7 +49,7 @@ namespace Pangya_GameServer.Repository
                     id = Convert.ToInt32(_result.data[0]),
                     _typeid = Convert.ToUInt32(_result.data[2]),
                     level = (byte)Convert.ToUInt32(_result.data[3]),
-                    exp = Convert.ToUInt32(_result.data[4]),
+                    exp = Convert.ToInt32(_result.data[4]),
                     flag = (byte)Convert.ToUInt32(_result.data[5])
                 };
                 if (_result.IsNotNull(6))
@@ -98,15 +98,25 @@ namespace Pangya_GameServer.Repository
 
             }
         }
+protected override Response prepareConsulta()
+{
+    // 1. Define the procedures
+    string procName = (m_type == TYPE.ALL) 
+        ? "pangya.ProcGetMascotInfo" 
+        : "pangya.ProcGetMascotInfo_One";
 
-        protected override Response prepareConsulta()
-        {
-            var m_szConsulta = new string[] { "pangya.ProcGetMascotInfo " + m_uid.ToString(), "pangya.ProcGetMascotInfo_One " + m_uid.ToString() + ", " + m_item_id.ToString() };
+    // 2. Define the parameters
+    string parameters = (m_type == TYPE.ALL) 
+        ? m_uid.ToString() 
+        : $"{m_uid}, {m_item_id}";
 
-            var r = procedure(m_type == TYPE.ALL ? m_szConsulta[0] : m_szConsulta[1]);
-            checkResponse(r, "nao conseguiu pegar o member info do player: " + (m_uid));
-            return r;
-        }
+    // 3. Execute and Validate
+    var r = procedure(procName, parameters);
+    
+    checkResponse(r, $"Não foi possível carregar as informações do Mascot do player: {m_uid}");
+    
+    return r;
+}
 
 
         public MascotManager getInfo()

@@ -60,7 +60,7 @@ namespace Pangya_GameServer.UTIL
 
             m_ball.m_max_height = m_ball.m_position.m_y;
 
-            m_ball.m_count = 0u;
+            m_ball.m_count = 0;
 
             m_ball.m_num_max_height = -1;
 
@@ -137,7 +137,7 @@ namespace Pangya_GameServer.UTIL
 
             m_ball.m_max_height = m_ball.m_position.m_y;
 
-            m_ball.m_count = 0u;
+            m_ball.m_count = 0;
 
             m_ball.m_num_max_height = -1;
 

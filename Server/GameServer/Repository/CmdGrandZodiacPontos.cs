@@ -31,7 +31,7 @@ namespace Pangya_GameServer.Repository
 
         public CmdGrandZodiacPontos()
         {
-            this.m_uid = 0u;
+            this.m_uid = 0;
             this.m_pontos = 0;
             this.m_type = eCMD_GRAND_ZODIAC_TYPE.CGZT_GET;
         }

@@ -8,7 +8,7 @@ using System.Runtime.Remoting.Messaging;
 using System.Text;
 using PangyaAPI.Network.Cryptor;
 using PangyaAPI.Utilities;
-using PangyaAPI.Utilities.BinaryModels;
+using PangyaAPI.Utilities.Models;
 using uint8_t = System.Byte;
 
 namespace PangyaAPI.Network.PangyaPacket
@@ -352,6 +352,12 @@ namespace PangyaAPI.Network.PangyaPacket
         {
             return _reader.ReadDouble(out value);
         }
+
+        public sbyte[] ReadSBytes(int size)
+        {
+            return _reader.ReadSBytes(size);
+        }
+
         public bool ReadBytes(out byte[] value)
         {
             return _reader.ReadBytes(out value);
@@ -444,23 +450,7 @@ namespace PangyaAPI.Network.PangyaPacket
         public void SetReader(PangyaBinaryReader read)
         {
             _reader = read;
-        }
-
-        public void Version_Decrypt(ref uint packetVer)
-        {
-            string PacketVerKey = "{873AE210-2EEF-4c61-B030-A54F17634A7D}";
-
-            byte[] tmpPVer = BitConverter.GetBytes(packetVer);
-            int index = 0;
-
-            for (int i = 0; i < PacketVerKey.Length; i++)
-            {
-                tmpPVer[index] ^= (byte)PacketVerKey[i];
-                index = (index == 3) ? 0 : index + 1;
-            }
-
-            packetVer = BitConverter.ToUInt32(tmpPVer, 0);
-        }
+        }     
 
         public string Log()
         {
@@ -526,231 +516,6 @@ namespace PangyaAPI.Network.PangyaPacket
             _writer.WriteBytes(m_maked);
 
             return getBuffer();
-        }
-
-        // UnMakedRawPacket: adds 2 bytes at beginning (type) and returns Packet with type decoded
-        public static packet UnMakedRawPacket(int type, byte[] buff)
-        {
-            if (buff == null) buff = Array.Empty<byte>();
-            var newBuff = new byte[buff.Length + 2];
-            ushort value = (ushort)type;
-
-            // escreve no newBuff começando na posição 0
-            newBuff[0] = (byte)(value & 0xFF);        // byte menos significativo
-            newBuff[1] = (byte)((value >> 8) & 0xFF); // byte mais significativo
-            Buffer.BlockCopy(buff, 0, newBuff, 2, buff.Length);
-
-            var p = new packet();
-            p.SetBuffer(newBuff);
-            p._stream.Position = 0;
-            p.Id = p._reader.ReadInt16();
-            return p;
-        }
-
-        // MakePacketComplete -> header size: 3 (Compress)
-        public byte[] MakePacketComplete(int parseKey)
-        {
-            const int PACKET_HEADER_SIZE = 3;
-            int lowKey = Random.Next(0, 256);
-
-            byte[] payload = ToArray();
-            int payloadLen = (int)_stream.Length;
-
-            int sizeRaw = payloadLen + PACKET_HEADER_SIZE;
-            if (parseKey == -1) sizeRaw++;
-
-            var ret = new byte[sizeRaw];
-            int destOffset = PACKET_HEADER_SIZE + (parseKey == -1 ? 1 : 0);
-
-            // copy payload
-            Buffer.BlockCopy(payload, 0, ret, destOffset, payloadLen);
-
-            // write lowKey and size
-            ret[0] = (byte)lowKey;
-            ushort value = (ushort)(sizeRaw - PACKET_HEADER_SIZE);
-            // Little-endian manual
-            ret[1] = (byte)(value & 0xFF);       // byte menos significativo
-            ret[2] = (byte)((value >> 8) & 0xFF); // byte mais significativo
-            if (parseKey != -1)
-            {
-                // compress slice(PACKET_HEADER_SIZE, size_raw)
-                int innerLen = sizeRaw - PACKET_HEADER_SIZE;
-                var inner = new byte[innerLen];
-                Buffer.BlockCopy(ret, PACKET_HEADER_SIZE, inner, 0, innerLen);
-
-                var compressed = MiniLzo.Compress(inner);
-
-                // ret = Buffer.concat([Buffer.alloc(PACKET_HEADER_SIZE + 1), compressed])
-                ret = new byte[PACKET_HEADER_SIZE + 1 + compressed.Length];
-                Buffer.BlockCopy(compressed, 0, ret, PACKET_HEADER_SIZE + 1, compressed.Length);
-
-                sizeRaw = ret.Length;
-
-                // write lowKey and updated size
-                ret[0] = (byte)lowKey;
-                value = (ushort)(sizeRaw - PACKET_HEADER_SIZE);
-                // Little-endian manual                                                
-                ret[1] = (byte)(value & 0xFF);        // byte menos significativo
-                ret[2] = (byte)((value >> 8) & 0xFF); // byte mais significativo
-                // encrypt region [PACKET_HEADER_SIZE .. end)
-                int regionLen = sizeRaw - PACKET_HEADER_SIZE;
-                var region = new byte[regionLen];
-                Buffer.BlockCopy(ret, PACKET_HEADER_SIZE, region, 0, regionLen);
-
-                var crypt = new Crypt(parseKey, lowKey);
-                uint pub = crypt.Encrypt(region); // modifies region in-place and returns public key
-
-                // store public key
-                this.PublicKey = pub;
-
-                // copy encrypted region back
-                Buffer.BlockCopy(region, 0, ret, PACKET_HEADER_SIZE, regionLen);
-            }
-
-            return ret;
-        }
-
-        // MakePacket -> header size: 4 (with sequence)
-        public byte[] MakePacket(int parseKey, int seq = 0)
-        {
-            const int PACKET_HEADER_SIZE = 4;
-            int lowKey = Random.Next(0, 256);
-
-            byte[] payload = ToArray();
-            int payloadLen = (int)_stream.Length;
-
-            int sizeRaw = payloadLen + PACKET_HEADER_SIZE;
-            if (parseKey != -1) sizeRaw++;
-
-            var ret = new byte[sizeRaw];
-            int destOffset = PACKET_HEADER_SIZE + (parseKey != -1 ? 1 : 0);
-
-            Buffer.BlockCopy(payload, 0, ret, destOffset, payloadLen);
-
-            // lowKey + length + seq
-            ret[0] = (byte)lowKey;
-            ushort value = (ushort)(sizeRaw - PACKET_HEADER_SIZE);
-            // Little-endian manual
-            ret[1] = (byte)(value & 0xFF);       // byte menos significativo
-            ret[2] = (byte)((value >> 8) & 0xFF); // byte mais significativo
-            ret[3] = (byte)(seq & 0xFF);
-
-            if (parseKey != -1)
-            {
-                int regionLen = sizeRaw - PACKET_HEADER_SIZE;
-                var region = new byte[regionLen];
-                Buffer.BlockCopy(ret, PACKET_HEADER_SIZE, region, 0, regionLen);
-
-                var crypt = new Crypt(parseKey, lowKey);
-                uint pub = crypt.Encrypt(region);
-                this.PublicKey = pub;
-
-                Buffer.BlockCopy(region, 0, ret, PACKET_HEADER_SIZE, regionLen);
-            }
-
-            return ret;
-        }
-
-        // UnMakePacket: decrypts region (if parseKey != -1), validates private key byte and sets Type
-        public bool UnMakePacket(byte[] data, int parseKey)
-        {
-            if (data == null || data.Length == 0) return true;
-
-            // set incoming buffer as stream
-            SetBuffer(data);
-            _stream.Position = 0;
-
-            int lowKey = _reader.ReadByte();
-            int length = _reader.ReadUInt16();
-            int sequence = _reader.ReadByte();
-
-            if (parseKey == -1)
-            {
-                _reader.ReadByte();
-                return true;
-            }
-
-            // read remaining region and decrypt it
-            int regionLen = (int)(_stream.Length - _stream.Position);
-            var region = _reader.ReadBytes(regionLen);
-
-            var crypt = new Crypt(parseKey, lowKey);
-            uint priv = crypt.Decrypt(region); // decrypts region in-place and returns private key
-            this.PrivateKey = priv;
-
-            // rebuild buffer: header (up to current offset) + decrypted region
-            int headerLen = (int)_stream.Position;
-            var newAll = new byte[headerLen + region.Length];
-            Buffer.BlockCopy(data, 0, newAll, 0, headerLen);
-            Buffer.BlockCopy(region, 0, newAll, headerLen, region.Length);
-
-            // replace internal buffer with decrypted content
-            SetBuffer(newAll);
-            _stream.Position = headerLen;
-
-            int checkKey = _reader.ReadByte();
-            if (checkKey != (int)(this.PrivateKey & 0xFF)) return false;
-
-            this.Id = _reader.ReadInt16();
-            return true;
-        }
-
-        // UnMakePacketComplete: decrypt, validate, decompress inner region and set Type
-        public bool UnMakePacketComplete(byte[] data, int parseKey)
-        {
-            if (data == null || data.Length == 0) return true;
-
-            SetBuffer(data);
-            _stream.Position = 0;
-
-            int lowKey = _reader.ReadByte();
-            int length = _reader.ReadUInt16();
-
-            if (parseKey == -1)
-            {
-                // read extra byte then read type
-                _reader.ReadByte();
-                this.Id = _reader.ReadInt16();
-                return true;
-            }
-
-            // decrypt the rest
-            int headerLen = (int)_stream.Position;
-            int regionLen = (int)(_stream.Length - _stream.Position);
-            var region = _reader.ReadBytes(regionLen);
-
-            var crypt = new Crypt(parseKey, lowKey);
-            uint priv = crypt.Decrypt(region);
-            this.PrivateKey = priv;
-
-            // rebuild full buffer = header + decrypted region
-            var combined = new byte[headerLen + region.Length];
-            Buffer.BlockCopy(data, 0, combined, 0, headerLen);
-            Buffer.BlockCopy(region, 0, combined, headerLen, region.Length);
-
-            // set as current buffer and position to headerLen
-            SetBuffer(combined);
-            _stream.Position = headerLen;
-
-            int checkKey = _reader.ReadByte();
-            if (checkKey != (int)(this.PrivateKey & 0xFF)) return false;
-
-            // remaining bytes are compressed -> decompress
-            int remaining = (int)(_stream.Length - _stream.Position);
-            var compressed = _reader.ReadBytes(remaining);
-            var decompressed = MiniLzo.Decompress(compressed) ?? Array.Empty<byte>();
-
-            // new buffer = header (up to offset) + decompressed
-            var finalBuf = new byte[headerLen + decompressed.Length];
-            Buffer.BlockCopy(combined, 0, finalBuf, 0, headerLen);
-            Buffer.BlockCopy(decompressed, 0, finalBuf, headerLen, decompressed.Length);
-
-            SetBuffer(finalBuf);
-            _stream.Position = headerLen;
-
-            // read type from decompressed region
-            this.Id = _reader.ReadInt16();
-            return true;
-        }
+        } 
     }
 }

@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using Pangya_GameServer.Models;
-using PangyaAPI.Utilities.BinaryModels;
+using PangyaAPI.Utilities.Models;
 
 namespace Pangya_GameServer.Game.Manager
 {

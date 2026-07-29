@@ -1,9 +1,9 @@
-﻿using LoginServer.Models;
+﻿using Pangya_LoginServer.Models;
 using PangyaAPI.SQL;
 using PangyaAPI.Utilities;
 using System;
 
-namespace LoginServer.Repository
+namespace Pangya_LoginServer.Repository
 {
     public class CmdAddFirstSet : Pangya_DB
     {

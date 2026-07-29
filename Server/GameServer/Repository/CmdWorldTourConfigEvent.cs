@@ -28,10 +28,19 @@ namespace Pangya_GameServer.Repository
 
         protected override Response prepareConsulta()
         {
-            // Cria a consulta. Pode ser SELECT direto ou procedure.
-            var r = consulta("SELECT TOP 1 [EventID] as Id, StartDate, EndDate, [IsActive] as Active FROM pangya.pangya_world_tour_config WHERE IsActive = 1" +
-                " AND GETDATE() BETWEEN StartDate AND EndDate" +
-                "\r\nORDER BY StartDate DESC");
+            var colunas = makeEscapeKeyword("EventID") + " as Id, " +
+                          makeEscapeKeyword("StartDate") + ", " +
+                          makeEscapeKeyword("EndDate") + ", " +
+                          makeEscapeKeyword("IsActive");
+
+            // Construção da base da query sem o TOP/LIMIT
+            string query = $"SELECT {colunas} FROM pangya.pangya_world_tour_config " +
+                             $"WHERE IsActive = 1 AND {SQLDATE()} BETWEEN StartDate AND EndDate " +
+                             "ORDER BY StartDate DESC";
+
+            string final_query = SQL_LIMIT(query, 1);
+
+            var r = consulta(final_query);
             checkResponse(r, "Não conseguiu pegar a configuração do World Tour Event.");
             return r;
         }

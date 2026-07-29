@@ -9,11 +9,11 @@ using Pangya_GameServer.Models;
 using Pangya_GameServer.PacketFunc;
 using PangyaAPI.Network.PangyaPacket;
 using PangyaAPI.Utilities;
-using PangyaAPI.Utilities.BinaryModels;
+using PangyaAPI.Utilities.Models;
 using PangyaAPI.Utilities.Log;
 namespace Pangya_GameServer.Game.GameModes
 {
-    public class GuildBattle : TourneyBase, IDisposable
+    public class GuildBattle : TourneyBase
     {
 
         protected bool m_guild_battle_state;
@@ -67,8 +67,15 @@ namespace Pangya_GameServer.Game.GameModes
             m_guild_battle_state = init_game();
         }
 
-        protected override void Dispose(bool disposing)
+        ~GuildBattle()
         {
+            Dispose(false);
+        }
+
+        public override void Dispose(bool disposing)
+        {
+            if (disposedValue) return;
+
             if (disposing)
             {
                 m_guild_battle_state = false;
@@ -84,11 +91,9 @@ namespace Pangya_GameServer.Game.GameModes
                 }
 
                 deleteAllPlayer();
-
-#if DEBUG
-                _smp.message_pool.getInstance().push(new message("[GuildBattle::~GuildBattle][Log] GuildBattle destroyed on Room[Number=" + Convert.ToString(m_ri.numero) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
-#endif // _DEBUG
+                LogDestruction();
             }
+            base.Dispose(true);
         }
 
         public override bool deletePlayer(Player _session, int _option)
@@ -96,7 +101,7 @@ namespace Pangya_GameServer.Game.GameModes
 
             if (_session == null)
             {
-                throw new exception("[GuildBattle::deletePlayer][Error] tentou deletar um player, mas o seu endereco eh nullptr.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GUILD_BATTLE,
+                throw new exception("[GuildBattle::deletePlayer][Error] tentou deletar um player, mas o seu endereco é nullptr.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GUILD_BATTLE,
                     50, 0));
             }
 
@@ -224,24 +229,26 @@ namespace Pangya_GameServer.Game.GameModes
             {
 
                 _smp.message_pool.getInstance().push(new message("[GuildBattle::deletePlayer][Error] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
-
-                // Libera Critical Section
-#if _WIN32
-        					LeaveCriticalSection(m_cs);
-#elif __linux__
-        					pthread_mutex_unlock(m_cs);
-#endif
+                 
             }
 
             return ret;
         }
 
-        public virtual void deleteAllPlayer()
+        public void deleteAllPlayer()
         {
-
-            while (!m_players.empty())
+            // Percorre de trás para frente
+            for (int i = m_players.Count - 1; i >= 0; i--)
             {
-                deletePlayer(m_players.First(), 0);
+                var player = m_players[i];
+                if (player != null)
+                {
+                    var pgi = getPlayerInfo(player);
+                    if (pgi != null)
+                    {
+                        deletePlayer(player, 0);
+                    }
+                }
             }
         }
 
@@ -470,17 +477,12 @@ namespace Pangya_GameServer.Game.GameModes
                         // Resposta para acabou o tempo do Guild Battle
                         sendTimeIsOver(_session);
                     }
-                }
-
-#if DEBUG
-                _smp.message_pool.getInstance().push(new message("[GuildBattle::timeIsOver][Log] Tempo Acabou no GuildBattle. na sala[NUMERO=" + Convert.ToString(m_ri.numero) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
-#endif // _DEBUG
-
+                } 
             }
         }
 
         //// Inicializa Jogo e Finaliza Jogo
-        protected override bool init_game()
+        public override bool init_game()
         {
 
             if (m_players.Count > 0)
@@ -534,7 +536,7 @@ namespace Pangya_GameServer.Game.GameModes
 
                             if (m_player_order[i].level < 70)
                             {
-                                m_player_order[i].data.exp = (uint)exp;
+                                m_player_order[i].data.exp = exp;
                             }
                         }
 
@@ -551,7 +553,7 @@ namespace Pangya_GameServer.Game.GameModes
 
                             if (m_player_order[i].level < 70)
                             {
-                                m_player_order[i].data.exp = (uint)exp;
+                                m_player_order[i].data.exp = exp;
                             }
                         }
                     }
@@ -686,7 +688,7 @@ namespace Pangya_GameServer.Game.GameModes
 
             var p = new PangyaBinaryWriter((ushort)0x79);
 
-            p.WriteUInt32(pgi.data.exp);
+            p.WriteInt32(pgi.data.exp);
 
             p.WriteUInt32(m_ri.trofel);
 

@@ -12,9 +12,10 @@ using PangyaAPI.IFF.JP.Models.Data;
 using PangyaAPI.Network.PangyaPacket;
 using PangyaAPI.SQL;
 using PangyaAPI.Utilities;
-using PangyaAPI.Utilities.BinaryModels;
+using PangyaAPI.Utilities.Models;
 using PangyaAPI.Utilities.Log;
 using static Pangya_GameServer.Models.DefineConstants;
+using static Pangya_GameServer.Models.AchievementInfo;
 
 namespace Pangya_GameServer.Game.Manager
 {
@@ -59,7 +60,7 @@ namespace Pangya_GameServer.Game.Manager
                             p.WriteByte(2);
                             p.WriteUInt32(el._typeid);//ta vindo id repetido
                             p.WriteInt32(el.id);//tá vindo idex repedito
-                            p.WriteUInt32(0); // flag
+                            p.WriteUInt32(0); // type
                             p.WriteInt32(0); // Qntd antes
                             p.WriteInt32(1); // Qntd depois
                             p.WriteInt32(1); // add value
@@ -112,7 +113,8 @@ namespace Pangya_GameServer.Game.Manager
                     throw new exception("[DailyQuestManager::" + (("LeaveQuest")) + "][Error] session not connected.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.MGR_DAILY_QUEST,
                         1, 0));
                 }
-            };
+            }
+            ;
             if (_packet == null)
             {
                 throw new exception("[DailyQuestManager::request" + "LeaveQuest" + "][Error] _packet is null", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.MGR_DAILY_QUEST,
@@ -164,8 +166,8 @@ namespace Pangya_GameServer.Game.Manager
                         p.WriteByte(2);
                         p.WriteUInt32(el.Value._typeid);
                         p.WriteInt32(el.Value.id);
-                        p.WriteUInt32(0); // flag
-                        p.WriteUInt32(el.Value.value); // Qntd antes
+                        p.WriteUInt32(0); // type
+                        p.WriteInt32(el.Value.value); // Qntd antes
                         p.WriteInt32(0); // Qntd depois
                         p.WriteUInt32((uint)(el.Value.value * -1)); // add quantos, tipo de add tinha 0(antes) + 3(qntd) = 3(depois)
                         p.WriteZeroByte(25);
@@ -214,7 +216,8 @@ namespace Pangya_GameServer.Game.Manager
                     throw new exception("[DailyQuestManager::" + (("AcceptQuest")) + "][Error] session not connected.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.MGR_DAILY_QUEST,
                         1, 0));
                 }
-            };
+            }
+            ;
             if (_packet == null)
             {
                 throw new exception("[DailyQuestManager::request" + "AcceptQuest" + "][Error] _packet is null", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.MGR_DAILY_QUEST,
@@ -236,11 +239,7 @@ namespace Pangya_GameServer.Game.Manager
                         5000, 0));
                 }
 
-                quest_id = new int[num_quest];
-
-#if DEBUG
-                _smp.message_pool.getInstance().push(new message("[DailyQuestManager::requestAcceptQuest][Log] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] pediu para aceitar " + Convert.ToString(num_quest) + " Quest.", type_msg.CL_FILE_LOG_AND_CONSOLE));
-#endif // DEBUG
+                quest_id = new int[num_quest]; 
 
                 quest_id = _packet.ReadInt32(num_quest);
 
@@ -271,7 +270,7 @@ namespace Pangya_GameServer.Game.Manager
                         p.WriteByte(2);
                         p.WriteUInt32(el.Value._typeid);
                         p.WriteInt32(el.Value.id);
-                        p.WriteUInt32(0); // flag
+                        p.WriteUInt32(0); // type
                         p.WriteInt32(0); // Qntd antes
                         p.WriteInt32(0); // Qntd depois
                         p.WriteInt32(0); // add quantos, tipo de add tinha 0(antes) + 3(qntd) = 3(depois)
@@ -321,7 +320,8 @@ namespace Pangya_GameServer.Game.Manager
                     throw new exception("[DailyQuestManager::" + (("TakeRewardQuest")) + "][Error] session not connected.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.MGR_DAILY_QUEST,
                         1, 0));
                 }
-            };
+            }
+            ;
             if (_packet == null)
             {
                 throw new exception("[DailyQuestManager::request" + "TakeRewardQuest" + "][Error] _packet is null", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.MGR_DAILY_QUEST,
@@ -362,7 +362,7 @@ namespace Pangya_GameServer.Game.Manager
                     // Item Reward, d� para o player
                     if ((qi = sIff.getInstance().findQuestItem(el._typeid)) != null)
                     {
-                        for (var i = 0u; i < (qi.reward._typeid.Length); ++i)
+                        for (var i = 0; i < (qi.reward._typeid.Length); ++i)
                         {
 
                             if (qi.reward._typeid[i] != 0)
@@ -390,8 +390,6 @@ namespace Pangya_GameServer.Game.Manager
                                 {
                                     v_item.Add(item);
                                 }
-
-                                _smp.message_pool.getInstance().push(new message("[DailyQuestManager::requestTakeRewardQuest][Log] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] pegou recompensa{ITEM=[TYPEID=" + Convert.ToString(item._typeid) + ", ID=" + Convert.ToString(item.id) + ", QNTD=" + Convert.ToString(item.qntd) + "]} da Quest[TYPEID=" + Convert.ToString(el._typeid) + ", ID=" + Convert.ToString(el.id) + "].", type_msg.CL_FILE_LOG_AND_CONSOLE));
                             }
                         }
 
@@ -426,10 +424,7 @@ namespace Pangya_GameServer.Game.Manager
                         }
                     }
                 }
-
-                // Log
-                _smp.message_pool.getInstance().push(new message("[DailyQuestManager::requestTakeRewardQuest][Log] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] Pegou recompensa da Daily Quest com sucesso.", type_msg.CL_FILE_LOG_AND_CONSOLE));
-
+ 
                 // UPDATE ON GAME
                 p.init_plain(0x216);
 
@@ -442,7 +437,7 @@ namespace Pangya_GameServer.Game.Manager
                     p.WriteByte(el.type);
                     p.WriteUInt32(el._typeid);
                     p.WriteInt32(el.id); // id do item no banco de dados
-                    p.WriteUInt32(el.flag_time); // flag
+                    p.WriteUInt32(el.flag_time); // type
                     p.WriteBytes(el.stat.ToArray());
                     p.WriteInt32((el.c[3] > 0) ? el.c[3] : el.c[0]);
                     p.WriteZeroByte(25);
@@ -512,6 +507,10 @@ namespace Pangya_GameServer.Game.Manager
 
         public static bool checkCurrentQuest(DailyQuestInfo _dqi)
         {
+            if (_dqi == null )
+            {
+                return false;
+            }
             DateTime st2 = DateTime.Now;  // Local System Now Date
 
             return (st2.Year > _dqi.date.Year || st2.Month > _dqi.date.Month || st2.Day > _dqi.date.Day);
@@ -530,7 +529,7 @@ namespace Pangya_GameServer.Game.Manager
 
             map_ai.ToList().ForEach(el =>
             {
-                if (el.Value.status == (byte)AchievementInfo.AchievementStatus.Pending && el.Value._typeid != 0)
+                if (el.Value.status == (byte)ACHIEVEMENT_STATUS.PENDENTING && el.Value._typeid != 0)
                 {
                     v_old_quest.Add(new RemoveDailyQuestUser() { id = el.Value.id, _typeid = el.Value._typeid });
                 }
@@ -562,13 +561,14 @@ namespace Pangya_GameServer.Game.Manager
                     throw new exception("[DailyQuestManager::" + "addQuestUser" + "][Error] session not connected.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.MGR_DAILY_QUEST,
                         1, 0));
                 }
-            };
+            }
+            ;
 
             List<AchievementInfoEx> v_ADQU = new List<AchievementInfoEx>();
 
             QuestItem qi = null;
 
-            for (var i = 0u; i < 3; ++i)
+            for (var i = 0; i < 3; ++i)
             {
 
                 // Add New Quest to player
@@ -580,7 +580,7 @@ namespace Pangya_GameServer.Game.Manager
                 {
 
                     var ai = AchievementManager.createAchievement(_session.m_pi.uid,
-                        qi, AchievementInfo.AchievementStatus.Pending);
+                        qi, ACHIEVEMENT_STATUS.PENDENTING);
 
                     _session.m_pi.mgr_achievement.addAchievement(ai);
 
@@ -610,7 +610,8 @@ namespace Pangya_GameServer.Game.Manager
                     throw new exception("[DailyQuestManager::" + "leaveQuestUser" + "][Error] session not connected.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.MGR_DAILY_QUEST,
                         1, 0));
                 }
-            };
+            }
+            ;
 
             if (_quest_id == null)
             {
@@ -646,22 +647,15 @@ namespace Pangya_GameServer.Game.Manager
 
                     // Verifica se � o daily quest 10 Clear, se for Atualizar ela(Resta para os valores iniciais)
                     if (_typeid == CLEAR_10_DAILY_QUEST_TYPEID)
-                    {
-
+                    { 
                         // Reseta Achievement
-                        _session.m_pi.mgr_achievement.resetAchievement(it);
-
-
-                        _smp.message_pool.getInstance().push(new message("[DailyQuestManager::leaveQuestUser][Log] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] Resetou a Quest 10 Clear[TYPEID=" + Convert.ToString(it.Current.Value._typeid) + ", ID=" + Convert.ToString(it.Current.Value.id) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
-
+                        _session.m_pi.mgr_achievement.resetAchievement(it); 
                     }
                     else
                     {
 
                         // Delete from achievement
                         _session.m_pi.mgr_achievement.removeAchievement(it);
-
-                        _smp.message_pool.getInstance().push(new message("[DailyQuestManager::leaveQuestUser][Log] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] Deletou da Quest[TYPEID=" + Convert.ToString(_typeid) + ", ID=" + Convert.ToString(id) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
                     }
                 }
             }
@@ -680,7 +674,8 @@ namespace Pangya_GameServer.Game.Manager
                     throw new exception("[DailyQuestManager::" + "acceptQuestUser" + "][Error] session not connected.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.MGR_DAILY_QUEST,
                         1, 0));
                 }
-            };
+            }
+            ;
 
             if (_quest_id == null)
             {
@@ -701,7 +696,7 @@ namespace Pangya_GameServer.Game.Manager
 
             var map_ai = _session.m_pi.mgr_achievement.getAchievementInfo();
 
-            for (var i = 0u; i < _count; ++i)
+            for (var i = 0; i < _count; ++i)
             {
                 it = _session.m_pi.mgr_achievement.findAchievementById(_quest_id[i]);
                 if (it.MoveNext())
@@ -731,7 +726,7 @@ namespace Pangya_GameServer.Game.Manager
                         }
 
                         // Add Counter To Counter Item Map of Achievement 
-                        it.Current.Value.map_counter_item[(uint)cii.id] = cii;  // sobrescreve se já existir
+                        it.Current.Value.map_counter_item[cii.id] = cii;  // sobrescreve se já existir
 
                         // Atualiza o counter id da quest no banco de dados
                         snmdb.NormalManagerDB.getInstance().add(0,
@@ -757,8 +752,6 @@ namespace Pangya_GameServer.Game.Manager
                         null);
 
                     v_ai.Add(it.Current.Value);
-
-                    _smp.message_pool.getInstance().push(new message("[DailyQuestManager::acceptQuestUser][Log] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] Aceitou a quest[ID=" + Convert.ToString(it.Current.Value.id) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
                 }
             }
 
@@ -774,7 +767,8 @@ namespace Pangya_GameServer.Game.Manager
                     throw new exception("[DailyQuestManager::" + "addCounterItemUser" + "][Error] session not connected.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.MGR_DAILY_QUEST,
                         1, 0));
                 }
-            };
+            }
+            ;
 
             if (_cii.isValid())
             {
@@ -784,7 +778,7 @@ namespace Pangya_GameServer.Game.Manager
 
             // Add Counter Item
             CmdAddCounterItem cmd_aci = new CmdAddCounterItem(_session.m_pi.uid, // waitable
-                _cii._typeid, _cii.value, true);
+                _cii._typeid, _cii.value);
 
             snmdb.NormalManagerDB.getInstance().add(0,
                 cmd_aci, null, null);
@@ -800,6 +794,10 @@ namespace Pangya_GameServer.Game.Manager
 
         public static void updateDailyQuest(ref DailyQuestInfo _dqi)
         {
+            if (_dqi == null)
+            {
+              _dqi = new DailyQuestInfo();//inicia para testar...
+            }
 
             if (!sIff.getInstance().isLoad())
             {
@@ -832,7 +830,7 @@ namespace Pangya_GameServer.Game.Manager
                 }
             });
 
-            for (var i = 0u; i < 3u; ++i)
+            for (var i = 0; i < 3u; ++i)
             {
 
                 switch (i + 1)
@@ -855,8 +853,7 @@ namespace Pangya_GameServer.Game.Manager
 
             CmdUpdateDailyQuest cmd_udq = new CmdUpdateDailyQuest(_dqi); // Waiter
 
-            snmdb.NormalManagerDB.getInstance().add(0,
-                cmd_udq, null, null);
+            snmdb.NormalManagerDB.getInstance().add(0, cmd_udq, SQLDBResponse, null);
 
             if (cmd_udq.getException().getCodeError() != 0)
             {
@@ -867,7 +864,7 @@ namespace Pangya_GameServer.Game.Manager
             }
 
             // Update Aqui por que outro sistema conseguiu atualizar primeiro no banco de dados
-            if (!cmd_udq.isUpdated()) 
+            if (!cmd_udq.isUpdated())
             {
                 _dqi = cmd_udq.getInfo();
             }
@@ -882,7 +879,8 @@ namespace Pangya_GameServer.Game.Manager
                     throw new exception("[DailyQuestManager::" + "removeQuestUser" + "][Error] session not connected.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.MGR_DAILY_QUEST,
                         1, 0));
                 }
-            };
+            }
+            ;
 
             if (!_v_el.empty())
             {
@@ -915,16 +913,10 @@ namespace Pangya_GameServer.Game.Manager
 
                         if (cmd_dqi.isUpdated())
                         {
-                            _smp.message_pool.getInstance().push(new message("[DailyQuestManager][Log] Daily Quest[" + cmd_dqi.getInfo().ToString() + "] Atualizada com sucesso.", type_msg.CL_FILE_LOG_AND_CONSOLE));
                         }
                         else
-                        {
-
-                            // N�o conseguiu atualizar primeiro que outro sistema, ent�o pega a atualiza��o do outro sistema
-                            //if (sgs::gs != null)
+                        { 
                             sgs.gs.getInstance().updateDailyQuest(cmd_dqi.getInfo());
-
-                            _smp.message_pool.getInstance().push(new message("[DailyQuestManager][Log] Daily Quest[" + cmd_dqi.getInfo().ToString() + "] Atualizada por outro sistema, pega a atulizacao do outro sistema.", type_msg.CL_FILE_LOG_AND_CONSOLE));
                         }
 
                         break;

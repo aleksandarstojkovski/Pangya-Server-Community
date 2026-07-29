@@ -1,7 +1,7 @@
-﻿using System;
-using System.Threading;
-using PangyaAPI.Utilities;
+﻿using PangyaAPI.Utilities;
 using PangyaAPI.Utilities.Log;
+using System;
+using System.Threading;
 
 namespace PangyaAPI.SQL
 {
@@ -58,9 +58,10 @@ namespace PangyaAPI.SQL
                     sucess = true;
                     _pangya_db.exec();
                 }
-                catch (Exception ex)
+                catch (exception e)
                 {
-                    throw ex;
+                    _smp.message_pool.getInstance().push(new message("[NormalDB::mgs_t::execQuery][Error] " + e.getFullMessageError(), 0));
+                    throw e;
                 }
             }
 

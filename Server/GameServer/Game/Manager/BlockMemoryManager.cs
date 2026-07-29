@@ -47,10 +47,7 @@ namespace Pangya_GameServer.Game.Manager
                 }
 
                 it = mp_block.FirstOrDefault(c => c.Key == _uid);
-            }
-
-            // Enter Critical Section
-            Monitor.Enter(it.Value.cs);
+            } 
         }
 
         public static void unblockUID(uint _uid)
@@ -58,21 +55,16 @@ namespace Pangya_GameServer.Game.Manager
 
             var it = mp_block.FirstOrDefault(c => c.Key == _uid);
 
-            if (it.Key == 0)
+            if (it.Value == null)
             {
                 _smp.message_pool.getInstance().push(new message("[BlockMemoryManager::unblockUID][Error] block[UID=" + Convert.ToString(_uid) + "] nao existe no map. Bug", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
                 return;
-            }
-
-
-            Monitor.Exit(it.Value.cs);
+            } 
         }
 
         protected static void clear()
-        {
-
-            // Acho que desaloca a mem�ria, se n�o tenho que rodar em um loop, para desalocar ela
+        { 
             if (mp_block.Count != 0)
             {
                 mp_block.Clear();

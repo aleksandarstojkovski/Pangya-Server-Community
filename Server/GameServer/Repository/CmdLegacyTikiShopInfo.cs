@@ -14,7 +14,7 @@ namespace Pangya_GameServer.Repository
         }
         public CmdLegacyTikiShopInfo()
         {
-            this.m_uid = 0u;
+            this.m_uid = 0;
             this.m_tiki_pts = 0Ul;
         }
 
@@ -47,8 +47,7 @@ namespace Pangya_GameServer.Repository
 
             m_tiki_pts = 0Ul;
 
-            var r = procedure(
-                m_szConsulta,
+            var r = procedure(m_szConsulta,
                 Convert.ToString(m_uid));
 
             checkResponse(r, "Nao conseguiu pegar o Legacy Tiki Points do PLAYER[UID=" + Convert.ToString(m_uid) + "]");

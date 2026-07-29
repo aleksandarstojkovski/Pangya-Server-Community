@@ -47,7 +47,7 @@ namespace Pangya_GameServer.Repository
                 m_mi.flag_login_time = 2;//eu uso 0
 
                 // Sexo do player
-                m_mi.state_flag.sexo = m_mi.sexo == 1 ? true : false; //tem que setar uma identidade aqui.
+                m_mi.state_flag.sexo = m_mi.sexo; //tem que setar uma identidade aqui.
                 m_mi.state_flag.ucByte = m_mi.sexo;
                 m_mi.papel_shop.limit_count = Convert.ToUInt16(_result.data[18]);
                 m_mi.papel_shop.current_count = Convert.ToUInt16(_result.data[22]);

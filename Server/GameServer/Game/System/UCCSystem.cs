@@ -11,7 +11,7 @@ using PangyaAPI.IFF.JP.Models.Flags;
 using PangyaAPI.Network.Cryptor;
 using PangyaAPI.Network.PangyaPacket;
 using PangyaAPI.Utilities;
-using PangyaAPI.Utilities.BinaryModels;
+using PangyaAPI.Utilities.Models;
 using PangyaAPI.Utilities.Log;
 
 namespace Pangya_GameServer.Game.System
@@ -52,23 +52,17 @@ namespace Pangya_GameServer.Game.System
                     }
 
                     byte[] rawData = Tools.StructArrayToByteArray(ucc_ctxs);
-
-                    conversionByte cb = new conversionByte((uint)(all_ucc.Count * Marshal.SizeOf<UCC_Load_Ctx>()), 10);
-
-                    byte[] tmp = new byte[cb.getNumberIS() + 10];
-                    uint compress_out = (uint)rawData.Length;
+                     
+                    byte[] tmp = new byte[rawData.Length + 10];//nao vi nada de diferente, somente 34
+                    uint compress_out = (uint)rawData.Length;//ele pega o tamamnho real, e compressiona so ate nessa parte do tamanho
                     try
-                    {
-
-                        MiniLzo.compress_data(rawData, compress_out, tmp, (uint)tmp.Length);
-
-                        cb.putNumberBuffer(tmp);
-
+                    { 
+                        MiniLzo.compress_data(rawData, compress_out, tmp, (uint)tmp.Length);//aqui ele compressionou, pegou o temp e compressionou
+                         
                         p.init_plain(0x1B1);
                         p.WriteUInt32((uint)UtilTime.GetSystemTimeAsUnix());
                         p.WriteUInt32(compress_out);
-                        p.WriteBytes(rawData);
-
+                        p.WriteBytes(rawData); 
                         packet_func.session_send(p, _session, 1);
                     }
                     catch (Exception)
@@ -121,9 +115,9 @@ namespace Pangya_GameServer.Game.System
                             string ucc_name = _packet.ReadString();
 
                             // INICIO CHECK UCC VALID FOR SERVER
-                            if (sIff.getInstance().getItemGroupIdentify(ucc_typeid) != 2)
+                            if (sIff.getInstance().getItemGroupIdentify(ucc_typeid) != IFF_GROUP.PART)
                                 throw new exception("[GameServer.requestUCCSystem][Error] PLAYER[UID=" + (_session.m_pi.uid) + "] tentou salvar definitivo a UCC[TYPEID="
-                                    + (ucc_typeid) + ", IDX=" + ucc_idx + "], mas o UCC nao eh um part valido. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 13, 0x5200113));
+                                    + (ucc_typeid) + ", IDX=" + ucc_idx + "], mas o UCC nao é um part valido. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 13, 0x5200113));
 
                             var part = sIff.getInstance().findPart(ucc_typeid);
 
@@ -133,7 +127,7 @@ namespace Pangya_GameServer.Game.System
 
                             if (!part.IsUCC())
                                 throw new exception("[GameServer.requestUCCSystem][Error] PLAYER[UID=" + (_session.m_pi.uid) + "] tentou salvar definitivo a UCC[TYPEID="
-                                    + (ucc_typeid) + ", IDX=" + ucc_idx + "], mas nao eh uma UCC valida. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 12, 0x5200112));
+                                    + (ucc_typeid) + ", IDX=" + ucc_idx + "], mas nao é uma UCC valida. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 12, 0x5200112));
                             // FIM CHECK UCC VALID FOR SERVER
 
                             if (ucc_typeid == 0)
@@ -142,11 +136,11 @@ namespace Pangya_GameServer.Game.System
 
                             if (ucc_idx.empty())
                                 throw new exception("[GameServer.requestUCCSystem][Error] PLAYER[UID=" + (_session.m_pi.uid) + "] tentou salvar definitivo a UCC[TYPEID="
-                                    + (ucc_typeid) + ", IDX=" + ucc_idx + "], mas o idx eh invalido. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 6, 0x5200106));
+                                    + (ucc_typeid) + ", IDX=" + ucc_idx + "], mas o idx é invalido. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 6, 0x5200106));
 
                             if (ucc_name.empty())
                                 throw new exception("[GameServer.requestUCCSystem][Error] PLAYER[UID=" + (_session.m_pi.uid) + "] tentou salvar definitivo a UCC[TYPEID="
-                                        + (ucc_typeid) + ", IDX=" + ucc_idx + "], mas o name eh invalido. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 7, 0x5200107));
+                                        + (ucc_typeid) + ", IDX=" + ucc_idx + "], mas o name é invalido. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 7, 0x5200107));
 
                             // Save definitivo UCC
 
@@ -200,7 +194,7 @@ namespace Pangya_GameServer.Game.System
 
                             if (ucc_id <= 0)
                                 throw new exception("[GameServer.requestUCCSystem][Error] PLAYER[UID=" + (_session.m_pi.uid) + "] tentou ver info da UCC[ID="
-                                        + (ucc_id) + "], mas o id da ucc eh invalido. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 2, 0x5200102));
+                                        + (ucc_id) + "], mas o id da ucc é invalido. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 2, 0x5200102));
 
                             var pWi = _session.m_pi.findWarehouseItemById(ucc_id);
 
@@ -245,9 +239,9 @@ namespace Pangya_GameServer.Game.System
                             int cpy_id = _packet.ReadInt32();
 
                             // INICIO CHECK UCC VALID FOR SERVER
-                            if (sIff.getInstance().getItemGroupIdentify(ucc_typeid) != 2)
+                            if (sIff.getInstance().getItemGroupIdentify(ucc_typeid) != IFF_GROUP.PART)
                                 throw new exception("[GameServer.requestUCCSystem][Error] PLAYER[UID=" + (_session.m_pi.uid) + "] tentou copiar a UCC[TYPEID="
-                                    + (ucc_typeid) + ", IDX=" + ucc_idx + "] para UCC_CPY[ID=" + (cpy_id) + "], mas o UCC nao eh um part valido. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 13, 0x5200113));
+                                    + (ucc_typeid) + ", IDX=" + ucc_idx + "] para UCC_CPY[ID=" + (cpy_id) + "], mas o UCC nao é um part valido. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 13, 0x5200113));
 
                             var part = sIff.getInstance().findPart(ucc_typeid);
 
@@ -257,7 +251,7 @@ namespace Pangya_GameServer.Game.System
 
                             if (!part.IsUCC())
                                 throw new exception("[GameServer.requestUCCSystem][Error] PLAYER[UID=" + (_session.m_pi.uid) + "] tentou copiar a UCC[TYPEID="
-                                    + (ucc_typeid) + ", IDX=" + ucc_idx + "] para UCC_CPY[ID=" + (cpy_id) + "], mas nao eh uma UCC valida. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 12, 0x5200112));
+                                    + (ucc_typeid) + ", IDX=" + ucc_idx + "] para UCC_CPY[ID=" + (cpy_id) + "], mas nao é uma UCC valida. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 12, 0x5200112));
                             // FIM CHECK UCC VALID FOR SERVER
 
                             if (ucc_typeid == 0)
@@ -266,7 +260,7 @@ namespace Pangya_GameServer.Game.System
 
                             if (ucc_idx.empty())
                                 throw new exception("[GameServer.requestUCCSystem][Error] PLAYER[UID=" + (_session.m_pi.uid) + "] tentou copiar a UCC[TYPEID="
-                                    + (ucc_typeid) + ", IDX=" + ucc_idx + "] para UCC_CPY[ID=" + (cpy_id) + "], mas o idx eh invalido. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 6, 0x5200106));
+                                    + (ucc_typeid) + ", IDX=" + ucc_idx + "] para UCC_CPY[ID=" + (cpy_id) + "], mas o idx é invalido. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 6, 0x5200106));
 
                             if (seq == 0)
                                 throw new exception("[GameServer.requestUCCSystem][Error] PLAYER[UID=" + (_session.m_pi.uid) + "] tentou copiar a UCC[TYPEID="
@@ -283,9 +277,9 @@ namespace Pangya_GameServer.Game.System
                                         + (ucc_typeid) + ", IDX=" + ucc_idx + "] para UCC_CPY[ID=" + (cpy_id) + "], mas o ele nao tem a UCC_CPY, Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 10, 0x5200110));
 
                             // INICIO CHECK UCC VALID FOR SERVER
-                            if (sIff.getInstance().getItemGroupIdentify(pWi._typeid) != 2)
+                            if (sIff.getInstance().getItemGroupIdentify(pWi._typeid) != IFF_GROUP.PART)
                                 throw new exception("[GameServer.requestUCCSystem][Error] PLAYER[UID=" + (_session.m_pi.uid) + "] tentou copiar a UCC[TYPEID="
-                                        + (ucc_typeid) + ", IDX=" + ucc_idx + "] para UCC_CPY[ID=" + (cpy_id) + "], mas o UCC nao eh um part valido. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 13, 0x5200113));
+                                        + (ucc_typeid) + ", IDX=" + ucc_idx + "] para UCC_CPY[ID=" + (cpy_id) + "], mas o UCC nao é um part valido. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 13, 0x5200113));
 
                             part = sIff.getInstance().findPart(pWi._typeid);
 
@@ -295,20 +289,16 @@ namespace Pangya_GameServer.Game.System
 
                             if (!part.IsUCC())
                                 throw new exception("[GameServer.requestUCCSystem][Error] PLAYER[UID=" + (_session.m_pi.uid) + "] tentou copiar a UCC[TYPEID="
-                                        + (ucc_typeid) + ", IDX=" + ucc_idx + "] para UCC_CPY[ID=" + (cpy_id) + "], mas nao eh uma UCC valida. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 12, 0x5200112));
+                                        + (ucc_typeid) + ", IDX=" + ucc_idx + "] para UCC_CPY[ID=" + (cpy_id) + "], mas nao é uma UCC valida. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 12, 0x5200112));
                             // FIM CHECK UCC VALID FOR SERVER
 
                             // Copiar UCC
-
-                            // UPDATE ON SERVER
-                            var it = _session.m_pi.mp_wi.FirstOrDefault(el => el.Value._typeid == ucc_typeid &&
-                         (string.IsNullOrEmpty(el.Value.ucc.name) || el.Value.ucc.name == "0") &&
-                         el.Value.ucc.idx == ucc_idx);
-
-                            if (it.Value == null)
+ 
+                            if (!_session.m_pi.mp_wi.Any(el => el.Value._typeid == ucc_typeid))
                                 throw new exception("[GameServer.requestUCCSystem][Error] PLAYER[UID=" + (_session.m_pi.uid) + "] tentou copiar a UCC[TYPEID="
                                         + (ucc_typeid) + ", IDX=" + ucc_idx + "], mas ele nao tem essa UCC. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 5, 0x5200105));
 
+                            var it = _session.m_pi.mp_wi.FirstOrDefault(el => el.Value._typeid == ucc_typeid);
 
                             // Copia permanente
                             pWi.ucc.status = 1;
@@ -362,9 +352,9 @@ namespace Pangya_GameServer.Game.System
                             string ucc_idx = _packet.ReadString();
 
                             // INICIO CHECK UCC VALID FOR SERVER
-                            if (sIff.getInstance().getItemGroupIdentify(ucc_typeid) != 2)
+                            if (sIff.getInstance().getItemGroupIdentify(ucc_typeid) != IFF_GROUP.PART)
                                 throw new exception("[GameServer.requestUCCSystem][Error] PLAYER[UID=" + (_session.m_pi.uid) + "] tentou salvar temporario a UCC[TYPEID="
-                                    + (ucc_typeid) + ", IDX=" + ucc_idx + "], mas o UCC nao eh um part valido. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 13, 0x5200113));
+                                    + (ucc_typeid) + ", IDX=" + ucc_idx + "], mas o UCC nao é um part valido. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 13, 0x5200113));
 
                             var part = sIff.getInstance().findPart(ucc_typeid);
 
@@ -374,7 +364,7 @@ namespace Pangya_GameServer.Game.System
 
                             if (!part.IsUCC())
                                 throw new exception("[GameServer.requestUCCSystem][Error] PLAYER[UID=" + (_session.m_pi.uid) + "] tentou salvar temporario a UCC[TYPEID="
-                                    + (ucc_typeid) + ", IDX=" + ucc_idx + "], mas nao eh uma UCC valida. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 12, 0x5200112));
+                                    + (ucc_typeid) + ", IDX=" + ucc_idx + "], mas nao é uma UCC valida. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 12, 0x5200112));
                             // FIM CHECK UCC VALID FOR SERVER
 
                             if (ucc_typeid == 0)
@@ -383,14 +373,12 @@ namespace Pangya_GameServer.Game.System
 
                             if (ucc_idx.empty())
                                 throw new exception("[GameServer.requestUCCSystem][Error] PLAYER[UID=" + (_session.m_pi.uid) + "] tentou salvar temporario a UCC[TYPEID="
-                                        + (ucc_typeid) + ", IDX=" + ucc_idx + "], mas o idx eh invalido. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 6, 0x5200106));
+                                        + (ucc_typeid) + ", IDX=" + ucc_idx + "], mas o idx é invalido. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 6, 0x5200106));
 
                             // Save tempor�rio UCC
 
                             // UPDATE ON SERVER
-                            var it = _session.m_pi.mp_wi.FirstOrDefault(el => el.Value._typeid == ucc_typeid &&
-                       (string.IsNullOrEmpty(el.Value.ucc.name) || el.Value.ucc.name == "0") &&
-                       el.Value.ucc.idx == ucc_idx);
+                            var it = _session.m_pi.mp_wi.FirstOrDefault(el => el.Value._typeid == ucc_typeid);
 
                             if (it.Value == null)
                                 throw new exception("[GameServer.requestUCCSystem][Error] PLAYER[UID=" + (_session.m_pi.uid) + "] tentou salvar temporario a UCC[TYPEID="

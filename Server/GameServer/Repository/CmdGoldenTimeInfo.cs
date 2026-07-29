@@ -53,8 +53,7 @@ namespace Pangya_GameServer.Repository
                 m_gt.Clear();
             }
 
-            var r = procedure(
-                m_szConsulta, "");
+            var r = procedure(m_szConsulta, "");
 
             checkResponse(r, "nao conseguiu pegar o Golden Time Info");
 

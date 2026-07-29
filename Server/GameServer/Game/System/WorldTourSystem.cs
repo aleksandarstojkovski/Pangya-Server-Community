@@ -12,7 +12,6 @@ namespace Pangya_GameServer.Game.System
     {
         private world_tour_config m_wte = new world_tour_config(); // Config do evento
         private bool m_load; // Se o sistema já foi carregado
-        private object m_cs = new object(); // Lock para acesso thread-safe
 
         public WorldTourSystem()
         {
@@ -52,7 +51,7 @@ namespace Pangya_GameServer.Game.System
             {
                 _smp.message_pool.getInstance().push(new message(
                     "[WorldTourSystem::initialize][Warning] Not Loaded.",
-                    type_msg.CL_FILE_LOG_AND_CONSOLE));
+                    type_msg.CL_ONLY_CONSOLE_DEBUG));
                 return;
             }
              
@@ -62,12 +61,12 @@ namespace Pangya_GameServer.Game.System
         // Limpa dados e reseta estado
         protected void clear()
         {
-            Monitor.Enter(m_cs);
+            //Monitor.Exit(m_cs);
 
             m_wte = new world_tour_config();
             m_load = false;
 
-            Monitor.Exit(m_cs);
+            //Monitor.Exit(m_cs);
         }
 
         // ---------------------------

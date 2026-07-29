@@ -15,7 +15,7 @@ namespace Pangya_GameServer.Repository
 
         public CmdAddTrofelEspecial()
         {
-            this.m_uid = 0u;
+            this.m_uid = 0;
             this.m_tsi = new TrofelEspecialInfo();
             this.m_type = eTYPE.ESPECIAL;
         }

@@ -80,13 +80,13 @@ namespace Pangya_GameServer.Repository
 
             if (guai.club_uid != m_guild_uid)
             {
-                throw new exception("[CmdGuildUpdateActivityInfo::lineResult][Error] guild_uid requisitado eh diferente do retornado pela consulta. QUERY_VALUES[GUILD_UID_REQ=" + Convert.ToString(m_guild_uid) + ", GUILD_UID_RET=" + Convert.ToString(guai.club_uid) + "].", STDA_MAKE_ERROR(STDA_ERROR_TYPE.PANGYA_DB,
+                throw new exception("[CmdGuildUpdateActivityInfo::lineResult][Error] guild_uid requisitado é diferente do retornado pela consulta. QUERY_VALUES[GUILD_UID_REQ=" + Convert.ToString(m_guild_uid) + ", GUILD_UID_RET=" + Convert.ToString(guai.club_uid) + "].", STDA_MAKE_ERROR(STDA_ERROR_TYPE.PANGYA_DB,
                     3, 0));
             }
 
             if (guai.owner_uid != m_member_uid)
             {
-                throw new exception("[CmdGuildUpdateActivityInfo::lineResult][Error] owner_uid requisitado eh diferente do retornado pela consulta. QUERY_VALUES[OWNER_UID_REQ=" + Convert.ToString(m_member_uid) + ", OWNER_UID_RET=" + Convert.ToString(guai.owner_uid) + "].", STDA_MAKE_ERROR(STDA_ERROR_TYPE.PANGYA_DB,
+                throw new exception("[CmdGuildUpdateActivityInfo::lineResult][Error] owner_uid requisitado é diferente do retornado pela consulta. QUERY_VALUES[OWNER_UID_REQ=" + Convert.ToString(m_member_uid) + ", OWNER_UID_RET=" + Convert.ToString(guai.owner_uid) + "].", STDA_MAKE_ERROR(STDA_ERROR_TYPE.PANGYA_DB,
                     3, 0));
             }
 
@@ -114,8 +114,7 @@ namespace Pangya_GameServer.Repository
                 m_info.Clear();
             }
 
-            var r = procedure(
-                m_szConsulta,
+            var r = procedure(m_szConsulta,
                 Convert.ToString(m_guild_uid) + ", " + Convert.ToString(m_member_uid));
 
             checkResponse(r, "nao conseguiu pegar a Update Activity do Member[UID=" + Convert.ToString(m_member_uid) + "] da Guild[UID=" + Convert.ToString(m_guild_uid) + "]");

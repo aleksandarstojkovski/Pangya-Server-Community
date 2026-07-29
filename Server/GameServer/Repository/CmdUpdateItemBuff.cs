@@ -9,7 +9,7 @@ namespace Pangya_GameServer.Repository
     {
         public CmdUpdateItemBuff()
         {
-            this.m_uid = 0u;
+            this.m_uid = 0;
         }
 
         public CmdUpdateItemBuff(uint _uid,
@@ -67,9 +67,8 @@ namespace Pangya_GameServer.Repository
                     4, 0));
             }
 
-            var r = procedure(
-                m_szConsulta,
-                Convert.ToString(m_uid) + ", " + Convert.ToString(m_ib.index) + ", " + Convert.ToString(m_ib._typeid) + ", " + Convert.ToString(m_ib.tipo) + ", " + (_formatDate(m_ib.end_date.ConvertTime())));
+            var r = procedure(m_szConsulta,
+                Convert.ToString(m_uid) + ", " + Convert.ToString(m_ib.index) + ", " + Convert.ToString(m_ib._typeid) + ", " + Convert.ToString(m_ib.tipo) + ", " + makeText(_formatDate(m_ib.end_date.ConvertTime())));
 
             checkResponse(r, "nao conseguiu atualizar o tempo do item buff[INDEX=" + Convert.ToString(m_ib.index) + ", TYPEID=" + Convert.ToString(m_ib._typeid) + ", TIPO=" + Convert.ToString(m_ib.tipo) + ", DATE{REG_DT: " + _formatDate(m_ib.use_date.ConvertTime()) + ", END_DT: " + _formatDate(m_ib.end_date.ConvertTime()) + "}] do PLAYER[UID=" + Convert.ToString(m_uid) + "]");
 

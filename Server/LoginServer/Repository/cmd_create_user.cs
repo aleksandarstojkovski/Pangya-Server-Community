@@ -1,9 +1,10 @@
-﻿using LoginServer.Models;
+﻿using Pangya_LoginServer.Models;
 using PangyaAPI.SQL;
 using PangyaAPI.Utilities;
 using System;
+using System.Data;
 
-namespace LoginServer.Repository
+namespace Pangya_LoginServer.Repository
 {
     public class CmdCreateUser : Pangya_DB
     {
@@ -67,28 +68,28 @@ namespace LoginServer.Repository
         protected override void lineResult(ctx_res _result, uint _index_result)
         {
 
-            checkColumnNumber(1, (uint)_result.cols);
+            checkColumnNumber(1, _result.cols);
 
             m_uid = IFNULL(_result.data[0]);
         }
 
         protected override Response prepareConsulta()
-        {
-
-            m_uid = 0;
-
-            if (m_id.Length == 0
-                || m_pass.Length == 0
-                || m_ip.Length == 0)
+        { 
+            if (string.IsNullOrEmpty(m_id) || string.IsNullOrEmpty(m_pass) || string.IsNullOrEmpty(m_ip))
             {
                 throw new exception("[CmdCreateUser::prepareConsulta][Error] argumentos invalidos.[ID=" + m_id + ",PASSWORD=" + m_pass + ",IP=" + m_ip + "]", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PANGYA_DB,
                     4, 0));
             }
+            var r = new Response();
 
-            var r = procedure(m_szConsulta,
-                m_id + ", " + m_pass + ", " + m_ip + ", " + Convert.ToString(m_server_uid));
+            //versao padrao usa US para criar usuario, entao mantem como padrao
+#if DEFAULT_DB && US
+            r = procedure(m_szConsulta, makeText(m_id) + ", " + makeText(m_pass) + ", " + makeText(m_ip) + ", " + m_server_uid);
+            //versao edita, JP data atual e mais parametros
+#else
+            r = procedure(m_szConsulta, makeText("") + ", " + makeText(DateTime.Now.ToShortDateString()) + ", " + makeText("0") + ", " + makeText("") + ", " + makeText("") + ", " + makeText(m_id) + ", " + makeText(m_pass) + ", " + makeText(m_ip));
+#endif
 
-            checkResponse(r, "nao conseguiu criar um usuario[ID=" + m_id + ",PASSWORD=" + m_pass + ",IP=" + m_ip + ",SERVER UID=" + Convert.ToString(m_server_uid) + "]");
 
             return r;
         }
@@ -97,10 +98,8 @@ namespace LoginServer.Repository
         private string m_id = "";
         private string m_pass = "";
         private string m_ip = "";
-        private uint m_server_uid = new uint();
-
-        private uint m_uid = new uint();
-
+        private uint m_server_uid = 0;
+        private uint m_uid = 0;
         private const string m_szConsulta = "pangya.ProcNewUser";
     }
 }

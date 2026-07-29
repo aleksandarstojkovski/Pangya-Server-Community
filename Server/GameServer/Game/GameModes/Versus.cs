@@ -6,11 +6,12 @@ using Pangya_GameServer.Game.Base;
 using Pangya_GameServer.Game.System;
 using Pangya_GameServer.Models;
 using Pangya_GameServer.PacketFunc;
-
 using PangyaAPI.SQL;
 using PangyaAPI.Utilities;
-using PangyaAPI.Utilities.BinaryModels;
+using PangyaAPI.Utilities.Models;
 using PangyaAPI.Utilities.Log;
+using PangyaAPI.SQL.Manager;
+using snmdb;
 namespace Pangya_GameServer.Game.GameModes
 {
     public class Versus : VersusBase
@@ -80,11 +81,13 @@ namespace Pangya_GameServer.Game.GameModes
                 _smp.message_pool.getInstance().push(new message("[Versus::Versus][Log] init_game() jogo iniciado.", type_msg.CL_ONLY_CONSOLE_DEBUG));
             }
         }
-
-        protected override void Dispose(bool disposing)
+        ~Versus()
+        { Dispose(false); }
+        public override void Dispose(bool disposing)
         {
             if (disposing)
             {
+                m_versus_state = false;
                 // Para o tempo do player Turn
                 stopTime();
 
@@ -96,12 +99,11 @@ namespace Pangya_GameServer.Game.GameModes
 
                 deleteAllPlayer();
 
-                m_game_running = false;//finalizou
+                LogDestruction();
 
-                _smp.message_pool.getInstance().push(new message("[Versus::Dispose][Log] Versus destroyed on Room[Number=" + (m_ri.numero) + "]", type_msg.CL_ONLY_CONSOLE_DEBUG));
-                //chamar por ultimo
-                base.Dispose(disposing);
             }
+            //chamar por ultimo
+            base.Dispose(true);
         }
 
         public override void changeHole()
@@ -252,21 +254,25 @@ namespace Pangya_GameServer.Game.GameModes
             }
             catch (exception e)
             {
-
                 _smp.message_pool.getInstance().push(new message("[Versus::deletePlayer][Error] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
-
-                // Evitar deadlock com a thread checkVersusTurn - Libera
-                m_state_vs.unlock();
             }
-
             return ret;
         }
 
         public void deleteAllPlayer()
         {
-            while (!m_players.empty())
+            // Percorre de trás para frente
+            for (int i = m_players.Count - 1; i >= 0; i--)
             {
-                deletePlayer(m_players.First(), 0);
+                var player = m_players[i];
+                if (player != null)
+                {
+                    var pgi = getPlayerInfo(player);
+                    if (pgi != null)
+                    {
+                        deletePlayer(player, 0);
+                    }
+                }
             }
         }
 
@@ -344,7 +350,7 @@ namespace Pangya_GameServer.Game.GameModes
             }
         }
 
-        protected override bool init_game()
+        public override bool init_game()
         {
 
             try
@@ -381,6 +387,25 @@ namespace Pangya_GameServer.Game.GameModes
 
                 for (var i = 0; i < m_player_order.Count; ++i)
                 {
+                    switch (m_ri.qntd_hole)
+                    {
+                        case 3:
+                            exp = 8;
+                            break;
+                        case 6:
+                            exp = 12;
+                            break;
+                        case 9:
+                            exp = 16;
+                            break;
+                        case 18:
+                            exp = 20;
+                            break;
+                        default:
+                            exp = 1;
+                            break;
+                    }
+                    exp = (int)(exp * stars);
 
                     hole_seq = (int)m_course.findHoleSeq(m_player_order[i].hole);
 
@@ -399,15 +424,15 @@ namespace Pangya_GameServer.Game.GameModes
 
                         if (m_player_order[i].level < 70)
                         {
-                            m_player_order[i].data.exp = (uint)exp;
+                            m_player_order[i].data.exp = exp;
                         }
                     }
-
-                    _smp.message_pool.getInstance().push(new message("[Versus::requestFinishExpGame][Log] PLAYER[UID=" + Convert.ToString(m_player_order[i].uid) + "] ganhou " + Convert.ToString(m_player_order[i].data.exp) + " de experience.", type_msg.CL_FILE_LOG_AND_CONSOLE));
-
+                    NormalManagerDB.getInstance().add(0, new CmdUpdateWebShopPoint(_session.m_pi.uid, 150), null, null);
                 }
             }
         }
+
+
         public void finish()
         {
 
@@ -655,10 +680,7 @@ namespace Pangya_GameServer.Game.GameModes
             {
                 case 1: // Update Last 5 Player Game
                     {
-
                         var cmd_l5pg = (CmdUpdateLastPlayerGame)(_pangya_db);
-
-                        _smp.message_pool.getInstance().push(new message("[Versus::SQLDBResponse][Debug] PLAYER[UID=" + Convert.ToString(cmd_l5pg.getUID()) + "] atualizou o Last 5 Player Game dele com sucesso!", type_msg.CL_FILE_LOG_AND_CONSOLE));
                         break;
                     }
                 case 0:

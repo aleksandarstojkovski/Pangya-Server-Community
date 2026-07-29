@@ -1,6 +1,6 @@
 ﻿using System.Runtime.InteropServices;
 using PangyaAPI.IFF.JP.Models.General;
-using PangyaAPI.Utilities.BinaryModels;
+using PangyaAPI.Utilities.Models;
 namespace PangyaAPI.IFF.JP.Models.Data
 {
     #region class Mascot.iff

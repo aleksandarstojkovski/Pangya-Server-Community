@@ -18,13 +18,13 @@ namespace PangyaAPI.SQL.Manager
                 case "SQLSERVER":
                     {
                         return new mssql(ctx);
-                    } 
+                    }
                 case "MYSQL":
                     return new mysql(ctx);
 
-                case "POSTGRESQL":
-                case "PGSQL":
-                    return new postgresql(ctx);
+                //case "POSTGRESQL":
+                //case "PGSQL":
+                //    return new postgresql(ctx);
 
                 default:
                     throw new NotSupportedException($"Engine '{ctx.engine}' não suportada");

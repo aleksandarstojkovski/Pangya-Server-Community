@@ -9,12 +9,12 @@ using Pangya_GameServer.PacketFunc;
 using PangyaAPI.Network.PangyaPacket;
 using PangyaAPI.SQL;
 using PangyaAPI.Utilities;
-using PangyaAPI.Utilities.BinaryModels;
+using PangyaAPI.Utilities.Models;
 using PangyaAPI.Utilities.Log;
 using static Pangya_GameServer.Models.DefineConstants;
 namespace Pangya_GameServer.Game.GameModes
 {
-    public class Match : VersusBase, IDisposable
+    public class Match : VersusBase
     {
         private bool m_match_state;
         byte m_team_win;       // Team que ganhou o Match ou 2 para draw(empate)
@@ -25,7 +25,7 @@ namespace Pangya_GameServer.Game.GameModes
         List<TeamOrderTurnCtx> v_team_order_turn;
         // Teans(times)
         List<Team> m_teans;
-        public struct TeamOrderTurnCtx
+        public class TeamOrderTurnCtx
         {
             public Team team;
             public HoleManager hole;
@@ -89,7 +89,6 @@ namespace Pangya_GameServer.Game.GameModes
             }
             else
             {
-                //TreasureHunterSystem::updateCoursePoint(course, -1);	// -1 ponto a cada jogo iniciado
                 sTreasureHunterSystem.getInstance().updateCoursePoint(course, -1); // -1 ponto a cada jogo iniciado
             }
 
@@ -115,10 +114,18 @@ namespace Pangya_GameServer.Game.GameModes
             m_match_state = init_game();
 
         }
-        protected override void Dispose(bool disposing)
+
+        ~Match()
         {
+            Dispose(false);
+        }
+
+        public override void Dispose(bool disposing)
+        {
+            if (disposedValue) return;
+
             if (disposing)
-            {
+            { 
                 // Para o tempo do Player Turn
                 stopTime();
 
@@ -133,7 +140,10 @@ namespace Pangya_GameServer.Game.GameModes
                 m_team_win = 0;
 
                 deleteAllPlayer();
+                LogDestruction();
+
             }
+            base.Dispose(true);
         }
 
         public override bool deletePlayer(Player _session, int _option)
@@ -141,7 +151,7 @@ namespace Pangya_GameServer.Game.GameModes
 
             if (_session == null)
             {
-                throw new exception("[Match::deletePlayer][Error] tentou deletar um Player, mas o seu endereco eh nullptr.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.MATCH,
+                throw new exception("[Match::deletePlayer][Error] tentou deletar um Player, mas o seu endereco é nullptr.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.MATCH,
                     50, 0));
             }
 
@@ -183,7 +193,7 @@ namespace Pangya_GameServer.Game.GameModes
 
                         requestSaveInfo((it), (_option == 0x800) ? 5 : 1); // Quitou ou tomou DC
 
-                        //pgi.flag = PlayerGameInfo::eFLAG_GAME::QUIT;
+                        //pgi.type = PlayerGameInfo::eFLAG_GAME::QUIT;
                         setGameFlag(pgi, PlayerGameInfo.eFLAG_GAME.QUIT);
 
                         // Player Quitou, o time desiste
@@ -298,44 +308,31 @@ namespace Pangya_GameServer.Game.GameModes
         }
         public void deleteAllPlayer()
         {
-
-            while (!m_players.empty())
+            // Percorre de trás para frente
+            for (int i = m_players.Count - 1; i >= 0; i--)
             {
-                deletePlayer(m_players.begin(), 0);
+                var player = m_players[i];
+                if (player != null)
+                {
+                    var pgi = getPlayerInfo(player);
+                    if (pgi != null)
+                    {
+                        deletePlayer(player, 0);
+                    }
+                }
             }
         }
+
         public override void requestInitHole(Player _session, packet _packet)
         {
             ////REQUEST_BEGIN("InitHole");
 
-            PangyaBinaryWriter p = new PangyaBinaryWriter();
-
-            // C++ TO C# CONVERTER TASK: There is no equivalent to most C++ 'pragma' directives in C#:
-            //#pragma pack(1)
-
-
-            // C++ TO C# CONVERTER TASK: There is no equivalent to most C++ 'pragma' directives in C#:
-            //#pragma pack()
-
+            PangyaBinaryWriter p = new PangyaBinaryWriter(); 
             try
             {
 
-                stInitHole ctx_hole = new stInitHole();
                 #region Read Packet
-                ctx_hole.numero = _packet.ReadByte();
-                ctx_hole.option = _packet.ReadUInt32();
-                ctx_hole.ulUnknown = _packet.ReadUInt32();
-                ctx_hole.par = _packet.ReadByte();
-                ctx_hole.tee = new stXZLocation
-                {
-                    x = _packet.ReadSingle(),
-                    z = _packet.ReadSingle()
-                };
-                ctx_hole.pin = new stXZLocation
-                {
-                    x = _packet.ReadSingle(),
-                    z = _packet.ReadSingle()
-                };
+                stInitHole ctx_hole = new stInitHole().ToRead(_packet); 
                 #endregion
 
                 var hole = m_course.findHole(ctx_hole.numero);
@@ -656,7 +653,7 @@ namespace Pangya_GameServer.Game.GameModes
             }
         }
 
-        protected override bool init_game()
+        public override bool init_game()
 
         {
 
@@ -676,7 +673,7 @@ namespace Pangya_GameServer.Game.GameModes
             return true;
         }
 
-        protected override void requestTranslateSyncShotData(Player _session, ShotSyncData _ssd)
+        public override void requestTranslateSyncShotData(Player _session, ShotSyncData _ssd)
 
         {
             //CHECK_SESSION_BEGIN("requestTransateSyncShotData");
@@ -847,7 +844,7 @@ namespace Pangya_GameServer.Game.GameModes
         {
 
             var pgi = INIT_PLAYER_INFO("checkEndGame",
-                "tentou verificar se eh o final do jogo",
+                "tentou verificar se é o final do jogo",
                 _session);
 
             return (m_course.findHoleSeq(pgi.hole) == m_ri.qntd_hole || ((m_players.Count % 2) == 1));
@@ -1028,8 +1025,7 @@ namespace Pangya_GameServer.Game.GameModes
             return (ret);
         }
 
-        protected override void requestSaveInfo(Player _session, int _option)
-
+        public override void requestSaveInfo(Player _session, int _option) 
         {
             //CHECK_SESSION_BEGIN("SaveInfo");
 
@@ -1121,7 +1117,7 @@ namespace Pangya_GameServer.Game.GameModes
 
                             if (pgi.level < 70)
                             {
-                                pgi.data.exp = (uint)exp;
+                                pgi.data.exp = (int)exp;
                             }
                         }
 
@@ -1547,7 +1543,7 @@ namespace Pangya_GameServer.Game.GameModes
 
                     clear_all_flag_sync();
 
-                    // clear teans timeout flag
+                    // clear teans timeout type
                     foreach (var el in m_teans)
                     {
                         el.setTimeout(0);
@@ -1568,7 +1564,7 @@ namespace Pangya_GameServer.Game.GameModes
 
                     clear_all_flag_sync();
 
-                    // clear teans timeout flag
+                    // clear teans timeout type
                     foreach (var el in m_teans)
                     {
                         el.setTimeout(0);
@@ -1646,7 +1642,7 @@ namespace Pangya_GameServer.Game.GameModes
 
                 if (m_player_turn == null)
                 {
-                    throw new exception("[Match::CCGChangeWind][Error] Player[UID=" + Convert.ToString(_gm.m_pi.uid) + "] tentou executar o comando de troca de vento no versus na sala[NUMERO=" + Convert.ToString(m_ri.numero) + "], mas o player_turn do versus eh invalido. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.MATCH,
+                    throw new exception("[Match::CCGChangeWind][Error] Player[UID=" + Convert.ToString(_gm.m_pi.uid) + "] tentou executar o comando de troca de vento no versus na sala[NUMERO=" + Convert.ToString(m_ri.numero) + "], mas o player_turn do versus é invalido. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.MATCH,
                         1, 0x5700100));
                 }
 
@@ -1677,7 +1673,7 @@ namespace Pangya_GameServer.Game.GameModes
                 var p = new PangyaBinaryWriter((ushort)0x5B);
 
                 p.WriteByte(hole.getWind().wind + wind_flag); // Wind
-                p.WriteByte((wind_flag < 0) ? 1 : 0); // Card Wind Flag, minus wind flag
+                p.WriteByte((wind_flag < 0) ? 1 : 0); // Card Wind Flag, minus wind type
                 p.WriteUInt16(m_team_turn.getDegree()); // Degree
                 p.WriteByte(1); // Flag 1 = Reset Degree, 0 = Plus Degree
 
@@ -1837,7 +1833,7 @@ namespace Pangya_GameServer.Game.GameModes
                                 packet_func.session_send(p,
                                     el, 1);
 
-                                //pgi.flag = PlayerGameInfo::eFLAG_GAME::END_GAME;
+                                //pgi.type = PlayerGameInfo::eFLAG_GAME::END_GAME;
                                 setGameFlag(pgi, PlayerGameInfo.eFLAG_GAME.END_GAME);
                             }
                         }
@@ -1932,7 +1928,7 @@ namespace Pangya_GameServer.Game.GameModes
                                     packet_func.session_send(p,
                                         el, 1);
 
-                                    //pgi.flag = PlayerGameInfo::eFLAG_GAME::FINISH;
+                                    //pgi.type = PlayerGameInfo::eFLAG_GAME::FINISH;
                                     setGameFlag(pgi, PlayerGameInfo.eFLAG_GAME.FINISH);
                                 }
                             }

@@ -8,7 +8,7 @@ namespace Pangya_GameServer.Repository
     {
         public CmdSetNoticeCaddieHolyDay()
         {
-            this.m_uid = 0u;
+            this.m_uid = 0;
             this.m_id = -1;
             this.m_check = 0;
         }

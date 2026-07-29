@@ -3,27 +3,24 @@ using Pangya_GameServer.Game.System;
 using Pangya_GameServer.Models;
 using Pangya_GameServer.PacketFunc;
 using PangyaAPI.IFF.JP.Extensions;
+using PangyaAPI.IFF.JP.Models.Flags;
 using PangyaAPI.Network.PangyaPacket;
-using PangyaAPI.Network.PangyaSession;
 using PangyaAPI.Utilities;
-using PangyaAPI.Utilities.BinaryModels;
+using PangyaAPI.Utilities.Models;
 using PangyaAPI.Utilities.Log;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
+using System.Linq; 
+using System.Threading; 
 using static Pangya_GameServer.Models.DefineConstants;
+using static PangyaAPI.Utilities.Tools;
 namespace Pangya_GameServer.Game.GameModes
 {
     public class Approach : TourneyBase, IDisposable
     {
-        private CancellationTokenSource m_cancel_token_source;
-        private Task m_thread_sync_hole;
-
-        private ManualResetEvent m_hEvent_sync_hole = new ManualResetEvent(false);
-        private ManualResetEvent m_hEvent_sync_hole_pulse = new ManualResetEvent(false);
+        private PangyaThread m_thread_sync_hole;
+        private IntPtr m_hEvent_sync_hole = IntPtr.Zero;
+        private IntPtr m_hEvent_sync_hole_pulse = IntPtr.Zero;
         // Approach State Sync
         protected stStateApproachSync m_state_app = new stStateApproachSync();
 
@@ -34,60 +31,7 @@ namespace Pangya_GameServer.Game.GameModes
 
         protected int m_timeout; // Tempo do hole acabou
         protected object m_cs_sync_shot = new object();
-
-        protected enum STATE_APPROACH_SYNC : byte
-        {
-            LOAD_HOLE,
-            LOAD_CHAR_INTRO,
-            END_SHOT,
-            WAIT_END_GAME
-        }
-
-        protected class stStateApproachSync
-        {
-            public stStateApproachSync()
-            {
-                this.m_state = STATE_APPROACH_SYNC.LOAD_HOLE;
-                m_cs = new object();
-            }
-
-            public void @lock()
-            {
-                Monitor.Enter(m_cs);
-            }
-
-            public void unlock()
-            {
-                Monitor.Exit(m_cs);
-            }
-
-            public STATE_APPROACH_SYNC getState()
-            {
-                return m_state;
-            }
-
-            public void setState(STATE_APPROACH_SYNC _state)
-            {
-
-                m_state = _state;
-            }
-
-            public void setStateWithLock(STATE_APPROACH_SYNC _state)
-            {
-
-                @lock();
-
-                m_state = _state;
-
-                unlock();
-            }
-
-
-            protected STATE_APPROACH_SYNC m_state;
-
-            protected object m_cs = new object();
-        }
-
+        protected object m_cs = new object();
 
         public Approach(List<Player> _players, RoomInfoEx _ri, RateValue _rv, bool _channel_rookie) : base(_players, _ri, _rv, _channel_rookie)
 
@@ -125,130 +69,64 @@ namespace Pangya_GameServer.Game.GameModes
             // Aqui tem que inicializar os players info
             initAllPlayerInfo();
 
-            m_state = init_game();
-
-            start_thread_syncHoleTime();
-        }
-
-        public int sort_approach_rank_place(approach_dados_ex ad1, approach_dados_ex ad2)
-        {
-            // Se ad1 está ativo e ad2 não -> ad2 vem primeiro
-            if (ad1.state.ucState != 0u && ad2.state.ucState == 0u)
-                return 1;
-
-            // Se ad2 está ativo e ad1 não -> ad1 vem primeiro
-            if (ad2.state.ucState != 0u && ad1.state.ucState == 0u)
-                return -1;
-
-            // Se distâncias são iguais, desempata pelo tempo (menor tempo vem primeiro)
-            if (ad1.distance == ad2.distance)
-                return ad1.time.CompareTo(ad2.time);
-
-            // Senão, menor distância vem primeiro
-            return ad1.distance.CompareTo(ad2.distance);
-        }
-
-        public new PlayerApproachInfo INIT_PLAYER_INFO(string _method, string _msg, Player __session)
-        {
-            var pgi = getPlayerInfo((__session));
-            if (pgi == null)
-                throw new exception($"[{GetType().Name}::" + _method + "][Error] PLAYER[UID=" + __session.m_pi.uid + "] " + _msg + ", mas o game nao tem o info dele guardado. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME, 1, 4));
-
-            return (PlayerApproachInfo)pgi;
-        }
-
-        public void start_thread_syncHoleTime()
-        {
-            if (m_thread_sync_hole != null && !m_thread_sync_hole.IsCompleted)
-                return; // Já tá rodando
-
-            m_cancel_token_source = new CancellationTokenSource();
-
-            m_thread_sync_hole = Task.Run(() => syncHoleTime());
-        }
-
-        public void clearRoom()
-        {
-            try
+            // Cria evento que vai para a thRead sync hole
+            if ((m_hEvent_sync_hole = CreateEvent(IntPtr.Zero,
+        true, false, null)) == IntPtr.Zero)
             {
-                // marca que o Approach não está mais ativo
+                throw new exception("[Approach::Approach][Error] ao criar evento sync hole.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.APPROACH,
+                    1050, GetLastError()));
+            }
+
+            // Cria evento que vai pulsar a thRead sync hole para ir mais r pido quando um player tacar
+            if ((m_hEvent_sync_hole_pulse = CreateEvent(IntPtr.Zero,
+                        false, false, null)) == IntPtr.Zero)
+            {
+                throw new exception("[Approach::Approach][Error] ao criar evento sync hole pulse.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.APPROACH,
+                    1050, GetLastError()));
+            }
+
+            // Cria a thRead que vai sincronizar os player no hole
+            //no C++ tem uma class thread para isso
+            m_thread_sync_hole = new PangyaThread(1060, obj => syncHoleTime(), this, ThreadPriority.AboveNormal);
+
+            m_state = init_game();
+        }
+
+        ~Approach()
+        {
+            Dispose(false);
+        }
+
+        public override void Dispose(bool disposing)
+        {
+            if (disposedValue) return;
+
+            if (disposing)
+            {
                 m_approach_state = false;
 
                 if (m_game_init_state != 2)
+                {
                     finish();
+                }
 
-                // espera jogadores finalizarem
                 while (!PlayersCompleteGameAndClear())
+                {
                     Thread.Sleep(500);
+                }
 
                 deleteAllPlayer();
 
-                // finaliza thread de syncHoleTime
-                finish_thread_sync_hole();
+                // Finish ThRead Sync hole
+                finish_thRead_sync_hole();
 
-                // libera o "critical section" (em C# o lock é automático, mas se tivesse Mutex usaria Dispose nele)
-                if (m_cs_sync_shot is IDisposable disp)
-                    disp.Dispose();
+                // Libera mem ria do critical section 
+                m_cs_sync_shot = null;
+                LogDestruction();
+            }
+            base.Dispose(true);
 
-#if DEBUG
-                _smp.message_pool.getInstance().push(
-                    new message($"[Approach::Dispose][Log] Approach destroyed on Room[Number={m_ri.numero}]", type_msg.CL_FILE_LOG_AND_CONSOLE));
-#endif
-            }
-            catch (AggregateException ae)
-            {
-                foreach (var ex in ae.InnerExceptions)
-                    _smp.message_pool.getInstance().push(new message($"[Dispose][TaskError] {ex}", type_msg.CL_FILE_LOG_AND_CONSOLE));
-            }
         }
-
-        private void finish_thread_sync_hole()
-        {
-            try
-            {
-                if (m_cancel_token_source != null)
-                {
-                    m_cancel_token_source.Cancel();
-                    m_cancel_token_source.Dispose();
-                    m_cancel_token_source = null;
-                }
-
-                if (m_hEvent_sync_hole != null)
-                    m_hEvent_sync_hole.Dispose();
-
-                if (m_hEvent_sync_hole_pulse != null)
-                    m_hEvent_sync_hole_pulse.Dispose();
-
-                m_thread_sync_hole?.Wait(); // Espera encerrar 
-
-            }
-            catch (AggregateException ae)
-            {
-                foreach (var ex in ae.InnerExceptions)
-                    _smp.message_pool.getInstance().push(new message($"[Dispose][TaskError] {ex}", type_msg.CL_FILE_LOG_AND_CONSOLE));
-            }
-            finally
-            {
-                m_thread_sync_hole?.Dispose();
-                m_thread_sync_hole = null;
-            }
-            m_hEvent_sync_hole?.Dispose();
-            m_hEvent_sync_hole_pulse?.Dispose();
-            m_thread_sync_hole = null;
-            m_hEvent_sync_hole = null;
-        }
-
-        protected override void Dispose(bool disposing)
-        {
-            if (disposing)
-            {
-                _smp.message_pool.getInstance().push(new message("[Approach::Dispose][Log] Approach destroyed on Room[Number=" + (m_ri.numero) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
-                clearRoom();
-            }
-            base.Dispose(disposing);
-        }
-
-
 
         public override bool deletePlayer(Player _session, int _option)
         {
@@ -262,19 +140,21 @@ namespace Pangya_GameServer.Game.GameModes
             bool ret = false;
 
             try
-            {
-                var it = m_players.Find(c => c == _session);
+            { 
+                //Monitor.Exit(m_cs);
+                 
+                var it = m_players.Find(c => c.getUID() == _session.getUID());
 
                 if (it != null)
                 {
 
                     byte opt = 3; // Saiu Quitou
 
-                    PangyaBinaryWriter p = new PangyaBinaryWriter();
+                    var p = new PangyaBinaryWriter();
 
                     var sessions = getSessions(it);
 
-                    if (m_game_init_state == 1)
+                    if (m_game_init_state == 1 /*Come ou*/)
                     {
 
                         var pgi = INIT_PLAYER_INFO("deletePlayer",
@@ -283,7 +163,7 @@ namespace Pangya_GameServer.Game.GameModes
 
                         requestFinishItemUsedGame((it)); // Salva itens usados no Approach
 
-                        requestSaveInfo((it), (_option == 0x800) ? 5 : 1); // Quitou ou tomou DC
+                        requestSaveInfo((it), (_option == 0x800) ? 5 /*N o conta quit*/ : 1); // Quitou ou tomou DC
 
                         setGameFlag(pgi, PlayerGameInfo.eFLAG_GAME.QUIT);
 
@@ -291,7 +171,7 @@ namespace Pangya_GameServer.Game.GameModes
                         pgi.m_app_dados.setLeftGame();
 
                         // Resposta Player saiu do Jogo, tira ele do list de score
-                        p.init_plain(0x61);
+                        p.init_plain((ushort)0x61);
 
                         p.WriteInt32(it.m_oid);
 
@@ -299,7 +179,7 @@ namespace Pangya_GameServer.Game.GameModes
                             sessions, 1);
 
                         // Resposta Player saiu do jogo MSG
-                        p.init_plain(0x40);
+                        p.init_plain((ushort)0x40);
 
                         p.WriteByte(2); // Player Saiu Msg
 
@@ -318,21 +198,27 @@ namespace Pangya_GameServer.Game.GameModes
                             ret = true; // Termina o Approach
                         }
 
-                        sendUpdateInfoAndMapStatistics(_session, -1);
-
-                    }
-
+                        sendUpdateInfoAndMapStatistics(_session, -1); 
+                    } 
                     // Delete Player
                     m_players.Remove(it);
                 }
                 else
                 {
-                    _smp.message_pool.getInstance().push(new message("[Approach::deletePlayer][Warning] player ja foi excluido do game.", type_msg.CL_FILE_LOG_AND_CONSOLE));
-                }
+                    _smp.message_pool.getInstance().push(new message("[Approach::deletePlayer][WARNING] player ja foi excluido do game.", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                } 
+
+                //Monitor.Exit(m_cs); 
             }
             catch (exception e)
             {
+
                 _smp.message_pool.getInstance().push(new message("[Approach::deletePlayer][Error] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
+
+                // Libera Critical Section
+
+                //Monitor.Exit(m_cs);
+
             }
 
             return ret;
@@ -340,16 +226,24 @@ namespace Pangya_GameServer.Game.GameModes
 
         public void deleteAllPlayer()
         {
-            while (m_players.Any())
+            // Percorre de trás para frente
+            for (int i = m_players.Count - 1; i >= 0; i--)
             {
-                deletePlayer(m_players.FirstOrDefault(), 0);
+                var player = m_players[i];
+                if (player != null)
+                {
+                    var pgi = getPlayerInfo(player);
+                    if (pgi != null)
+                    {
+                        deletePlayer(player, 0);
+                    }
+                }
             }
         }
 
+
         public override bool requestFinishLoadHole(Player _session, packet _packet)
         {
-            ////REQUEST_BEGIN("FinishLoadHole");
-
             bool ret = false;
 
             try
@@ -363,8 +257,6 @@ namespace Pangya_GameServer.Game.GameModes
 
                 setLoadHole(pgi);
 
-                _smp.message_pool.getInstance().push(new message("[Approach::requestFinishLoadHole][Log] " + _session.m_pi.id, type_msg.CL_FILE_LOG_AND_CONSOLE));
-
             }
             catch (exception e)
             {
@@ -377,8 +269,6 @@ namespace Pangya_GameServer.Game.GameModes
 
         public override void requestFinishCharIntro(Player _session, packet _packet)
         {
-            ////REQUEST_BEGIN("FinishCharIntro");
-
             try
             {
 
@@ -392,12 +282,7 @@ namespace Pangya_GameServer.Game.GameModes
                 // Giveup Flag
                 pgi.data.giveup = 0;
 
-
-                // Set
-                pgi.finish_char_intro = 1;
-
-                _smp.message_pool.getInstance().push(new message("[Approach::requestFinishCharIntro][Log] " + _session.m_pi.id, type_msg.CL_FILE_LOG_AND_CONSOLE));
-
+                setFinishCharIntro(pgi);
             }
             catch (exception e)
             {
@@ -405,6 +290,7 @@ namespace Pangya_GameServer.Game.GameModes
                 _smp.message_pool.getInstance().push(new message("[Approach::requestFinishCharIntro][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
+
         public override void changeHole(Player _session)
         {
 
@@ -418,21 +304,22 @@ namespace Pangya_GameServer.Game.GameModes
                 updateFinishHole(_session, 1); // Terminou
             }
         }
-        public override void finishHole(Player _session)
-        {
 
+        public override void finishHole(Player _session)
+        { 
             requestFinishHole(_session, 0);
 
             requestUpdateItemUsedGame(_session);
 
             delete_all_quiter();
         }
+
         public override void requestInitShot(Player _session, packet _packet)
         {
-            ////REQUEST_BEGIN("InitShot");
-
             try
             {
+
+                _smp.message_pool.getInstance().push(new message("[Approach::requestInitShot][Log] Packet Hex: " + _packet.Log(), type_msg.CL_FILE_LOG_AND_CONSOLE));
 
                 ShotDataEx sd = new ShotDataEx();
 
@@ -478,13 +365,14 @@ namespace Pangya_GameServer.Game.GameModes
                     _session);
 
                 pgi.shot_data = sd;
-
             }
             catch (exception e)
             {
+
                 _smp.message_pool.getInstance().push(new message("[Approach::requestInitShot][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
+
         public void finish_approach(Player _session, int _option)
         {
 
@@ -508,7 +396,7 @@ namespace Pangya_GameServer.Game.GameModes
                     {
 
                         // Achievement Counter
-                        pgi.sys_achieve.incrementCounter(0x6C400004u /*/ Normal game complete /*/);
+                        pgi.sys_achieve.incrementCounter(0x6C400004u /*Normal game complete*/);
 
                     }
                     else if (m_game_init_state == 1 && _option == 1)
@@ -528,21 +416,22 @@ namespace Pangya_GameServer.Game.GameModes
                 }
             }
         }
+
         public override bool requestFinishGame(Player _session, packet _packet)
         {
-            ////REQUEST_BEGIN("FinishGame");
-
             bool ret = false;
 
             try
             {
+
+                _smp.message_pool.getInstance().push(new message("[Approach::requestFinishGame][Log] Packet Hex: " + _packet.Log(), type_msg.CL_FILE_LOG_AND_CONSOLE));
 
                 // OID do player que enviou o pacote para terminar o Jogo(Approach)
                 uint oid = _packet.ReadUInt32();
 
                 if (oid != _session.m_oid)
                 {
-                    throw new exception("[Approach::requestFinishGame][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + ", OID=" + Convert.ToString(_session.m_oid) + "] OID(" + Convert.ToString(oid) + ") is wrong", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.APPROACH,
+                    throw new exception("[Approach::requestFinishGame][Error] Player[UID=" + Convert.ToString(_session.m_pi.uid) + ", OID=" + Convert.ToString(_session.m_oid) + "] OID(" + Convert.ToString(oid) + ") is wrong", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.APPROACH,
                         410, 0));
                 }
 
@@ -558,27 +447,27 @@ namespace Pangya_GameServer.Game.GameModes
 
             return ret;
         }
-        public override void timeIsOver()
-        {
 
+        public override void timeIsOver()
+        { 
             m_timeout = 1;
+
+            if (m_hEvent_sync_hole_pulse != IntPtr.Zero)
+            {
+                SetEvent(m_hEvent_sync_hole_pulse);
+            } 
 
             short hole = -1;
 
             if (m_players.Count > 0)
-            {
-
-                var pgi = INIT_PLAYER_INFO("timeIsOver",
-                    "acabou o tempo do hole, tentou pegar o info do primeiro player do jogo",
-                    m_players[0]);
+            { 
+                var pgi = INIT_PLAYER_INFO("timeIsOver", "acabou o tempo do hole, tentou pegar o info do primeiro player do jogo", m_players[0]);
 
                 hole = pgi.hole;
             }
-
-            _smp.message_pool.getInstance().push(new message("[Approach::timeIsOver][Log] Tempo do Hole[" + Convert.ToString(hole) + "] acabou no Approach. na sala[NUMERO=" + Convert.ToString(m_ri.numero) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
-
         }
-        protected override bool init_game()
+
+        public override bool init_game()
         {
 
             if (m_players.Count > 0)
@@ -595,20 +484,21 @@ namespace Pangya_GameServer.Game.GameModes
             return true;
         }
 
-        protected override uint getCountPlayersGame()
+        public override uint getCountPlayersGame()
         {
+
             return (uint)m_player_info.Count(_el =>
                 _el.Value.flag != PlayerGameInfo.eFLAG_GAME.QUIT ||
                 ((PlayerApproachInfo)_el.Value).m_app_dados.state_quit == approach_dados_ex.eSTATE_QUIT.SQ_QUIT_START
             );
         }
 
-        protected override void requestUpdateItemUsedGame(Player _session)
+        public override void requestUpdateItemUsedGame(Player _session)
         {
 
             var pgi = INIT_PLAYER_INFO("requestUpdateItemUsedGame",
-                "tentou atualizar itens usado no jogo",
-                _session);
+                 "tentou atualizar itens usado no jogo",
+                 _session);
 
             var ui = pgi.used_item;
 
@@ -630,7 +520,7 @@ namespace Pangya_GameServer.Game.GameModes
                     {
                         el.Value.count++;
                     }
-                    else if (sIff.getInstance().getItemGroupIdentify(el.Value._typeid) == sIff.getInstance().BALL || sIff.getInstance().getItemGroupIdentify(el.Value._typeid) == sIff.getInstance().AUX_PART)
+                    else if (sIff.getInstance().getItemGroupIdentify(el.Value._typeid) == PangyaAPI.IFF.JP.Models.Flags.IFF_GROUP.BALL || sIff.getInstance().getItemGroupIdentify(el.Value._typeid) == PangyaAPI.IFF.JP.Models.Flags.IFF_GROUP.AUX_PART)
                     {
 
                         el.Value.count++;
@@ -638,6 +528,7 @@ namespace Pangya_GameServer.Game.GameModes
                 }
             }
         }
+
         public void finish()
         {
 
@@ -662,6 +553,7 @@ namespace Pangya_GameServer.Game.GameModes
                 }
             }
         }
+
         public void requestFinishData(Player _session)
         {
 
@@ -679,7 +571,7 @@ namespace Pangya_GameServer.Game.GameModes
             requestSaveInfo(_session, 0);
 
             // Passa o finaliza o Approach
-            PangyaBinaryWriter p = new PangyaBinaryWriter((ushort)0x151);
+            var p = new PangyaBinaryWriter((ushort)0x151);
 
             packet_func.game_broadcast(this,
                 p, 1);
@@ -687,11 +579,9 @@ namespace Pangya_GameServer.Game.GameModes
             // Resposta Treasure Hunter Item
             requestSendTreasureHunterItem(_session);
         }
-        protected override void requestTranslateSyncShotData(Player _session, ShotSyncData _ssd)
+
+        public override void requestTranslateSyncShotData(Player _session, ShotSyncData _ssd)
         {
-
-            //CHECK_SESSION_BEGIN("requestTranslateSyncShotData");
-
             try
             {
 
@@ -699,7 +589,7 @@ namespace Pangya_GameServer.Game.GameModes
 
                 if (s == null)
                 {
-                    throw new exception("[Approach::requestTranslateSyncShotData][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou sincronizar tacada do PLAYER[OID=" + Convert.ToString(_ssd.oid) + "], mas o player nao existe nessa jogo. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.APPROACH,
+                    throw new exception("[Approach::requestTranslateSyncShotData][Error] player[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou sincronizar tacada do player[OID=" + Convert.ToString(_ssd.oid) + "], mas o player nao existe nessa jogo. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.APPROACH,
                         200, 0));
                 }
 
@@ -740,7 +630,7 @@ namespace Pangya_GameServer.Game.GameModes
 
                     if (hole == null)
                     {
-                        throw new exception("[Approach::requestTranslateSyncShotData][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou sincronizar tacada no hole[NUMERO=" + Convert.ToString((ushort)pgi.hole) + "], mas o numero do hole is invalid. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.APPROACH,
+                        throw new exception("[Approach::requestTranslateSyncShotData][Error] player[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou sincronizar tacada no hole[NUMERO=" + Convert.ToString((ushort)pgi.hole) + "], mas o numero do hole is invalid. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.APPROACH,
                             12, 0));
                     }
 
@@ -764,14 +654,14 @@ namespace Pangya_GameServer.Game.GameModes
                     }
 
                     // Approach
-                    if (_ssd.state == ShotSyncData.SHOT_STATE.INTO_HOLE || Math.Abs(hole.getPinLocation().diffXZ(pgi.location) * MEDIDA_PARA_YARDS) <= 0.08 /*/ *Est dentro do hole chip -@in * /*/)
-
+                    if (_ssd.state == ShotSyncData.SHOT_STATE.INTO_HOLE || Math.Abs(hole.getPinLocation().diffXZ(pgi.location) * MEDIDA_PARA_YARDS) <= 0.08 /*Est dentro do hole chip - @in*/)
                     {
                         pgi.m_app_dados.state.chip_in = 1;
                     }
 
                     // Pega a distancia e o tempo
                     int elapsed_time = (int)(m_ri.time_30s - m_timer.getElapsed());
+
                     if (elapsed_time <= 0)
                     {
                         pgi.m_app_dados.state.timeout = 1;
@@ -801,10 +691,9 @@ namespace Pangya_GameServer.Game.GameModes
                 _smp.message_pool.getInstance().push(new message("[TourneyBase::requestTranslateSyncShotData][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
-        protected override void requestReplySyncShotData(Player _session)
-        {
-            //CHECK_SESSION_BEGIN("requestReplySyncShotData");
 
+        public override void requestReplySyncShotData(Player _session)
+        {
             try
             {
 
@@ -825,6 +714,7 @@ namespace Pangya_GameServer.Game.GameModes
                 _smp.message_pool.getInstance().push(new message("[Approach::requestReplySyncShotData][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
+
         public override int checkEndShotOfHole(Player _session)
         {
 
@@ -836,6 +726,12 @@ namespace Pangya_GameServer.Game.GameModes
 
             return 0;
         }
+
+        public override void sendRemainTime(Player _session)
+        {
+            //envia vazio....
+        }
+
         public override void updateFinishHole(Player _session, int option)
         {
 
@@ -843,13 +739,14 @@ namespace Pangya_GameServer.Game.GameModes
                 "tentou terminar o hole no jogo",
                 _session);
 
-            _smp.message_pool.getInstance().push(new message("[Approach::updateFinishHole][Log] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] Terminou o hole[NUMERO=" + Convert.ToString(pgi.hole) + "].", type_msg.CL_FILE_LOG_AND_CONSOLE));
+            _smp.message_pool.getInstance().push(new message("[Approach::updateFinishHole][Log] player[UID=" + Convert.ToString(_session.m_pi.uid) + "] Terminou o hole[NUMERO=" + Convert.ToString(pgi.hole) + "].", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
-            PangyaBinaryWriter p = new PangyaBinaryWriter((ushort)0x65);
+            var p = new PangyaBinaryWriter((ushort)0x65);
 
             packet_func.game_broadcast(this,
                 p, 1);
         }
+
         public void sendRatesOfApproach()
         {
 
@@ -871,7 +768,7 @@ namespace Pangya_GameServer.Game.GameModes
                 // Table Rate Voice And Effect
                 table = new TableRateVoiceAndEffect("R_BIGBONGDARI", TableRateVoiceAndEffect.eTYPE.R_BIGBONGDARI);
 
-                p.init_plain(0x115);
+                p.init_plain((ushort)0x115);
 
                 p.WriteString(table.name);
 
@@ -882,7 +779,8 @@ namespace Pangya_GameServer.Game.GameModes
 
                 // Table Rate Voice And Effect
                 table = new TableRateVoiceAndEffect("VOICE_CLUB", TableRateVoiceAndEffect.eTYPE.VOICE_CLUB);
-                p.init_plain(0x115);
+
+                p.init_plain((ushort)0x115);
 
                 p.WriteString(table.name);
 
@@ -891,15 +789,63 @@ namespace Pangya_GameServer.Game.GameModes
                 packet_func.game_broadcast(this,
                     p, 1);
 
-
             }
             catch (exception e)
             {
 
-                _smp.message_pool.getInstance().push(new message("[Approach::sendRatesOfApproach][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
+                _smp.message_pool.getInstance().push(new message("[VersusBase::sendRatesOfVersusBase][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
-        protected override void requestFinishHole(Player _session, int option)
+
+        public void finish_thRead_sync_hole()
+        {
+
+            try
+            {
+
+                if (m_thread_sync_hole != null)
+                {
+                    if (m_hEvent_sync_hole != IntPtr.Zero)
+                    {
+                        SetEvent(m_hEvent_sync_hole);
+                    }
+
+                    m_thread_sync_hole.waitThreadFinish(-1);
+
+                    m_thread_sync_hole = null;
+                }
+
+            }
+            catch (exception e)
+            {
+                _smp.message_pool.getInstance().push(new message("[Approach::finish_thRead_sync_hole][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
+
+                if (m_thread_sync_hole != null)
+                {
+
+                    m_thread_sync_hole.exit_thread();
+
+                    m_thread_sync_hole = null;
+                }
+            }
+
+            m_thread_sync_hole = null;
+
+            if (m_hEvent_sync_hole != IntPtr.Zero)
+            {
+                CloseHandle(m_hEvent_sync_hole);
+            }
+
+            if (m_hEvent_sync_hole_pulse != IntPtr.Zero)
+            {
+                CloseHandle(m_hEvent_sync_hole_pulse);
+            }
+
+            m_hEvent_sync_hole = IntPtr.Zero;
+            m_hEvent_sync_hole_pulse = IntPtr.Zero;
+        }
+
+        public override void requestFinishHole(Player _session, int option)
         {
 
             var pgi = INIT_PLAYER_INFO("requestFinishHole",
@@ -910,12 +856,12 @@ namespace Pangya_GameServer.Game.GameModes
 
             if (hole == null)
             {
-                throw new exception("[Approach::finishHole][Error] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou finalizar hole[NUMERO=" + Convert.ToString((ushort)pgi.hole) + "] no jogo, mas o numero do hole is invalid. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME,
+                throw new exception("[Approach::finishHole][Error] player[UID=" + Convert.ToString(_session.m_pi.uid) + "] tentou finalizar hole[NUMERO=" + Convert.ToString((ushort)pgi.hole) + "] no jogo, mas o numero do hole is invalid. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME,
                     20, 0));
             }
 
-            uint time_hole = 0;
-            uint distance_hole = 0;
+            int time_hole = 0;
+            int distance_hole = 0;
 
             // Finish Hole Dados
             if (option == 0)
@@ -926,10 +872,10 @@ namespace Pangya_GameServer.Game.GameModes
                 pgi.m_app_dados.total_box += pgi.m_app_dados.box;
                 pgi.m_app_dados.total_box += pgi.m_app_dados.rank_box;
 
-                time_hole = pgi.m_app_dados.time;
-                distance_hole = pgi.m_app_dados.distance;
+                time_hole = (int)pgi.m_app_dados.time;
+                distance_hole = (int)pgi.m_app_dados.distance;
 
-                _smp.message_pool.getInstance().push(new message("[Approach::requestFinishHole][Log] PLAYER[UID=" + Convert.ToString(_session.m_pi.uid) + "] terminou o hole[COURSE=" + Convert.ToString(hole.getCourse()) + ", NUMERO=" + Convert.ToString(hole.getNumero()) + ", PAR=" + Convert.ToString(hole.getPar().par) + ", DISTANCE=" + Convert.ToString(distance_hole) + ", TIME=" + Convert.ToString(time_hole) + ", BOX=" + Convert.ToString(pgi.m_app_dados.box) + ", RANK_BOX=" + Convert.ToString(pgi.m_app_dados.rank_box) + ", TOTAL_DISTANCE=" + Convert.ToString(pgi.m_app_dados.total_distance) + ", TOTAL_TIME=" + Convert.ToString(pgi.m_app_dados.total_time) + ", TOTAL_BOX=" + Convert.ToString(pgi.m_app_dados.total_box) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                _smp.message_pool.getInstance().push(new message("[Approach::requestFinishHole][Log] player[UID=" + Convert.ToString(_session.m_pi.uid) + "] terminou o hole[COURSE=" + Convert.ToString(hole.getCourse()) + ", NUMERO=" + Convert.ToString(hole.getNumero()) + ", PAR=" + Convert.ToString(hole.getPar().par) + ", DISTANCE=" + Convert.ToString(distance_hole) + ", TIME=" + Convert.ToString(time_hole) + ", BOX=" + Convert.ToString(pgi.m_app_dados.box) + ", RANK_BOX=" + Convert.ToString(pgi.m_app_dados.rank_box) + ", TOTAL_DISTANCE=" + Convert.ToString(pgi.m_app_dados.total_distance) + ", TOTAL_TIME=" + Convert.ToString(pgi.m_app_dados.total_time) + ", TOTAL_BOX=" + Convert.ToString(pgi.m_app_dados.total_box) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
                 pgi.m_app_dados.distance = 0;
                 pgi.m_app_dados.time = 0;
@@ -964,13 +910,14 @@ namespace Pangya_GameServer.Game.GameModes
                     }
 
                     pgi.progress.par_hole[pgi.progress.hole - 1] = hole.getPar().par;
-                    pgi.progress.score[pgi.progress.hole - 1] = (sbyte)time_hole;
+                    pgi.progress.score[pgi.progress.hole - 1] = time_hole;
                     pgi.progress.tacada[pgi.progress.hole - 1] = distance_hole;
                 }
 
             }
         }
-        protected override void requestSaveInfo(Player _session, int option)
+
+        public override void requestSaveInfo(Player _session, int option)
         {
 
             var pgi = INIT_PLAYER_INFO("requestSaveInfo",
@@ -1011,6 +958,7 @@ namespace Pangya_GameServer.Game.GameModes
                 _smp.message_pool.getInstance().push(new message("[Approach::requestSaveInfo][Error] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
+
         public override void requestDrawTreasureHunterItem(Player _session)
         {
 
@@ -1025,10 +973,11 @@ namespace Pangya_GameServer.Game.GameModes
 
             pgi.thi.v_item = sTreasureHunterSystem.getInstance().drawApproachBox(pgi.m_app_dados.box, (byte)(m_ri.getMap() & 0x7F));
         }
+
         public override void sendPlacar(Player _session)
         {
 
-            PangyaBinaryWriter p = new PangyaBinaryWriter((ushort)0x14E);
+            var p = new PangyaBinaryWriter((ushort)0x14E);
 
             uint count = getCountPlayersGame();
 
@@ -1045,6 +994,7 @@ namespace Pangya_GameServer.Game.GameModes
             packet_func.game_broadcast(this,
                 p, 1);
         }
+
         public override void sendSyncShot(Player _session)
         {
 
@@ -1052,7 +1002,7 @@ namespace Pangya_GameServer.Game.GameModes
                 "tentou sincronizar a tacada do jogador no jogo",
                 _session);
 
-            PangyaBinaryWriter p = new PangyaBinaryWriter((ushort)0x6E);
+            var p = new PangyaBinaryWriter((ushort)0x6E);
 
             p.WriteInt32(pgi.shot_sync.oid);
 
@@ -1082,6 +1032,7 @@ namespace Pangya_GameServer.Game.GameModes
             packet_func.game_broadcast(this,
                 p, 1);
         }
+
         public override PlayerGameInfo makePlayerInfoObject(Player _session)
         {
 
@@ -1089,9 +1040,6 @@ namespace Pangya_GameServer.Game.GameModes
 
             try
             {
-
-                //CHECK_SESSION_BEGIN("makePlayerInfoObject");
-
                 pai.m_app_dados.uid = _session.m_pi.uid;
                 pai.m_app_dados.oid = _session.m_oid;
 
@@ -1104,110 +1052,344 @@ namespace Pangya_GameServer.Game.GameModes
 
             return pai;
         }
+
         public void setFinishShot(PlayerGameInfo _pgi)
         {
 
             if (_pgi == null)
             {
 
-                _smp.message_pool.getInstance().push(new message("[Approach::setFinishShot][Error] PlayerGameInfo_pgi is invalid(nullptr).", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                _smp.message_pool.getInstance().push(new message("[Approach::setFinishShot][Error] PlayerGameInfo* _pgi is invalid(nullptr).", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
                 return;
             }
 
 
+            //Monitor.Exit(m_cs_sync_shot);
 
 
             // Set
             _pgi.finish_shot = 1;
 
 
-        }
-        public void clearFinishShot()
-        {
+            //Monitor.Exit(m_cs_sync_shot);
 
 
 
 
-            clear_all_finish_shot();
-
-
-
-        }
-        public void setLoadHole(PlayerGameInfo _pgi)
-        {
-            if (_pgi == null)
-                return;
-
-            _pgi.finish_load_hole = 1;
-        }
-
-
-        public bool checkAllFinishCharIntro()
-        {
-            uint count = 0;
-
-            foreach (var _el in m_players)
+            if (m_hEvent_sync_hole_pulse != IntPtr.Zero)
             {
-                try
-                {
-                    var pgi = INIT_PLAYER_INFO("CheckAllFinishCharIntro", "tentou verificar se todos os player terminaram a Intro do Character no jogo", _el);
-
-                    if (pgi.finish_char_intro > 0)
-                        count++;
-                }
-                catch (exception e)
-                {
-                    _smp.message_pool.getInstance().push(new message("[Approach::CheckAllFinishCharIntro][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
-                }
+                SetEvent(m_hEvent_sync_hole_pulse);
             }
-            ;
 
-            return (count == m_players.Count);
         }
 
         public bool checkAllFinishShot()
         {
+
             uint count = 0;
 
+
+            //Monitor.Exit(m_cs_sync_shot);
+
+
+            // Check
             foreach (var _el in m_players)
             {
                 try
                 {
-                    var pgi = INIT_PLAYER_INFO("CheckAllFinishShot", "tentou verificar se todos os player terminaram a Tacada no jogo", _el);
-
+                    var pgi = INIT_PLAYER_INFO("CheckAllFinishShot",
+                        "tentou verificar se todos os player terminaram a Tacada no jogo",
+                        _el);
                     if (pgi.finish_shot > 0)
+                    {
                         count++;
+                    }
                 }
                 catch (exception e)
                 {
                     _smp.message_pool.getInstance().push(new message("[Approach::CheckAllFinishShot][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
                 }
             }
-            ;
+
+
+            //Monitor.Exit(m_cs_sync_shot);
+
+
 
             return (count == m_players.Count);
         }
 
-        public bool checkAllSyncShot()
+        public void clearFinishShot()
         {
-            uint count = 0;
 
+
+            //Monitor.Exit(m_cs_sync_shot);
+
+
+            clear_all_finish_shot();
+
+
+            //Monitor.Exit(m_cs_sync_shot);
+
+
+        }
+
+        public bool setFinishShotAndCheckAllFinishShotAndClear(PlayerGameInfo _pgi)
+        {
+
+            if (_pgi == null)
+            {
+
+                _smp.message_pool.getInstance().push(new message("[Approach::setFinishShotAndCheckAllFinishShotAndClear][Error] PlayerGameInfo* _pgi is invalid(nullptr).", type_msg.CL_FILE_LOG_AND_CONSOLE));
+
+                return false;
+            }
+
+            uint count = 0;
+            bool ret = false;
+
+
+            //Monitor.Exit(m_cs_sync_shot);
+
+
+            // Set
+            _pgi.finish_shot = 1;
+
+            // Check
             foreach (var _el in m_players)
             {
                 try
                 {
-                    var pgi = INIT_PLAYER_INFO("CheckAllSyncShot", "tentou verificar se todos os player sincronizaram a Tacada no jogo", _el);
-
-                    if (pgi.sync_shot_flag > 0)
+                    var pgi = INIT_PLAYER_INFO("setFinishShotAndCheckAllFinishShotAndClear",
+                        "tentou verificar se todos os player terminaram a Tacada no jogo",
+                        _el);
+                    if (pgi.finish_shot > 0)
+                    {
                         count++;
+                    }
                 }
                 catch (exception e)
                 {
-                    _smp.message_pool.getInstance().push(new message("[Approach::CheckAllSyncShot][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
+                    _smp.message_pool.getInstance().push(new message("[Approach::setFinishShotAndCheckAllFinishShotAndClear][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
                 }
             }
-            ;
+
+            ret = (count == m_players.Count);
+
+            // Clear
+            if (ret)
+            {
+                clear_all_finish_shot();
+            }
+
+
+            //Monitor.Exit(m_cs_sync_shot);
+
+
+
+            return ret;
+        }
+
+        public void setLoadHole(PlayerGameInfo _pgi)
+        {
+
+            if (_pgi == null)
+            {
+
+                _smp.message_pool.getInstance().push(new message("[Approach::setLoadHole][Error] PlayerGameInfo* _pgi is invalid(nullptr).", type_msg.CL_FILE_LOG_AND_CONSOLE));
+
+                return;
+            }
+
+
+            //Monitor.Exit(m_cs_sync_shot);
+
+
+            // Set
+            _pgi.finish_load_hole = 1;
+
+
+            //Monitor.Exit(m_cs_sync_shot);
+
+
+            if (m_hEvent_sync_hole_pulse != IntPtr.Zero)
+            {
+                SetEvent(m_hEvent_sync_hole_pulse);
+            }
+
+        }
+
+        public bool checkAllLoadHole()
+        {
+
+            uint count = 0;
+
+
+            //Monitor.Exit(m_cs_sync_shot);
+
+
+            // Check
+            foreach (var _el in m_players)
+            {
+                try
+                {
+                    var pgi = INIT_PLAYER_INFO("CheckAllLoadHole",
+                        "tentou verificar se todos os player terminaram de carregar o hole no jogo",
+                        _el);
+                    if (pgi.finish_load_hole > 0)
+                    {
+                        count++;
+                    }
+                }
+                catch (exception e)
+                {
+                    _smp.message_pool.getInstance().push(new message("[Approach::CheckAllLoadHole][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
+                }
+            }
+
+
+            //Monitor.Exit(m_cs_sync_shot);
+
+
+
+            return (count == m_players.Count);
+        }
+
+        public void clearLoadHole()
+        {
+
+
+            //Monitor.Exit(m_cs_sync_shot);
+
+
+            clear_all_load_hole();
+
+
+            //Monitor.Exit(m_cs_sync_shot);
+
+
+        }
+
+        public bool setLoadHoleAndCheckAllLoadHoleAndClear(PlayerGameInfo _pgi)
+        {
+
+            if (_pgi == null)
+            {
+
+                _smp.message_pool.getInstance().push(new message("[Approach::setLoadHoleAndCheckAllLoadHoleAndClear][Error] PlayerGameInfo* _pgi is invalid(nullptr).", type_msg.CL_FILE_LOG_AND_CONSOLE));
+
+                return false;
+            }
+
+            uint count = 0;
+            bool ret = false;
+
+
+            //Monitor.Exit(m_cs_sync_shot);
+
+
+            // Set
+            _pgi.finish_load_hole = 1;
+
+            // Check
+            foreach (var _el in m_players)
+            {
+                try
+                {
+                    var pgi = INIT_PLAYER_INFO("setLoadHoleAndCheckAllLoadHoleAndClear",
+                        "tentou verificar se todos os player terminaram de carregar o hole no jogo",
+                        _el);
+                    if (pgi.finish_load_hole > 0)
+                    {
+                        count++;
+                    }
+                }
+                catch (exception e)
+                {
+                    _smp.message_pool.getInstance().push(new message("[Approach::setLoadHoleAndCheckAllLoadHoleAndClear][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
+                }
+            }
+
+            ret = (count == m_players.Count);
+
+            // Clear
+            if (ret)
+            {
+                clear_all_load_hole();
+            }
+
+
+            //Monitor.Exit(m_cs_sync_shot);
+
+
+
+            return ret;
+        }
+
+        public void setFinishCharIntro(PlayerGameInfo _pgi)
+        {
+
+            if (_pgi == null)
+            {
+
+                _smp.message_pool.getInstance().push(new message("[Approach::setFinishCharIntro][Error] PlayerGameInfo* _pgi is invalid(nullptr).", type_msg.CL_FILE_LOG_AND_CONSOLE));
+
+                return;
+            }
+
+
+            //Monitor.Exit(m_cs_sync_shot);
+
+
+            // Set
+            _pgi.finish_char_intro = 1;
+
+
+            //Monitor.Exit(m_cs_sync_shot);
+
+
+
+
+            if (m_hEvent_sync_hole_pulse != IntPtr.Zero)
+            {
+                SetEvent(m_hEvent_sync_hole_pulse);
+            }
+
+        }
+
+        public bool checkAllFinishCharIntro()
+        {
+
+            uint count = 0;
+
+
+            //Monitor.Exit(m_cs_sync_shot);
+
+
+            // Check
+            foreach (var _el in m_players)
+            {
+                try
+                {
+                    var pgi = INIT_PLAYER_INFO("CheckAllFinishCharIntro",
+                        "tentou verificar se todos os player terminaram a Intro do Character no jogo",
+                        _el);
+                    if (pgi.finish_char_intro > 0)
+                    {
+                        count++;
+                    }
+                }
+                catch (exception e)
+                {
+                    _smp.message_pool.getInstance().push(new message("[Approach::CheckAllFinishCharIntro][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
+                }
+            }
+
+
+            //Monitor.Exit(m_cs_sync_shot);
+
+
 
             return (count == m_players.Count);
         }
@@ -1216,12 +1398,71 @@ namespace Pangya_GameServer.Game.GameModes
         {
 
 
+            //Monitor.Exit(m_cs_sync_shot);
 
 
             clear_all_finish_char_intro();
 
 
+            //Monitor.Exit(m_cs_sync_shot);
 
+
+        }
+
+        public bool setFinishCharIntroAndCheckAllFinishCharIntroAndClear(PlayerGameInfo _pgi)
+        {
+
+            if (_pgi == null)
+            {
+
+                _smp.message_pool.getInstance().push(new message("[Approach::setFinishCharIntroAndCheckAllFinishCharIntroAndClear][Error] PlayerGameInfo* _pgi is invalid(nullptr).", type_msg.CL_FILE_LOG_AND_CONSOLE));
+
+                return false;
+            }
+
+            uint count = 0;
+            bool ret = false;
+
+
+            //Monitor.Exit(m_cs_sync_shot);
+
+
+            // Set
+            _pgi.finish_char_intro = 1;
+
+            // Check
+            foreach (var _el in m_players)
+            {
+                try
+                {
+                    var pgi = INIT_PLAYER_INFO("setFinishCharIntroAndCheckAllFinishCharIntroAndClear",
+                        "tentou verificar se todos os player terminaram a Intro do Character no jogo",
+                        _el);
+                    if (pgi.finish_char_intro > 0)
+                    {
+                        count++;
+                    }
+                }
+                catch (exception e)
+                {
+                    _smp.message_pool.getInstance().push(new message("[Approach::setFinishCharIntroAndCheckAllFinishCharIntroAndClear][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
+                }
+            }
+
+            ret = (count == m_players.Count);
+
+            // Clear
+            if (ret)
+            {
+                clear_all_finish_char_intro();
+            }
+
+
+            //Monitor.Exit(m_cs_sync_shot);
+
+
+
+            return ret;
         }
 
         public void setSyncShot(PlayerGameInfo _pgi)
@@ -1230,30 +1471,136 @@ namespace Pangya_GameServer.Game.GameModes
             if (_pgi == null)
             {
 
-                _smp.message_pool.getInstance().push(new message("[Approach::setSyncShot[Error] PlayerGameInfo _pgi is invalid(nullptr).", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                _smp.message_pool.getInstance().push(new message("[Approach::setSyncShot[Error] PlayerGameInfo *_pgi is invalid(nullptr).", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
                 return;
             }
 
 
+            //Monitor.Exit(m_cs_sync_shot);
 
 
             // Set
             _pgi.sync_shot_flag = 1;
 
 
+            //Monitor.Exit(m_cs_sync_shot);
+
+
+
+
+            if (m_hEvent_sync_hole_pulse != IntPtr.Zero)
+            {
+                SetEvent(m_hEvent_sync_hole_pulse);
+            }
+
+        }
+
+        public bool checkAllSyncShot()
+        {
+
+            uint count = 0;
+
+
+            //Monitor.Exit(m_cs_sync_shot);
+
+
+            // Check
+            foreach (var _el in m_players)
+            {
+                try
+                {
+                    var pgi = INIT_PLAYER_INFO("CheckAllSyncShot",
+                        "tentou verificar se todos os player sincronizaram a Tacada no jogo",
+                        _el);
+                    if (pgi.sync_shot_flag > 0)
+                    {
+                        count++;
+                    }
+                }
+                catch (exception e)
+                {
+                    _smp.message_pool.getInstance().push(new message("[Approach::CheckAllSyncShot][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
+                }
+            }
+
+
+            //Monitor.Exit(m_cs_sync_shot);
+
+
+
+            return (count == m_players.Count);
         }
 
         public void clearSyncShot()
         {
 
 
+            //Monitor.Exit(m_cs_sync_shot);
 
 
             clear_all_sync_shot();
 
 
+            //Monitor.Exit(m_cs_sync_shot);
 
+
+        }
+
+        public bool setSyncShotAndCheckAllSyncShotAndClear(PlayerGameInfo _pgi)
+        {
+
+            if (_pgi == null)
+            {
+
+                _smp.message_pool.getInstance().push(new message("[Approach::setSyncShotAndCheckAllSyncShotAndClear][Error] PlayerGameInfo *_pgi is invalid(nullptr).", type_msg.CL_FILE_LOG_AND_CONSOLE));
+
+                return false;
+            }
+
+            uint count = 0;
+            bool ret = false;
+
+
+            //Monitor.Exit(m_cs_sync_shot);
+
+
+            // Set
+            _pgi.sync_shot_flag = 1;
+
+            // Check
+            foreach (var _el in m_players)
+            {
+                try
+                {
+                    var pgi = INIT_PLAYER_INFO("setSyncShotAndCheckAllSyncShotAndClear",
+                        "tentou verificar se todos os player sincronizaram a Tacada no jogo",
+                        _el);
+                    if (pgi.sync_shot_flag > 0)
+                    {
+                        count++;
+                    }
+                }
+                catch (exception e)
+                {
+                    _smp.message_pool.getInstance().push(new message("[Approach::setSyncShotAndCheckAllSyncShotAndClear][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
+                }
+            }
+
+            ret = (count == m_players.Count);
+
+            // Clear
+            if (ret)
+            {
+                clear_all_sync_shot();
+            }
+
+
+            //Monitor.Exit(m_cs_sync_shot);
+
+
+
+            return ret;
         }
 
         public void clear_all_load_hole()
@@ -1273,8 +1620,8 @@ namespace Pangya_GameServer.Game.GameModes
                     _smp.message_pool.getInstance().push(new message("[Approach::clear_all_load_hole][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
                 }
             }
-            ;
         }
+
         public void clear_all_finish_shot()
         {
 
@@ -1293,8 +1640,8 @@ namespace Pangya_GameServer.Game.GameModes
                     _smp.message_pool.getInstance().push(new message("[Approach::clear_all_finish_shot][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
                 }
             }
-            ;
         }
+
         public void clear_all_finish_char_intro()
         {
 
@@ -1312,8 +1659,8 @@ namespace Pangya_GameServer.Game.GameModes
                     _smp.message_pool.getInstance().push(new message("[Approach::clear_all_finish_char_intro][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
                 }
             }
-            ;
         }
+
         public void clear_all_sync_shot()
         {
 
@@ -1332,10 +1679,9 @@ namespace Pangya_GameServer.Game.GameModes
                     _smp.message_pool.getInstance().push(new message("[Approach::clear_all_sync_shot][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
                 }
             }
-            ;
         }
 
-        protected override void requestCalculeRankPlace()
+        public override void requestCalculeRankPlace()
         {
 
             List<approach_dados_ex> v_ad = new List<approach_dados_ex>();
@@ -1362,7 +1708,6 @@ namespace Pangya_GameServer.Game.GameModes
                 }
             }
 
-            // ORIGINAL LINE: sort(v_ad.begin(), v_ad.end(), Approach::sort_approach_rank_place);
             v_ad.Sort(sort_approach_rank_place);
 
             // Set positions
@@ -1393,6 +1738,7 @@ namespace Pangya_GameServer.Game.GameModes
                 v_ad.Clear();
             }
         }
+
         public void requestCalculeRankPlaceHole()
         {
 
@@ -1434,9 +1780,9 @@ namespace Pangya_GameServer.Game.GameModes
             if (v_ad.Count > 0)
             {
                 v_ad.Clear();
-
             }
         }
+
         public void top_rank_win()
         {
 
@@ -1444,6 +1790,7 @@ namespace Pangya_GameServer.Game.GameModes
 
             if (count >= 5 && count < 11)
             {
+
 
                 var it = m_player_info.FirstOrDefault(_el =>
                 {
@@ -1454,7 +1801,6 @@ namespace Pangya_GameServer.Game.GameModes
                 {
                     ((PlayerApproachInfo)it.Value).m_app_dados.rank_box = 1;
                 }
-
             }
             else if (count >= 11 && count < 18)
             {
@@ -1475,11 +1821,10 @@ namespace Pangya_GameServer.Game.GameModes
                         }
                     }
                 }
-                ;
-
             }
             else if (count >= 18 && count < 26)
             {
+
                 foreach (var _el in m_player_info)
                 {
                     if (_el.Value.flag != PlayerGameInfo.eFLAG_GAME.QUIT)
@@ -1499,8 +1844,6 @@ namespace Pangya_GameServer.Game.GameModes
                         }
                     }
                 }
-                ;
-
             }
             else if (count >= 26)
             {
@@ -1527,9 +1870,9 @@ namespace Pangya_GameServer.Game.GameModes
                         }
                     }
                 }
-                ;
             }
         }
+
         public void finishAllDadosApproach()
         {
 
@@ -1542,7 +1885,6 @@ namespace Pangya_GameServer.Game.GameModes
 
                 if (pai != null && pai.flag != PlayerGameInfo.eFLAG_GAME.QUIT)
                 {
-
                     pai.m_app_dados.box = pai.m_app_dados.total_box + pai.m_app_dados.rank_box;
                     pai.m_app_dados.distance = pai.m_app_dados.total_distance;
                     pai.m_app_dados.time = pai.m_app_dados.total_time;
@@ -1554,7 +1896,7 @@ namespace Pangya_GameServer.Game.GameModes
         public void sendScoreBoard()
         {
 
-            PangyaBinaryWriter p = new PangyaBinaryWriter((ushort)0x150);
+            var p = new PangyaBinaryWriter((ushort)0x150);
 
             uint count = getCountPlayersGame();
 
@@ -1566,12 +1908,12 @@ namespace Pangya_GameServer.Game.GameModes
                 {
                     ((PlayerApproachInfo)el.Value).m_app_dados.toPacket(p);
                 }
-            } 
-            Debug.WriteLine("sendScoreBoard: " + p.GetBytes.HexDump());
+            }
 
             packet_func.game_broadcast(this,
                 p, 1);
         }
+
         public void init_mission()
         {
 
@@ -1592,6 +1934,7 @@ namespace Pangya_GameServer.Game.GameModes
                 }
             }
         }
+
         public void mission_win()
         {
 
@@ -1606,10 +1949,10 @@ namespace Pangya_GameServer.Game.GameModes
 
                             PlayerApproachInfo pai = null;
 
-                            var it = m_player_info.FirstOrDefault(_el =>
+                            var it = m_player_info.Where(_el =>
                             {
                                 return (_el.Value != null && _el.Value.flag != PlayerGameInfo.eFLAG_GAME.QUIT && ((PlayerApproachInfo)_el.Value).m_app_dados.state.ucState == 0u && ((PlayerApproachInfo)_el.Value).m_app_dados.position == 1);
-                            });
+                            }).FirstOrDefault();
 
                             if (it.Key != null)
                             {
@@ -2002,13 +2345,13 @@ namespace Pangya_GameServer.Game.GameModes
                             foreach (var it in m_player_info)
                             {
 
-                                if ((it.Value.flag != PlayerGameInfo.eFLAG_GAME.QUIT && ((PlayerApproachInfo)it.Value).m_app_dados.state.ucState == 0u) && (it_win.Key == m_player_info.end().Key || ((PlayerApproachInfo)it.Value).m_app_dados.distance > ((PlayerApproachInfo)it_win.Value).m_app_dados.distance))
+                                if ((it.Value.flag != PlayerGameInfo.eFLAG_GAME.QUIT && ((PlayerApproachInfo)it.Value).m_app_dados.state.ucState == 0u) && (it_win.Key != null || ((PlayerApproachInfo)it.Value).m_app_dados.distance > ((PlayerApproachInfo)it_win.Value).m_app_dados.distance))
                                 {
                                     it_win = it;
                                 }
                             }
 
-                            if (it_win.Key != m_player_info.end().Key)
+                            if (it_win.Key != null)
                             {
                                 ((PlayerApproachInfo)it_win.Value).m_app_dados.box = m_mission.box_qntd;
                             }
@@ -2125,7 +2468,7 @@ namespace Pangya_GameServer.Game.GameModes
                                 }
                             }
 
-                            if (it_win.Key != m_player_info.end().Key)
+                            if (it_win.Key != null)
                             {
                                 ((PlayerApproachInfo)it_win.Value).m_app_dados.box = m_mission.box_qntd;
                             }
@@ -2170,13 +2513,13 @@ namespace Pangya_GameServer.Game.GameModes
                             foreach (var it in m_player_info)
                             {
 
-                                if ((it.Value.flag != PlayerGameInfo.eFLAG_GAME.QUIT && ((PlayerApproachInfo)it.Value).m_app_dados.state.ucState == 0u) && (it_win.Key == m_player_info.end().Key || ((PlayerApproachInfo)it.Value).m_app_dados.time < ((PlayerApproachInfo)it_win.Value).m_app_dados.time))
+                                if ((it.Value.flag != PlayerGameInfo.eFLAG_GAME.QUIT && ((PlayerApproachInfo)it.Value).m_app_dados.state.ucState == 0u) && (it_win.Key != null || ((PlayerApproachInfo)it.Value).m_app_dados.time < ((PlayerApproachInfo)it_win.Value).m_app_dados.time))
                                 {
                                     it_win = it;
                                 }
                             }
 
-                            if (it_win.Key != m_player_info.end().Key)
+                            if (it_win.Key != null)
                             {
                                 ((PlayerApproachInfo)it_win.Value).m_app_dados.box = m_mission.box_qntd;
                             }
@@ -2213,6 +2556,7 @@ namespace Pangya_GameServer.Game.GameModes
                 } // End Switch
             }
         }
+
         public void delete_all_quiter()
         {
 
@@ -2229,17 +2573,16 @@ namespace Pangya_GameServer.Game.GameModes
                 }
             }
         }
+
         public override bool finish_game(Player _session, int option)
         {
-            if (_session.m_sock != null
-                && _session.getState()
-                && _session.isConnected()
-                && m_players.Count > 0)
+
+            if (_session != null && m_players.Count > 0)
             {
 
-                PangyaBinaryWriter p = new PangyaBinaryWriter();
+                var p = new PangyaBinaryWriter();
 
-                if (option == 0xCB)
+                if (option == 0xCB /*packetCB pacote que termina o Approach*/)
                 {
 
                     if (m_approach_state)
@@ -2255,7 +2598,7 @@ namespace Pangya_GameServer.Game.GameModes
                     sendUpdateInfoAndMapStatistics(_session, 0);
 
                     // Update Mascot Info ON GAME, se o player estiver com um mascot equipado
-                    if (_session.m_pi.ei.mascot_info != null)
+                    if (_session.m_pi.ei.mascot_info != null && _session.m_pi.ei.mascot_info != null)
                     {
                         packet_func.session_send(packet_func.pacote06B(_session.m_pi, 8),
                             _session, 1);
@@ -2270,7 +2613,7 @@ namespace Pangya_GameServer.Game.GameModes
                         _session, 1);
 
                     // Esse   novo do JP, tem Tourney, VS, Grand Prix, HIO Event, n o vi talvez tenha nos outros tamb m
-                    p.init_plain(0x24F);
+                    p.init_plain((ushort)0x24F);
 
                     p.WriteUInt32(0); // OK
 
@@ -2278,7 +2621,7 @@ namespace Pangya_GameServer.Game.GameModes
                         _session, 1);
 
                     // Resposta Update Pang
-                    p.init_plain(0xC8);
+                    p.init_plain((ushort)0xC8);
 
                     p.WriteUInt64(_session.m_pi.ui.pang);
 
@@ -2299,6 +2642,7 @@ namespace Pangya_GameServer.Game.GameModes
             return (PlayersCompleteGameAndClear() && m_approach_state);
         }
 
+
         public object syncHoleTime()
         {
             try
@@ -2307,28 +2651,26 @@ namespace Pangya_GameServer.Game.GameModes
                 // Log
                 _smp.message_pool.getInstance().push(new message("[Approach::syncHoleTime][Log] syncHoleTime iniciado com sucesso!", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
-                PangyaBinaryWriter p = new PangyaBinaryWriter();
+                var p = new PangyaBinaryWriter();
 
-                int retWait = WaitHandle.WaitTimeout;
+                uint retWait = WAIT_TIMEOUT;//
+                IntPtr[] wait_events = { m_hEvent_sync_hole, m_hEvent_sync_hole_pulse };
 
-                WaitHandle[] waitEvents = { m_hEvent_sync_hole, m_hEvent_sync_hole_pulse };
-
-                while ((retWait = WaitHandle.WaitAny(waitEvents, 1000)) == WaitHandle.WaitTimeout || retWait == 1)
+                while ((retWait = WaitForMultipleObjects((uint)wait_events.Length, wait_events, false, 1000 /*1 segundo*/)) == WAIT_TIMEOUT || retWait == (WAIT_OBJECT_0 + 1))
                 {
                     try
-                    {
-
+                    { 
                         m_state_app.@lock();
 
                         switch (m_state_app.getState())
                         {
                             case STATE_APPROACH_SYNC.LOAD_HOLE:
                                 {
+
                                     if (checkAllLoadHole())
                                     {
-                                        _smp.message_pool.getInstance().push(new message("[Approach::SyncHoleTime][Log] Terminou de carregar o hole", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
-                                        clear_all_load_hole();
+                                        clearLoadHole();
 
                                         init_mission();
 
@@ -2338,20 +2680,18 @@ namespace Pangya_GameServer.Game.GameModes
                                             p.init_plain(0x53);
                                             p.WriteInt32(el.m_oid);
 
-                                            packet_func.session_send(p,
-                                                el, 1);
+                                            packet_func.session_send(p, el, 1);
                                         }
 
                                         sendRatesOfApproach();
 
                                         // Mission
-                                        p.init_plain(0x14F);
+                                        p.init_plain((ushort)0x14F);
 
                                         m_mission.toPacket(p);
 
                                         packet_func.game_broadcast(this,
                                             p, 1);
-
 
                                         m_state_app.setState(STATE_APPROACH_SYNC.LOAD_CHAR_INTRO);
                                     }
@@ -2360,50 +2700,51 @@ namespace Pangya_GameServer.Game.GameModes
                                 }
                             case STATE_APPROACH_SYNC.LOAD_CHAR_INTRO:
                                 {
-                                    if (checkAllFinishCharIntro())//vai ficar batendo no time ate verificar se o tempo acabou, se sim, ele reinicia o proximo hole
+
+                                    if (checkAllFinishCharIntro())//aqui nao vai pro entende end shot...
                                     {
-                                        _smp.message_pool.getInstance().push(new message("[Approach::SyncHoleTime][Log] Terminou a intro char no hole", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
                                         clearFinishCharIntro();
-                                        m_timeout = 0;
-                                        startTime();
-                                        p.init_plain(0x90);
-                                        packet_func.game_broadcast(this, p, 1);
-                                        m_state_app.setState(STATE_APPROACH_SYNC.END_SHOT);
 
+
+                                        m_timeout = 0;
+
+
+                                        startTime();
+
+                                        p.init_plain((ushort)0x90);
+
+                                        packet_func.game_broadcast(this,
+                                            p, 1);
+
+                                        m_state_app.setState(STATE_APPROACH_SYNC.END_SHOT);
                                     }
+
                                 }
                                 break;
                             case STATE_APPROACH_SYNC.END_SHOT:
                                 {
+                                    if (!checkAllSyncShot() || !checkAllFinishShot() || m_timeout != 1)
+                                        break;
 
-                                    if (checkAllSyncShot()
-                                        && checkAllFinishShot()
-                                        && m_timeout == 1)
+                                    clearSyncShot();
+                                    clearFinishShot();
+
+                                    requestCalculeRankPlaceHole();
+
+                                    mission_win();
+
+                                    top_rank_win();
+
+                                    // Score board Approach
+                                    sendScoreBoard();
+
+                                    foreach (var el in m_players)
                                     {
 
-                                        clearSyncShot();
-                                        clearFinishShot();
+                                        finishHole(el);
 
-                                        requestCalculeRankPlaceHole();
-
-                                        mission_win();
-
-                                        top_rank_win();
-
-                                        // Score board Approach
-                                        sendScoreBoard(); // -> packet 0x150
-
-                                        foreach (var el in m_players)
-                                        { 
-                                            finishHole(el);
-
-                                            changeHole(el);
-                                        }
-                                        //seta aui
-
-                                        _smp.message_pool.getInstance().push(new message("[Approach::SyncHoleTime][Log] hora de trocar o hole", type_msg.CL_FILE_LOG_AND_CONSOLE));
-
+                                        changeHole(el);
                                     }
                                 }
                                 break;
@@ -2417,11 +2758,9 @@ namespace Pangya_GameServer.Game.GameModes
 
                         // Libera
                         m_state_app.unlock();
-
                     }
                     catch (exception e)
                     {
-
                         m_state_app.unlock();
 
                         _smp.message_pool.getInstance().push(new message("[Approach::syncHoleTime][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
@@ -2432,49 +2771,90 @@ namespace Pangya_GameServer.Game.GameModes
             {
                 _smp.message_pool.getInstance().push(new message("[Approach::syncHoleTime][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
+
             _smp.message_pool.getInstance().push(new message("[Approach::syncHoleTime][Log] Saindo de syncHoleTime()...", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
-            return null;
-        } 
-
-        public override void startTime()
-        {
-            try
-            {
-                if (m_timer != null)
-                    stopTime();
-
-                m_timer = sgs.gs.getInstance().MakeTime(m_ri.time_30s, () => end_time(this, null), new List<long>(), PangyaSyncTimer.TIMER_TYPE.NORMAL);
-
-                _smp.message_pool.getInstance().push(new message("[Approach::startTime][Log] Create Timer[Tempo=" + (m_ri.time_30s / 1000) + "Sec, STATE=" + (m_timer.getState()) + "]", type_msg.CL_FILE_LOG_AND_CONSOLE));
-            }
-            catch (Exception e)
-            {
-                _smp.message_pool.getInstance().push(new message(
-                    $"[Approach::startTime][ErrorSystem] {e.Message}",
-                    type_msg.CL_FILE_LOG_AND_CONSOLE));
-            }
+            return null;//se for valor diferente de 'null', ele vai executar
         }
 
-        public bool checkAllLoadHole()
+        public int sort_approach_rank_place(approach_dados_ex _ad1, approach_dados_ex _ad2)
         {
-            uint count = 0;
 
-            foreach (var _el in m_players)
+            // Verifica os state primeiro
+            if (_ad1.state.ucState != 0u)
             {
-                try
-                {
-                    var pgi = INIT_PLAYER_INFO("CheckAllLoadHole", "tentou verificar se todos os player terminaram de carregar o hole no jogo", _el);
+                return 0;
+            }
+            else if (_ad2.state.ucState != 0u)
+            {
+                return 1;
+            }
 
-                    if (pgi.finish_load_hole > 0)
-                        count++;
-                }
-                catch (exception e)
-                {
-                    _smp.message_pool.getInstance().push(new message("[Approach::CheckAllLoadHole][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
-                }
-            } 
-            return count == m_players.Count;
+            if (_ad1.distance == _ad2.distance)
+            {
+                return _ad1.time > _ad2.time ? 1 : 0;
+            }
+
+            return _ad1.distance < _ad2.distance ? 0 : 1;
+        }
+
+        public new PlayerApproachInfo INIT_PLAYER_INFO(string _method, string _msg, Player __session)
+        {
+            var pgi = getPlayerInfo((__session));
+            if (pgi == null)
+                throw new exception($"[{GetType().Name}::" + _method + "][Error] PLAYER[UID=" + __session.m_pi.uid + "] " + _msg + ", mas o game nao tem o info dele guardado. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME, 1, 4));
+
+            return (PlayerApproachInfo)pgi;
+        }
+
+
+        protected enum STATE_APPROACH_SYNC : byte
+        {
+            LOAD_HOLE,
+            LOAD_CHAR_INTRO,
+            END_SHOT,
+            WAIT_END_GAME
+        }
+
+        protected class stStateApproachSync
+        {
+            public stStateApproachSync()
+            {
+                this.m_state = STATE_APPROACH_SYNC.LOAD_HOLE;
+                m_cs = new object();
+            }
+
+            public void @lock()
+            {
+                //Monitor.Exit(m_cs);
+            }
+
+            public void unlock()
+            {
+                //Monitor.Exit(m_cs);
+            }
+
+            public STATE_APPROACH_SYNC getState()
+            {
+                return m_state;
+            }
+
+            public void setState(STATE_APPROACH_SYNC _state)
+            {
+                m_state = _state;
+            }
+
+            public void setStateWithLock(STATE_APPROACH_SYNC _state)
+            {
+
+                @lock();
+
+                m_state = _state;
+
+                unlock();
+            }
+            protected STATE_APPROACH_SYNC m_state;
+            protected object m_cs = new object();
         }
     }
 }

@@ -11,8 +11,8 @@ namespace Pangya_GameServer.Repository
     {
         public CmdFindCard(bool _waiter = false) : base(_waiter)
         {
-            this.m_uid = 0u;
-            this.m_typeid = 0u;
+            this.m_uid = 0;
+            this.m_typeid = 0;
             this.m_ci = new CardInfo();
         }
 
@@ -86,15 +86,14 @@ namespace Pangya_GameServer.Repository
         protected override Response prepareConsulta()
         {
 
-            if (m_typeid == 0 || sIff.getInstance().getItemGroupIdentify(m_typeid) != sIff.getInstance().CARD)
+            if (m_typeid == 0 || sIff.getInstance().getItemGroupIdentify(m_typeid) != PangyaAPI.IFF.JP.Models.Flags.IFF_GROUP.CARD)
             {
                 throw new exception("[CmdFindCard::prepareConsulta][Error] _typeid card is invalid", STDA_MAKE_ERROR(STDA_ERROR_TYPE.PANGYA_DB,
                     4, 0));
             }
 
 
-            var r = procedure(
-                m_szConsulta,
+            var r = procedure(m_szConsulta,
                 Convert.ToString(m_uid) + ", " + Convert.ToString(m_typeid));
 
             checkResponse(r, "nao conseguiu encontrar card[TYPEID=" + Convert.ToString(m_typeid) + "] do PLAYER[UID=" + Convert.ToString(m_uid) + "]");

@@ -17,7 +17,7 @@ namespace Pangya_GameServer.Repository
 
         public CmdGoldenTimeRound(bool _waiter = false) : base(_waiter)
         {
-            this.m_id = 0u;
+            this.m_id = 0;
             this.m_round = new List<stRound>();
         }
 

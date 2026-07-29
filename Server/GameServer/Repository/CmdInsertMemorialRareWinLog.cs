@@ -9,8 +9,8 @@ namespace Pangya_GameServer.Repository
     {
         public CmdInsertMemorialRareWinLog()
         {
-            this.m_uid = 0u;
-            this.m_coin_typeid = 0u;
+            this.m_uid = 0;
+            this.m_coin_typeid = 0;
             this.m_ci = new ctx_coin_item_ex();
         }
 
@@ -82,8 +82,7 @@ namespace Pangya_GameServer.Repository
                     4, 0));
             }
 
-            var r = procedure(
-                m_szConsulta,
+            var r = procedure(m_szConsulta,
                 Convert.ToString(m_uid) + ", " + Convert.ToString(m_coin_typeid) + ", " + Convert.ToString(m_ci._typeid) + ", " + Convert.ToString(m_ci.qntd) + ", " + Convert.ToString(m_ci.tipo) + ", " + Convert.ToString(m_ci.probabilidade));
 
             checkResponse(r, "nao conseguiu inserir um Memorial Shop[COIN=" + Convert.ToString(m_coin_typeid) + "] Rare Win[TYPEID=" + Convert.ToString(m_ci._typeid) + ", QNTD=" + Convert.ToString(m_ci.qntd) + ", RARIDADE=" + Convert.ToString(m_ci.tipo) + "] Log para o PLAYER[UID=" + Convert.ToString(m_uid) + "]");

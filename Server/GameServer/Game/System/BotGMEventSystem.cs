@@ -13,15 +13,15 @@ namespace Pangya_GameServer.Game.System
         List<stRangeTime> m_rt;      // Times to make room event
         List<stReward> m_rewards;
         bool m_load;
-        SYSTEMTIME m_st;                            // Usando para n�o ficar criando direto na fun��o de check
-
+        TimeSpan m_st;                            // Usando para n�o ficar criando direto na fun��o de check
+        Random rnd;
         public BotGMEvent()
         {
-
+			rnd = new Random();
             this.m_rt = new List<stRangeTime>();
             this.m_rewards = new List<stReward>();
             this.m_load = false;
-            this.m_st = new SYSTEMTIME();
+            this.m_st = new TimeSpan();
             // Inicializa
             initialize();
         }
@@ -53,7 +53,7 @@ namespace Pangya_GameServer.Game.System
 
         public void initialize()
         {
-            CmdBotGMEventInfo cmd_bgei = new CmdBotGMEventInfo(); // Waiter
+            CmdBotGMEventInfo cmd_bgei = new CmdBotGMEventInfo(0); // Waiter
 
             snmdb.NormalManagerDB.getInstance().add(0,
                 cmd_bgei, null, null);
@@ -62,18 +62,18 @@ namespace Pangya_GameServer.Game.System
             {
                 throw cmd_bgei.getException();
             }
-
-            cmd_bgei.setTipo(1);
-
-            snmdb.NormalManagerDB.getInstance().add(0,
-                cmd_bgei, null, null);
-
-            if (cmd_bgei.getException().getCodeError() != 0)
-            {
-                throw cmd_bgei.getException();
-            }
-
             m_rt = cmd_bgei.getTimeInfo();
+
+            cmd_bgei = new CmdBotGMEventInfo(1); // Waiter
+
+            snmdb.NormalManagerDB.getInstance().add(0,
+                cmd_bgei, null, null);
+
+            if (cmd_bgei.getException().getCodeError() != 0)
+            {
+                throw cmd_bgei.getException();
+            }
+
             m_rewards = cmd_bgei.getRewardInfo();
             // Log  
             if (m_rt.Count == 0 || m_rewards.Count == 0)
@@ -82,6 +82,7 @@ namespace Pangya_GameServer.Game.System
             m_load = true;
 
         }
+
         public bool checkTimeToMakeRoom()
         {
             if (!isLoad())
@@ -90,39 +91,11 @@ namespace Pangya_GameServer.Game.System
                 return false;
             }
 
-            m_st.CreateTime();
+            m_st = DateTime.Now.TimeOfDay;
 
-            var valid_times = m_rt.Where(_el => _el.isBetweenTime(m_st) && !_el.m_room_created).ToList();
-
-            return valid_times.Count > 0;
+            return m_rt.Any(_el => _el.isBetweenTime(m_st));
         }
-
-        public bool messageSended()
-        {
-
-            if (!isLoad())
-            {
-
-                _smp.message_pool.getInstance().push(new message("[BotGMEvent::messageSended][Error] Bot GM Event not have initialized, please call init function first.", type_msg.CL_FILE_LOG_AND_CONSOLE));
-
-                return false;
-            }
-
-            bool is_sended = false;
-
-
-
-            m_st.CreateTime();
-
-            var it = m_rt.FirstOrDefault(_el =>
-            {
-                return _el.isBetweenTime(m_st) && !_el.m_room_created;
-            });
-
-            is_sended = (it != null && it.m_sended_message);
-
-            return is_sended;
-        }
+         
         public void setSendedMessage()
         {
 
@@ -136,7 +109,7 @@ namespace Pangya_GameServer.Game.System
 
 
 
-            m_st.CreateTime();
+            m_st = DateTime.Now.TimeOfDay;
 
             for (int i = 0; i < m_rt.Count; i++)
             {
@@ -164,38 +137,22 @@ namespace Pangya_GameServer.Game.System
                 return null;
             }
 
-            stRangeTime rt = null;
+            m_st = DateTime.Now.TimeOfDay;
 
-            m_st.CreateTime();
-
-            var it = m_rt.Where(_el =>
+            var rt = m_rt.FirstOrDefault(_el =>
             {
-                return _el.isBetweenTime(m_st) && !_el.m_room_created; // pega somente os que nao foram criados!
-            }).ToList();
-
-            if (it.Any())
-            {
-                rt = it.First();
-            }
+                return _el.isBetweenTime(m_st); // pega somente os que nao foram criados!
+            });
 
             return rt;
-        }
-
-        public void setInterval(stRangeTime rt)
-        {
-            var index = m_rt.IndexOf(rt);
-            m_rt[index] = rt;
-        }
-
+        } 
         public List<stReward> calculeReward()
         {
 
             List<stReward> v_reward = new List<stReward>();
-
-
-
+ 
             // No m ximo 3 pr mios
-            uint num_r = (uint)new Random().Next(1, 3);
+            uint num_r = (uint)rnd.Next(1, 3);
 
             Lottery lottery = new Lottery();
             Lottery.LotteryCtx ctx = null;
@@ -205,15 +162,15 @@ namespace Pangya_GameServer.Game.System
                 lottery.Push(el.rate, el);
             }
 
-            bool remove_to_roleta = num_r < lottery.GetCountItem();
+            bool remove_to_roleta = num_r < lottery.getCountItem();
 
             // Not loop infinite
-            num_r = num_r > lottery.GetCountItem() ? (uint)lottery.GetCountItem() : num_r;
+            num_r = num_r > lottery.getCountItem() ? lottery.getCountItem() : num_r;
 
             while (num_r > 0)
             {
 
-                if ((ctx = lottery.SpinRoleta(remove_to_roleta)) == null)
+                if ((ctx = lottery.spinRoleta(remove_to_roleta)) == null)
                 {
 
                     // Log
@@ -229,7 +186,7 @@ namespace Pangya_GameServer.Game.System
                 num_r--;
             }
 
-            return new List<stReward>(v_reward);
+            return v_reward;
         }
     }
 

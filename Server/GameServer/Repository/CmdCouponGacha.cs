@@ -32,12 +32,23 @@ namespace Pangya_GameServer.Repository
             }
         }
 
-        protected override Response prepareConsulta()
-        {
-            var r = consulta(m_szConsulta[0] + (m_uid) + "; " + m_szConsulta[1] + (m_uid));
-            checkResponse(r, "nao conseguiu pegar o(s) coupon(s) gacha do player: " + (m_uid));
-            return r;
-        }
+     
+	 protected override Response prepareConsulta()
+{ 
+    string query1 = $"{m_szConsulta[0]}{m_uid}";
+    string query2 = $"{m_szConsulta[1]}{m_uid}";
+
+    string fullQuery = $"{query1}; {query2}";
+
+    // 4. Execute and Validate
+    var r = consulta(fullQuery);
+
+    checkResponse(r, $"Não foi possível buscar os cupons gacha do player: {m_uid}");
+
+    return r;
+}
+        private string[] m_szConsulta = { "SELECT c0 FROM pangya.pangya_item_warehouse WHERE typeid = 436207744 AND uid = ", "SELECT c0 FROM pangya.pangya_item_warehouse WHERE typeid = 436207747 AND uid = " };
+
 
 
         public CouponGacha getCouponGacha()
@@ -49,7 +60,6 @@ namespace Pangya_GameServer.Repository
         {
             m_cg = cg;
         }
-        private string[] m_szConsulta = { "SELECT c0 FROM pangya.pangya_item_warehouse WHERE typeid = 436207744 AND uid = ", "SELECT c0 FROM pangya.pangya_item_warehouse WHERE typeid = 436207747 AND uid = " };
-
+		
     }
 }

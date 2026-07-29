@@ -45,5 +45,4 @@
         ACK_CHAMPION_NOTFIND = 0xD7,         // 215
         ACK_AUTH_STATE_BLOCK = 0xD8          // 216
     }
-
 }

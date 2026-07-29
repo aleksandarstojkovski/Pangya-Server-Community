@@ -44,32 +44,42 @@ namespace Pangya_GameServer.Repository
 
         protected override Response prepareConsulta()
         {
-
             if (m_uid == 0)
             {
-                throw new exception("[CmdUpdateChatMacroUser::prepareConsulta][Error] m_uid is invalid(zero)", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PANGYA_DB,
-                    4, 0));
+                throw new exception("[CmdUpdateChatMacroUser::prepareConsulta][Error] m_uid is invalid(zero)",
+                    ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.PANGYA_DB, 4, 0));
             }
 
-            // Verifiy  and Encode Characters of not display of Encode Standard of C
-            var m0 = (m_cmu.macro[0]).text;
-            var m1 = (m_cmu.macro[1]).text;
-            var m2 = (m_cmu.macro[2]).text;
-            var m3 = (m_cmu.macro[3]).text;
-            var m4 = (m_cmu.macro[4]).text;
-            var m5 = (m_cmu.macro[5]).text;
-            var m6 = (m_cmu.macro[6]).text;
-            var m7 = (m_cmu.macro[7]).text;
-            var m8 = (m_cmu.macro[8]).text;
+            // Função interna para limpar a sujeira da memória/buffer
+            string Clean(string text)
+            {
+                if (string.IsNullOrEmpty(text)) return "";
+                // Remove Nul (\0), substitui quebras de linha por espaço e remove espaços inúteis nas pontas
+                return text.Replace("\0", "").Replace("\r", "").Replace("\n", "").Trim();
+            }
 
-            var r = procedure(
-                m_szConsulta,
-                Convert.ToString(m_uid) + ", " + (m0) + ", " + (m1) + ", " + (m2) + ", " + (m3) + ", " + (m4) + ", " + (m5) + ", " + (m6) + ", " + (m7) + ", " + (m8));
+            var m0 = Clean(m_cmu.macro[0].text);
+            var m1 = Clean(m_cmu.macro[1].text);
+            var m2 = Clean(m_cmu.macro[2].text);
+            var m3 = Clean(m_cmu.macro[3].text);
+            var m4 = Clean(m_cmu.macro[4].text);
+            var m5 = Clean(m_cmu.macro[5].text);
+            var m6 = Clean(m_cmu.macro[6].text);
+            var m7 = Clean(m_cmu.macro[7].text);
+            var m8 = Clean(m_cmu.macro[8].text);
+             
+            var r = procedure(m_szConsulta,
+                Convert.ToString(m_uid) + ", " +
+                makeText(m0) + ", " + makeText(m1) + ", " + makeText(m2) + ", " +
+                makeText(m3) + ", " + makeText(m4) + ", " + makeText(m5) + ", " +
+                makeText(m6) + ", " + makeText(m7) + ", " + makeText(m8)
+            );
 
-            checkResponse(r, "nao conseguiu atualizar Chat Macro[M1=" + m0 + ", M2=" + m1 + ", M3=" + m2 + ", M4=" + m3 + ", M5=" + m4 + ", M6=" + m5 + ", M7=" + m6 + ", M8=" + m7 + ", M9=" + m8 + "] do PLAYER[UID=" + Convert.ToString(m_uid) + "]");
+            checkResponse(r, "nao conseguiu atualizar Chat Macro...");
 
             return r;
         }
+
         private uint m_uid = new uint();
         private chat_macro_user m_cmu = new chat_macro_user();
 

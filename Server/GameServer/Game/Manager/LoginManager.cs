@@ -7,7 +7,7 @@ using Pangya_GameServer.Game.System;
 using Pangya_GameServer.Models;
 using Pangya_GameServer.PacketFunc;
 using PangyaAPI.IFF.JP.Extensions;
-using PangyaAPI.Network.Repository; 
+using PangyaAPI.Network.Repository;
 using PangyaAPI.SQL;
 using PangyaAPI.Utilities;
 using PangyaAPI.Utilities.Log;
@@ -22,12 +22,9 @@ namespace Pangya_GameServer.Game.Manager
         private Thread m_pThread;
 
         // Quando true, indica que o thread deve parar
-        private volatile bool m_check_task_finish_shutdown; 
-
-        private readonly object m_cs = new object(); // Lock para sincronização
-
+        private volatile bool m_check_task_finish_shutdown;
         public LoginManager()
-        { 
+        {
             m_check_task_finish_shutdown = false;
 
             StartCheckTaskFinishThread();
@@ -45,22 +42,16 @@ namespace Pangya_GameServer.Game.Manager
 
             task.exec();
 
-            lock (m_cs)
-            {
-                v_task.Add(task);
-            }
+            v_task.Add(task);
 
             return task;
         }
 
         public void deleteTask(LoginTask _task)
         {
-            lock (m_cs)
+            if (v_task.Remove(_task))
             {
-                if (v_task.Remove(_task))
-                {
-                    _task.Dispose(); // Se LoginTask implementar IDisposable, ou qualquer cleanup necessário
-                }
+                _task.Dispose(); // Se LoginTask implementar IDisposable, ou qualquer cleanup necessário
             }
         }
 
@@ -108,8 +99,6 @@ namespace Pangya_GameServer.Game.Manager
                         }
                     case 2: // Member Info - User Equip
                         {
-
-
 
                             task.getSession.m_pi.ue = ((CmdUserEquip)_pangya_db).getInfo();
 
@@ -162,10 +151,7 @@ namespace Pangya_GameServer.Game.Manager
                             ///Verifica se tem premium ticket para mandar o pacote do premium user e a comet
                             if (sPremiumSystem.getInstance().isPremium(task.getSession.m_pi.pt._typeid) && task.getSession.m_pi.pt.id != 0 && task.getSession.m_pi.pt.unix_sec_date > 0)
                             {
-
                                 sPremiumSystem.getInstance().updatePremiumUser(task.getSession);
-
-                                _smp.message_pool.getInstance().push(new message("[LoginManager::SQLDBResponse][Debug] PLAYER[UID=" + (task.getSession.m_pi.uid) + "] Is Premium User", type_msg.CL_FILE_LOG_AND_CONSOLE));
                             }
 
                             break;
@@ -222,9 +208,7 @@ namespace Pangya_GameServer.Game.Manager
                         {
                             var df = ((CmdDolfiniLockerInfo)(_pangya_db));
 
-                            task.getSession.m_pi.df = df.getInfo();   // cmd_df.getInfo();
-
-
+                            task.getSession.m_pi.df = df.getInfo();    
                             break;
                         }
                     case 10:    // Cookie
@@ -249,6 +233,7 @@ namespace Pangya_GameServer.Game.Manager
 
                             snmdb.NormalManagerDB.getInstance().add(44, new CmdLegacyTikiShopInfo(task.getSession.m_pi.uid), SQLDBResponse, task);
 
+                            snmdb.NormalManagerDB.getInstance().add(45, new CmdWebShopPoint(task.getSession.m_pi.uid), SQLDBResponse, task);
                             break;
                         }
                     case 11:    // Trofel Info atual
@@ -300,19 +285,19 @@ namespace Pangya_GameServer.Game.Manager
                                 float rate = task.getSession.m_pi.ui.getQuitRate();
 
                                 if (rate < GOOD_PLAYER_ICON)
-                                    task.getSession.m_pi.mi.state_flag.azinha = true;
+                                    task.getSession.m_pi.mi.state_flag.azinha = 1;
                                 else if (rate >= QUITER_ICON_1 && rate < QUITER_ICON_2)
-                                    task.getSession.m_pi.mi.state_flag.quiter_1 = true;
+                                    task.getSession.m_pi.mi.state_flag.quiter_1 = 1;
                                 else if (rate >= QUITER_ICON_2)
-                                    task.getSession.m_pi.mi.state_flag.quiter_2 = true;
+                                    task.getSession.m_pi.mi.state_flag.quiter_2 = 1;
                             }
 
                             if (task.getSession.m_pi.ei.char_info != null && task.getSession.m_pi.ui.getQuitRate() < GOOD_PLAYER_ICON)
-                                task.getSession.m_pi.mi.state_flag.icon_angel = task.getSession.m_pi.ei.char_info.AngelEquiped() == 1;
+                                task.getSession.m_pi.mi.state_flag.icon_angel = task.getSession.m_pi.ei.char_info.AngelEquiped();
                             else
-                                task.getSession.m_pi.mi.state_flag.icon_angel = false;
+                                task.getSession.m_pi.mi.state_flag.icon_angel = 0;
 
-                            task.getSession.m_pi.mi.state_flag.sexo = task.getSession.m_pi.mi.sexo == 1;
+                            task.getSession.m_pi.mi.state_flag.sexo = task.getSession.m_pi.mi.sexo;
 
                             break;
                         }
@@ -364,7 +349,10 @@ namespace Pangya_GameServer.Game.Manager
                     case 15:    // Warehouse Item
                         {
 
-                            task.getSession.m_pi.mp_wi = ((CmdWarehouseItem)(_pangya_db)).getInfo();    // cmd_wi.getInfo();
+                            var cmd = ((CmdWarehouseItem)(_pangya_db));
+                            task.getSession.m_pi.mp_wi = cmd.getInfo();
+                            task.getSession.m_pi.ToTalClubsetCNT = cmd.getClubsetItemCount();
+                            task.getSession.m_pi.ToTalPartsCNT = cmd.getPartsItemCount();
 
                             // Check Warehouse Item Times
                             PlayerManager.checkWarehouse(task.getSession);
@@ -382,7 +370,7 @@ namespace Pangya_GameServer.Game.Manager
                                     var pWi = task.getSession.m_pi.findWarehouseItemById(ui_ticket_report_scroll.FirstOrDefault().Value.id);
 
                                     if (pWi != null)
-                                        ItemManager.openTicketReportScroll(task.getSession, pWi.id, ((pWi.c[1] * 0x800) | pWi.c[2]));
+                                        ItemManager.openTicketReportScroll(task.getSession, pWi.id, _ticket_scroll_id: ((int)(pWi.c[1] * 0x800) | (int)(ushort)pWi.c[2]));
 
                                 }
                                 catch (exception e)
@@ -413,7 +401,6 @@ namespace Pangya_GameServer.Game.Manager
 
                                 if (cs != null)
                                 {
-
                                     for (var i = 0; i < 5; ++i)
                                     {
                                         task.getSession.m_pi.ei.csi.enchant_c[i] = (short)(cs.SlotStats.getSlot[i] + it.clubset_workshop.c[i]);
@@ -422,7 +409,6 @@ namespace Pangya_GameServer.Game.Manager
                                 else
                                     _smp.message_pool.getInstance().push(new message("[SQLDBResponse][Erro] PLAYER[UID=" + (task.getSession.m_pi.uid) + "] tentou inicializar ClubSet[TYPEID="
                                              + (it._typeid) + ", ID=" + (it.id) + "] equipado, mas ClubSet Not exists on IFF_STRUCT do Server. Bug", type_msg.CL_FILE_LOG_AND_CONSOLE));
-
                             }
                             else
                             {
@@ -444,7 +430,7 @@ namespace Pangya_GameServer.Game.Manager
 
                                     if (cs != null)
                                     {
-                                        for (var i = 0u; i < 5; ++i)
+                                        for (var i = 0; i < 5; ++i)
                                             task.getSession.m_pi.ei.csi.enchant_c[i] = (short)(cs.SlotStats.getSlot[i] + it.clubset_workshop.c[i]);
 
                                     }
@@ -469,7 +455,7 @@ namespace Pangya_GameServer.Game.Manager
 
                                     ItemManager.initItemFromBuyItem(task.getSession.m_pi, @item, bi, false, 0, 0, 1/*Não verifica o Level*/);
 
-                                    if (item._typeid != 0 && (item.id =  ItemManager.addItem(item, task.getSession,  2/*Padrão item*/, 0)) != -4
+                                    if (item._typeid != 0 && (item.id = ItemManager.addItem(item, task.getSession, 2/*Padrão item*/, 0)) != -4
                                         && (it = task.getSession.m_pi.findWarehouseItemById(item.id)) != null)
                                     {
 
@@ -486,7 +472,7 @@ namespace Pangya_GameServer.Game.Manager
                                         if (cs != null)
                                         {
 
-                                            for (var i = 0u; i < 5; ++i)
+                                            for (var i = 0; i < 5; ++i)
                                                 task.getSession.m_pi.ei.csi.enchant_c[i] = (short)(cs.SlotStats.getSlot[i] + it.clubset_workshop.c[i]);
 
                                         }
@@ -611,8 +597,9 @@ namespace Pangya_GameServer.Game.Manager
                         }
                     case 20:    // Daily Quest User Info
                         {
-                            task.getSession.m_pi.dqiu = ((CmdDailyQuestInfoUser)(_pangya_db)).GetInfo();    // cmd_dqiu.getInfo();
-                                                                                                     //                                                              // fim daily quest info player
+                            var daily = ((CmdDailyQuestInfoUser)(_pangya_db)).GetInfo();
+                            task.getSession.m_pi.dqiu = daily;    // cmd_dqiu.getInfo();
+                                                                                                            //                                                              // fim daily quest info player
 
                             break;
                         }
@@ -809,22 +796,28 @@ namespace Pangya_GameServer.Game.Manager
 
                             break;
                         }
+                    case 45: // Legacy Tiki Shop(PointShop)
+                        {
+                            task.getSession.m_pi.Web_Points = ((CmdWebShopPoint)(_pangya_db)).getPoints();
+
+                            break;
+                        }
                     default:
                         break;
                 }
                 // Incrementa o contador
-                task. incremenetCount();
+                task.incremenetCount();
 
 
                 if (task.getCount() == 39) // 44 - 5 (38 deixei o 1, 2, 3, 40 e 41 para o game server)
-                    task. sendCompleteData();
+                    task.sendCompleteData();
                 else if (task.getCount() > 0)
                     task.sendReply(_msg_id + 1);
 
                 // Devolve (deixa a session livre) ou desconnecta ela se foi requisitado
                 if (task.getSession.devolve())
                 {
-                    _smp.message_pool.getInstance().push(new message("[LoginManager::LoginManager][Test1] ", type_msg.CL_ONLY_CONSOLE));
+                    _smp.message_pool.getInstance().push(new message("[LoginManager::LoginManager][Test1] ", type_msg.CL_FILE_LOG_AND_CONSOLE));
                     sgs.gs.getInstance().DisconnectSession(task.getSession);
 
                 }
@@ -852,17 +845,14 @@ namespace Pangya_GameServer.Game.Manager
 
         private void clear()
         {
-            lock (m_cs)
+            foreach (var task in v_task)
             {
-                foreach (var task in v_task)
-                {
-                    task.Dispose(); // Se implementa IDisposable, limpar recursos
-                }
-                v_task.Clear();
+                task.Dispose(); // Se implementa IDisposable, limpar recursos
             }
+            v_task.Clear();
         }
 
-        
+
         private void StartCheckTaskFinishThread()
         {
             m_pThread = new Thread(CheckTaskFinish)
@@ -877,16 +867,13 @@ namespace Pangya_GameServer.Game.Manager
         {
             while (!m_check_task_finish_shutdown)
             {
-                lock (m_cs)
+                for (int i = 0; i < v_task.Count; i++)
                 {
-                    for (int i = 0; i < v_task.Count; i++)
+                    if (v_task[i].isFinished())
                     {
-                        if (v_task[i].isFinished())
-                        {
-                            v_task[i].Dispose();
-                            v_task.RemoveAt(i);
-                            i--;
-                        }
+                        v_task[i].Dispose();
+                        v_task.RemoveAt(i);
+                        i--;
                     }
                 }
                 Thread.Sleep(1000); // 1 segundo para não consumir CPU excessivamente

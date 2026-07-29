@@ -6,15 +6,7 @@ using PangyaAPI.Utilities;
 namespace Pangya_GameServer.Repository
 {
     public class CmdCreateAchievement : Pangya_DB
-    {
-        public CmdCreateAchievement()
-        {
-            this.m_uid = 0;
-            this.m_typeid = 0;
-            this.m_name = "";
-            this.m_status = 0;
-        }
-
+    { 
         public CmdCreateAchievement(uint _uid)
         {
             this.m_uid = _uid;
@@ -113,18 +105,7 @@ namespace Pangya_GameServer.Repository
 
             m_id = -1;
 
-            string[] @params = { "@IDUSER", "@NOME", "@TYPEID", "@ACTIVE", "@STATUS" };
-            SqlDbType[] tipos = { SqlDbType.Int, SqlDbType.NVarChar, SqlDbType.Int, SqlDbType.Int, SqlDbType.Int };
-            object[] valores_param = new object[]
-            {
-                m_uid,//id do player
-                m_name,//nome do achiev
-                m_typeid,
-                1,
-                m_status
-            };
-
-            var r = procedureWithParams(m_szConsulta, @params, tipos, valores_param);
+            var r = procedure(m_szConsulta, (m_uid) + ", " + makeText(m_name) + ", " + (m_typeid) + ", 1, " + (m_status));
 
             checkResponse(r, "nao conseguiu adicionar Achievement para o player: " + Convert.ToString(m_uid));
 

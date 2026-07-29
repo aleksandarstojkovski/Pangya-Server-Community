@@ -37,12 +37,12 @@ namespace Pangya_GameServer.Repository
                 m_ui.putt_in = _result.GetInt32(17);
                 m_ui.best_long_putt = _result.GetFloat(18);
                 m_ui.best_chip_in = _result.GetFloat(19);
-                m_ui.exp = _result.GetUInt32(20);
+                m_ui.exp = _result.GetInt32(20);
                 m_ui.level = _result.GetByte(21);
                 m_ui.pang = _result.GetUInt64(22);
                 m_ui.media_score = _result.GetInt32(23);
                 for (i = 0; i < 5; i++)
-                    m_ui.best_score[i] = _result.GetByte(24 + i);    // 24 + 5
+                    m_ui.best_score[i] = _result.GetSByte(24 + i);    // 24 + 5
                 for (i = 0; i < 5; i++)
                     m_ui.best_pang[i] = _result.GetInt64(29 + i);           // 29 + 5
                 m_ui.sum_pang = _result.GetInt64(34);
@@ -54,7 +54,7 @@ namespace Pangya_GameServer.Repository
                 m_ui.skin_lose = _result.GetInt32(40);
                 m_ui.skin_run_hole = _result.GetInt32(41);
                 m_ui.skin_strike_point = _result.GetInt32(42);
-                m_ui.skin_all_in_count = _result.GetInt32(43);
+                m_ui.skin_all_in_count = _result.GetInt16(43);
                 m_ui.all_combo = _result.GetInt32(44);
                 m_ui.combo = _result.GetInt32(45);
                 m_ui.team_win = _result.GetInt32(46);

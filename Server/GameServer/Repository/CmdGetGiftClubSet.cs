@@ -9,7 +9,7 @@ namespace Pangya_GameServer.Repository
     {
         public CmdGetGiftClubSet()
         {
-            this.m_uid = 0u;
+            this.m_uid = 0;
             this.m_wi = new WarehouseItemEx();
         }
 
@@ -130,8 +130,7 @@ namespace Pangya_GameServer.Repository
                     4, 0));
             }
 
-            var r = procedure(
-                m_szConsulta,
+            var r = procedure(m_szConsulta,
                 Convert.ToString(m_uid) + ", " + Convert.ToString(m_wi.id) + ", " + Convert.ToString(m_wi._typeid));
 
             checkResponse(r, "nao conseguiu pegar o presente de ClubSet[TYPEID=" + Convert.ToString(m_wi._typeid) + ", ID=" + Convert.ToString(m_wi.id) + "] para o PLAYER[UID=" + Convert.ToString(m_uid) + "]");

@@ -42,7 +42,7 @@ namespace PangyaAPI.Network.Repository
             m_check = false;
             m_uid = 0;
 
-            var r = procedure("pangya.ProcVerifyNickname", m_nick);
+            var r = procedure("pangya.ProcVerifyNickname", makeText(m_nick));
 
             checkResponse(r, "nao conseguiu verificar se existe o nick: " + m_nick);
             return r;
