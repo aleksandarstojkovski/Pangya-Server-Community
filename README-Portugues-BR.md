@@ -23,7 +23,7 @@
 - [Managers do GameServer](#managers-do-gameserver)
 - [Estrutura do Projeto](#estrutura-do-projeto)
 - [Comunidade](#comunidade)
-
+- [Cliente](#client)
 ---
 
 ## Visão Geral
@@ -448,6 +448,15 @@ PangyaSharp/
 │   └── PangyaAPI.Discord/   # Webhook Discord (opcional)
 └── packages/                # NuGet (System.Data.Odbc)
 ```
+---
+
+## Client
+
+Aqui está o pacote completo: Servidor, Ferramenta, Cliente, WebClient e o arquivo `.reg` para instalação:  
+👉 [Download no MediaFire](https://www.mediafire.com/file/j33ghvb4lk2bjtn/JP+Building.rar/file)
+
+Também disponibilizei a versão aqui:  
+👉 [GitHub Releases - Versão Final](https://github.com/luismk/Pangya-Server-Community/releases/tag/Revison-Final)
 
 ---
 
