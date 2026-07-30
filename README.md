@@ -15,6 +15,14 @@ Choose your language / Escolha seu idioma:
 
 ---
 
+## 🎥 Video / Preview
+
+[![Pangya Fun Preview](https://img.youtube.com/vi/eQ_2-_OXpL4/maxresdefault.jpg)](https://www.youtube.com/watch?v=eQ_2-_OXpL4)
+
+> 💡 *Clique na imagem acima para assistir ao vídeo no YouTube!*
+
+---
+
 ## 📢 Community & Dev
 Stay updated and join our community:
 
