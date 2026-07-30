@@ -23,7 +23,7 @@
 - [GameServer Managers](#gameserver-managers)
 - [Project Structure](#project-structure)
 - [Community](#community)
-
+- [Client](#client)
 ---
 
 ## Overview
@@ -451,6 +451,20 @@ PangyaSharp/
 
 ---
 
+## Client
+
+Hi everyone,
+
+I hope you are all doing well. Lately, I've been working on several projects simultaneously; I've been making fixes to improve the community server component. Now that it has been enhanced, I even got to play a little bit, although I haven't tested it thoroughly.
+
+Here is the complete package: Server, Tool, Client, WebClient, and the `.reg` file for installation:  
+👉 [MediaFire Download](https://www.mediafire.com/file/j33ghvb4lk2bjtn/JP+Building.rar/file)
+
+I've also made the release available here:  
+👉 [GitHub Releases - Revision Final](https://github.com/luismk/Pangya-Server-Community/releases/tag/Revison-Final)
+
+---
+
 ## Community
 
 *   **Discord:** [Retreev Community](https://discord.gg/HwDTssf)
@@ -458,6 +472,7 @@ PangyaSharp/
 *   **YouTube:** [@devluismk](https://www.youtube.com/@devluismk)
 
 ---
+
 
 🔙 [Back to main README](README.md)
 
