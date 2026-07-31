@@ -248,11 +248,7 @@ namespace Pangya_GameServer.Game
             pri.capability = _session.m_pi.m_cap;
             pri.title = _session.m_pi.ue.m_title;
             pri.sDisplayID = "@NT_" + _session.m_pi.nickname;
-            if (_session.m_pi.ei.char_info != null)
-                pri.char_typeid = _session.m_pi.ei.char_info._typeid;
-
             pri.skin = _session.m_pi.ue.skin_typeid;
-
             pri.skin[4] = 0;
 
             if (getMaster() == _session.m_pi.uid)
@@ -354,8 +350,8 @@ namespace Pangya_GameServer.Game
             pri.convidado = 0;
             pri.avg_score = _session.m_pi.ui.getMediaScore();
 
-            if (_session.m_pi.ei.char_info != null)
-                pri.ci = _session.m_pi.ei.char_info;
+            pri.char_typeid = _session.m_pi.ei.char_info._typeid;
+            pri.ci = _session.m_pi.ei.char_info;
             if (!m_player_info.TryAdd(_session, pri))
             {
                 if (m_player_info.TryGetValue(_session, out var existingPri))
@@ -1935,9 +1931,8 @@ namespace Pangya_GameServer.Game
                 pri.capability = _session.m_pi.m_cap;
                 pri.title = _session.m_pi.ue.m_title;
 
-                if (_session.m_pi.ei.char_info != null)
-                    pri.char_typeid = _session.m_pi.ei.char_info._typeid;
-
+                pri.char_typeid = _session.m_pi.ei.char_info._typeid;
+                pri.ci = _session.m_pi.ei.char_info;
 
                 pri.skin[4] = 0; // Aqui tem que ser zero, se for outro valor não mostra a imagem do character equipado
 
@@ -2073,9 +2068,6 @@ namespace Pangya_GameServer.Game
                     pri.convidado = 0; // Flag Convidado, [Não sei bem por que os que entra na sala normal tem valor igual aqui, já que é type de convidado waiting], Valor constante da sala para os Players(ACHO)
 
                 pri.avg_score = _session.m_pi.ui.getMediaScore();
-
-                if (_session.m_pi.ei.char_info != null)
-                    pri.ci = _session.m_pi.ei.char_info;
 
                 // Salva novamente
                 m_player_info[_session] = pri;
@@ -2640,7 +2632,8 @@ namespace Pangya_GameServer.Game
         }
 
         // Change Item Equiped of Player 
-          public virtual void requestChangePlayerItemRoom(Player _session, ChangePlayerItemRoom _cpir)
+        // Change Item Equiped of Player
+        public virtual void requestChangePlayerItemRoom(Player _session, ChangePlayerItemRoom _cpir)
         {
             if (!_session.getState())
             {
@@ -2662,13 +2655,13 @@ namespace Pangya_GameServer.Game
 
                             // Caddie
                             if (_cpir.caddie != 0 && (pCi = _session.m_pi.findCaddieById(_cpir.caddie)) != null
-                                    && sIff.getInstance().getItemGroupIdentify(pCi._typeid) == IFF_GROUP.CADDIE)
+                                    && sIff.getInstance().getItemGroupIdentify(pCi._typeid) == (IFF_GROUP)sIff.getInstance().CADDIE)
                             {
 
                                 // Check if item is in map of update item
                                 var v_it = _session.m_pi.findUpdateItemByTypeidAndId(pCi._typeid, pCi.id);
 
-                                if (v_it.Count == 0)
+                                if (!v_it.empty())
                                 {
 
                                     foreach (var el in v_it)
@@ -2733,7 +2726,7 @@ namespace Pangya_GameServer.Game
                                 // Check if item is in map of update item
                                 var v_it = _session.m_pi.findUpdateItemByTypeidAndId(_session.m_pi.ei.cad_info._typeid, _session.m_pi.ei.cad_info.id);
 
-                                if (v_it.Count == 0)
+                                if (!v_it.empty())
                                 {
 
                                     foreach (var el in v_it)
@@ -2776,7 +2769,7 @@ namespace Pangya_GameServer.Game
                             WarehouseItemEx pWi = null;
 
                             if (_cpir.ball != 0 && (pWi = _session.m_pi.findWarehouseItemByTypeid(_cpir.ball)) != null
-                                    && sIff.getInstance().getItemGroupIdentify(pWi._typeid) == IFF_GROUP.BALL)
+                                    && sIff.getInstance().getItemGroupIdentify(pWi._typeid) == (IFF_GROUP)sIff.getInstance().BALL)
                             {
 
                                 _session.m_pi.ei.comet = pWi;
@@ -2914,12 +2907,12 @@ namespace Pangya_GameServer.Game
                             // ClubSet
                             if (_cpir.clubset != 0
                                 && (pWi = _session.m_pi.findWarehouseItemById(_cpir.clubset)) != null
-                                && sIff.getInstance().getItemGroupIdentify(pWi._typeid) == IFF_GROUP.CLUBSET)
+                                && sIff.getInstance().getItemGroupIdentify(pWi._typeid) == (IFF_GROUP)sIff.getInstance().CLUBSET)
                             {
 
                                 var c_it = _session.m_pi.findUpdateItemByTypeidAndType((uint)_cpir.clubset, UpdateItem.UI_TYPE.WAREHOUSE);
 
-                                if (c_it.Count > 0)
+                                if (c_it.FirstOrDefault().Key == _session.m_pi.mp_ui.LastOrDefault().Key)
                                 {
 
                                     _session.m_pi.ei.clubset = pWi;
@@ -3349,7 +3342,7 @@ namespace Pangya_GameServer.Game
 
                             if (_cpir.character != 0
                                 && (pCe = _session.m_pi.findCharacterById(_cpir.character)) != null
-                                && sIff.getInstance().getItemGroupIdentify(pCe._typeid) == IFF_GROUP.CHARACTER)
+                                && sIff.getInstance().getItemGroupIdentify(pCe._typeid) == (IFF_GROUP)sIff.getInstance().CHARACTER)
                             {
 
                                 _session.m_pi.ei.char_info = pCe;
@@ -3375,7 +3368,7 @@ namespace Pangya_GameServer.Game
                                         packet_func.room_broadcast(this,
                                             p, 0);
 
-                                        //                if (getInfo().getTipo() == RoomInfo.ROOM_INFO_TYPE.LOUNGE)
+                                        //                if (getInfo().getTipo() == RoomInfo.TIPO.LOUNGE)
                                         //                {
                                         //                    var v_element = m_player_info.Where(c => c.Key.m_pi.mi.sala_numero == _session.m_pi.mi.sala_numero).
 
@@ -3573,7 +3566,7 @@ namespace Pangya_GameServer.Game
                         if (_cpir.mascot != 0)
                         {
 
-                            if ((pMi = _session.m_pi.findMascotById(_cpir.mascot)) != null && sIff.getInstance().getItemGroupIdentify(pMi._typeid) == IFF_GROUP.MASCOT)
+                            if ((pMi = _session.m_pi.findMascotById(_cpir.mascot)) != null && sIff.getInstance().getItemGroupIdentify(pMi._typeid) == (IFF_GROUP)sIff.getInstance().MASCOT)
                             {
 
                                 var m_it = _session.m_pi.findUpdateItemByTypeidAndType((uint)_session.m_pi.ue.mascot_id, UpdateItem.UI_TYPE.MASCOT);
@@ -3769,7 +3762,7 @@ namespace Pangya_GameServer.Game
 
                             // Character
                             if (_cpir.character != 0 && (pCe = _session.m_pi.findCharacterById(_cpir.character)) != null
-                                    && sIff.getInstance().getItemGroupIdentify(pCe._typeid) == IFF_GROUP.CHARACTER)
+                                    && sIff.getInstance().getItemGroupIdentify(pCe._typeid) == (IFF_GROUP)sIff.getInstance().CHARACTER)
                             {
 
                                 _session.m_pi.ei.char_info = pCe;
@@ -3853,13 +3846,13 @@ namespace Pangya_GameServer.Game
 
                             // Caddie
                             if (_cpir.caddie != 0 && (pCi = _session.m_pi.findCaddieById(_cpir.caddie)) != null
-                                    && sIff.getInstance().getItemGroupIdentify(pCi._typeid) == IFF_GROUP.CADDIE)
+                                    && sIff.getInstance().getItemGroupIdentify(pCi._typeid) == (IFF_GROUP)sIff.getInstance().CADDIE)
                             {
 
                                 // Check if item is in map of update item
                                 var v_it = _session.m_pi.findUpdateItemByTypeidAndId(pCi._typeid, pCi.id);
 
-                                if (v_it.Count == 0)
+                                if (!v_it.empty())
                                 {
 
                                     foreach (var el in v_it)
@@ -3924,7 +3917,7 @@ namespace Pangya_GameServer.Game
                                 // Check if item is in map of update item
                                 var v_it = _session.m_pi.findUpdateItemByTypeidAndId(_session.m_pi.ei.cad_info._typeid, _session.m_pi.ei.cad_info.id);
 
-                                if (v_it.Count == 0)
+                                if (!v_it.empty())
                                 {
 
                                     foreach (var el in v_it)
@@ -3957,7 +3950,7 @@ namespace Pangya_GameServer.Game
 
                             // ClubSet
                             if (_cpir.clubset != 0 && (pWi = _session.m_pi.findWarehouseItemById(_cpir.clubset)) != null
-                                    && sIff.getInstance().getItemGroupIdentify(pWi._typeid) == IFF_GROUP.CLUBSET)
+                                    && sIff.getInstance().getItemGroupIdentify(pWi._typeid) == (IFF_GROUP)sIff.getInstance().CLUBSET)
                             {
 
                                 var c_it = _session.m_pi.findUpdateItemByTypeidAndType((uint)_cpir.clubset, UpdateItem.UI_TYPE.WAREHOUSE);
@@ -4493,8 +4486,8 @@ namespace Pangya_GameServer.Game
                     _session, 0);
             }
         }
-		
-		private int HandleChangeCaddie(Player _session, int caddie)
+
+        private int HandleChangeCaddie(Player _session, int caddie)
         {
             var p = new PangyaBinaryWriter();
             int error = 0/*SUCCESS*/;
@@ -7163,7 +7156,17 @@ namespace Pangya_GameServer.Game
                     8, 0x5900202));
                 }
 
-                // Coloquei para verificar se a type de Bot tourney não está ativo verifica o resto das condições
+                // ok:
+                if (v_sessions.Count == 1
+                    && (m_ri.getTipo() == RoomInfo.ROOM_INFO_TYPE.GUILD_BATTLE
+                    || m_ri.getTipo() == RoomInfo.ROOM_INFO_TYPE.TOURNEY || m_ri.getTipo() == RoomInfo.ROOM_INFO_TYPE.GRAND_PRIX
+                    || m_ri.getTipo() == RoomInfo.ROOM_INFO_TYPE.APPROCH
+                    || m_ri.getTipo() == RoomInfo.ROOM_INFO_TYPE.SPECIAL_SHUFFLE_COURSE))
+                {
+                    m_bot_tourney = true;
+                }
+
+                // nao pode 
                 if (!m_bot_tourney
                     && v_sessions.Count == 1
                     && m_ri.getTipo() != RoomInfo.ROOM_INFO_TYPE.PRACTICE

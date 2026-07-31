@@ -637,7 +637,6 @@ namespace Pangya_GameServer
                 {
                 }
             }
-            m_pi.ei.char_info = ci;
             return upt_on_db;
         }
 
@@ -855,7 +854,7 @@ namespace Pangya_GameServer
                     }
                 }
             }
-            m_pi.ei.char_info = ci;
+         
             return upt_on_db;
         }
           
@@ -1612,16 +1611,7 @@ namespace Pangya_GameServer
             _ue.character_id = 0;
             m_pi.ei.char_info = null;
 
-            if (m_pi.mp_ce.Count() > 0)
-            {
-
-                _smp.message_pool.getInstance().push(new message("[player::equipDefaultCharacter][Log][Warning] PLAYER[UID=" + Convert.ToString(m_pi.uid) + "] tentou verificar o Character[ID=" + Convert.ToString(tmp_id) + "] para comecar o jogo, colocando o primeiro character do player. Hacker ou Bug", type_msg.CL_FILE_LOG_AND_CONSOLE));
-
-                m_pi.ei.char_info = m_pi.mp_ce.begin().Value;
-                _ue.character_id = m_pi.ei.char_info.id;
-
-            }
-            else
+            if (m_pi.mp_ce.Count == 0)
             {
 
                 _smp.message_pool.getInstance().push(new message("[player::equipDefaultCharacter][Log][Warning] PLAYER[UID=" + Convert.ToString(m_pi.uid) + "] tentou verificar o Character[ID=" + Convert.ToString(tmp_id) + "] para comecar o jogo, ele nao tem nenhum character. Hacker ou Bug", type_msg.CL_FILE_LOG_AND_CONSOLE));
