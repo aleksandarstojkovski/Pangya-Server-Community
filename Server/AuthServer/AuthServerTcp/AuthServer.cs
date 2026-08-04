@@ -607,7 +607,7 @@ namespace Pangya_AuthServer.AuthServerTcp
                 _packet.makeRaw();
 
                 var mb = _packet.getBuffer();
-                _session.requestSendBuffer(mb, true);
+                _ = _session.requestSendBufferAsync(mb, true);
             }
             catch (Exception ex)
             {

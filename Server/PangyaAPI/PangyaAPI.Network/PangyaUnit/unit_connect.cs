@@ -458,13 +458,13 @@ namespace PangyaAPI.Network.PangyaUnit
         {
             public static void session_send(PangyaBinaryWriter p, UnitPlayer s, byte _debug)
             {
-                s.requestSendBuffer(p.GetBytes);
+                _ = s.requestSendBufferAsync(p.GetBytes);
             }
             public static void session_send(List<PangyaBinaryWriter> v_p, UnitPlayer s, byte _debug)
             {
                 foreach (var writer in v_p)
                 {
-                    s.requestSendBuffer(writer.GetBytes);
+                    _ = s.requestSendBufferAsync(writer.GetBytes);
                 }
 
             }

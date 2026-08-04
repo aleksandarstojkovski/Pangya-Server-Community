@@ -6,6 +6,7 @@ using Pangya_LoginServer.Session;
 using PangyaAPI.IFF.JP.Extensions;
 using PangyaAPI.Network.Models;
 using PangyaAPI.Network.PangyaPacket;
+using System.Threading.Tasks;
 using PangyaAPI.Network.PangyaServer;
 using PangyaAPI.Network.PangyaSession;
 using PangyaAPI.Network.PangyaUtil;
@@ -160,7 +161,7 @@ namespace Pangya_LoginServer.LoginServerTcp
 
                 _packet.makeRaw();
                 var mb = _packet.getBuffer();
-                _session.requestSendBuffer(mb, true);
+                _ = _session.requestSendBufferAsync(mb, true);
             }
             catch (Exception ex)
             {
@@ -228,20 +229,18 @@ namespace Pangya_LoginServer.LoginServerTcp
             sIff.getInstance().reload();
         }
 
-        public override void authCmdShutdown(int _time_sec)
+        public override async Task authCmdShutdown(int _time_sec)
         {
             try
             {
-
                 // Shut down com tempo
                 if (m_shutdown == null)
                 {
-
                     // Log
                     _smp.message_pool.getInstance().push(new message("[LoginServer::authCmdShutdown][Log] Auth Server requisitou para o server ser desligado em "
                             + _time_sec + " segundos", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
-                    shutdown_time(_time_sec);
+                    await shutdown_time(_time_sec).ConfigureAwait(false);
 
                 }
                 else
@@ -257,11 +256,10 @@ namespace Pangya_LoginServer.LoginServerTcp
         }
 
 
-        public override void shutdown_time(int _time_sec)
+        public override async Task shutdown_time(int _time_sec)
         {
-
             if (_time_sec <= 0) // Desliga o Server Imediatemente
-                base.shutdown();
+                await base.StopAsync().ConfigureAwait(false);
             else
             {
                 // Se o Shutdown Timer estiver criado descria e cria um novo

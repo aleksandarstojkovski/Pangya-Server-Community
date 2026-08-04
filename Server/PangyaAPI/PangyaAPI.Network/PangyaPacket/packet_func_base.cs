@@ -145,7 +145,7 @@ namespace PangyaAPI.Network.PangyaPacket
                 if (_session.m_client != null && _session.m_client.Connected)
                 {
 
-                    _session.requestSendBuffer(rawPacket);
+                    _ = _session.requestSendBufferAsync(rawPacket);
 
                     if (_session.devolve())
                         _session.Disconnect();

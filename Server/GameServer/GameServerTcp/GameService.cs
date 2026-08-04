@@ -22,6 +22,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 using static Pangya_GameServer.Models.DefineConstants;
 //using PangyaAPI.Discord;
 namespace Pangya_GameServer.GameServiceTcp
@@ -585,7 +586,7 @@ namespace Pangya_GameServer.GameServiceTcp
             }
         }
 
-        public override void authCmdShutdown(int _time_sec)
+        public override async Task authCmdShutdown(int _time_sec)
         {
             try
             {
@@ -598,7 +599,7 @@ namespace Pangya_GameServer.GameServiceTcp
                     _smp.message_pool.getInstance().push(new message("[RankingServer::authCmdShutdown][Error] Auth Server requisitou para o server ser desligado em "
                             + _time_sec + " segundos", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
-                    shutdown_time(_time_sec);
+                await shutdown_time(_time_sec).ConfigureAwait(false);
 
                 }
                 else
@@ -614,11 +615,10 @@ namespace Pangya_GameServer.GameServiceTcp
         }
 
 
-        public override void shutdown_time(int _time_sec)
+        public override async Task shutdown_time(int _time_sec)
         {
-
             if (_time_sec <= 0) // Desliga o Server Imediatemente
-                base.shutdown();
+                await base.StopAsync().ConfigureAwait(false);
             else
             {
                 // Se o Shutdown Timer estiver criado descria e cria um novo
@@ -2406,7 +2406,7 @@ namespace Pangya_GameServer.GameServiceTcp
                 p.AddByte(_session.m_key);	// Key
                 p.AddString(_session.m_ip);
 
-                _session.requestSendBuffer(p.makeRaw(), true);
+                _ = _session.requestSendBufferAsync(p.makeRaw(), true);
 
                 _smp.message_pool.getInstance().push(
                     new message($"[GameService::onAcceptCompleted][Sucess] [IP: {_session.getIP()}, Key: {_session.m_key}]",

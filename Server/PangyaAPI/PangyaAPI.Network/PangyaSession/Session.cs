@@ -2,6 +2,7 @@
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
+using System.Threading.Tasks;
 using PangyaAPI.Network.Cryptor;
 using PangyaAPI.Network.PangyaPacket;
 using PangyaAPI.Network.PangyaServer;
@@ -20,6 +21,8 @@ namespace PangyaAPI.Network.PangyaSession
         {
             clear();
         }
+
+
         public void Dispose()
         {
 
@@ -212,22 +215,30 @@ namespace PangyaAPI.Network.PangyaSession
 
         public void @lock()
         {
-            //Monitor.Exit(m_cs);
+            System.Threading.Monitor.Enter(m_cs);
         }
         public void unlock()
         {
-            //Monitor.Exit(m_cs);
+            try
+            {
+                System.Threading.Monitor.Exit(m_cs);
+            }
+            catch { }
         }
 
         // Usando para syncronizar outras coisas da Session, tipo pacotes
         public void lockSync()
         {
-            //Monitor.Exit(m_cs_lock_other);
+            System.Threading.Monitor.Enter(m_cs_lock_other);
         }
 
         public void unlockSync()
         {
-            //Monitor.Exit(m_cs_lock_other);
+            try
+            {
+                System.Threading.Monitor.Exit(m_cs_lock_other);
+            }
+            catch { }
         }
 
         public virtual void requestSendBuffer(byte[] _buff, bool _raw = false)
@@ -282,6 +293,141 @@ namespace PangyaAPI.Network.PangyaSession
             {
                 // m_buff_s.unlock();
             }
+        }
+
+        // Versões assíncronas modernas para escrita no socket usando NetworkStream quando disponível
+        public async Task<bool> requestSendBufferAsync(byte[] _buff, bool _raw = false, System.Threading.CancellationToken cancellationToken = default)
+        {
+            if (_buff == null)
+                throw new exception("Error _buff is null. Session::requestSendBufferAsync()", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.SESSION, 3, 0));
+
+            int _size = _buff.Length;
+            if (_size <= 0)
+                throw new exception("Error _size is less or equal the zero. Session::requestSendBufferAsync()", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.SESSION, 4, 0));
+
+            try
+            {
+                if (isConnectedToSend())
+                {
+                    var payloadData = _raw ? _buff : Cipher.ServerEncrypt(_buff, m_key, 0);
+
+                    var netStream = Stream ?? (m_client?.GetStream());
+
+                    if (netStream != null)
+                    {
+                        try
+                        {
+                            await netStream.WriteAsync(payloadData, 0, payloadData.Length, cancellationToken).ConfigureAwait(false);
+                        }
+                        catch
+                        {
+                            @lock();
+                            setConnectedToSend(false);
+                            unlock();
+                            try { _Packet_Handle_Base.DisconnectSession(this); } catch { }
+                            return false;
+                        }
+                    }
+                    else
+                    {
+                        try
+                        {
+                            if (!m_client.Send(payloadData, (int)payloadData.Length))
+                            {
+                                @lock();
+                                setConnectedToSend(false);
+                                unlock();
+                                try { _Packet_Handle_Base.DisconnectSession(this); } catch { }
+                                return false;
+                            }
+                        }
+                        catch
+                        {
+                            @lock();
+                            setConnectedToSend(false);
+                            unlock();
+                            try { _Packet_Handle_Base.DisconnectSession(this); } catch { }
+                            return false;
+                        }
+                    }
+
+                    _Packet_Handle_Base.dispach_packet_sv_same_thread(this, _raw ? new packet(_buff, true) : new packet(_buff));
+                }
+                else
+                {
+                    return false;
+                }
+            }
+            finally { }
+
+            return true;
+        }
+
+        public async Task<bool> requestSendClientBufferAsync(byte[] _buff, bool _raw = false, System.Threading.CancellationToken cancellationToken = default)
+        {
+            if (_buff == null)
+                throw new exception("Error _buff is null. Session::requestSendClientBufferAsync()", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.SESSION, 3, 0));
+
+            int _size = _buff.Length;
+            if (_size <= 0)
+                throw new exception("Error _size is less or equal the zero. Session::requestSendClientBufferAsync()", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.SESSION, 4, 0));
+
+            try
+            {
+                if (isConnectedToSend())
+                {
+                    var payloadData = _raw ? _buff : Cipher.EncryptClient(_buff, m_key, 0);
+
+                    var netStream = Stream ?? (m_client?.GetStream());
+
+                    if (netStream != null)
+                    {
+                        try
+                        {
+                            await netStream.WriteAsync(payloadData, 0, payloadData.Length, cancellationToken).ConfigureAwait(false);
+                        }
+                        catch
+                        {
+                            @lock();
+                            setConnectedToSend(false);
+                            unlock();
+                            try { _Packet_Handle_Base.DisconnectSession(this); } catch { }
+                            return false;
+                        }
+                    }
+                    else
+                    {
+                        try
+                        {
+                            if (!m_client.Send(payloadData, (int)payloadData.Length))
+                            {
+                                @lock();
+                                setConnectedToSend(false);
+                                unlock();
+                                try { _Packet_Handle_Base.DisconnectSession(this); } catch { }
+                                return false;
+                            }
+                        }
+                        catch
+                        {
+                            @lock();
+                            setConnectedToSend(false);
+                            unlock();
+                            try { _Packet_Handle_Base.DisconnectSession(this); } catch { }
+                            return false;
+                        }
+                    }
+
+                    _Packet_Handle_Base.dispach_packet_sv_same_thread(this, _raw ? new packet(_buff, true) : new packet(_buff));
+                }
+                else
+                {
+                    return false;
+                }
+            }
+            finally { }
+
+            return true;
         }
 
         public virtual void requestSendClientBuffer(byte[] _buff, bool _raw = false)

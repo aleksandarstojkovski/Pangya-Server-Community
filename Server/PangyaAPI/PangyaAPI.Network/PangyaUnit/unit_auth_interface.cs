@@ -1,4 +1,5 @@
 ﻿using PangyaAPI.Network.Models;
+using System.Threading.Tasks;
 using PangyaAPI.Network.PangyaPacket;
 using PangyaAPI.Utilities.Models;
 
@@ -7,7 +8,7 @@ namespace PangyaAPI.Network.PangyaUnit
     public class IUnitAuthServer
     {
         //criados no outros
-        public virtual void authCmdShutdown(int _time_sec) { }
+        public virtual Task authCmdShutdown(int _time_sec) { return Task.CompletedTask; }
         public virtual void authCmdBroadcastNotice(string _notice) { }
         public virtual void authCmdBroadcastTicker(string _nickname, string _msg) { }
         public virtual void authCmdBroadcastCubeWinRare(string _msg, uint _option) { }

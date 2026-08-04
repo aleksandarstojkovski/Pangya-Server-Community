@@ -54,6 +54,8 @@ namespace PangyaAPI.Network.PangyaServer
         public ServerInfoEx getInfo() => m_si;
         public uint getUID() => (uint)(m_si?.uid);
         public TcpListener _server;
+        private System.Threading.CancellationTokenSource _cts;
+        private System.Collections.Concurrent.ConcurrentBag<Task> _clientTasks = new System.Collections.Concurrent.ConcurrentBag<Task>();
         #endregion
 
         #region Abstract Methods
@@ -146,9 +148,10 @@ namespace PangyaAPI.Network.PangyaServer
         #endregion
 
         #region Public Methods
-        // Shutdown With Time
-        public virtual void shutdown_time(int timeSec)
+        // Shutdown With Time (assíncrono)
+        public virtual Task shutdown_time(int timeSec)
         {
+            return Task.CompletedTask;
         }
 
         public void shutdown()
@@ -165,7 +168,8 @@ namespace PangyaAPI.Network.PangyaServer
             try
             {
 
-                s.shutdown_time(time_sec);
+                // Chamado por um timer, podemos executar assincronamente
+                _ = s.shutdown_time(time_sec);
 
             }
             catch (exception e)
@@ -203,8 +207,9 @@ namespace PangyaAPI.Network.PangyaServer
                         
                         m_unit_connect?.start();
 
-                        // inicia accept
-                        _server.BeginAcceptTcpClient(OnClientAccepted, null);
+                        // inicia accept usando loop assíncrono moderno com token de cancelamento
+                        _cts = new System.Threading.CancellationTokenSource();
+                        _ = AcceptLoop(_cts.Token);
 
                         // inicia monitor
                         _ = OnMonitor(); 
@@ -225,65 +230,99 @@ namespace PangyaAPI.Network.PangyaServer
             }
         }
 
-        private void OnClientAccepted(IAsyncResult ar)
+        private async Task AcceptLoop(System.Threading.CancellationToken ct)
         {
-            TcpClient newClient = null;
-
-            if (!_isRunning) return;
-             
-            if (_isRunning)
-                _server.BeginAcceptTcpClient(OnClientAccepted, null);
-
-
-            try
+            while (_isRunning && !ct.IsCancellationRequested)
             {
-                newClient = _server.EndAcceptTcpClient(ar);
-
-                var remoteEndPoint = newClient.Client.RemoteEndPoint as IPEndPoint;
-                string ipAddress = remoteEndPoint?.Address.ToString();
-
-                // Filtragem de IP
-                if (_ipFilter != null && _ipFilter.IsBlocked(ipAddress) && haveBanList(ipAddress, "", false))
+                TcpClient newClient = null;
+                try
                 {
-                    newClient.Close();
-                    _smp.message_pool.getInstance().push(
-                        new message($"[{GetType().Name}] Conexão de IP bloqueado: {ipAddress}", type_msg.CL_FILE_LOG_AND_CONSOLE));
-                    return; // já encerramos a conexão bloqueada
+                    newClient = await _server.AcceptTcpClientAsync().ConfigureAwait(false);
+
+                    if (!_isRunning || ct.IsCancellationRequested)
+                    {
+                        try { newClient.Close(); } catch { }
+                        break;
+                    }
+
+                    var remoteEndPoint = newClient.Client.RemoteEndPoint as IPEndPoint;
+                    string ipAddress = remoteEndPoint?.Address.ToString();
+
+                    // Filtragem de IP
+                    if (_ipFilter != null && _ipFilter.IsBlocked(ipAddress) && haveBanList(ipAddress, "", false))
+                    {
+                        newClient.Close();
+                        _smp.message_pool.getInstance().push(new message($"[{GetType().Name}] Conexão de IP bloqueado: {ipAddress}", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                        continue; // já encerramos a conexão bloqueada
+                    }
+
+                    _ipFilter?.OnConnect(ipAddress);
+
+                    // Processa o cliente de forma assíncrona e registra a task para shutdown gracioso
+                    var clientTask = accept_completed(newClient, ct);
+                    _clientTasks.Add(clientTask);
                 }
-
-                _ipFilter?.OnConnect(ipAddress);
-
-                // Cria thread/Task para processar o cliente
-               _  = accept_completed(newClient);
-            }
-            catch (ObjectDisposedException)
-            {
-                // listener foi parado
-                return;
-            }
-            catch (Exception e)
-            {
-                _smp.message_pool.getInstance().push(
-                    new message($"[{GetType().Name}::OnClientAccepted][ErrorSystem] {e.Message}", type_msg.CL_FILE_LOG_AND_CONSOLE));
-                newClient?.Close();
+                catch (ObjectDisposedException)
+                {
+                    // listener foi parado
+                    break;
+                }
+                catch (Exception e)
+                {
+                    _smp.message_pool.getInstance().push(new message($"[{GetType().Name}::AcceptLoop][ErrorSystem] {e.Message}", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                    try { newClient?.Close(); } catch { }
+                    await Task.Delay(100).ConfigureAwait(false);
+                }
             }
         }
 
         public void Stop()
         {
+            StopAsync().GetAwaiter().GetResult();
+        }
+
+        public async Task StopAsync()
+        {
             _isRunning = false;
             m_state = ServerState.Failure;
             Console.WriteLine("Server is stopping...");
+
+            try
+            {
+                _server?.Stop();
+            }
+            catch { }
+
+            try
+            {
+                _cts?.Cancel();
+                _cts?.Dispose();
+                _cts = null;
+            }
+            catch { }
+
+            // Aguarda tasks de clientes finalizarem por até 5s (shutdown gracioso)
+            try
+            {
+                var tasks = _clientTasks.ToArray();
+                if (tasks.Length > 0)
+                {
+                    try
+                    {
+                        await Task.WhenAny(Task.WhenAll(tasks), Task.Delay(5000)).ConfigureAwait(false);
+                    }
+                    catch { }
+                }
+            }
+            catch { }
         }
 
 
         /// <summary>
         /// Manuseia Comunicação do Cliente
         /// </summary>
-        private async Task accept_completed(object obj) 
+        private async Task accept_completed(TcpClient client, System.Threading.CancellationToken ct)
         {
-            TcpClient client = (TcpClient)obj;
-             
             var _session = m_session_manager.AddSession(this, client, client.Client.RemoteEndPoint as IPEndPoint, (byte)(new Random().Next() % 16));
 
 
@@ -299,9 +338,9 @@ namespace PangyaAPI.Network.PangyaServer
 
             try
             {
-                while (client.Connected)
+                while (client != null && client.Connected && !ct.IsCancellationRequested)
                 {
-                    bool success = await recv_server_new(_session); 
+                    bool success = await recv_server_new(_session).ConfigureAwait(false);
                     if (success)
                     {
                         _session.last_activity = DateTime.Now;
@@ -313,7 +352,11 @@ namespace PangyaAPI.Network.PangyaServer
                         break;
                     }
                 }
-            } 
+            }
+            catch (OperationCanceledException)
+            {
+                // cancelado
+            }
             catch (IOException ioEx)
             {
                 _smp.message_pool.getInstance().push(
@@ -328,6 +371,12 @@ namespace PangyaAPI.Network.PangyaServer
             }
 
             DisconnectSession(_session);
+            try
+            {
+                if (ct.IsCancellationRequested)
+                    client?.Close();
+            }
+            catch { }
         }
 
         protected async Task OnMonitor()

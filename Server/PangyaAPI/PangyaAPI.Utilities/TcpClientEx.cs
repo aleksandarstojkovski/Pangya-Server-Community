@@ -147,6 +147,30 @@ namespace PangyaAPI.Utilities
             return (false, Array.Empty<byte>(), 0);
         }
 
+        public static async Task<(bool check, byte[] _buffer, int len)> ReadAsync(this TcpClient client, System.Threading.CancellationToken ct)
+        {
+            if (client != null && client.Connected)
+            {
+                var readTask = client.Client.ReadAsync();
+                var cancelTask = Task.Delay(-1, ct);
+
+                var finished = await Task.WhenAny(readTask, cancelTask).ConfigureAwait(false);
+
+                if (finished == readTask)
+                {
+                    var res = await readTask.ConfigureAwait(false);
+                    return (res.Success, res.Buffer, res.Length);
+                }
+                else
+                {
+                    // cancelado
+                    throw new OperationCanceledException(ct);
+                }
+            }
+
+            return (false, Array.Empty<byte>(), 0);
+        }
+
         public static async Task<(bool Success, byte[] Buffer, int Length)> ReadAsync(this Socket socket)
         {
             if (socket == null || !socket.Connected)

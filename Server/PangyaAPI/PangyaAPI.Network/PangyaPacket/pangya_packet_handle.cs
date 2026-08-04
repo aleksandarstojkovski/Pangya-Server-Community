@@ -94,7 +94,7 @@ namespace PangyaAPI.Network.PangyaPacket
             }
         }
 
-        protected async Task<bool> recv_server_new(Session _session)
+        protected async Task<bool> recv_server_new(Session _session, System.Threading.CancellationToken ct = default)
         {
             try
             {
@@ -105,7 +105,7 @@ namespace PangyaAPI.Network.PangyaPacket
                 // 2. Leitura Assíncrona
                 // Nota: Se o seu método Read() ainda for síncrono, o 'await Task.Run' 
                 // ajuda a não travar a thread de IO principal.
-                var result = await _session.m_client.ReadAsync();
+                var result = ct == default ? await _session.m_client.ReadAsync() : await _session.m_client.ReadAsync(ct);
 
                 if (result.check)
                 {

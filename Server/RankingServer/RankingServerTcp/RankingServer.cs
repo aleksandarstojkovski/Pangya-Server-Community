@@ -10,6 +10,7 @@ using PangyaAPI.Utilities.Models;
 using PangyaAPI.Network.Repository;
 using Pangya_RankingServer.PangyaEnums;
 using System.Threading;
+using System.Threading.Tasks;
 using PangyaAPI.Network.Models;
 using Pangya_RankingServer.Repository;
 using Pangya_RankingServer.Models;
@@ -186,7 +187,7 @@ namespace Pangya_RankingServer.RankingServerTcp
                 _packet.makeRaw();
                 var mb = _packet.getBuffer();
 
-                _session.requestSendBuffer(mb, true);
+                _ = _session.requestSendBufferAsync(mb, true);
             }
             catch (Exception ex)
             {
@@ -480,40 +481,28 @@ namespace Pangya_RankingServer.RankingServerTcp
 
 
 
-        public override void authCmdShutdown(int _time_sec)
+        public override async Task authCmdShutdown(int _time_sec)
         {
             try
             {
+                // Log
+                _smp.message_pool.getInstance().push(new message("[RankingServer::authCmdShutdown][Log] Auth Server requisitou para o server ser desligado em "
+                        + _time_sec + " segundos", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
-                // Shut down com tempo
-                if (m_shutdown == null)
-                {
-
-                    // Log
-                    _smp.message_pool.getInstance().push(new message("[RankingServer::authCmdShutdown][Log] Auth Server requisitou para o server ser desligado em "
-                            + _time_sec + " segundos", type_msg.CL_FILE_LOG_AND_CONSOLE));
-
-                    shutdown_time(_time_sec);
-
-                }
-                else
-                    _smp.message_pool.getInstance().push(new message("[RankingServer::authCmdShutdown][WARNING] Auth Server requisitou para o server ser delisgado em "
-                            + _time_sec + " segundos, mas o server ja esta com o timer de shutdown", type_msg.CL_FILE_LOG_AND_CONSOLE));
+                await shutdown_time(_time_sec).ConfigureAwait(false);
 
             }
             catch (exception e)
             {
-
                 _smp.message_pool.getInstance().push(new message("[RankingServer::authCmdShutdown][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
             }
         }
 
 
-        public override void shutdown_time(int _time_sec)
+        public override async Task shutdown_time(int _time_sec)
         {
-
             if (_time_sec <= 0) // Desliga o Server Imediatemente
-                base.shutdown();
+                await base.StopAsync().ConfigureAwait(false);
             else
             {
                 // Se o Shutdown Timer estiver criado descria e cria um novo

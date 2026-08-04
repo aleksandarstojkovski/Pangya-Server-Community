@@ -167,15 +167,14 @@ namespace PangyaAPI.Network.PangyaUnit
             }
         }
 
-        public virtual void requestShutdownServer(UnitPlayer _session, packet _packet)
+        public virtual async void requestShutdownServer(UnitPlayer _session, packet _packet)
         {
             try
             {
-
                 // Time In tv_sec for Shutdown
                 int time = _packet.ReadInt32();
 
-                m_owner_server.authCmdShutdown(time);
+                await m_owner_server.authCmdShutdown(time).ConfigureAwait(false);
 
             }
             catch (exception e)

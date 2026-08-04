@@ -1,2 +1,4 @@
 Server/Build/GameServer2/Log/log 31072026102720.log
 *.log
+/.vs
+/Server/Build

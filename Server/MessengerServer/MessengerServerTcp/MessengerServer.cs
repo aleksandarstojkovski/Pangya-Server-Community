@@ -7,6 +7,7 @@ using Pangya_MessengerServer.Session;
 using PangyaAPI.IFF.JP.Extensions;
 using PangyaAPI.Network.Models;
 using PangyaAPI.Network.PangyaPacket;
+using System.Threading.Tasks;
 using PangyaAPI.Network.PangyaServer;
 using PangyaAPI.Network.PangyaUtil;
 using PangyaAPI.Network.Repository;
@@ -159,7 +160,7 @@ namespace Pangya_MessengerServer.MessengerServerTcp
                 p.AddByte(1);
                 p.AddUInt32(_session.m_key);
                 p.makeRaw();
-                _session.requestSendBuffer(p.getBuffer(), true);
+                _ = _session.requestSendBufferAsync(p.getBuffer(), true);
             }
             catch (exception ex)
             {
@@ -3041,7 +3042,7 @@ namespace Pangya_MessengerServer.MessengerServerTcp
 
 
 
-        public override void authCmdShutdown(int _time_sec)
+        public override async Task authCmdShutdown(int _time_sec)
         {
             try
             {
@@ -3054,7 +3055,7 @@ namespace Pangya_MessengerServer.MessengerServerTcp
                     _smp.message_pool.getInstance().push(new message("[MessengerServer::authCmdShutdown][Error] Auth Server requisitou para o server ser desligado em "
                             + _time_sec + " segundos", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
-                    shutdown_time(_time_sec);
+                    await shutdown_time(_time_sec).ConfigureAwait(false);
 
                 }
                 else
@@ -3070,11 +3071,10 @@ namespace Pangya_MessengerServer.MessengerServerTcp
         }
 
 
-        public override void shutdown_time(int _time_sec)
+        public override async Task shutdown_time(int _time_sec)
         {
-
             if (_time_sec <= 0) // Desliga o Server Imediatemente
-                base.shutdown();
+                await base.StopAsync().ConfigureAwait(false);
             else
             {
                 // Se o Shutdown Timer estiver criado descria e cria um novo
