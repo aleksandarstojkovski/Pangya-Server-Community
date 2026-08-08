@@ -1,5 +1,22 @@
 # PangYa Community — Site PHP + SQL Server (System DSN)
 
+<div align="center">
+
+### Versão Final da Tela Inicial
+<img src="https://raw.githubusercontent.com/luismk/Pangya-Server-Community/main/Documentation/home-final.png" alt="Home Final" width="100%">
+
+<br><br>
+
+### Evolução do Layout
+<img src="https://raw.githubusercontent.com/luismk/Pangya-Server-Community/main/Documentation/home.png" alt="Home Base" width="48%"> <img src="https://raw.githubusercontent.com/luismk/Pangya-Server-Community/main/Documentation/home-2.png" alt="Home Alt" width="48%">
+
+<br><br>
+
+### Teste de Conexão com SQL Server
+<img src="https://raw.githubusercontent.com/luismk/Pangya-Server-Community/main/Documentation/test-connection.png" alt="Teste de Conexão" width="70%">
+
+</div>
+
 ## Estrutura de arquivos
 
 ```
