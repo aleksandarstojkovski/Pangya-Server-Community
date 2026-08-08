@@ -27,9 +27,9 @@ Choose your language / Escolha seu idioma:
 Stay updated and join our community:
 
 *   **Discord:** [Retreev Community](https://discord.gg/HwDTssf)
-*   **Server:** [Pangya Fun Community](https://discord.gg/DEwj7DnBHb)
-*   **YouTube:** [@devluismk](https://www.youtube.com/@devluismk)
-
+*   **Talk to me:** [My Group Community](https://discord.gg/DEwj7DnBHb)
+*   **YouTube:** [Luiz Filho](https://www.youtube.com/@devluismk)
+*   **Client:** [Client Community English](https://www.mediafire.com/file/j33ghvb4lk2bjtn/JP_Building.rar/file)
 ---
 
 *Dedicated to the Pangya Community Project.*
