@@ -2688,10 +2688,6 @@ namespace Pangya_GameServer.GameServiceTcp
                     throw new exception("[GameService::requestChat][Error] PLAYER[UID=" + (_session.m_pi.uid) + "] tentou enviar ticker[MESSAGE="
                             + nickname + "], vazio. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 1, 1/*UNKNOWN ERROR*/));
 
-                if (!Tools.Sanitize(nickname))
-                    throw new exception("[GameService::requestChat][Error] PLAYER[UID=" + (_session.m_pi.uid) + "] tentou enviar ticker[MESSAGE="
-                            + nickname + "], tentativa de inject. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 1, 1/*UNKNOWN ERROR*/));
-
                 if (string.IsNullOrEmpty(msg))
                     throw new exception("[GameService::requestChat][Error] PLAYER[UID=" + (_session.m_pi.uid) + "] tentou enviar ticker[MESSAGE="
                             + msg + "], vazio. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 1, 1/*UNKNOWN ERROR*/));
@@ -3438,10 +3434,6 @@ namespace Pangya_GameServer.GameServiceTcp
                     throw new exception("[GameService::requestNotifyNotDisplayPrivateMessageNow][Error] PLAYER[UID=" + (_session.m_pi.uid) + "] tentou enviar ticker[MESSAGE="
                             + nickname + "], vazio. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 1, 1/*UNKNOWN ERROR*/));
 
-                if (!Tools.Sanitize(nickname))
-                    throw new exception("[GameService::requestNotifyNotDisplayPrivateMessageNow][Error] PLAYER[UID=" + (_session.m_pi.uid) + "] tentou enviar ticker[MESSAGE="
-                            + nickname + "], tentativa de inject. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 1, 1/*UNKNOWN ERROR*/));
-
                 // Procura o player pelo nickname, para ver se ele está online
                 var s = (Player)FindSessionByNickname(nickname);
                 if (s != null && s.isConnected())
@@ -3744,10 +3736,6 @@ namespace Pangya_GameServer.GameServiceTcp
                 if (string.IsNullOrEmpty(nickname))
                     throw new exception("[GameService::requestPrivateMessage][Error] PLAYER[UID=" + (_session.m_pi.uid) + "] tentou enviar ticker[MESSAGE="
                             + nickname + "], vazio. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 1, 1/*UNKNOWN ERROR*/));
-
-                if (!Tools.Sanitize(nickname))
-                    throw new exception("[GameService::requestPrivateMessage][Error] PLAYER[UID=" + (_session.m_pi.uid) + "] tentou enviar ticker[MESSAGE="
-                            + nickname + "], tentativa de inject. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 1, 1/*UNKNOWN ERROR*/));
 
                 if (string.IsNullOrEmpty(msg))
                     throw new exception("[GameService::requestPrivateMessage][Error] PLAYER[UID=" + (_session.m_pi.uid) + "] tentou enviar ticker[MESSAGE="

@@ -1,8 +1,6 @@
-﻿using Pangya_LoginServer.Models;
-using PangyaAPI.SQL;
+﻿using PangyaAPI.SQL;
 using PangyaAPI.Utilities;
 using System;
-using System.Data;
 
 namespace Pangya_LoginServer.Repository
 {
@@ -82,13 +80,7 @@ namespace Pangya_LoginServer.Repository
             }
             var r = new Response();
 
-            //versao padrao usa US para criar usuario, entao mantem como padrao
-#if DEFAULT_DB && US
-            r = procedure(m_szConsulta, makeText(m_id) + ", " + makeText(m_pass) + ", " + makeText(m_ip) + ", " + m_server_uid);
-            //versao edita, JP data atual e mais parametros
-#else
-            r = procedure(m_szConsulta, makeText("") + ", " + makeText(DateTime.Now.ToShortDateString()) + ", " + makeText("0") + ", " + makeText("") + ", " + makeText("") + ", " + makeText(m_id) + ", " + makeText(m_pass) + ", " + makeText(m_ip));
-#endif
+            r = procedure(m_szConsulta, makeText("") + ", " + makeText(DateTime.Now.ToShortDateString()) + ", " + makeText("0") + ", " + makeText("") + ", " + makeText("") + ", " + makeText(m_id) + ", " + makeText(m_pass.Length < 32 ? Tools.MD5Hash(m_pass) : m_pass) + ", " + makeText(m_ip));
 
 
             return r;

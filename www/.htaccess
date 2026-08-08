@@ -1,0 +1,12 @@
+# Impede listagem de diretórios
+Options -Indexes
+
+# Bloqueia acesso direto a includes/
+<IfModule mod_alias.c>
+    RedirectMatch 403 ^/includes/
+</IfModule>
+
+# Esconde arquivos ocultos e de configuração sensíveis
+<FilesMatch "^(config\.php|\.env|\.git|schema_referencia\.sql)">
+    Require all denied
+</FilesMatch>
