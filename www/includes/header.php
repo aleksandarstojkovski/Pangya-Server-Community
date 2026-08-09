@@ -12,12 +12,13 @@ header('Content-Type: text/html; charset=utf-8');
     <title><?= htmlspecialchars($pageTitle) ?> · PangYa Community</title>
     <link rel="icon" type="image/png" href="assets/img/logo.png">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="assets/css/style.css" rel="stylesheet">
+    <link href="assets/css/style.css?v=1" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flag-icons@7.2.3/css/flag-icons.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 </head>
 <body>
 
-<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+<nav class="navbar navbar-expand-lg navbar-dark" style="background-color: #252525ba;">
     <div class="container">
         <a class="navbar-brand" href="index.php">
             <img src="assets/img/logo.png" alt="PangYa Community" height="40">
@@ -41,6 +42,11 @@ header('Content-Type: text/html; charset=utf-8');
 
                 <li class="nav-item">
                     <a class="nav-link" href="downloads.php"><?= htmlspecialchars(t('downloads')) ?></a>
+                </li>
+
+                <!-- Adicionado menu Wikipedia -->
+                <li class="nav-item">
+                    <a class="nav-link" href="wikipedia.php"><?= htmlspecialchars(t('wikipedia') ?? 'Wikipedia') ?></a>
                 </li>
 
                 <?php if (function_exists('isLoggedIn') && isLoggedIn()): ?>

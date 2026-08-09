@@ -1,5 +1,7 @@
 body {
-    background: linear-gradient(180deg, #10131a 0%, #171b24 100%);
+    background: linear-gradient(180deg, rgba(10, 13, 20, .55), rgba(10, 13, 20, .8)), 
+                url('../img/bg/6.jpg') no-repeat center center fixed;
+    background-size: cover;
     color: #e8e8ec;
 }
 
@@ -41,7 +43,7 @@ a:hover { color: #80e5f2; }
 /* Hero da página inicial: fundo com o campo/cenário do PangYa */
 .hero-banner {
     background-image: linear-gradient(180deg, rgba(10, 13, 20, .55), rgba(10, 13, 20, .8)),
-                       url('img/hero-bg.jpg');
+    url('../img/bg/hero-bg.jpg');
     background-size: cover;
     background-position: center;
     border: 1px solid #2a2f3d;
@@ -65,4 +67,50 @@ a:hover { color: #80e5f2; }
     display: block;
     max-height: 260px;
     object-fit: cover;
+}
+
+/* -----------------------------------------------------------------
+   Ícone de item por TypeId (Personagens, Caddies, Mascotes, Armazém)
+   O <i> fica atrás como fallback; se assets/img/items/{typeid}.png
+   existir, a <img> cobre o ícone. Se não existir (onerror), a img
+   fica invisível e o ícone genérico continua aparecendo.
+   ----------------------------------------------------------------- */
+.item-icon {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    border-radius: .4rem;
+    background-color: #10131a;
+    border: 1px solid #2a2f3d;
+    overflow: hidden;
+}
+
+.item-icon .item-icon-fallback {
+    color: #5a6072;
+    font-size: 1.1rem;
+}
+
+.item-icon img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.collection-row {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+}
+
+.collection-row .collection-info {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.collection-row .collection-actions {
+    flex-shrink: 0;
 }

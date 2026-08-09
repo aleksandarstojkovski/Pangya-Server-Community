@@ -67,3 +67,43 @@ function setFlash(string $type, string $text): void
 {
     $_SESSION['flash'] = ['type' => $type, 'text' => $text];
 }
+
+/**
+ * Garante que exista um token CSRF na sessão e o retorna.
+ * Use no <form> (campo hidden) e valide no script que recebe o POST.
+ */
+function csrfToken(): string
+{
+    if (empty($_SESSION['csrf_token'])) {
+        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    }
+    return $_SESSION['csrf_token'];
+}
+
+/**
+ * Valida o token CSRF enviado por um POST contra o da sessão.
+ */
+function csrfValid(?string $token): bool
+{
+    return isset($_SESSION['csrf_token'], $token) && hash_equals($_SESSION['csrf_token'], $token);
+}
+
+/**
+ * Renderiza o ícone de um item pelo TypeId.
+ *
+ * Convenção de arquivos: assets/img/items/{typeid}.png
+ * Se a imagem daquele TypeId ainda não existir no servidor, mostra
+ * automaticamente um ícone genérico (bi-box-seam) no lugar — não gera
+ * erro/imagem quebrada. Basta ir soltando os PNGs em assets/img/items/
+ * conforme forem extraídos do IFF/PAK que os ícones corretos aparecem
+ * sozinhos, sem precisar mexer no código.
+ */
+function itemIconTag(int $typeid, int $size = 40): string
+{
+    $src = 'assets/img/items/' . $typeid . '.png';
+    return '<span class="item-icon" style="width:' . $size . 'px;height:' . $size . 'px;">'
+        . '<i class="bi bi-box-seam item-icon-fallback"></i>'
+        . '<img src="' . htmlspecialchars($src) . '" alt="Item ' . $typeid . '" '
+        . 'loading="lazy" onerror="this.style.display=\'none\'">'
+        . '</span>';
+}
