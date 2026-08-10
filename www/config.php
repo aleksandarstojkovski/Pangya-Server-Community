@@ -32,7 +32,7 @@ define('DB_PASS', '@pangya');
  *
  * Exemplo: define('DB_SERVER', 'localhost\\SQLEXPRESS');
  */
-define('DB_SERVER', '');      // ex.: 'localhost' ou 'NOME_DO_SERVIDOR\\INSTANCIA'
+define('DB_SERVER', 'localhost');      // ex.: 'localhost' ou 'NOME_DO_SERVIDOR\\INSTANCIA'
 define('DB_DATABASE', 'pangya');
 
 // Sessão precisa estar ativa em (quase) todas as páginas

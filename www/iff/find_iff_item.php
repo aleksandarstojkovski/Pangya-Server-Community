@@ -45,7 +45,6 @@ require_once __DIR__ . '/utils.php';
     }
 
     if (empty($binary_data)) {
-        echo "[DEBUG find_iff_desc] Arquivo Desc.iff não pudo ser lido.<br>\n";
         return null;
     }
 
@@ -90,19 +89,15 @@ require_once __DIR__ . '/utils.php';
         $type_id = isset($item['type_id']) ? (int)$item['type_id'] : 0;
 
         if ($i < $debug_limit) {
-            echo "[DEBUG Registro #{$i}] Lido type_id: {$type_id}<br>\n";
         }
 
         if ($type_id === $target_id) {
-            echo "[DEBUG find_iff_desc] SUCESSO! ID {$target_id} encontrado na posição {$i}.<br>\n";
             if (isset($item['info']) && is_string($item['info'])) {
                 $item['info'] = trim_nulls($item['info']);
             }
             return $item;
         }
     }
-
-    echo "[DEBUG find_iff_desc] ID {$target_id} percorrido, mas não encontrado.<br>\n";
     return null;
 }
 

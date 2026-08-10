@@ -6,10 +6,17 @@ $pageTitle = t('home');
 
 // Consulta as informações do servidor direto no banco de dados
 $serverInfo = null;
+
 try {
+
     $sql = '
         SELECT 
-            CAST(pangya_server_list.[Name] AS NVARCHAR(50)) AS [Name], 
+            CONVERT(
+                VARCHAR(MAX),
+                CAST(pangya_server_list.[Name] AS VARBINARY(MAX)),
+                2
+            ) AS [Name_HEX],
+
             pangya_server_list.[UID], 
             pangya_server_list.[IP], 
             pangya_server_list.[Port], 
@@ -22,17 +29,49 @@ try {
             pangya_server_list.ImgNo, 
             pangya_server_list.AppRate, 
             pangya_server_list.ScratchRate
+
         FROM pangya.pangya_server_list
+
         WHERE 
             pangya_server_list.[Type] = 1 AND 
-            pangya_server_list.UpdateTime > DATEADD(second, -8, GETDATE()) AND 
+			pangya_server_list.UpdateTime > dateadd(second, -8, getdate()) AND 
             pangya_server_list.[State] = 1
     ';
 
-    $stmt = getConnection()->query($sql);
+    $pdo = getConnection();
+
+    $stmt = $pdo->query($sql);
+
     $serverInfo = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    // ---------------------------------------------------------
+    // Converte o Name armazenado em UTF-16LE para UTF-8
+    // ---------------------------------------------------------
+    if ($serverInfo && !empty($serverInfo['Name_HEX'])) {
+
+        $nameBytes = hex2bin($serverInfo['Name_HEX']);
+
+        if ($nameBytes !== false) {
+
+            $serverInfo['Name'] = mb_convert_encoding(
+                $nameBytes,
+                'UTF-8',
+                'UTF-16LE'
+            );
+        } else {
+
+            $serverInfo['Name'] = '';
+        }
+
+        // Não precisamos mais do HEX depois da conversão
+        unset($serverInfo['Name_HEX']);
+    }
+
 } catch (PDOException $e) {
-    error_log('Erro ao buscar lista de servidores: ' . $e->getMessage());
+
+    error_log(
+        'Erro ao buscar lista de servidores: ' . $e->getMessage()
+    );
 }
 
 require __DIR__ . '/includes/header.php';
@@ -130,7 +169,7 @@ require __DIR__ . '/includes/header.php';
             </div>
 
             <h3 class="fw-bold mb-1">
-			<?=  mb_convert_encoding($serverInfo['Name'], 'UTF-8', 'SJIS') ?>
+			<?= htmlspecialchars($serverInfo['Name'] ?? 'Game Server no Running') ?>
             </h3>
             <p class="text small mb-3">
                 IP: <?= htmlspecialchars($serverInfo['IP'] ?? '127.0.0.1') ?>:<?= htmlspecialchars($serverInfo['Port'] ?? '20301') ?>
@@ -184,7 +223,7 @@ require __DIR__ . '/includes/header.php';
             </div>
         </div>
 
-        <div class="d-flex flex-wrap gap-2 mt-auto pt-3">
+        <div class="d-flex flex-wrap gap-2 mt-auto pt-3" style="margin-left: 75px;">
             <a href="https://github.com/luismk/Pangya-Server-Community" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-light">
                 📦 Repositório do Servidor
             </a>
@@ -194,7 +233,16 @@ require __DIR__ . '/includes/header.php';
             <a href="https://github.com/luismk/Pangya-Server-Community/issues" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-warning">
                 🐛 Reportar Issue
             </a>
+			<div class="d-flex flex-wrap gap-2 mt-auto pt-3" style="margin-left: 75px;">
+			<a href="test_connection.php" class="btn btn-sm btn-outline-info">
+        <i class="bi bi-database-check me-1"></i> Testar Conexão SQL
+    </a>
+    <a href="iff/test_archive.php" class="btn btn-sm btn-outline-warning">
+        <i class="bi bi-file-earmark-binary me-1"></i> Testar Leitura IFF
+    </a>
+	 </div>
         </div>
+		
     </div>
 </div>
 </div>

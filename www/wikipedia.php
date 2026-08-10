@@ -1,25 +1,36 @@
 <?php
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/includes/functions.php';
-require_once __DIR__ . '/iff/generate_cache.php';  
+require_once __DIR__ . '/iff/generate_cache.php';
 
 $items_per_page = 10;
-$current_page = isset($_GET['page']) && is_numeric($_GET['page']) ? (int)$_GET['page'] : 1;
-$search_query = isset($_GET['s']) ? trim(htmlspecialchars($_GET['s'])) : '';  
-$filter_type = isset($_GET['type']) ? strtolower(trim($_GET['type'])) : 'all';  
+$current_page = isset($_GET['page']) && is_numeric($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
+
+// Sanitização dos parâmetros de entrada
+$search_query = isset($_GET['s']) ? trim(strip_tags($_GET['s'])) : '';  
+$filter_type = isset($_GET['type']) ? strtolower(trim(strip_tags($_GET['type']))) : '';  
 
 $is_search_active = !empty($search_query);
+
+// 1. Obtém os dados (já filtrados no cache)
 $filtered_items = get_full_gallery_data($search_query, $is_search_active, $filter_type);
 
 if (!is_array($filtered_items)) {
     $filtered_items = [];
 }
 
+// 2. Cálculo da Paginação
 $total_items = count($filtered_items);
-$total_pages = ceil($total_items / $items_per_page);
-$current_page = max(1, min($current_page, $total_pages));
+$total_pages = $total_items > 0 ? (int)ceil($total_items / $items_per_page) : 1;
+
+// Ajusta a página atual dentro dos limites válidos
+if ($current_page > $total_pages) {
+    $current_page = $total_pages;
+}
+
 $offset = ($current_page - 1) * $items_per_page;
 
+// 3. Extrai APENAS os 10 itens que serão renderizados na tela
 $items_to_display = array_slice($filtered_items, $offset, $items_per_page);
 $search_param = urlencode($search_query);
 
@@ -45,17 +56,25 @@ require __DIR__ . '/includes/header.php';
     
     <div class="type-filter-container">
         <?php
-        $types = [
-            'all'     => 'Todos', 
-            'part'    => 'Parts',
-            'item'    => 'Items',
-            'setitem' => 'Set Items',
-            'card'    => 'Cards',
-        ];
+       $types = [
+    'all'       => 'Todos',
+    'card'      => 'Cards',
+    'setitem'   => 'Sets',
+    'part'      => 'Parts',
+    'item'      => 'Itens',
+    'skin'      => 'Skins',
+    'clubset'   => 'ClubSets',
+    'character' => 'Characters',
+    'caddie'    => 'Caddies',
+    'auxpart'   => 'Rings',
+    'mascot'    => 'Mascotes',
+];
+		
+		
         
         foreach ($types as $type_value => $type_label) {
             $active_class = ($filter_type === $type_value) ? 'active' : '';
-            $type_link = 'item_gallery.php?s=' . $search_param . '&type=' . $type_value . '&page=1';
+            $type_link = 'wikipedia.php?s=' . $search_param . '&type=' . $type_value . '&page=1';
             
             echo '<a href="' . $type_link . '" class="type-filter-button ' . $active_class . '">';
             echo htmlspecialchars($type_label);

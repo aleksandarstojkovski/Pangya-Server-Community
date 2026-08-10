@@ -8,7 +8,7 @@
  */
 
 // Carrega primeiro o iff.php que inicializa o ambiente e dependências
-require_once __DIR__ . '/iff.php';
+require_once __DIR__ . '/generate_cache.php';
 
 use PangyaIFF\Parser\IFFArchive;
 
@@ -33,7 +33,16 @@ if (is_file($archivePath)) {
 
     line('', $isCli);
     line('--- Testando leitura de cada arquivo esperado ---', $isCli);
-    foreach (['Item.iff', 'Part.iff', 'SetItem.iff', 'Card.iff', 'Desc.iff'] as $expected) {
+    foreach ([  'Card.iff',
+            'SetItem.iff',
+            'Part.iff',
+            'Item.iff',
+			'Skin.iff',
+			'ClubSet.iff',
+			'Character.iff',
+			'Caddie.iff',
+			'AuxPart.iff',
+			'Mascot.iff'] as $expected) {
         $found = IFFArchive::has($expected);
         line(($found ? '✔ ' : '✘ ') . $expected . ($found ? ' encontrado no pacote' : ' NÃO encontrado no pacote'), $isCli);
     }
@@ -46,7 +55,7 @@ line('--- Testando find_item() de ponta a ponta ---', $isCli);
 
 $testId = isset($argv[1]) ? (int)$argv[1] : (int)($_GET['id'] ?? 0);
 if ($testId > 0) {
-    $item = find_all($testId);
+    $item = find_cache($testId);
     if ($item) {
         line('Item ' . $testId . ' encontrado (fonte: ' . ($item['_source'] ?? '?') . '): ' . ($item['item_name'] ?? '(sem nome)'), $isCli);
     } else {

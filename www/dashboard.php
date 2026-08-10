@@ -3,8 +3,8 @@
  * dashboard.php
  * -----------------------------------------------------------------------
  * Painel do usuário autenticado. Busca dados em:
- *   - pangya.account                    -> perfil / dados de login
- *   - pangya.user_info                  -> estatísticas de jogo (nível, Pang, Cookie, ranking)
+ *   - pangya.account                 -> perfil / dados de login
+ *   - pangya.user_info               -> estatísticas de jogo (nível, Pang, Cookie, ranking)
  *   - pangya.pangya_character_information -> personagens possuídos
  *   - pangya.pangya_item_warehouse       -> itens no armazém (contagem)
  *   - pangya.pangya_caddie_information   -> caddies possuídos
@@ -13,6 +13,7 @@
  */
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/includes/functions.php';
+require_once __DIR__ . '/iff/generate_cache.php';  
 
 requireLogin();
 
@@ -29,18 +30,41 @@ $loadError      = '';
 
 try {
     $pdo = getConnection();
+// -------------------------------------------------------------
+// 1. Perfil da conta
+// -------------------------------------------------------------
+$stmt = $pdo->prepare(
+    'SELECT
+        [UID],
+        [ID],
+        CONVERT(VARCHAR(MAX), CAST([NICK] AS VARBINARY(MAX)), 2) AS [NICK_HEX],
+        [Sex],
+        [RegDate],
+        [LastLogonTime],
+        [LogonCount],
+        [Guild_UID],
+        [MannerFlag],
+        [Invited]
+     FROM pangya.account
+     WHERE [UID] = ?'
+);
 
-    // -------------------------------------------------------------
-    // 1. Perfil da conta
-    // -------------------------------------------------------------
-    $stmt = $pdo->prepare(
-        'SELECT [UID], [ID], [NICK], [Sex], [RegDate], [LastLogonTime],
-                [LogonCount], [Guild_UID], [MannerFlag], [Invited]
-         FROM pangya.account
-         WHERE [UID] = ?'
-    );
-    $stmt->execute([$uid]);
-    $account = $stmt->fetch();
+$stmt->execute([$uid]);
+$account = $stmt->fetch();
+
+if ($account && !empty($account['NICK_HEX'])) {
+
+    $nickBytes = hex2bin($account['NICK_HEX']);
+
+    if ($nickBytes !== false) {
+
+        $account['NICK'] = mb_convert_encoding(
+            $nickBytes,
+            'UTF-8',
+            'UTF-16LE'
+        );
+    }
+}
 
     // -------------------------------------------------------------
     // 2. Estatísticas de jogo (pode não existir ainda para contas novas)
@@ -92,9 +116,7 @@ try {
     $mascots = $stmt->fetchAll();
 
     // -------------------------------------------------------------
-    // 6. Itens do armazém, agrupados por TypeId (cada linha do banco é
-    //    uma unidade do item; agrupar dá a "quantidade" sem precisar de
-    //    uma coluna de quantidade, que essa tabela não tem).
+    // 6. Itens do armazém, agrupados por TypeId
     // -------------------------------------------------------------
     $stmt = $pdo->prepare(
         'SELECT [typeid], COUNT(*) AS qty
@@ -112,9 +134,47 @@ try {
     $loadError = 'Não foi possível carregar seus dados no momento.';
 }
 
+// -------------------------------------------------------------
+// 7. Cache em memória para lookups no IFF (evita reler o mesmo
+//    typeid várias vezes — reaproveitado pelas 4 seções abaixo).
+// -------------------------------------------------------------
+$iffCache = [];
+
+/**
+ * Busca os dados de um typeid no IFF, com cache por request.
+ * Retorna sempre um array (vazio se não encontrado), nunca null,
+ * pra evitar 'Trying to access array offset on null'.
+ */
+function iffLookup(int $typeid, array &$cache): array
+{
+    if (!isset($cache[$typeid])) {
+        $cache[$typeid] = find_cache($typeid) ?? [];
+    }
+    return $cache[$typeid];
+}
+
+$formattedWarehouseItems = [];
+
+foreach ($warehouseItems as $item) {
+    $typeid = (int)$item['typeid'];
+    $itemData = iffLookup($typeid, $iffCache);
+
+    // Verifica se a chave 'icon' existe E não está vazia (string vazia, null, etc)
+    $iconName = (!empty($itemData['icon'])) ? $itemData['icon'] : 'default';
+
+    // Verifica se o nome existe E não está vazio
+    $itemName = (!empty($itemData['item_name'])) ? $itemData['item_name'] : ((!empty($itemData['name'])) ? $itemData['name'] : ('Item #' . $typeid));
+
+    $formattedWarehouseItems[] = [
+        'typeid' => $typeid,
+        'qty'    => (int)$item['qty'],
+        'icon'   => $iconName,
+        'name'   => $itemName,
+    ];
+}
+
 /**
  * Converte o código de sexo (smallint) em texto legível.
- * Ajuste os valores caso seu servidor use uma convenção diferente.
  */
 function sexoLabel($sexo): string
 {
@@ -140,7 +200,6 @@ function formatDate($value): string
 $pageTitle = 'Painel do Usuário';
 require __DIR__ . '/includes/header.php';
 ?>
-
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2 class="mb-0">Meu Painel</h2>
     <a href="logout.php" class="btn btn-outline-light btn-sm">Sair</a>
@@ -411,194 +470,396 @@ require __DIR__ . '/includes/header.php';
         </div>
 
         <!-- Personagens -->
-        <div class="col-lg-4">
-            <div class="card p-4 h-100">
-                <h5 class="mb-3"><i class="bi bi-person-badge-fill me-2"></i>Personagens (<?= count($characters) ?>)</h5>
-                <?php if (empty($characters)): ?>
-                    <p class="mb-0 text-secondary">Nenhum personagem encontrado.</p>
-                <?php else: ?>
-                    <ul class="list-group list-group-flush">
-                        <?php foreach ($characters as $char): ?>
-                            <li class="list-group-item bg-transparent text-light collection-row">
-                                <?= itemIconTag((int)$char['typeid']) ?>
-                                <div class="collection-info">
-                                    <div>TypeID <?= htmlspecialchars((string)$char['typeid']) ?></div>
-                                    <div class="text-secondary small">Mastery: <?= htmlspecialchars((string)$char['Mastery']) ?></div>
-                                </div>
-                                <div class="collection-actions">
-                                    <button
-                                        type="button"
-                                        class="btn btn-sm btn-outline-light edit-character-btn"
-                                        data-bs-toggle="modal"
-                                        data-bs-target="#editCharacterModal"
-                                        data-typeid="<?= (int)$char['typeid'] ?>"
-                                        data-mastery="<?= (int)$char['Mastery'] ?>"
-                                        data-hair="<?= (int)$char['default_hair'] ?>"
-                                        data-shirts="<?= (int)$char['default_shirts'] ?>"
-                                    ><i class="bi bi-pencil-square"></i></button>
-                                </div>
-                            </li>
-                        <?php endforeach; ?>
-                    </ul>
-                <?php endif; ?>
-            </div>
-        </div>
+<div class="col-lg-4">
+    <div class="card p-4 h-100">
+        <h5 class="mb-3"><i class="bi bi-person-badge-fill me-2"></i>Personagens (<?= count($characters) ?>)</h5>
+        
+        <?php if (empty($characters)): ?>
+            <p class="mb-0 text-secondary">Nenhum personagem encontrado.</p>
+        <?php else: ?>
+            <ul class="list-group list-group-flush">
+                <?php foreach ($characters as $char): 
+                    // Usa o cache compartilhado (mesmo do armazém) em vez de
+                    // chamar find_all() de novo sem cache.
+                    $itemData = iffLookup((int)$char['typeid'], $iffCache);
+                    $itemName = htmlspecialchars($itemData['item_name'] ?? 'no found');
+					$itemIcon = htmlspecialchars($itemData['icon'] ?? 'default');
+                ?>
+                    <li class="list-group-item bg-transparent text-light collection-row d-flex align-items-center justify-content-between">
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="item-icon" style="width:64px;height:64px;">                               
+                                <img
+                                    src="assets/img/items/<?= $itemIcon ?>.png"
+                                    alt="<?= $itemName ?>"
+                                    loading="lazy"
+                                    onerror="this.onerror=null;this.style.display='none';"
+                                >
+                            </span>
+                            <div>
+                                <div class="text-secondary small">Mastery: <?= htmlspecialchars((string)$char['Mastery']) ?></div>
+                            </div>
+                        </div>
+
+                        <div class="collection-actions">
+                            <button
+                                type="button"
+                                class="btn btn-sm btn-outline-light edit-character-btn"
+                                data-bs-toggle="modal"
+                                data-bs-target="#editCharacterModal"
+                                data-typeid="<?= (int)$char['typeid'] ?>"
+                                data-mastery="<?= (int)$char['Mastery'] ?>"
+                                data-hair="<?= (int)$char['default_hair'] ?>"
+                                data-shirts="<?= (int)$char['default_shirts'] ?>"
+                            ><i class="bi bi-pencil-square"></i></button>
+                        </div>
+                    </li>
+                <?php endforeach; ?>
+            </ul>
+        <?php endif; ?>
+    </div>
+</div>
 
         <!-- Caddies -->
-        <div class="col-lg-4">
-            <div class="card p-4 h-100">
-                <h5 class="mb-3"><i class="bi bi-person-arms-up me-2"></i>Caddies (<?= count($caddies) ?>)</h5>
-                <?php if (empty($caddies)): ?>
-                    <p class="mb-0 text-secondary">Nenhum caddie encontrado.</p>
-                <?php else: ?>
-                    <ul class="list-group list-group-flush">
-                        <?php foreach ($caddies as $caddie): ?>
-                            <li class="list-group-item bg-transparent text-light collection-row">
-                                <?= itemIconTag((int)$caddie['typeid']) ?>
-                                <div class="collection-info">
-                                    <div>TypeID <?= htmlspecialchars((string)$caddie['typeid']) ?></div>
-                                    <div class="text-secondary small">Nv. <?= htmlspecialchars((string)$caddie['cLevel']) ?></div>
-                                </div>
-                                <div class="collection-actions">
-                                    <button
-                                        type="button"
-                                        class="btn btn-sm btn-outline-light edit-caddie-btn"
-                                        data-bs-toggle="modal"
-                                        data-bs-target="#editCaddieModal"
-                                        data-typeid="<?= (int)$caddie['typeid'] ?>"
-                                        data-clevel="<?= (int)$caddie['cLevel'] ?>"
-                                        data-exp="<?= (int)$caddie['Exp'] ?>"
-                                        data-rentflag="<?= (int)$caddie['RentFlag'] ?>"
-                                    ><i class="bi bi-pencil-square"></i></button>
-                                </div>
-                            </li>
-                        <?php endforeach; ?>
-                    </ul>
-                <?php endif; ?>
-            </div>
-        </div>
+     <!-- Caddies -->
+<div class="col-lg-4">
+    <div class="card p-4 h-100">
+        <h5 class="mb-3"><i class="bi bi-person-arms-up me-2"></i>Caddies (<?= count($caddies) ?>)</h5>
 
-        <!-- Mascotes -->
-        <div class="col-lg-4">
-            <div class="card p-4 h-100">
-                <h5 class="mb-3"><i class="bi bi-emoji-heart-eyes-fill me-2"></i>Mascotes (<?= count($mascots) ?>)</h5>
-                <?php if (empty($mascots)): ?>
-                    <p class="text-secondary">Nenhum mascote encontrado.</p>
-                <?php else: ?>
-                    <ul class="list-group list-group-flush mb-3">
-                        <?php foreach ($mascots as $mascot): ?>
-                            <li class="list-group-item bg-transparent text-light collection-row">
-                                <?= itemIconTag((int)$mascot['typeid']) ?>
-                                <div class="collection-info">
-                                    <div>TypeID <?= htmlspecialchars((string)$mascot['typeid']) ?></div>
-                                    <div class="text-secondary small">Nv. <?= htmlspecialchars((string)$mascot['mLevel']) ?></div>
-                                </div>
-                                <div class="collection-actions">
-                                    <button
-                                        type="button"
-                                        class="btn btn-sm btn-outline-light edit-mascot-btn"
-                                        data-bs-toggle="modal"
-                                        data-bs-target="#editMascotModal"
-                                        data-typeid="<?= (int)$mascot['typeid'] ?>"
-                                        data-mlevel="<?= (int)$mascot['mLevel'] ?>"
-                                        data-mexp="<?= (int)$mascot['mExp'] ?>"
-                                    ><i class="bi bi-pencil-square"></i></button>
-                                </div>
-                            </li>
-                        <?php endforeach; ?>
-                    </ul>
-                <?php endif; ?>
-            </div>
-        </div>
-
-        <!-- Armazém -->
-        <div class="col-lg-12">
-            <div class="card p-4">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h5 class="mb-0"><i class="bi bi-archive-fill me-2"></i>Armazém (<?= (int)$itemCount ?> itens · <?= count($warehouseItems) ?> tipos)</h5>
-                </div>
-
-                <!-- Adicionar novo item -->
-                <form action="update_warehouse.php" method="post" accept-charset="UTF-8" class="row g-2 align-items-end mb-3">
-                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrfToken()) ?>">
-                    <input type="hidden" name="action" value="add">
-                    <div class="col-auto">
-                        <label for="newItemTypeId" class="form-label small mb-1">Adicionar item por TypeId</label>
-                        <input type="number" min="1" name="typeid" id="newItemTypeId" class="form-control form-control-sm" style="width:140px" required>
-                    </div>
-                    <div class="col-auto">
-                        <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg me-1"></i>Adicionar</button>
-                    </div>
-                </form>
-
-                <?php if (empty($warehouseItems)): ?>
-                    <p class="mb-0 text-secondary">Nenhum item no armazém.</p>
-                <?php else: ?>
-                    <div class="row g-2">
-                        <?php foreach ($warehouseItems as $item): ?>
-                            <div class="col-sm-6 col-md-4 col-lg-3">
-                                <div class="collection-row p-2 rounded bg-black bg-opacity-25">
-                                    <?= itemIconTag((int)$item['typeid']) ?>
-                                    <div class="collection-info">
-                                        <div>TypeID <?= htmlspecialchars((string)$item['typeid']) ?></div>
-                                        <div class="text-secondary small">Qtd: <?= (int)$item['qty'] ?></div>
-                                    </div>
-                                    <div class="collection-actions d-flex gap-1">
-                                        <form action="update_warehouse.php" method="post" accept-charset="UTF-8">
-                                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrfToken()) ?>">
-                                            <input type="hidden" name="action" value="add">
-                                            <input type="hidden" name="typeid" value="<?= (int)$item['typeid'] ?>">
-                                            <button type="submit" class="btn btn-sm btn-outline-light" title="Adicionar mais um"><i class="bi bi-plus-lg"></i></button>
-                                        </form>
-                                        <form action="update_warehouse.php" method="post" accept-charset="UTF-8">
-                                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrfToken()) ?>">
-                                            <input type="hidden" name="action" value="remove">
-                                            <input type="hidden" name="typeid" value="<?= (int)$item['typeid'] ?>">
-                                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Remover um"><i class="bi bi-dash-lg"></i></button>
-                                        </form>
-                                    </div>
-                                </div>
+        <?php if (empty($caddies)): ?>
+            <p class="mb-0 text-secondary">Nenhum caddie encontrado.</p>
+        <?php else: ?>
+            <ul class="list-group list-group-flush">
+                <?php foreach ($caddies as $caddie): 
+                    $itemData = iffLookup((int)$caddie['typeid'], $iffCache);
+                    $itemName = htmlspecialchars($itemData['item_name'] ?? 'no found');
+					$itemIcon = htmlspecialchars($itemData['icon'] ?? 'default');
+                ?>
+                    <li class="list-group-item bg-transparent text-light collection-row d-flex align-items-center justify-content-between">
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="item-icon" style="width:64px;height:64px;">
+                                <img
+                                    src="assets/img/items/<?= $itemIcon ?>.png"
+                                    alt="<?= $itemName ?>"
+                                    loading="lazy"
+                                    onerror="this.onerror=null;this.style.display='none';"
+                                >
+                            </span>
+                            <div class="collection-info">
+                                  <div>Name: <?= $itemName ?></div>
+                                <div class="text-secondary small">Nv. <?= htmlspecialchars((string)$caddie['cLevel']) ?></div>
                             </div>
-                        <?php endforeach; ?>
-                    </div>
-                <?php endif; ?>
-            </div>
-        </div>
+                        </div>
+
+                        <div class="collection-actions">
+                            <button
+                                type="button"
+                                class="btn btn-sm btn-outline-light edit-caddie-btn"
+                                data-bs-toggle="modal"
+                                data-bs-target="#editCaddieModal"
+                                data-typeid="<?= (int)$caddie['typeid'] ?>"
+                                data-clevel="<?= (int)$caddie['cLevel'] ?>"
+                                data-exp="<?= (int)$caddie['Exp'] ?>"
+                                data-rentflag="<?= (int)$caddie['RentFlag'] ?>"
+                            ><i class="bi bi-pencil-square"></i></button>
+                        </div>
+                    </li>
+                <?php endforeach; ?>
+            </ul>
+        <?php endif; ?>
     </div>
+</div>
+
+<!-- Mascotes -->
+<div class="col-lg-4">
+    <div class="card p-4 h-100">
+        <h5 class="mb-3"><i class="bi bi-emoji-heart-eyes-fill me-2"></i>Mascotes (<?= count($mascots) ?>)</h5>
+
+        <?php if (empty($mascots)): ?>
+            <p class="mb-0 text-secondary">Nenhum mascote encontrado.</p>
+        <?php else: ?>
+            <ul class="list-group list-group-flush">
+                <?php foreach ($mascots as $mascot): 
+                    $itemData = iffLookup((int)$mascot['typeid'], $iffCache);
+					 $itemName = htmlspecialchars($itemData['item_name'] ?? 'no found');
+					$itemIcon = htmlspecialchars($itemData['icon'] ?? 'default');
+                ?>
+                    <li class="list-group-item bg-transparent text-light collection-row d-flex align-items-center justify-content-between">
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="item-icon" style="width:64px;height:64px;">
+                                <img
+                                   src="assets/img/items/<?= $itemIcon ?>.png"
+                                    alt="<?= $itemName ?>"
+                                    loading="lazy"
+                                    onerror="this.onerror=null;this.style.display='none';"
+                                >
+                            </span>
+                            <div class="collection-info">
+                                <div>Name: <?= $itemName ?></div>
+                                <div class="text-secondary small">Nv. <?= htmlspecialchars((string)$mascot['mLevel']) ?></div>
+                            </div>
+                        </div>
+
+                        <div class="collection-actions">
+                            <button
+                                type="button"
+                                class="btn btn-sm btn-outline-light edit-mascot-btn"
+                                data-bs-toggle="modal"
+                                data-bs-target="#editMascotModal"
+                                data-typeid="<?= (int)$mascot['typeid'] ?>"
+                                data-mlevel="<?= (int)$mascot['mLevel'] ?>"
+                                data-mexp="<?= (int)$mascot['mExp'] ?>"
+                            ><i class="bi bi-pencil-square"></i></button>
+                        </div>
+                    </li>
+                <?php endforeach; ?>
+            </ul>
+        <?php endif; ?>
+    </div>
+</div>
+
+ <!-- Armazém -->
+<div class="col-lg-12 mt-4">
+    <div class="card p-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="mb-0"><i class="bi bi-archive-fill me-2"></i>Armazém (<?= (int)$itemCount ?> itens · <?= count($warehouseItems) ?> tipos)</h5>
+            
+            <!-- Campo de Busca em Tempo Real -->
+            <input type="text" id="warehouseSearch" class="form-control form-control-sm style-search" style="max-width: 200px;" placeholder="Buscar item ou TypeID...">
+        </div>
+
+        <!-- Adicionar novo item -->
+        <form action="update_warehouse.php" method="post" accept-charset="UTF-8" class="row g-2 align-items-end mb-3">
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrfToken()) ?>">
+            <input type="hidden" name="action" value="add">
+            <div class="col-auto">
+                <label for="newItemTypeId" class="form-label small mb-1">Adicionar item por TypeId</label>
+                <input type="number" min="1" name="typeid" id="newItemTypeId" class="form-control form-control-sm" style="width:140px" required>
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg me-1"></i>Adicionar</button>
+            </div>
+        </form>
+
+        <?php if (empty($warehouseItems)): ?>
+            <p class="mb-0 text-secondary">Nenhum item no armazém.</p>
+        <?php else: ?>
+            <!-- Container onde os itens serão inseridos via JS -->
+            <div id="warehouseContainer" class="row g-2 mb-4"></div>
+
+            <!-- Controles da Paginação JS -->
+            <nav id="warehousePaginationNav" aria-label="Navegação do Armazém">
+                <ul class="pagination pagination-sm justify-content-center mb-0" id="warehousePagination"></ul>
+            </nav>
+        <?php endif; ?>
+    </div>
+</div>
 
 <?php endif; ?>
-
 <script>
-// Preenche os modais de edição (Personagem / Caddie / Mascote) com os
-// dados da linha clicada, usando os atributos data-* de cada botão.
-document.addEventListener('DOMContentLoaded', function () {
-    document.querySelectorAll('.edit-character-btn').forEach(function (btn) {
-        btn.addEventListener('click', function () {
-            document.getElementById('charTypeId').value = btn.dataset.typeid;
-            document.getElementById('charTypeIdLabel').textContent = '#' + btn.dataset.typeid;
-            document.getElementById('charMastery').value = btn.dataset.mastery;
-            document.getElementById('charHair').value = btn.dataset.hair;
-            document.getElementById('charShirts').value = btn.dataset.shirts;
-        });
-    });
+document.addEventListener('DOMContentLoaded', () => {
+    // 1. Dados injetados com cache já processado pelo PHP
+    const allWarehouseItems = <?= json_encode($formattedWarehouseItems, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
+    const csrfToken = <?= json_encode(csrfToken() ?? '') ?>;
+    
+    const itemsPerPage = 12;
+    let currentPage = 1;
+    let filteredItems = [...allWarehouseItems];
 
-    document.querySelectorAll('.edit-caddie-btn').forEach(function (btn) {
-        btn.addEventListener('click', function () {
-            document.getElementById('caddieTypeId').value = btn.dataset.typeid;
-            document.getElementById('caddieTypeIdLabel').textContent = '#' + btn.dataset.typeid;
-            document.getElementById('caddieLevel').value = btn.dataset.clevel;
-            document.getElementById('caddieExp').value = btn.dataset.exp;
-            document.getElementById('caddieRent').checked = btn.dataset.rentflag === '1';
-        });
-    });
+    const container = document.getElementById('warehouseContainer');
+    const paginationEl = document.getElementById('warehousePagination');
+    const searchInput = document.getElementById('warehouseSearch');
 
-    document.querySelectorAll('.edit-mascot-btn').forEach(function (btn) {
-        btn.addEventListener('click', function () {
-            document.getElementById('mascotTypeId').value = btn.dataset.typeid;
-            document.getElementById('mascotTypeIdLabel').textContent = '#' + btn.dataset.typeid;
-            document.getElementById('mascotLevel').value = btn.dataset.mlevel;
-            document.getElementById('mascotExp').value = btn.dataset.mexp;
+    // Escape de strings para prevenir XSS no JS
+    function escapeHtml(str) {
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    // 2. Renderização dos cards da página
+    function renderItems() {
+        if (!container) return;
+        container.innerHTML = '';
+
+        if (filteredItems.length === 0) {
+            container.innerHTML = '<div class="col-12"><p class="text-secondary mb-0">Nenhum item encontrado.</p></div>';
+            if (paginationEl) paginationEl.innerHTML = '';
+            return;
+        }
+
+        const startIndex = (currentPage - 1) * itemsPerPage;
+        const pageItems = filteredItems.slice(startIndex, startIndex + itemsPerPage);
+        const fragment = document.createDocumentFragment();
+
+        pageItems.forEach(item => {
+            const card = document.createElement('div');
+            card.className = 'col-sm-6 col-md-4 col-lg-3';
+            card.innerHTML = `
+                <div class="collection-row p-2 rounded bg-black bg-opacity-25 border border-secondary d-flex align-items-center justify-content-between">
+                    <div class="d-flex align-items-center gap-2 overflow-hidden">
+                        <span class="item-icon" style="width:64px;height:64px;">
+                            <img src="assets/img/items/${item.icon}.png" alt="${escapeHtml(item.name)}" loading="lazy" onerror="this.onerror=null;this.style.display='none';">
+                        </span>
+                        <div class="collection-info text-truncate">
+                            <div class="fw-bold text-truncate" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</div>
+                            <div class="text-secondary small">ID: ${item.typeid} | Qtd: ${item.qty}</div>
+                        </div>
+                    </div>
+
+                    <div class="collection-actions d-flex gap-1 ms-2">
+                        <form action="update_warehouse.php" method="post">
+                            <input type="hidden" name="csrf_token" value="${csrfToken}">
+                            <input type="hidden" name="action" value="add">
+                            <input type="hidden" name="typeid" value="${item.typeid}">
+                            <button type="submit" class="btn btn-sm btn-outline-light" title="Adicionar"><i class="bi bi-plus-lg"></i></button>
+                        </form>
+                        <form action="update_warehouse.php" method="post">
+                            <input type="hidden" name="csrf_token" value="${csrfToken}">
+                            <input type="hidden" name="action" value="remove">
+                            <input type="hidden" name="typeid" value="${item.typeid}">
+                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Remover"><i class="bi bi-dash-lg"></i></button>
+                        </form>
+                    </div>
+                </div>
+            `;
+            fragment.appendChild(card);
         });
+
+        container.appendChild(fragment);
+        renderPagination();
+    }
+
+    // 3. Monta a lista de páginas a exibir, com "..." nos intervalos
+    //    grandes (ex.: 1 ... 4 5 6 ... 11) em vez de todos os números.
+    function getPaginationRange(current, total, delta = 2) {
+        const range = [];
+        for (let i = 1; i <= total; i++) {
+            if (i === 1 || i === total || (i >= current - delta && i <= current + delta)) {
+                range.push(i);
+            }
+        }
+
+        const withDots = [];
+        let last = null;
+        for (const page of range) {
+            if (last !== null) {
+                if (page - last === 2) {
+                    withDots.push(last + 1); // preenche o buraco de 1 página em vez de "..."
+                } else if (page - last > 2) {
+                    withDots.push('...');
+                }
+            }
+            withDots.push(page);
+            last = page;
+        }
+        return withDots;
+    }
+
+    // 4. Renderização dos botões de paginação
+    function renderPagination() {
+        if (!paginationEl) return;
+        const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
+        paginationEl.innerHTML = '';
+
+        if (totalPages <= 1) return;
+
+        // Botão Anterior
+        const prevLi = document.createElement('li');
+        prevLi.className = `page-item ${currentPage === 1 ? 'disabled' : ''}`;
+        prevLi.innerHTML = `<a class="page-link bg-dark text-white border-secondary" href="#">&laquo;</a>`;
+        prevLi.addEventListener('click', (e) => {
+            e.preventDefault();
+            if (currentPage > 1) {
+                currentPage--;
+                renderItems();
+            }
+        });
+        paginationEl.appendChild(prevLi);
+
+        // Páginas numéricas, com "..." nos intervalos grandes
+        getPaginationRange(currentPage, totalPages).forEach((page) => {
+            const li = document.createElement('li');
+
+            if (page === '...') {
+                li.className = 'page-item disabled';
+                li.innerHTML = `<span class="page-link bg-dark text-white border-secondary">&hellip;</span>`;
+                paginationEl.appendChild(li);
+                return;
+            }
+
+            li.className = `page-item ${page === currentPage ? 'active' : ''}`;
+            li.innerHTML = `<a class="page-link ${page === currentPage ? 'bg-primary' : 'bg-dark'} text-white border-secondary" href="#">${page}</a>`;
+            li.addEventListener('click', (e) => {
+                e.preventDefault();
+                currentPage = page;
+                renderItems();
+            });
+            paginationEl.appendChild(li);
+        });
+
+        // Botão Próximo
+        const nextLi = document.createElement('li');
+        nextLi.className = `page-item ${currentPage === totalPages ? 'disabled' : ''}`;
+        nextLi.innerHTML = `<a class="page-link bg-dark text-white border-secondary" href="#">&raquo;</a>`;
+        nextLi.addEventListener('click', (e) => {
+            e.preventDefault();
+            if (currentPage < totalPages) {
+                currentPage++;
+                renderItems();
+            }
+        });
+        paginationEl.appendChild(nextLi);
+    }
+
+    // 4. Busca dinâmica
+    if (searchInput) {
+        searchInput.addEventListener('input', (e) => {
+            const query = e.target.value.toLowerCase().trim();
+            filteredItems = allWarehouseItems.filter(item => 
+                item.typeid.toString().includes(query) || 
+                item.name.toLowerCase().includes(query)
+            );
+            currentPage = 1;
+            renderItems();
+        });
+    }
+
+    // Renderiza a primeira página na inicialização
+    renderItems();
+
+    // 5. Modais de Edição (Delegação de Eventos)
+    document.addEventListener('click', function (e) {
+        const charBtn = e.target.closest('.edit-character-btn');
+        if (charBtn) {
+            document.getElementById('charTypeId').value = charBtn.dataset.typeid;
+            document.getElementById('charTypeIdLabel').textContent = '#' + charBtn.dataset.typeid;
+            document.getElementById('charMastery').value = charBtn.dataset.mastery;
+            document.getElementById('charHair').value = charBtn.dataset.hair;
+            document.getElementById('charShirts').value = charBtn.dataset.shirts;
+            return;
+        }
+
+        const caddieBtn = e.target.closest('.edit-caddie-btn');
+        if (caddieBtn) {
+            document.getElementById('caddieTypeId').value = caddieBtn.dataset.typeid;
+            document.getElementById('caddieTypeIdLabel').textContent = '#' + caddieBtn.dataset.typeid;
+            document.getElementById('caddieLevel').value = caddieBtn.dataset.clevel;
+            document.getElementById('caddieExp').value = caddieBtn.dataset.exp;
+            document.getElementById('caddieRent').checked = caddieBtn.dataset.rentflag === '1';
+            return;
+        }
+
+        const mascotBtn = e.target.closest('.edit-mascot-btn');
+        if (mascotBtn) {
+            document.getElementById('mascotTypeId').value = mascotBtn.dataset.typeid;
+            document.getElementById('mascotTypeIdLabel').textContent = '#' + mascotBtn.dataset.typeid;
+            document.getElementById('mascotLevel').value = mascotBtn.dataset.mlevel;
+            document.getElementById('mascotExp').value = mascotBtn.dataset.mexp;
+            return;
+        }
     });
 });
 </script>

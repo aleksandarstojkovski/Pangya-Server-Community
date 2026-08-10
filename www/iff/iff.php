@@ -37,41 +37,34 @@ function find_desc(int $search_id): ?array {
 }
   function find_all(int $search_id): ?array {
         $iff_files = [
-            'Card.iff',
+             'Card.iff',
             'SetItem.iff',
             'Part.iff',
             'Item.iff',
+			'Skin.iff',
+			'ClubSet.iff',
+			'Character.iff',
+			'Caddie.iff',
+			'AuxPart.iff',
+			'Mascot.iff',
         ];
-
-        $isCli = PHP_SAPI === 'cli';
-        $nl = $isCli ? "\n" : "<br>\n";
-
-        echo "--- [DEBUG find_all] Buscando ID: {$search_id} ---" . $nl;
 
         foreach ($iff_files as $filename) {
             // Utiliza a classe IFFArchive existente
             $hasInZip = \PangyaIFF\Parser\IFFArchive::has($filename);
 
-            echo "Verificando '{$filename}' -> No ZIP: " . ($hasInZip ? 'SIM' : 'NÃO') . $nl;
-
             if (!$hasInZip) {
-                echo " ↳ Pulado (não encontrado no pacote).{$nl}";
                 continue; 
             }
 
-            echo " ↳ Tentando ler '{$filename}' via find_iff_item()..." . $nl;
             $found = PangyaIFF\Parser\find_iff_item($search_id, $filename);
             
             if ($found) {
-                echo " ✔ SUCESSO! Item encontrado em: {$filename}{$nl}";
                 $found['_source'] = $filename;
                 return $found;
             } else {
-                echo " ✗ Item não está em {$filename}, testando próximo...{$nl}";
             }
         }
-
-        echo "--- [DEBUG find_all] ID {$search_id} NÃO foi encontrado em nenhum arquivo IFF. ---" . $nl;
         return null;
     }
 	

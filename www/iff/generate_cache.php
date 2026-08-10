@@ -33,10 +33,16 @@ function load_full_iff_list_from_cache(): array {
     
     // 2. Cache inválido/inexistente: Gera a lista bruta lendo do IFFArchive (ZIP) ou disco
     $iff_files = [
-        'Item.iff',
-        'Part.iff',
-        'SetItem.iff',
         'Card.iff',
+            'SetItem.iff',
+            'Part.iff',
+            'Item.iff',
+			'Skin.iff',
+			'ClubSet.iff',
+			'Character.iff',
+			'Caddie.iff',
+			'AuxPart.iff',
+			'Mascot.iff',
     ];
 
     $full_list = [];
@@ -49,7 +55,6 @@ function load_full_iff_list_from_cache(): array {
         $hasInDisk = file_exists($path);
 
         if (!$hasInZip && !$hasInDisk) {
-            echo "❌ FALHOU: O arquivo IFF NÃO FOI ENCONTRADO: Caminho ou entrada: {$filename}\n";
             continue;
         }
 
@@ -67,9 +72,7 @@ function load_full_iff_list_from_cache(): array {
         }
     }
     
-    echo "-----------------------------\n";
     if (empty($full_list)) {
-        echo "❌ ERRO: NENHUM ITEM FOI ADICIONADO AO CACHE. Verifique a chave 'TypeID' no filtro.\n";
         return [];
     }
 
@@ -96,7 +99,6 @@ function load_full_iff_list_from_cache(): array {
 
     // 5. Verifica erros de codificação
     if ($json_data === false) {
-        echo "\n❌ ERRO JSON: " . json_last_error_msg() . "\n";
         file_put_contents(__DIR__ . '/../data/iff_json_error_dump.txt', print_r($full_list, true));
         return [];
     }
@@ -110,10 +112,7 @@ function load_full_iff_list_from_cache(): array {
         }
     }
 
-    echo "\n\nDEBUG: Tentando salvar " . strlen($json_data) . " bytes no caminho: " . CACHE_FILE . "\n";
-
     if (file_put_contents(CACHE_FILE, $json_data) === false) {
-        echo "❌ FALHA DE PERMISSÃO: file_put_contents retornou FALSE. Verifique permissões na pasta: {$cache_dir}\n";
         return [];
     }
 
@@ -126,8 +125,53 @@ function load_full_iff_list_from_cache(): array {
 }
 
 /**
- * Função principal para obter a lista filtrada.
+ * Busca ultra-rápida (O(1)) por ID usando índice estático em memória RAM.
  */
+function find_cache(int $search_id): array {
+    static $indexed_list = null;
+
+    // Converte a lista em uma Tabela Hash [type_id => item] apenas UMA vez por requisição
+    if ($indexed_list === null) {
+        $indexed_list = [];
+        $full_list = load_full_iff_list_from_cache();
+
+        foreach ($full_list as $item) {
+            if (isset($item['type_id'])) {
+                $indexed_list[(int)$item['type_id']] = $item;
+            }
+        }
+    }
+
+    // Busca O(1) instantânea
+    if (isset($indexed_list[$search_id])) {
+        $item = $indexed_list[$search_id];
+
+        $icon = !empty($item['icon']) ? $item['icon'] : 'default';
+        $source = !empty($item['_source']) ? $item['_source'] : '';
+        $name = !empty($item['item_name']) ? $item['item_name'] : (!empty($item['name']) ? $item['name'] : ('Item #' . $search_id));
+
+        return [
+            'typeid'    => $search_id,
+            'name'      => $name,
+            '_source'   => $source,
+            'item_name' => $name,
+            'icon'      => $icon,
+            'raw'       => $item
+        ];
+    }
+
+    // Retorno padrão caso não encontre
+    return [
+        'typeid'    => $search_id,
+        'name'      => 'Item #' . $search_id,
+        '_source'   => '',
+        'item_name' => 'Item #' . $search_id,
+        'icon'      => 'default',
+        'raw'       => []
+    ];
+}
+
+
 function get_full_gallery_data(string $search_query = '', bool $is_search_active = false, string $filter_type = ''): array {
     
     // 1. Carrega a lista COMPLETA de itens A PARTIR DO CACHE (rápido)
