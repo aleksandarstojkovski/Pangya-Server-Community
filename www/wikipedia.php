@@ -55,32 +55,37 @@ require __DIR__ . '/includes/header.php';
     </div>
     
     <div class="type-filter-container">
-        <?php
-       $types = [
-    'all'       => 'Todos',
-    'card'      => 'Cards',
-    'setitem'   => 'Sets',
-    'part'      => 'Parts',
-    'item'      => 'Itens',
-    'skin'      => 'Skins',
-    'clubset'   => 'ClubSets',
-    'character' => 'Characters',
-    'caddie'    => 'Caddies',
-    'auxpart'   => 'Rings',
-    'mascot'    => 'Mascotes',
+       <?php
+$types = [
+    'all'       => ['label' => 'Todos',      'icon' => ''],
+    'card'      => ['label' => 'Cards',      'icon' => 'assets/img/bar/BtnCard.png'],
+    'setitem'   => ['label' => 'Sets',       'icon' => 'assets/img/bar/BtnSet.png'],
+    'part'      => ['label' => 'Parts',      'icon' => 'assets/img/bar/BtnPart.png'],
+    'item'      => ['label' => 'Itens',      'icon' => 'assets/img/bar/BtnItem.png'],
+    'skin'      => ['label' => 'Skins',      'icon' => 'assets/img/bar/BtnSkin.png'],
+    'clubset'   => ['label' => 'ClubSets',   'icon' => 'assets/img/bar/BtnClub.png'],
+    'character' => ['label' => 'Characters', 'icon' => 'assets/img/bar/nuri_renew.png'],
+    'caddie'    => ['label' => 'Caddies',    'icon' => 'assets/img/bar/BtnCaddie.png'],
+    'auxpart'   => ['label' => 'Rings',      'icon' => 'assets/img/bar/BtnAuxPart.png'],
+    'ball'      => ['label' => 'Balls',      'icon' => 'assets/img/bar/BtnBall.png'],
+    'mascot'    => ['label' => 'Mascotes',   'icon' => 'assets/img/bar/BtnMascot.png'],
 ];
-		
-		
-        
-        foreach ($types as $type_value => $type_label) {
-            $active_class = ($filter_type === $type_value) ? 'active' : '';
-            $type_link = 'wikipedia.php?s=' . $search_param . '&type=' . $type_value . '&page=1';
-            
-            echo '<a href="' . $type_link . '" class="type-filter-button ' . $active_class . '">';
-            echo htmlspecialchars($type_label);
-            echo '</a>';
-        }
-        ?>
+
+foreach ($types as $type_value => $info) {
+    $active_class = ($filter_type === $type_value) ? 'active' : '';
+    $type_link = 'wikipedia.php?s=' . urlencode($search_param) . '&type=' . $type_value . '&page=1';
+    
+    echo '<a href="' . htmlspecialchars($type_link) . '" class="type-filter-button ' . $active_class . '">';
+    
+    // Ícone da categoria
+    if (!empty($info['icon'])) {
+        echo '<img src="' . htmlspecialchars($info['icon']) . '" alt="' . htmlspecialchars($info['label']) . '" height="42" class="me-1">';
+    }
+    
+    echo '<span>' . htmlspecialchars($info['label']) . '</span>';
+    echo '</a>';
+}
+?>
     </div>
 
     <div class="item-grid">

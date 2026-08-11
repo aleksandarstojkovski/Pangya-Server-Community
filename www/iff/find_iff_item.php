@@ -59,8 +59,6 @@ require_once __DIR__ . '/utils.php';
     $header = unpack($IFF_HEADER_FORMAT, $header_raw);
     $count = $header['count'] ?? 0;
     
-    echo "[DEBUG find_iff_desc] Total de registros no Desc.iff: {$count} | Procurando ID: {$target_id}<br>\n";
-
     if ($count <= 0) return null;
 
      $remaining_data_size = $data_length - IFF_HEADER_SIZE;

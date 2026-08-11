@@ -10,48 +10,19 @@ header('Content-Type: text/html; charset=utf-8');
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= htmlspecialchars($pageTitle) ?> · PangYa Community</title>
-    <link rel="icon" type="image/png" href="assets/img/logo.png">
+<link rel="icon" type="image/x-icon" href="/assets/img/favicon.ico">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="assets/css/style.css?v=1" rel="stylesheet">
+    <link href="assets/css/style.css?v=2" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flag-icons@7.2.3/css/flag-icons.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"> 
-    
-    <style>
-        /* Estilização moderna estilo Glassmorphism Floating Navbar */
-        .custom-navbar {
-            background: rgba(15, 20, 28, 0.75) !important;
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 16px;
-            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
-        }
-
-        .custom-navbar .nav-link {
-            color: #d1d5db !important;
-            font-weight: 500;
-            padding: 0.5rem 0.9rem !important;
-            border-radius: 8px;
-            transition: all 0.2s ease-in-out;
-        }
-
-        .custom-navbar .nav-link:hover,
-        .custom-navbar .nav-link.active {
-            color: #ffffff !important;
-            background: rgba(255, 255, 255, 0.08);
-        }
-
-        .custom-navbar .navbar-brand img {
-            transition: transform 0.2s ease;
-        }
-
-        .custom-navbar .navbar-brand:hover img {
-            transform: scale(1.05);
-        }
-    </style>
 </head>
 <body id="bg-slider">
-
+<div id="page-loader" class="page-loader" role="status" aria-live="polite">
+    <div class="loader-content">
+        <img src="assets/img/bg/loading.gif" alt="<?= htmlspecialchars(t('loading')) ?>">
+        <span><?= htmlspecialchars(t('loading')) ?></span>
+    </div>
+</div>
 <header class="container pt-3">
     <nav class="navbar navbar-expand-lg navbar-dark custom-navbar px-3">
         <div class="container-fluid">
@@ -69,30 +40,31 @@ header('Content-Type: text/html; charset=utf-8');
                     
                     <li class="nav-item">
                         <a class="nav-link" href="index.php">
-                            <i class="bi bi-house-door me-1 text-primary"></i> <?= htmlspecialchars(t('home')) ?>
+                          <img src="assets/img/bar/bar_home.png" alt="PangYa Community" height="42"><?= htmlspecialchars(t('home')) ?>
                         </a>
                     </li>
 
                     <li class="nav-item">
                         <a class="nav-link" href="downloads.php">
-                            <i class="bi bi-download me-1 text-info"></i> <?= htmlspecialchars(t('downloads')) ?>
+                           <img src="assets/img/bar/bar_tools.png" alt="PangYa Community" height="42"> <?= htmlspecialchars(t('downloads')) ?>
                         </a>
                     </li>
 
                     <li class="nav-item">
                         <a class="nav-link" href="wikipedia.php">
-                            <i class="bi bi-journal-text me-1 text-warning"></i> <?= htmlspecialchars(t('wikipedia') ?? 'Wikipedia') ?>
+                            <img src="assets/img/bar/bar_wiki.png" alt="PangYa Community" height="42"><?= htmlspecialchars(t('wikipedia') ?? 'Wikipedia') ?>
                         </a>
                     </li>
 
                     <?php if (function_exists('isLoggedIn') && isLoggedIn()): ?>
                         <li class="nav-item">
                             <a class="nav-link" href="dashboard.php">
-                                <i class="bi bi-speedometer2 me-1 text-success"></i> <?= htmlspecialchars(t('dashboard')) ?>
+                              <img src="assets/img/bar/bar_login.png" alt="PangYa Community" height="42"><?= htmlspecialchars(t('dashboard')) ?>
                             </a>
                         </li>
                         <li class="nav-item ms-lg-2">
                             <a class="btn btn-outline-danger btn-sm px-3 rounded-pill" href="logout.php">
+							<img src="assets/img/bar/bar_exit.png" alt="PangYa Community" height="42">
                                 <i class="bi bi-box-arrow-right me-1"></i> <?= htmlspecialchars(t('logout')) ?>
                             </a>
                         </li>

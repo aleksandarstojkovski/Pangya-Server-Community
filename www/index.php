@@ -160,11 +160,11 @@ require __DIR__ . '/includes/header.php';
     <div class="col-md-5">
         <div class="card h-100 p-4 border-0 bg-dark text-light shadow-sm">
             <div class="d-flex justify-content-between align-items-center mb-2">
-                <h6 class="text-uppercase text mb-0">Status do Servidor</h6>
+                <h6 class="text-uppercase text mb-0"><img src="assets/img/bar/bar_server.png" alt="PangYa Community" height="42"><?= htmlspecialchars(t('server_status')) ?></h6>
                 <?php if ($serverInfo): ?>
-                    <span class="badge bg-success">Online</span>
+                    <span class="badge bg-success"><img src="assets/img/bar/bar_online.gif" alt="PangYa Community" height="10" style="margin-right: 4px;margin-top: -4px;"><?= htmlspecialchars(t('online')) ?></span>
                 <?php else: ?>
-                    <span class="badge bg-danger">Offline</span>
+                    <span class="badge bg-danger"><img src="assets/img/bar/bar_offline.gif" alt="PangYa Community" height="10" style="margin-right: 4px;margin-top: -4px;"><?= htmlspecialchars(t('offline')) ?></span>
                 <?php endif; ?>
             </div>
 
@@ -177,7 +177,7 @@ require __DIR__ . '/includes/header.php';
 
             <div class="border-top border-secondary pt-3 mt-2">
                 <div class="d-flex justify-content-between small mb-2">
-                    <span>Jogadores Conectados:</span>
+                    <span><?= htmlspecialchars(t('players_online')) ?></span>
                     <span class="fw-bold text-info">
                         <?= htmlspecialchars($serverInfo['CurrUser'] ?? '0') ?> / <?= htmlspecialchars($serverInfo['MaxUser'] ?? '2000') ?>
                     </span>
@@ -200,9 +200,9 @@ require __DIR__ . '/includes/header.php';
 
     <div class="col-md-7">
     <div class="card h-100 p-4 border-0 bg-dark text-light shadow-sm">
-        <h5 class="fw-bold mb-3">🛠️ Projeto Open Source & Comunidade</h5>
+        <h5 class="fw-bold mb-3">🛠️ <?= htmlspecialchars(t('open_source')) ?></h5>
         <p class="text">
-            Este projeto é mantido de forma colaborativa pela comunidade. O código-fonte do servidor e suas ferramentas são totalmente abertos no GitHub para estudo, melhorias e desenvolvimento contínuo.
+            <?= htmlspecialchars(t('open_source_text')) ?>
         </p>
  
         <div class="row mt-4">
@@ -219,23 +219,23 @@ require __DIR__ . '/includes/header.php';
                      data-layout="full" 
                      data-count="default">
                 </div>
-                <p class="mt-2 text small">Acompanhe as novidades do desenvolvimento no canal!</p>
+                <p class="mt-2 text small"><?= htmlspecialchars(t('follow_updates')) ?></p>
             </div>
         </div>
 
         <div class="d-flex flex-wrap gap-2 mt-auto pt-3" style="margin-left: 75px;">
             <a href="https://github.com/luismk/Pangya-Server-Community" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-light">
-                📦 Repositório do Servidor
+                📦 <?= htmlspecialchars(t('server_repository')) ?>
             </a>
             <a href="https://github.com/luismk/PangYa-Suite-Tools" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-light">
                 🔧 PangYa Suite Tools
             </a>
             <a href="https://github.com/luismk/Pangya-Server-Community/issues" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-warning">
-                🐛 Reportar Issue
+                🐛 <?= htmlspecialchars(t('report_issue')) ?>
             </a>
 			<div class="d-flex flex-wrap gap-2 mt-auto pt-3" style="margin-left: 75px;">
 			<a href="test_connection.php" class="btn btn-sm btn-outline-info">
-        <i class="bi bi-database-check me-1"></i> Testar Conexão SQL
+        <i class="bi bi-database-check me-1"></i> <?= htmlspecialchars(t('test_connection')) ?>
     </a>
     <a href="iff/test_archive.php" class="btn btn-sm btn-outline-warning">
         <i class="bi bi-file-earmark-binary me-1"></i> Testar Leitura IFF

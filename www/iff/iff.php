@@ -46,6 +46,7 @@ function find_desc(int $search_id): ?array {
 			'Character.iff',
 			'Caddie.iff',
 			'AuxPart.iff',
+			'Ball.iff',
 			'Mascot.iff',
         ];
 

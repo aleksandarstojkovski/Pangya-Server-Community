@@ -5,6 +5,89 @@ body {
     color: #e8e8ec;
 }
 
+.page-loader {
+    position: fixed;
+    inset: 0;
+    z-index: 99999;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: .8rem;
+    background: #000000; /* Fundo totalmente preto */
+    color: #fff;
+    font-weight: 600;
+    transition: opacity .25s ease, visibility .25s ease;
+}
+
+.page-loader img {
+    object-fit: contain;
+}
+
+/* O loader só esconde quando tiver a classe is-hidden */
+.page-loader.is-hidden {
+    opacity: 0 !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+}
+
+/* Estilização moderna estilo Glassmorphism Floating Navbar */
+        .custom-navbar {
+            background: rgba(15, 20, 28, 0.75) !important;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+
+        .custom-navbar .nav-link {
+            color: #d1d5db !important;
+            font-weight: 500;
+            padding: 0.5rem 0.9rem !important;
+            border-radius: 8px;
+            transition: all 0.2s ease-in-out;
+        }
+
+        .custom-navbar .nav-link:hover,
+        .custom-navbar .nav-link.active {
+            color: #ffffff !important;
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .custom-navbar .navbar-brand img {
+            transition: transform 0.2s ease;
+        }
+
+        .custom-navbar .navbar-brand:hover img {
+            transform: scale(1.05);
+        }
+		
+		
+    /* Conteúdo do Loader */
+    .loader-content {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        color: #ffffff;
+        font-family: inherit;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+    }
+
+    .loader-content img {
+        max-width: 600px;
+        height: 1200px;
+    }
+
+    /* Classe aplicada via JS para sumir com o splash */
+    .page-loader.fade-out {
+        opacity: 0;
+        visibility: hidden;
+    }
+
 .navbar-brand {
     letter-spacing: .5px;
 }

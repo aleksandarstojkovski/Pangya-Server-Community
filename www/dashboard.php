@@ -33,36 +33,86 @@ try {
 // -------------------------------------------------------------
 // 1. Perfil da conta
 // -------------------------------------------------------------
-$stmt = $pdo->prepare(
-    'SELECT
-        [UID],
-        [ID],
-        CONVERT(VARCHAR(MAX), CAST([NICK] AS VARBINARY(MAX)), 2) AS [NICK_HEX],
-        [Sex],
-        [RegDate],
-        [LastLogonTime],
-        [LogonCount],
-        [Guild_UID],
-        [MannerFlag],
-        [Invited]
-     FROM pangya.account
-     WHERE [UID] = ?'
-);
+$stmt = $pdo->prepare('SELECT 
+    A.ID, 
+    A.[UID], 
+    A.Sex, 
+    A.doTutorial, 
+    CONVERT(VARCHAR(MAX), CAST(A.[NICK] AS VARBINARY(MAX)), 2) AS [NICK_HEX],
+    A.School, 
+    A.capability, 
+    A.Logon, 
+    A.ServerID, 
+    A.MannerFlag, 
+	A.LogonCount,
+	A.LastLogonTime,
+	A.RegDate,
+    (CASE WHEN A.LastLeaveTime IS NULL THEN 0 ELSE datediff(minute, A.LastLeaveTime, getdate()) END) AS TIMEVAL, 
+    ISNULL(C.GUILD_NAME, N\'\') AS GUILD_NAME,
+    ISNULL(C.GUILD_UID, 0) AS GUILD_UID,
+    ISNULL(C.GUILD_PANG, 0) AS GUILD_PANG, 
+    ISNULL(C.GUILD_POINT, 0) AS GUILD_POINT,
+    ISNULL(C.GUILD_MARK_IMG_IDX, 0) AS GUILD_MARK_IMG_IDX, 
+    A.[Event], 
+    A.Event2, 
+    D.limit_cnt, 
+    A.IDState, 
+    (CASE WHEN A.domainid IS NULL THEN 0 ELSE A.domainid END) AS DOMAINID, 
+    A.ChannelFlag, 
+    D.current_cnt, 
+    D.remain_cnt, 
+    D.last_update,
+    B.[level],
+    IIF(C.GUILD_MARK_IMG IS NULL OR C.MEMBER_STATE_FLAG > 3, N\'\', C.GUILD_MARK_IMG) AS GUILD_MARK_IMG,
+    ISNULL(UPPER(C.GUILD_MARK_IMG), N\'\') AS EMBLERVER,
+    ISNULL(UPPER(A.MacAddress), N\'\') AS MAC,
+    ISNULL(A.UserIp, N\'\') AS UserIp
+FROM 
+    pangya.account AS A 
+    INNER JOIN pangya.pangya_papel_shop_info AS D ON A.[UID] = D.[UID]
+    INNER JOIN pangya.user_info AS B ON D.[UID] = B.[UID]
+    INNER JOIN (
+        SELECT 
+            E.GUILD_MARK_IMG_IDX,
+            E.GUILD_MARK_IMG, 
+            E.GUILD_UID, 
+            E.GUILD_NAME, 
+            E.MEMBER_STATE_FLAG, 
+            E.GUILD_PANG, 
+            E.GUILD_POINT, 
+            D.[UID]
+        FROM 
+            pangya.account D 
+            LEFT OUTER JOIN (
+                SELECT 
+                    x.GUILD_MARK_IMG_IDX,
+                    x.GUILD_MARK_IMG, 
+                    x.GUILD_UID, 
+                    x.GUILD_NAME, 
+                    y.MEMBER_STATE_FLAG, 
+                    y.GUILD_PANG, 
+                    y.GUILD_POINT
+                FROM 
+                    pangya.pangya_guild AS x, 
+                    pangya.pangya_guild_member AS y
+                WHERE 
+                    y.MEMBER_UID = ?
+                    AND y.MEMBER_STATE_FLAG < 9
+                    AND (x.GUILD_STATE NOT IN(4, 5) OR x.GUILD_CLOSURE_DATE IS NULL OR getdate() < x.GUILD_CLOSURE_DATE)
+            ) AS E ON D.Guild_UID = E.GUILD_UID
+    ) AS C ON C.[UID] = ?
+WHERE 
+    A.[UID] = ?');
 
-$stmt->execute([$uid]);
-$account = $stmt->fetch();
+// Envia a variável 3 vezes para suprir as 3 ocorrências do ?
+$stmt->execute([$uid, $uid, $uid]);
+$account = $stmt->fetch(PDO::FETCH_ASSOC);
 
 if ($account && !empty($account['NICK_HEX'])) {
-
     $nickBytes = hex2bin($account['NICK_HEX']);
 
     if ($nickBytes !== false) {
-
-        $account['NICK'] = mb_convert_encoding(
-            $nickBytes,
-            'UTF-8',
-            'UTF-16LE'
-        );
+        $account['NICK'] = trim(mb_convert_encoding($nickBytes, 'UTF-8', 'UTF-16LE'));
     }
 }
 
@@ -70,11 +120,7 @@ if ($account && !empty($account['NICK_HEX'])) {
     // 2. Estatísticas de jogo (pode não existir ainda para contas novas)
     // -------------------------------------------------------------
     $stmt = $pdo->prepare(
-        'SELECT [level], [Xp], [Pang], [Cookie], [Media_score],
-                [LadderPoint], [LadderWin], [LadderLose], [LadderDraw],
-                [Holes], [HIO], [Holein], [total_pang_win_game]
-         FROM pangya.user_info
-         WHERE [UID] = ?'
+        'pangya.GetInfo_User ?'
     );
     $stmt->execute([$uid]);
     $stats = $stmt->fetch();
@@ -83,10 +129,7 @@ if ($account && !empty($account['NICK_HEX'])) {
     // 3. Personagens possuídos
     // -------------------------------------------------------------
     $stmt = $pdo->prepare(
-        'SELECT [typeid], [Mastery], [default_hair], [default_shirts]
-         FROM pangya.pangya_character_information
-         WHERE [UID] = ?
-         ORDER BY [typeid]'
+        'SELECT * from pangya.pangya_character_information WHERE UID = ?'
     );
     $stmt->execute([$uid]);
     $characters = $stmt->fetchAll();
@@ -95,10 +138,7 @@ if ($account && !empty($account['NICK_HEX'])) {
     // 4. Caddies possuídos
     // -------------------------------------------------------------
     $stmt = $pdo->prepare(
-        'SELECT [typeid], [cLevel], [Exp], [RentFlag], [Valid]
-         FROM pangya.pangya_caddie_information
-         WHERE [UID] = ? AND [Valid] = 1
-         ORDER BY [typeid]'
+        'pangya.ProcGetCaddieInfo ?'
     );
     $stmt->execute([$uid]);
     $caddies = $stmt->fetchAll();
@@ -107,10 +147,7 @@ if ($account && !empty($account['NICK_HEX'])) {
     // 5. Mascotes possuídos
     // -------------------------------------------------------------
     $stmt = $pdo->prepare(
-        'SELECT [typeid], [mLevel], [mExp], [Valid]
-         FROM pangya.pangya_mascot_info
-         WHERE [UID] = ? AND [Valid] = 1
-         ORDER BY [typeid]'
+        'pangya.ProcGetMascotInfo ?'
     );
     $stmt->execute([$uid]);
     $mascots = $stmt->fetchAll();
@@ -119,18 +156,15 @@ if ($account && !empty($account['NICK_HEX'])) {
     // 6. Itens do armazém, agrupados por TypeId
     // -------------------------------------------------------------
     $stmt = $pdo->prepare(
-        'SELECT [typeid], COUNT(*) AS qty
-         FROM pangya.pangya_item_warehouse
-         WHERE [UID] = ? AND [valid] = 1
-         GROUP BY [typeid]
-         ORDER BY [typeid]'
+        'pangya.ProcGetWareHouseItem ?'
     );
     $stmt->execute([$uid]);
     $warehouseItems = $stmt->fetchAll();
-    $itemCount = array_sum(array_column($warehouseItems, 'qty'));
+    $itemCount = array_sum(array_column($warehouseItems, 'C0'));
 
 } catch (PDOException $e) {
     error_log('Erro ao carregar painel: ' . $e->getMessage());
+	echo $e->getMessage();
     $loadError = 'Não foi possível carregar seus dados no momento.';
 }
 
@@ -153,6 +187,41 @@ function iffLookup(int $typeid, array &$cache): array
     return $cache[$typeid];
 }
 
+function getItemTypeName(int $typeid): string
+{
+    // Extrai o ID do grupo do IFF (os 6 bits superiores do TypeID)
+    $groupId = ($typeid & 0xFC000000) >> 26;
+
+    // Mapeamento baseado no seu Enum
+    return match ($groupId) {
+        1       => 'Character',
+        2       => 'Part',
+        3       => 'Club',
+        4       => 'ClubSet',
+        5       => 'Ball',
+        6       => 'Item',
+        7       => 'Caddie',
+        8       => 'CadItem',
+        9       => 'SetItem',
+        10      => 'Course',
+        11      => 'Match',
+        12      => 'Title',
+        13      => 'Enchant',
+        14      => 'Skin',
+        15      => 'HairStyle',
+        16      => 'Mascot',
+        17      => 'ChildItem',
+        18      => 'Furniture',
+        19      => 'OfflineShop',
+        20      => 'Achievement',
+        27      => 'CounterItem',
+        28      => 'AuxPart',
+        29      => 'QuestStuff',
+        30      => 'QuestItem',
+        31      => 'Card',
+        default => 'Unknown',
+    };
+}
 $formattedWarehouseItems = [];
 
 foreach ($warehouseItems as $item) {
@@ -165,10 +234,14 @@ foreach ($warehouseItems as $item) {
     // Verifica se o nome existe E não está vazio
     $itemName = (!empty($itemData['item_name'])) ? $itemData['item_name'] : ((!empty($itemData['name'])) ? $itemData['name'] : ('Item #' . $typeid));
 
+    // Converte para inteiro e garante que seja no mínimo 1
+    $qty = (int)$item['C0'];
+    $qty = max(1, $qty);
     $formattedWarehouseItems[] = [
         'typeid' => $typeid,
-        'qty'    => (int)$item['qty'],
+        'qty'    => $qty,
         'icon'   => $iconName,
+		'item_type' => getItemTypeName($typeid),
         'name'   => $itemName,
     ];
 }
@@ -179,10 +252,33 @@ foreach ($warehouseItems as $item) {
 function sexoLabel($sexo): string
 {
     return match ((int)$sexo) {
-        1 => 'Masculino',
-        2 => 'Feminino',
+        0 => 'Masculino',
+        1 => 'Feminino',
         default => '-',
     };
+}
+
+function sexoIcon($sexo): string
+{
+	 return match ((int)$sexo) {
+        0 => '<img src="assets/img/bar/bar_male.png" alt="PangYa Community" height="24">',
+        1 => '<img src="assets/img/bar/bar_female.png" alt="PangYa Community" height="24">',
+        default => '-',
+    };	
+}
+
+function LevelIcon($level): string
+{ 
+    // Garante que o nível seja um número inteiro positivo
+    $level = max(0, (int)$level);
+
+    // Formata o número para ter sempre 3 dígitos (ex: 000, 009, 010, 070)
+    $formattedLevel = sprintf('%03d', $level);
+
+    // Caminho da imagem
+    $iconPath = "assets/img/level/level_{$formattedLevel}.PNG";
+
+    return '<img src="' . $iconPath . '" alt="Level ' . $level . '" height="24">';
 }
 
 function formatDate($value): string
@@ -237,8 +333,8 @@ require __DIR__ . '/includes/header.php';
                 <div class="mb-1">
                     <label for="editSexo" class="form-label">Sexo</label>
                     <select class="form-select" id="editSexo" name="sexo" required>
-                        <option value="1" <?= (int)$account['Sex'] === 1 ? 'selected' : '' ?>>Masculino</option>
-                        <option value="2" <?= (int)$account['Sex'] === 2 ? 'selected' : '' ?>>Feminino</option>
+                        <option value="1" <?= (int)$account['Sex'] === 0 ? 'selected' : '' ?>>Masculino</option>
+                        <option value="2" <?= (int)$account['Sex'] === 1 ? 'selected' : '' ?>>Feminino</option>
                     </select>
                 </div>
             </div>
@@ -384,12 +480,13 @@ require __DIR__ . '/includes/header.php';
                         <tr><th scope="row">UID</th><td><?= htmlspecialchars((string)$account['UID']) ?></td></tr>
                         <tr><th scope="row">Usuário (ID)</th><td><?= htmlspecialchars((string)$account['ID']) ?></td></tr>
                         <tr><th scope="row">Nick</th><td><?= htmlspecialchars((string)$account['NICK']) ?></td></tr>
-                        <tr><th scope="row">Sexo</th><td><?= htmlspecialchars(sexoLabel($account['Sex'])) ?></td></tr>
+                        <tr><th scope="row">Sexo</th><td><?= htmlspecialchars(sexoLabel($account['Sex'])) ?> <?= sexoIcon($account['Sex']) ?></td></tr>
+						<tr><th scope="row">Level</th><td><?= LevelIcon($stats['level']) ?></td></tr>
                         <tr><th scope="row">Cadastrado em</th><td><?= htmlspecialchars(formatDate($account['RegDate'])) ?></td></tr>
                         <tr><th scope="row">Último acesso</th><td><?= htmlspecialchars(formatDate($account['LastLogonTime'])) ?></td></tr>
                         <tr><th scope="row">Total de logins</th><td><?= htmlspecialchars((string)$account['LogonCount']) ?></td></tr>
                         <tr><th scope="row">Guild</th>
-                            <td><?= ((int)$account['Guild_UID'] > 0) ? htmlspecialchars((string)$account['Guild_UID']) : 'Nenhuma' ?></td>
+                            <td><?= ((int)$account['GUILD_UID'] > 0) ? htmlspecialchars((string)$account['GUILD_UID']) : 'Nenhuma' ?></td>
                         </tr>
                         <tr><th scope="row">Convidado por indicação</th>
                             <td><?= ((int)($account['Invited'] ?? 0) === 1) ? 'Sim' : 'Não' ?></td>
@@ -415,14 +512,14 @@ require __DIR__ . '/includes/header.php';
                         </div>
                         <div class="col-6 col-md-4">
                             <div class="p-3 rounded bg-black bg-opacity-25 text-center">
-                                <div class="fs-4 fw-bold"><?= number_format((float)$stats['Pang'], 0, ',', '.') ?></div>
-                                <div class="small text-secondary">Pang</div>
+                                <div class="fs-4 fw-bold"><?= number_format((float)$stats['Pang'], 0, ',', '.') ?><img src="assets/img/bar/bar_pang.png" alt="PangYa Community" height="24"></div>
+                                
                             </div>
                         </div>
                         <div class="col-6 col-md-4">
                             <div class="p-3 rounded bg-black bg-opacity-25 text-center">
-                                <div class="fs-4 fw-bold"><?= number_format((float)$stats['Cookie'], 0, ',', '.') ?></div>
-                                <div class="small text-secondary">Cookie</div>
+                                <div class="fs-4 fw-bold"><?= number_format((float)$stats['Cookie'], 0, ',', '.') ?><img src="assets/img/bar/bar_cookies.png" alt="PangYa Community" height="24"></div>
+                                
                             </div>
                         </div>
                         <div class="col-6 col-md-4">
@@ -454,8 +551,7 @@ require __DIR__ . '/includes/header.php';
                         </div>
                         <div class="col-6 col-md-4">
                             <div class="p-3 rounded bg-black bg-opacity-25 text-center">
-                                <div class="fs-4 fw-bold"><?= htmlspecialchars((string)$stats['HIO']) ?></div>
-                                <div class="small text-secondary">Hole-in-One</div>
+                                <div class="fs-4 fw-bold"><?= htmlspecialchars((string)$stats['HIO']) ?><img src="assets/img/bar/gp_icon_hio.png" alt="PangYa Community" height="42"></div>                             
                             </div>
                         </div>
                         <div class="col-6 col-md-4">
@@ -617,26 +713,69 @@ require __DIR__ . '/includes/header.php';
     </div>
 </div>
 
- <!-- Armazém -->
+<!-- Armazém -->
 <div class="col-lg-12 mt-4">
     <div class="card p-4">
-        <div class="d-flex justify-content-between align-items-center mb-3">
+        <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
             <h5 class="mb-0"><i class="bi bi-archive-fill me-2"></i>Armazém (<?= (int)$itemCount ?> itens · <?= count($warehouseItems) ?> tipos)</h5>
             
             <!-- Campo de Busca em Tempo Real -->
             <input type="text" id="warehouseSearch" class="form-control form-control-sm style-search" style="max-width: 200px;" placeholder="Buscar item ou TypeID...">
         </div>
 
+        <?php if (!empty($formattedWarehouseItems)): 
+            // Definção dos ícones, rótulos e chaves de filtro
+            $typesConfig = [
+                'all'       => ['label' => 'Todos',      'icon' => ''],
+                'card'      => ['label' => 'Cards',      'icon' => 'assets/img/bar/BtnCard.png'],
+                'setitem'   => ['label' => 'Sets',       'icon' => 'assets/img/bar/BtnSet.png'],
+                'part'      => ['label' => 'Parts',      'icon' => 'assets/img/bar/BtnPart.png'],
+                'item'      => ['label' => 'Itens',      'icon' => 'assets/img/bar/BtnItem.png'],
+                'skin'      => ['label' => 'Skins',      'icon' => 'assets/img/bar/BtnSkin.png'],
+                'clubset'   => ['label' => 'ClubSets',   'icon' => 'assets/img/bar/BtnClub.png'],
+                'character' => ['label' => 'Characters', 'icon' => 'assets/img/bar/nuri_renew.png'],
+                'caddie'    => ['label' => 'Caddies',    'icon' => 'assets/img/bar/BtnCaddie.png'],
+                'auxpart'   => ['label' => 'Rings',      'icon' => 'assets/img/bar/BtnAuxPart.png'],
+                'ball'      => ['label' => 'Balls',      'icon' => 'assets/img/bar/BtnBall.png'],
+                'mascot'    => ['label' => 'Mascotes',   'icon' => 'assets/img/bar/BtnMascot.png'],
+            ];
+
+            // Extrai as categorias únicas dos itens do usuário (convertidas em minúsculo)
+            $userTypes = array_unique(array_map('strtolower', array_column($formattedWarehouseItems, 'item_type')));
+        ?>
+            <!-- Botões de Filtro por Categoria com Ícones -->
+            <div class="d-flex gap-1 overflow-auto pb-2 mb-3" id="warehouseCategoryFilters" style="white-space: nowrap;position: relative;left: 340px;">
+                <!-- Botão 'Todos' -->
+                <button type="button" class="btn btn-sm btn-primary category-btn active d-inline-flex align-items-center gap-1" data-type="all">
+                    <span><?= htmlspecialchars($typesConfig['all']['label']) ?></span>
+                </button>
+
+                <!-- Botões para cada tipo existente no armazém do usuário -->
+                <?php foreach ($typesConfig as $key => $config): ?>
+                    <?php if ($key !== 'all' && in_array($key, $userTypes, true)): ?>
+                        <button type="button" class="btn btn-sm btn-outline-secondary text-light category-btn d-inline-flex align-items-center gap-1" data-type="<?= htmlspecialchars($key) ?>">
+                            <?php if (!empty($config['icon'])): ?>
+                                <img src="<?= htmlspecialchars($config['icon']) ?>" alt="<?= htmlspecialchars($config['label']) ?>" height="42" onerror="this.style.display='none';">
+                            <?php endif; ?>
+                            <span><?= htmlspecialchars($config['label']) ?></span>
+                        </button>
+                    <?php endif; ?>
+                <?php endforeach; ?>
+            </div>
+        <?php endif; ?>
+
         <!-- Adicionar novo item -->
         <form action="update_warehouse.php" method="post" accept-charset="UTF-8" class="row g-2 align-items-end mb-3">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrfToken()) ?>">
             <input type="hidden" name="action" value="add">
-            <div class="col-auto">
-                <label for="newItemTypeId" class="form-label small mb-1">Adicionar item por TypeId</label>
-                <input type="number" min="1" name="typeid" id="newItemTypeId" class="form-control form-control-sm" style="width:140px" required>
+            <div class="col-sm-7 col-md-6 position-relative">
+                <label for="iffItemSearch" class="form-label small mb-1"><?= htmlspecialchars(t('add_item')) ?></label>
+                <input type="search" id="iffItemSearch" class="form-control form-control-sm" autocomplete="off" placeholder="<?= htmlspecialchars(t('search_item')) ?>" required>
+                <input type="hidden" name="typeid" id="newItemTypeId" required>
+                <div id="iffSearchResults" class="list-group position-absolute w-100 shadow d-none" style="z-index: 10;"></div>
             </div>
             <div class="col-auto">
-                <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg me-1"></i>Adicionar</button>
+                <button type="submit" id="addIffItemButton" class="btn btn-sm btn-primary" disabled><i class="bi bi-plus-lg me-1"></i><?= htmlspecialchars(t('add')) ?></button>
             </div>
         </form>
 
@@ -653,23 +792,73 @@ require __DIR__ . '/includes/header.php';
         <?php endif; ?>
     </div>
 </div>
-
 <?php endif; ?>
 <script>
 document.addEventListener('DOMContentLoaded', () => {
+    const labels = <?= json_encode([
+        'add' => t('add'),
+        'remove' => t('remove'),
+        'noItemsFound' => t('no_items_found'),
+    ], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
+    const iffSearch = document.getElementById('iffItemSearch');
+    const iffResults = document.getElementById('iffSearchResults');
+    const iffTypeId = document.getElementById('newItemTypeId');
+    const addIffItemButton = document.getElementById('addIffItemButton');
+    let iffSearchTimer;
+
+    if (iffSearch && iffResults && iffTypeId && addIffItemButton) {
+        iffSearch.addEventListener('input', () => {
+            window.clearTimeout(iffSearchTimer);
+            iffTypeId.value = '';
+            addIffItemButton.disabled = true;
+            iffResults.replaceChildren();
+            iffResults.classList.add('d-none');
+
+            const query = iffSearch.value.trim();
+            if (query.length < 2) return;
+
+            iffSearchTimer = window.setTimeout(async () => {
+                try {
+                    const response = await fetch(`iff/search.php?q=${encodeURIComponent(query)}`);
+                    const items = await response.json();
+                    if (!response.ok || !Array.isArray(items)) return;
+
+                    items.forEach(item => {
+                        const option = document.createElement('button');
+                        option.type = 'button';
+                        option.className = 'list-group-item list-group-item-action bg-dark text-light border-secondary';
+                        option.textContent = `${item.name} (#${item.typeid})`;
+                        option.addEventListener('click', () => {
+                            iffSearch.value = `${item.name} (#${item.typeid})`;
+                            iffTypeId.value = item.typeid;
+                            addIffItemButton.disabled = false;
+                            iffResults.classList.add('d-none');
+                        });
+                        iffResults.appendChild(option);
+                    });
+
+                    iffResults.classList.toggle('d-none', items.length === 0);
+                } catch (_) {
+                    iffResults.classList.add('d-none');
+                }
+            }, 250);
+        });
+    }
+
     // 1. Dados injetados com cache já processado pelo PHP
     const allWarehouseItems = <?= json_encode($formattedWarehouseItems, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
     const csrfToken = <?= json_encode(csrfToken() ?? '') ?>;
     
     const itemsPerPage = 12;
     let currentPage = 1;
+    let currentCategory = 'all';
     let filteredItems = [...allWarehouseItems];
 
     const container = document.getElementById('warehouseContainer');
     const paginationEl = document.getElementById('warehousePagination');
     const searchInput = document.getElementById('warehouseSearch');
+    const categoryFiltersContainer = document.getElementById('warehouseCategoryFilters');
 
-    // Escape de strings para prevenir XSS no JS
     function escapeHtml(str) {
         return String(str)
             .replace(/&/g, '&amp;')
@@ -679,13 +868,33 @@ document.addEventListener('DOMContentLoaded', () => {
             .replace(/'/g, '&#039;');
     }
 
-    // 2. Renderização dos cards da página
+    // Aplica o filtro comparando a chave em caixa baixa (ex: item.item_type "Part" vira "part")
+    function applyFilters() {
+        const query = searchInput ? searchInput.value.toLowerCase().trim() : '';
+
+        filteredItems = allWarehouseItems.filter(item => {
+            const itemTypeKey = item.item_type ? item.item_type.toLowerCase() : '';
+            const matchesCategory = (currentCategory === 'all') || (itemTypeKey === currentCategory);
+            
+            const matchesQuery = !query || 
+                item.typeid.toString().includes(query) || 
+                item.name.toLowerCase().includes(query) ||
+                itemTypeKey.includes(query);
+
+            return matchesCategory && matchesQuery;
+        });
+
+        currentPage = 1;
+        renderItems();
+    }
+
+    // Renderização dos cards
     function renderItems() {
         if (!container) return;
         container.innerHTML = '';
 
         if (filteredItems.length === 0) {
-            container.innerHTML = '<div class="col-12"><p class="text-secondary mb-0">Nenhum item encontrado.</p></div>';
+            container.innerHTML = `<div class="col-12"><p class="text-secondary mb-0">${escapeHtml(labels.noItemsFound)}</p></div>`;
             if (paginationEl) paginationEl.innerHTML = '';
             return;
         }
@@ -696,7 +905,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         pageItems.forEach(item => {
             const card = document.createElement('div');
-            card.className = 'col-sm-6 col-md-4 col-lg-3';
+            card.className = 'col-sm-6 col-md-4 col-lg-4';
             card.innerHTML = `
                 <div class="collection-row p-2 rounded bg-black bg-opacity-25 border border-secondary d-flex align-items-center justify-content-between">
                     <div class="d-flex align-items-center gap-2 overflow-hidden">
@@ -714,13 +923,13 @@ document.addEventListener('DOMContentLoaded', () => {
                             <input type="hidden" name="csrf_token" value="${csrfToken}">
                             <input type="hidden" name="action" value="add">
                             <input type="hidden" name="typeid" value="${item.typeid}">
-                            <button type="submit" class="btn btn-sm btn-outline-light" title="Adicionar"><i class="bi bi-plus-lg"></i></button>
+                            <button type="submit" class="btn btn-sm btn-outline-light" title="${escapeHtml(labels.add)}"><i class="bi bi-plus-lg"></i></button>
                         </form>
                         <form action="update_warehouse.php" method="post">
                             <input type="hidden" name="csrf_token" value="${csrfToken}">
                             <input type="hidden" name="action" value="remove">
                             <input type="hidden" name="typeid" value="${item.typeid}">
-                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Remover"><i class="bi bi-dash-lg"></i></button>
+                            <button type="submit" class="btn btn-sm btn-outline-danger" title="${escapeHtml(labels.remove)}"><i class="bi bi-dash-lg"></i></button>
                         </form>
                     </div>
                 </div>
@@ -732,8 +941,6 @@ document.addEventListener('DOMContentLoaded', () => {
         renderPagination();
     }
 
-    // 3. Monta a lista de páginas a exibir, com "..." nos intervalos
-    //    grandes (ex.: 1 ... 4 5 6 ... 11) em vez de todos os números.
     function getPaginationRange(current, total, delta = 2) {
         const range = [];
         for (let i = 1; i <= total; i++) {
@@ -747,7 +954,7 @@ document.addEventListener('DOMContentLoaded', () => {
         for (const page of range) {
             if (last !== null) {
                 if (page - last === 2) {
-                    withDots.push(last + 1); // preenche o buraco de 1 página em vez de "..."
+                    withDots.push(last + 1);
                 } else if (page - last > 2) {
                     withDots.push('...');
                 }
@@ -758,7 +965,6 @@ document.addEventListener('DOMContentLoaded', () => {
         return withDots;
     }
 
-    // 4. Renderização dos botões de paginação
     function renderPagination() {
         if (!paginationEl) return;
         const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
@@ -766,7 +972,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (totalPages <= 1) return;
 
-        // Botão Anterior
         const prevLi = document.createElement('li');
         prevLi.className = `page-item ${currentPage === 1 ? 'disabled' : ''}`;
         prevLi.innerHTML = `<a class="page-link bg-dark text-white border-secondary" href="#">&laquo;</a>`;
@@ -779,7 +984,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         paginationEl.appendChild(prevLi);
 
-        // Páginas numéricas, com "..." nos intervalos grandes
         getPaginationRange(currentPage, totalPages).forEach((page) => {
             const li = document.createElement('li');
 
@@ -800,7 +1004,6 @@ document.addEventListener('DOMContentLoaded', () => {
             paginationEl.appendChild(li);
         });
 
-        // Botão Próximo
         const nextLi = document.createElement('li');
         nextLi.className = `page-item ${currentPage === totalPages ? 'disabled' : ''}`;
         nextLi.innerHTML = `<a class="page-link bg-dark text-white border-secondary" href="#">&raquo;</a>`;
@@ -814,54 +1017,29 @@ document.addEventListener('DOMContentLoaded', () => {
         paginationEl.appendChild(nextLi);
     }
 
-    // 4. Busca dinâmica
     if (searchInput) {
-        searchInput.addEventListener('input', (e) => {
-            const query = e.target.value.toLowerCase().trim();
-            filteredItems = allWarehouseItems.filter(item => 
-                item.typeid.toString().includes(query) || 
-                item.name.toLowerCase().includes(query)
-            );
-            currentPage = 1;
-            renderItems();
+        searchInput.addEventListener('input', applyFilters);
+    }
+
+    if (categoryFiltersContainer) {
+        categoryFiltersContainer.addEventListener('click', (e) => {
+            const btn = e.target.closest('.category-btn');
+            if (!btn) return;
+
+            categoryFiltersContainer.querySelectorAll('.category-btn').forEach(b => {
+                b.classList.remove('btn-primary', 'active');
+                b.classList.add('btn-outline-secondary', 'text-light');
+            });
+
+            btn.classList.remove('btn-outline-secondary', 'text-light');
+            btn.classList.add('btn-primary', 'active');
+
+            currentCategory = btn.dataset.type;
+            applyFilters();
         });
     }
 
-    // Renderiza a primeira página na inicialização
     renderItems();
-
-    // 5. Modais de Edição (Delegação de Eventos)
-    document.addEventListener('click', function (e) {
-        const charBtn = e.target.closest('.edit-character-btn');
-        if (charBtn) {
-            document.getElementById('charTypeId').value = charBtn.dataset.typeid;
-            document.getElementById('charTypeIdLabel').textContent = '#' + charBtn.dataset.typeid;
-            document.getElementById('charMastery').value = charBtn.dataset.mastery;
-            document.getElementById('charHair').value = charBtn.dataset.hair;
-            document.getElementById('charShirts').value = charBtn.dataset.shirts;
-            return;
-        }
-
-        const caddieBtn = e.target.closest('.edit-caddie-btn');
-        if (caddieBtn) {
-            document.getElementById('caddieTypeId').value = caddieBtn.dataset.typeid;
-            document.getElementById('caddieTypeIdLabel').textContent = '#' + caddieBtn.dataset.typeid;
-            document.getElementById('caddieLevel').value = caddieBtn.dataset.clevel;
-            document.getElementById('caddieExp').value = caddieBtn.dataset.exp;
-            document.getElementById('caddieRent').checked = caddieBtn.dataset.rentflag === '1';
-            return;
-        }
-
-        const mascotBtn = e.target.closest('.edit-mascot-btn');
-        if (mascotBtn) {
-            document.getElementById('mascotTypeId').value = mascotBtn.dataset.typeid;
-            document.getElementById('mascotTypeIdLabel').textContent = '#' + mascotBtn.dataset.typeid;
-            document.getElementById('mascotLevel').value = mascotBtn.dataset.mlevel;
-            document.getElementById('mascotExp').value = mascotBtn.dataset.mexp;
-            return;
-        }
-    });
 });
 </script>
-
 <?php require __DIR__ . '/includes/footer.php'; ?>

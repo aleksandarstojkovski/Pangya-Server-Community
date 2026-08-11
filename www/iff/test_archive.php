@@ -41,7 +41,7 @@ if (is_file($archivePath)) {
 			'ClubSet.iff',
 			'Character.iff',
 			'Caddie.iff',
-			'AuxPart.iff',
+			'AuxPart.iff','Ball.iff',
 			'Mascot.iff'] as $expected) {
         $found = IFFArchive::has($expected);
         line(($found ? '✔ ' : '✘ ') . $expected . ($found ? ' encontrado no pacote' : ' NÃO encontrado no pacote'), $isCli);

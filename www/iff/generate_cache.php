@@ -1,7 +1,8 @@
 <?php
 // data_cache.php - Gerencia o cache e a obtenção de dados da galeria
 
-include_once($_SERVER['DOCUMENT_ROOT'] . '/iff/find_iff_item.php'); 
+require_once __DIR__ . '/IFFArchive.php';
+require_once __DIR__ . '/find_iff_item.php';
 
 use PangyaIFF\Parser\IFFArchive;
 use PangyaIFF\Parser;
@@ -42,7 +43,8 @@ function load_full_iff_list_from_cache(): array {
 			'Character.iff',
 			'Caddie.iff',
 			'AuxPart.iff',
-			'Mascot.iff',
+			'Ball.iff',
+			'Mascot.iff'
     ];
 
     $full_list = [];
