@@ -11,10 +11,11 @@
  * (nunca confie apenas no typeid vindo do formulário).
  * -----------------------------------------------------------------------
  */
-require_once __DIR__ . '/config.php';
-require_once __DIR__ . '/includes/functions.php';
+require_once __DIR__ . '/../Config/config.php';
+require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/AuditLogger.php';
 
-requireLogin();
+requireGameMaster();
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     header('Location: dashboard.php');
@@ -39,6 +40,7 @@ if ($typeid === false || $typeid === null) {
 
 try {
     $pdo = getConnection();
+    $audit = new AuditLogger($pdo);
 
     switch ($type) {
         case 'character':
@@ -57,6 +59,7 @@ try {
                  WHERE [UID] = ? AND [typeid] = ?'
             );
             $stmt->execute([$mastery, $hair, $shirts, $uid, $typeid]);
+            $audit->record('collection.character.update', null, ['typeid' => $typeid]);
             setFlash('success', 'Personagem atualizado com sucesso.');
             break;
 
@@ -76,6 +79,7 @@ try {
                  WHERE [UID] = ? AND [typeid] = ? AND [Valid] = 1'
             );
             $stmt->execute([$clevel, $exp, $rentflag, $uid, $typeid]);
+            $audit->record('collection.caddie.update', null, ['typeid' => $typeid]);
             setFlash('success', 'Caddie atualizado com sucesso.');
             break;
 
@@ -94,6 +98,7 @@ try {
                  WHERE [UID] = ? AND [typeid] = ? AND [Valid] = 1'
             );
             $stmt->execute([$mlevel, $mexp, $uid, $typeid]);
+            $audit->record('collection.mascot.update', null, ['typeid' => $typeid]);
             setFlash('success', 'Mascote atualizado com sucesso.');
             break;
 

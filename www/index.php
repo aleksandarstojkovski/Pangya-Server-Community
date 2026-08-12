@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/Config/config.php';
 require_once __DIR__ . '/includes/functions.php';
 
 $pageTitle = t('home');
@@ -34,7 +34,7 @@ try {
 
         WHERE 
             pangya_server_list.[Type] = 1 AND 
-			pangya_server_list.UpdateTime > dateadd(second, -8, getdate()) AND 
+            pangya_server_list.UpdateTime > dateadd(second, -8, getdate()) AND 
             pangya_server_list.[State] = 1
     ';
 
@@ -77,19 +77,25 @@ try {
 require __DIR__ . '/includes/header.php';
 ?>
 
+<!-- SDKs de Pagamento (PayPal e Mercado Pago) -->
+<!-- Substitua YOUR_PAYPAL_CLIENT_ID pelo seu Client ID do PayPal -->
+<script src="https://www.paypal.com/sdk/js?client-id=YOUR_PAYPAL_CLIENT_ID&currency=BRL"></script>
+<!-- SDK Mercado Pago -->
+<script src="https://sdk.mercadopago.com/js/v2"></script>
+
 <!-- Hero Banner -->
 <div class="hero-banner rounded-3 mb-4">
     <div class="hero-overlay p-5">
         <h1 class="display-6 fw-bold"><?= htmlspecialchars(t('welcome')) ?></h1>
         <p class="col-md-8 fs-5"><?= htmlspecialchars(t('hero')) ?></p>
         
-        <div class="d-flex flex-wrap gap-2 mt-3">
+        <div class="d-flex flex-wrap gap-2 mt-3 align-items-center">
             <?php if (isLoggedIn()): ?>
-                <a class="btn btn-primary btn-lg" href="dashboard.php">
+                <a class="btn btn-primary btn-lg" href="Account/dashboard.php">
                     <?= htmlspecialchars(t('dashboard')) ?>
                 </a>
             <?php else: ?>
-                <a class="btn btn-primary btn-lg" href="register.php">
+                <a class="btn btn-primary btn-lg" href="Account/register.php">
                     <?= htmlspecialchars(t('create_account')) ?>
                 </a>
             <?php endif; ?>
@@ -101,42 +107,71 @@ require __DIR__ . '/includes/header.php';
             <a class="btn btn-dark btn-lg border-secondary d-flex align-items-center gap-2" href="https://github.com/luismk/Pangya-Server-Community" target="_blank" rel="noopener noreferrer">
                 <span>💻 GitHub</span>
             </a>
+
+            <!-- Botão Pague-me um café (Abre modal de pagamentos) -->
+            <button type="button" class="btn btn-warning btn-lg fw-bold text-dark d-flex align-items-center gap-2" data-bs-toggle="modal" data-bs-target="#donateModal">
+                ☕ Pague-me um café
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Doação / Apoio (PayPal e Mercado Pago) -->
+<div class="modal fade" id="donateModal" tabindex="-1" aria-labelledby="donateModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark text-light border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title fw-bold" id="donateModalLabel">☕ Pague-me um café / Apoie o Servidor</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-center p-4">
+                <p class="mb-4">Escolha a sua forma de pagamento preferida para apoiar o projeto:</p>
+                
+                <div class="d-grid mb-3">
+                    <a href="https://link.mercadopago.com.br/gameraze" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-lg text-white fw-bold d-flex align-items-center justify-content-center gap-2" style="background-color: #009ee3; border-color: #009ee3;">
+                        <i class="bi bi-qr-code-scan"></i> Pagar com Mercado Pago / Pix
+                    </a>
+                </div>
+
+                <div class="my-3 text-muted">— OU —</div>
+
+<div class="d-grid">
+    <a href="https://www.paypal.com/cgi-bin/webscr?cmd=_xclick&business=8QDX3E6W458FL&currency_code=BRL&item_name=Apoio+PangYa" target="_blank" rel="noopener noreferrer" class="btn btn-warning btn-lg text-dark fw-bold d-flex align-items-center justify-content-center gap-2" style="background-color: #ffc439; border-color: #ffc439;">
+        <i class="bi bi-paypal"></i> Pagar com PayPal
+    </a>
+</div>
+            </div>
         </div>
     </div>
 </div>
 
 <!-- Banner de Eventos -->
 <div id="communityCarousel" class="carousel slide rounded-3 mb-5 shadow" data-bs-ride="carousel">
-    <!-- Indicadores (bolinhas embaixo) -->
     <div class="carousel-indicators">
         <button type="button" data-bs-target="#communityCarousel" data-bs-slide-to="0" class="active" aria-current="true" aria-label="Slide 1"></button>
         <button type="button" data-bs-target="#communityCarousel" data-bs-slide-to="1" aria-label="Slide 2"></button>
         <button type="button" data-bs-target="#communityCarousel" data-bs-slide-to="2" aria-label="Slide 3"></button>
     </div>
 
-    <!-- Imagens do Slider -->
     <div class="carousel-inner rounded-3">
-        <!-- Slide 1 -->
         <div class="carousel-item active">
-            <img src="assets/img/beach-event-banner.jpg" class="d-block w-100 rounded-3" alt="Evento de Praia">
+            <img src="assets/img/bg/beach-event-banner.jpg" class="d-block w-100 rounded-3" alt="Evento de Praia">
             <div class="carousel-caption d-none d-md-block bg-dark bg-opacity-50 rounded p-2">
                 <h5>Pangya Community - Evento de Verão</h5>
                 <p>Participe dos eventos exclusivos da temporada na comunidade.</p>
             </div>
         </div>
 
-        <!-- Slide 2 -->
         <div class="carousel-item">
-            <img src="assets/img/beach-event-banner.jpg" class="d-block w-100 rounded-3" alt="Novidades do Servidor">
+            <img src="assets/img/bg/beach-event-banner.jpg" class="d-block w-100 rounded-3" alt="Novidades do Servidor">
             <div class="carousel-caption d-none d-md-block bg-dark bg-opacity-50 rounded p-2">
                 <h5>Atualizações e Ferramentas</h5>
                 <p>Explore o PangYa Suite Tools e gerencie seus arquivos IFF com facilidade.</p>
             </div>
         </div>
 
-        <!-- Slide 3 -->
         <div class="carousel-item">
-            <img src="assets/img/beach-event-banner.jpg" class="d-block w-100 rounded-3 bg-secondary" alt="Comunidade Open Source">
+            <img src="assets/img/bg/beach-event-banner.jpg" class="d-block w-100 rounded-3 bg-secondary" alt="Comunidade Open Source">
             <div class="carousel-caption d-none d-md-block bg-dark bg-opacity-50 rounded p-2">
                 <h5>Código Aberto</h5>
                 <p>Contribua com o projeto no nosso repositório oficial do GitHub.</p>
@@ -144,7 +179,6 @@ require __DIR__ . '/includes/header.php';
         </div>
     </div>
 
-    <!-- Botões de Navegação (Voltar / Avançar) -->
     <button class="carousel-control-prev" type="button" data-bs-target="#communityCarousel" data-bs-slide="prev">
         <span class="carousel-control-prev-icon" aria-hidden="true"></span>
         <span class="visually-hidden">Anterior</span>
@@ -155,7 +189,7 @@ require __DIR__ . '/includes/header.php';
     </button>
 </div>
 
-<!-- Status do Servidor (Dados Dinâmicos do SQL) -->
+<!-- Status do Servidor -->
 <div class="row g-4 mb-5">
     <div class="col-md-5">
         <div class="card h-100 p-4 border-0 bg-dark text-light shadow-sm">
@@ -169,7 +203,7 @@ require __DIR__ . '/includes/header.php';
             </div>
 
             <h3 class="fw-bold mb-1">
-			<?= htmlspecialchars($serverInfo['Name'] ?? 'Game Server no Running') ?>
+            <?= htmlspecialchars($serverInfo['Name'] ?? 'Game Server no Running') ?>
             </h3>
             <p class="text small mb-3">
                 IP: <?= htmlspecialchars($serverInfo['IP'] ?? '127.0.0.1') ?>:<?= htmlspecialchars($serverInfo['Port'] ?? '20301') ?>
@@ -199,55 +233,55 @@ require __DIR__ . '/includes/header.php';
     </div>
 
     <div class="col-md-7">
-    <div class="card h-100 p-4 border-0 bg-dark text-light shadow-sm">
-        <h5 class="fw-bold mb-3">🛠️ <?= htmlspecialchars(t('open_source')) ?></h5>
-        <p class="text">
-            <?= htmlspecialchars(t('open_source_text')) ?>
-        </p>
+        <div class="card h-100 p-4 border-0 bg-dark text-light shadow-sm">
+            <h5 class="fw-bold mb-3">🛠️ <?= htmlspecialchars(t('open_source')) ?></h5>
+            <p class="text">
+                <?= htmlspecialchars(t('open_source_text')) ?>
+            </p>
  
-        <div class="row mt-4">
-            <div class="col-12 mb-3">
-                <div class="ratio ratio-16x9">
-                    <iframe src="https://www.youtube.com/embed/eQ_2-_OXpL4" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+            <div class="row mt-4">
+                <div class="col-12 mb-3">
+                    <div class="ratio ratio-16x9">
+                        <iframe src="https://www.youtube.com/embed/eQ_2-_OXpL4" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+                    </div>
+                </div>
+                 
+                <div class="col-12 text-center">
+                    <script src="https://apis.google.com/js/platform.js"></script>
+                    <div class="g-ytsubscribe" 
+                         data-channelid="UCVF6-TAC1WW5eB-C9eBI31g" 
+                         data-layout="full" 
+                         data-count="default">
+                    </div>
+                    <p class="mt-2 text small"><?= htmlspecialchars(t('follow_updates')) ?></p>
                 </div>
             </div>
-             
-            <div class="col-12 text-center">
-                <script src="https://apis.google.com/js/platform.js"></script>
-                <div class="g-ytsubscribe" 
-                     data-channelid="UCVF6-TAC1WW5eB-C9eBI31g" 
-                     data-layout="full" 
-                     data-count="default">
-                </div>
-                <p class="mt-2 text small"><?= htmlspecialchars(t('follow_updates')) ?></p>
-            </div>
-        </div>
 
-        <div class="d-flex flex-wrap gap-2 mt-auto pt-3" style="margin-left: 75px;">
-            <a href="https://github.com/luismk/Pangya-Server-Community" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-light">
-                📦 <?= htmlspecialchars(t('server_repository')) ?>
-            </a>
-            <a href="https://github.com/luismk/PangYa-Suite-Tools" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-light">
-                🔧 PangYa Suite Tools
-            </a>
-            <a href="https://github.com/luismk/Pangya-Server-Community/issues" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-warning">
-                🐛 <?= htmlspecialchars(t('report_issue')) ?>
-            </a>
-			<div class="d-flex flex-wrap gap-2 mt-auto pt-3" style="margin-left: 75px;">
-			<a href="test_connection.php" class="btn btn-sm btn-outline-info">
-        <i class="bi bi-database-check me-1"></i> <?= htmlspecialchars(t('test_connection')) ?>
-    </a>
-    <a href="iff/test_archive.php" class="btn btn-sm btn-outline-warning">
-        <i class="bi bi-file-earmark-binary me-1"></i> Testar Leitura IFF
-    </a>
-	 </div>
+            <div class="d-flex flex-wrap gap-2 mt-auto pt-3 justify-content-center">
+                <a href="https://github.com/luismk/Pangya-Server-Community" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-light">
+                    📦 <?= htmlspecialchars(t('server_repository')) ?>
+                </a>
+                <a href="https://github.com/luismk/PangYa-Suite-Tools" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-light">
+                    🔧 PangYa Suite Tools
+                </a>
+                <a href="https://github.com/luismk/Pangya-Server-Community/issues" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-warning">
+                    🐛 <?= htmlspecialchars(t('report_issue')) ?>
+                </a>
+                <a href="test_connection.php" class="btn btn-sm btn-outline-info">
+                    <i class="bi bi-database-check me-1"></i> <?= htmlspecialchars(t('test_connection')) ?>
+                </a>
+                <a href="iff/test_archive.php" class="btn btn-sm btn-outline-warning">
+                    <i class="bi bi-file-earmark-binary me-1"></i> Testar Leitura IFF
+                </a>
+                <button type="button" class="btn btn-sm btn-warning text-dark fw-bold" data-bs-toggle="modal" data-bs-target="#donateModal">
+                    ☕ Pague-me um café
+                </button>
+            </div>
         </div>
-		
     </div>
 </div>
-</div>
 
-<!-- Destaques / Features -->
+<!-- Destaques -->
 <div class="row g-4 mb-5">
     <div class="col-md-4">
         <div class="card h-100 p-3">
@@ -298,8 +332,31 @@ require __DIR__ . '/includes/header.php';
         </div>
     </div>
     <div class="text-center mt-3">
-        <a href="register.php" class="btn btn-primary btn-lg"><?= htmlspecialchars(t('create_account')) ?></a>
+        <a href="Account/register.php" class="btn btn-primary btn-lg"><?= htmlspecialchars(t('create_account')) ?></a>
     </div>
 </div>
+
+<!-- Script de Inicialização do PayPal -->
+<script>
+    if (typeof paypal !== 'undefined') {
+        paypal.Buttons({
+            createOrder: function(data, actions) {
+                return actions.order.create({
+                    purchase_units: [{
+                        amount: {
+                            value: '10.00' // Valor do "café" em R$
+                        },
+                        description: 'Apoio / Café - Pangya Community'
+                    }]
+                });
+            },
+            onApprove: function(data, actions) {
+                return actions.order.capture().then(function(details) {
+                    alert('Muito obrigado pelo apoio, ' + details.payer.name.given_name + '!');
+                });
+            }
+        }).render('#paypal-button-container');
+    }
+</script>
 
 <?php require __DIR__ . '/includes/footer.php'; ?>

@@ -21,14 +21,14 @@ final class WarehouseService
         return (string) ($item['item_name'] ?? $item['name'] ?? ('Item #' . $typeId));
     }
 
-    public function removeOne(int $uid, int $typeId): bool
+    public function removeByItemId(int $uid, int $itemId): bool
     {
         $stmt = $this->pdo->prepare(
-            'UPDATE TOP (1) pangya.pangya_item_warehouse
+            'UPDATE pangya.pangya_item_warehouse
              SET [valid] = 0
-             WHERE [UID] = ? AND [typeid] = ? AND [valid] = 1'
+             WHERE [UID] = ? AND [item_id] = ? AND [valid] = 1'
         );
-        $stmt->execute([$uid, $typeId]);
+        $stmt->execute([$uid, $itemId]);
 
         return $stmt->rowCount() > 0;
     }

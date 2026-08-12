@@ -21,7 +21,36 @@ final class App
     public static function requireLogin(): void
     {
         if (!self::isLoggedIn()) {
-            self::redirect('login.php');
+            self::redirect('/Account/login.php');
+        }
+    }
+
+    public static function isGameMaster(): bool
+    {
+        return self::hasCapability(CAPABILITY_GAME_MASTER);
+    }
+
+    public static function canEditItemsOnWeb(): bool
+    {
+        return self::hasCapability(CAPABILITY_GAME_MASTER)
+            && self::hasCapability(CAPABILITY_WEB_ADMIN_EDIT)
+            && !self::hasCapability(CAPABILITY_BLOCK_ITEM_SPAWN_GM);
+    }
+
+    public static function hasCapability(int $flag): bool
+    {
+        $capability = (int) ($_SESSION['capability'] ?? 0);
+
+        return ($capability & $flag) === $flag;
+    }
+
+    public static function requireGameMaster(): void
+    {
+        self::requireLogin();
+
+        if (!self::canEditItemsOnWeb()) {
+            self::flash('error', t('access_denied'));
+            self::redirect('/Account/dashboard.php');
         }
     }
 

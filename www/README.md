@@ -1,5 +1,16 @@
 # PangYa Community — Site PHP + SQL Server (System DSN)
 
+## Organização e implantação
+
+- `Account/`: autenticação e regras da conta.
+- `Shop/`: catálogo, moedas e marketplace.
+- `Server/`: métricas públicas do servidor.
+- `Config/`: políticas de autorização.
+- `Includes/`: componentes, auditoria e utilitários.
+- `database/web_features.sql`: migração obrigatória para auditoria e marketplace.
+
+Antes de disponibilizar o marketplace, execute `database/web_features.sql` no banco `pangya`. A migração também confirma que `pangya.pangya_item_warehouse` possui `item_id`, usado como identificador único em operações de alteração, remoção e transferência. As permissões web respeitam os bits `GameMaster` (4), `WebAdminEdit` (8) e `BlockItemSpawnGM` (16), definidos em `Config/permissions.php`.
+
 <div align="center">
 
 ### Versão Final da Tela Inicial

@@ -1,6 +1,7 @@
 <?php
-require_once __DIR__ . '/config.php';
-require_once __DIR__ . '/includes/functions.php';
+require_once __DIR__ . '/../Config/config.php';
+require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/AuthService.php';
 
 redirectIfLoggedIn();
 
@@ -15,14 +16,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errorMsg = t('fill_login');
     } else {
         try {
-            $stmt = getConnection()->prepare('SELECT [UID], [ID] FROM pangya.account WHERE [ID] = ? AND [PASSWORD] = ?');
-            $stmt->execute([$id_in, hashPassword($pass)]);
-            $user = $stmt->fetch();
+            $user = (new AuthService())->login($id_in, $pass);
 
             if ($user) {
                 session_regenerate_id(true);
                 $_SESSION['uid'] = (int)$user['UID'];
                 $_SESSION['login_id'] = $user['ID'];
+                $_SESSION['capability'] = (int) $user['capability'];
 
                 header('Location: dashboard.php');
                 exit;
@@ -37,7 +37,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $pageTitle = t('login');
-require __DIR__ . '/includes/header.php';
+require __DIR__ . '/../includes/header.php';
 ?>
 
 <!-- Estilos Customizados da Página de Login -->
@@ -201,4 +201,4 @@ document.getElementById('togglePassword')?.addEventListener('click', function ()
 });
 </script>
 
-<?php require __DIR__ . '/includes/footer.php'; ?>
+<?php require __DIR__ . '/../includes/footer.php'; ?>

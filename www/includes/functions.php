@@ -2,6 +2,15 @@
 
 require_once __DIR__ . '/App.php';
 
+function verifyCsrfToken(?string $token): bool
+{
+    if (empty($token) || empty($_SESSION['csrf_token'])) {
+        return false;
+    }
+
+    return hash_equals($_SESSION['csrf_token'], $token);
+}
+
 function clean(?string $value): string
 {
     return App::clean($value);
@@ -15,13 +24,28 @@ function isLoggedIn(): bool
 function redirectIfLoggedIn(): void
 {
     if (App::isLoggedIn()) {
-        App::redirect('dashboard.php');
+        App::redirect('/Account/dashboard.php');
     }
 }
 
 function requireLogin(): void
 {
     App::requireLogin();
+}
+
+function isGameMaster(): bool
+{
+    return App::isGameMaster();
+}
+
+function canEditItemsOnWeb(): bool
+{
+    return App::canEditItemsOnWeb();
+}
+
+function requireGameMaster(): void
+{
+    App::requireGameMaster();
 }
 
 function flashMessage(): void
@@ -46,7 +70,7 @@ function csrfValid(?string $token): bool
 
 function itemIconTag(int $typeid, int $size = 40): string
 {
-    $src = 'assets/img/items/' . $typeid . '.png';
+    $src = '/assets/img/items/' . $typeid . '.png';
 
     return '<span class="item-icon" style="width:' . $size . 'px;height:' . $size . 'px;">'
         . '<i class="bi bi-box-seam item-icon-fallback"></i>'

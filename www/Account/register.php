@@ -1,13 +1,13 @@
 <?php
-require_once __DIR__ . '/config.php';
-require_once __DIR__ . '/includes/functions.php';
+require_once __DIR__ . '/../Config/config.php';
+require_once __DIR__ . '/../includes/functions.php';
 
 redirectIfLoggedIn();
 
 $referrerFromUrl = clean($_GET['ref'] ?? '');
 $pageTitle = t('create_title');
 
-require __DIR__ . '/includes/header.php';
+require __DIR__ . '/../includes/header.php';
 ?>
 
 <!-- Estilos Customizados da Página de Cadastro -->
@@ -250,4 +250,4 @@ document.getElementById('togglePassword')?.addEventListener('click', function ()
 });
 </script>
 
-<?php require __DIR__ . '/includes/footer.php'; ?>
+<?php require __DIR__ . '/../includes/footer.php'; ?>

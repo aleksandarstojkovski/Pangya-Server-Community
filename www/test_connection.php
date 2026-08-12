@@ -2,7 +2,7 @@
 /**
  * test_connection.php
  */
-require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/Config/config.php';
 
 $steps = []; // cada item: ['label' => string, 'ok' => bool, 'detail' => string]
 

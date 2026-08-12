@@ -11,9 +11,10 @@
  *   - pangya.pangya_mascot_info          -> mascotes possuídos
  * -----------------------------------------------------------------------
  */
-require_once __DIR__ . '/config.php';
-require_once __DIR__ . '/includes/functions.php';
-require_once __DIR__ . '/iff/generate_cache.php';  
+require_once __DIR__ . '/../Config/config.php';
+require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../iff/generate_cache.php';
+require_once __DIR__ . '/../Server/ServerMetrics.php';
 
 requireLogin();
 
@@ -156,11 +157,16 @@ if ($account && !empty($account['NICK_HEX'])) {
     // 6. Itens do armazém, agrupados por TypeId
     // -------------------------------------------------------------
     $stmt = $pdo->prepare(
-        'pangya.ProcGetWareHouseItem ?'
+        'SELECT [item_id], [typeid], [valid]
+         FROM pangya.pangya_item_warehouse
+         WHERE [UID] = ? AND [valid] = 1
+         ORDER BY [item_id] DESC'
     );
     $stmt->execute([$uid]);
     $warehouseItems = $stmt->fetchAll();
-    $itemCount = array_sum(array_column($warehouseItems, 'C0'));
+    $itemCount = count($warehouseItems);
+
+    $serverMetrics = (new ServerMetrics($pdo))->snapshot();
 
 } catch (PDOException $e) {
     error_log('Erro ao carregar painel: ' . $e->getMessage());
@@ -234,17 +240,16 @@ foreach ($warehouseItems as $item) {
     // Verifica se o nome existe E não está vazio
     $itemName = (!empty($itemData['item_name'])) ? $itemData['item_name'] : ((!empty($itemData['name'])) ? $itemData['name'] : ('Item #' . $typeid));
 
-    // Converte para inteiro e garante que seja no mínimo 1
-    $qty = (int)$item['C0'];
-    $qty = max(1, $qty);
     $formattedWarehouseItems[] = [
+        'item_id' => (int) $item['item_id'],
         'typeid' => $typeid,
-        'qty'    => $qty,
         'icon'   => $iconName,
 		'item_type' => getItemTypeName($typeid),
         'name'   => $itemName,
     ];
 }
+
+$serverMetrics = $serverMetrics ?? ['registered' => 0, 'online' => 0, 'login_online' => false, 'game_online' => false, 'pang_rate' => 0, 'exp_rate' => 0, 'peak_online' => 0];
 
 /**
  * Converte o código de sexo (smallint) em texto legível.
@@ -261,8 +266,8 @@ function sexoLabel($sexo): string
 function sexoIcon($sexo): string
 {
 	 return match ((int)$sexo) {
-        0 => '<img src="assets/img/bar/bar_male.png" alt="PangYa Community" height="24">',
-        1 => '<img src="assets/img/bar/bar_female.png" alt="PangYa Community" height="24">',
+        0 => '<img src="/assets/img/bar/bar_male.png" alt="PangYa Community" height="24">',
+        1 => '<img src="/assets/img/bar/bar_female.png" alt="PangYa Community" height="24">',
         default => '-',
     };	
 }
@@ -276,7 +281,7 @@ function LevelIcon($level): string
     $formattedLevel = sprintf('%03d', $level);
 
     // Caminho da imagem
-    $iconPath = "assets/img/level/level_{$formattedLevel}.PNG";
+    $iconPath = "/assets/img/level/level_{$formattedLevel}.PNG";
 
     return '<img src="' . $iconPath . '" alt="Level ' . $level . '" height="24">';
 }
@@ -294,11 +299,18 @@ function formatDate($value): string
 }
 
 $pageTitle = 'Painel do Usuário';
-require __DIR__ . '/includes/header.php';
+require __DIR__ . '/../includes/header.php';
 ?>
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2 class="mb-0">Meu Painel</h2>
     <a href="logout.php" class="btn btn-outline-light btn-sm">Sair</a>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-sm-6 col-lg-3"><div class="card p-3 h-100"><div class="small text-secondary"><?= htmlspecialchars(t('registered_users')) ?></div><div class="fs-3 fw-bold"><?= number_format((int) $serverMetrics['registered'], 0, ',', '.') ?></div></div></div>
+    <div class="col-sm-6 col-lg-3"><div class="card p-3 h-100"><div class="small text-secondary"><?= htmlspecialchars(t('players_online')) ?></div><div class="fs-3 fw-bold text-success"><?= number_format((int) $serverMetrics['online'], 0, ',', '.') ?></div></div></div>
+    <div class="col-sm-6 col-lg-3"><div class="card p-3 h-100"><div class="small text-secondary"><?= htmlspecialchars(t('service_status')) ?></div><div><?= htmlspecialchars(t('login_server')) ?>: <span class="badge bg-<?= $serverMetrics['login_online'] ? 'success' : 'danger' ?>"><?= htmlspecialchars($serverMetrics['login_online'] ? t('online') : t('offline')) ?></span></div><div><?= htmlspecialchars(t('game_server')) ?>: <span class="badge bg-<?= $serverMetrics['game_online'] ? 'success' : 'danger' ?>"><?= htmlspecialchars($serverMetrics['game_online'] ? t('online') : t('offline')) ?></span></div></div></div>
+    <div class="col-sm-6 col-lg-3"><div class="card p-3 h-100"><div class="small text-secondary"><?= htmlspecialchars(t('active_rates')) ?></div><div>Pang: <?= htmlspecialchars((string) $serverMetrics['pang_rate']) ?>%</div><div>EXP: <?= htmlspecialchars((string) $serverMetrics['exp_rate']) ?>%</div></div></div>
 </div>
 
 <?php if ($account): ?>
@@ -512,13 +524,13 @@ require __DIR__ . '/includes/header.php';
                         </div>
                         <div class="col-6 col-md-4">
                             <div class="p-3 rounded bg-black bg-opacity-25 text-center">
-                                <div class="fs-4 fw-bold"><?= number_format((float)$stats['Pang'], 0, ',', '.') ?><img src="assets/img/bar/bar_pang.png" alt="PangYa Community" height="24"></div>
+                                <div class="fs-4 fw-bold"><?= number_format((float)$stats['Pang'], 0, ',', '.') ?><img src="/assets/img/bar/bar_pang.png" alt="PangYa Community" height="24"></div>
                                 
                             </div>
                         </div>
                         <div class="col-6 col-md-4">
                             <div class="p-3 rounded bg-black bg-opacity-25 text-center">
-                                <div class="fs-4 fw-bold"><?= number_format((float)$stats['Cookie'], 0, ',', '.') ?><img src="assets/img/bar/bar_cookies.png" alt="PangYa Community" height="24"></div>
+                                <div class="fs-4 fw-bold"><?= number_format((float)$stats['Cookie'], 0, ',', '.') ?><img src="/assets/img/bar/bar_cookies.png" alt="PangYa Community" height="24"></div>
                                 
                             </div>
                         </div>
@@ -551,7 +563,7 @@ require __DIR__ . '/includes/header.php';
                         </div>
                         <div class="col-6 col-md-4">
                             <div class="p-3 rounded bg-black bg-opacity-25 text-center">
-                                <div class="fs-4 fw-bold"><?= htmlspecialchars((string)$stats['HIO']) ?><img src="assets/img/bar/gp_icon_hio.png" alt="PangYa Community" height="42"></div>                             
+                                <div class="fs-4 fw-bold"><?= htmlspecialchars((string)$stats['HIO']) ?><img src="/assets/img/bar/gp_icon_hio.png" alt="PangYa Community" height="42"></div>
                             </div>
                         </div>
                         <div class="col-6 col-md-4">
@@ -585,7 +597,7 @@ require __DIR__ . '/includes/header.php';
                         <div class="d-flex align-items-center gap-2">
                             <span class="item-icon" style="width:64px;height:64px;">                               
                                 <img
-                                    src="assets/img/items/<?= $itemIcon ?>.png"
+                                    src="/assets/img/items/<?= $itemIcon ?>.png"
                                     alt="<?= $itemName ?>"
                                     loading="lazy"
                                     onerror="this.onerror=null;this.style.display='none';"
@@ -634,7 +646,7 @@ require __DIR__ . '/includes/header.php';
                         <div class="d-flex align-items-center gap-2">
                             <span class="item-icon" style="width:64px;height:64px;">
                                 <img
-                                    src="assets/img/items/<?= $itemIcon ?>.png"
+                                    src="/assets/img/items/<?= $itemIcon ?>.png"
                                     alt="<?= $itemName ?>"
                                     loading="lazy"
                                     onerror="this.onerror=null;this.style.display='none';"
@@ -683,7 +695,7 @@ require __DIR__ . '/includes/header.php';
                         <div class="d-flex align-items-center gap-2">
                             <span class="item-icon" style="width:64px;height:64px;">
                                 <img
-                                   src="assets/img/items/<?= $itemIcon ?>.png"
+                                   src="/assets/img/items/<?= $itemIcon ?>.png"
                                     alt="<?= $itemName ?>"
                                     loading="lazy"
                                     onerror="this.onerror=null;this.style.display='none';"
@@ -727,17 +739,17 @@ require __DIR__ . '/includes/header.php';
             // Definção dos ícones, rótulos e chaves de filtro
             $typesConfig = [
                 'all'       => ['label' => 'Todos',      'icon' => ''],
-                'card'      => ['label' => 'Cards',      'icon' => 'assets/img/bar/BtnCard.png'],
-                'setitem'   => ['label' => 'Sets',       'icon' => 'assets/img/bar/BtnSet.png'],
-                'part'      => ['label' => 'Parts',      'icon' => 'assets/img/bar/BtnPart.png'],
-                'item'      => ['label' => 'Itens',      'icon' => 'assets/img/bar/BtnItem.png'],
-                'skin'      => ['label' => 'Skins',      'icon' => 'assets/img/bar/BtnSkin.png'],
-                'clubset'   => ['label' => 'ClubSets',   'icon' => 'assets/img/bar/BtnClub.png'],
-                'character' => ['label' => 'Characters', 'icon' => 'assets/img/bar/nuri_renew.png'],
-                'caddie'    => ['label' => 'Caddies',    'icon' => 'assets/img/bar/BtnCaddie.png'],
-                'auxpart'   => ['label' => 'Rings',      'icon' => 'assets/img/bar/BtnAuxPart.png'],
-                'ball'      => ['label' => 'Balls',      'icon' => 'assets/img/bar/BtnBall.png'],
-                'mascot'    => ['label' => 'Mascotes',   'icon' => 'assets/img/bar/BtnMascot.png'],
+                'card'      => ['label' => 'Cards',      'icon' => '/assets/img/bar/BtnCard.png'],
+                'setitem'   => ['label' => 'Sets',       'icon' => '/assets/img/bar/BtnSet.png'],
+                'part'      => ['label' => 'Parts',      'icon' => '/assets/img/bar/BtnPart.png'],
+                'item'      => ['label' => 'Itens',      'icon' => '/assets/img/bar/BtnItem.png'],
+                'skin'      => ['label' => 'Skins',      'icon' => '/assets/img/bar/BtnSkin.png'],
+                'clubset'   => ['label' => 'ClubSets',   'icon' => '/assets/img/bar/BtnClub.png'],
+                'character' => ['label' => 'Characters', 'icon' => '/assets/img/bar/nuri_renew.png'],
+                'caddie'    => ['label' => 'Caddies',    'icon' => '/assets/img/bar/BtnCaddie.png'],
+                'auxpart'   => ['label' => 'Rings',      'icon' => '/assets/img/bar/BtnAuxPart.png'],
+                'ball'      => ['label' => 'Balls',      'icon' => '/assets/img/bar/BtnBall.png'],
+                'mascot'    => ['label' => 'Mascotes',   'icon' => '/assets/img/bar/BtnMascot.png'],
             ];
 
             // Extrai as categorias únicas dos itens do usuário (convertidas em minúsculo)
@@ -764,7 +776,7 @@ require __DIR__ . '/includes/header.php';
             </div>
         <?php endif; ?>
 
-        <!-- Adicionar novo item -->
+        <?php if (canEditItemsOnWeb()): ?>
         <form action="update_warehouse.php" method="post" accept-charset="UTF-8" class="row g-2 align-items-end mb-3">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrfToken()) ?>">
             <input type="hidden" name="action" value="add">
@@ -773,11 +785,13 @@ require __DIR__ . '/includes/header.php';
                 <input type="search" id="iffItemSearch" class="form-control form-control-sm" autocomplete="off" placeholder="<?= htmlspecialchars(t('search_item')) ?>" required>
                 <input type="hidden" name="typeid" id="newItemTypeId" required>
                 <div id="iffSearchResults" class="list-group position-absolute w-100 shadow d-none" style="z-index: 10;"></div>
+                <img id="iffItemPreview" class="mt-2 d-none" width="48" height="48" alt="">
             </div>
             <div class="col-auto">
                 <button type="submit" id="addIffItemButton" class="btn btn-sm btn-primary" disabled><i class="bi bi-plus-lg me-1"></i><?= htmlspecialchars(t('add')) ?></button>
             </div>
         </form>
+        <?php endif; ?>
 
         <?php if (empty($warehouseItems)): ?>
             <p class="mb-0 text-secondary">Nenhum item no armazém.</p>
@@ -798,12 +812,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const labels = <?= json_encode([
         'add' => t('add'),
         'remove' => t('remove'),
+        'itemId' => t('item_id'),
         'noItemsFound' => t('no_items_found'),
     ], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
+    const canManageItems = <?= json_encode(canEditItemsOnWeb()) ?>;
     const iffSearch = document.getElementById('iffItemSearch');
     const iffResults = document.getElementById('iffSearchResults');
     const iffTypeId = document.getElementById('newItemTypeId');
     const addIffItemButton = document.getElementById('addIffItemButton');
+    const iffItemPreview = document.getElementById('iffItemPreview');
     let iffSearchTimer;
 
     if (iffSearch && iffResults && iffTypeId && addIffItemButton) {
@@ -819,7 +836,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             iffSearchTimer = window.setTimeout(async () => {
                 try {
-                    const response = await fetch(`iff/search.php?q=${encodeURIComponent(query)}`);
+                    const response = await fetch(`/iff/search.php?q=${encodeURIComponent(query)}`);
                     const items = await response.json();
                     if (!response.ok || !Array.isArray(items)) return;
 
@@ -833,6 +850,15 @@ document.addEventListener('DOMContentLoaded', () => {
                             iffTypeId.value = item.typeid;
                             addIffItemButton.disabled = false;
                             iffResults.classList.add('d-none');
+                            fetch(`/iff/item_icon.php?typeid=${encodeURIComponent(item.typeid)}`)
+                                .then(response => response.ok ? response.json() : null)
+                                .then(data => {
+                                    if (!data || !iffItemPreview) return;
+                                    iffItemPreview.src = data.url;
+                                    iffItemPreview.alt = item.name;
+                                    iffItemPreview.classList.remove('d-none');
+                                })
+                                .catch(() => iffItemPreview?.classList.add('d-none'));
                         });
                         iffResults.appendChild(option);
                     });
@@ -910,27 +936,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="collection-row p-2 rounded bg-black bg-opacity-25 border border-secondary d-flex align-items-center justify-content-between">
                     <div class="d-flex align-items-center gap-2 overflow-hidden">
                         <span class="item-icon" style="width:64px;height:64px;">
-                            <img src="assets/img/items/${item.icon}.png" alt="${escapeHtml(item.name)}" loading="lazy" onerror="this.onerror=null;this.style.display='none';">
+                            <img src="/assets/img/items/${item.icon}.png" alt="${escapeHtml(item.name)}" loading="lazy" onerror="this.onerror=null;this.style.display='none';">
                         </span>
                         <div class="collection-info text-truncate">
                             <div class="fw-bold text-truncate" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</div>
-                            <div class="text-secondary small">ID: ${item.typeid} | Qtd: ${item.qty}</div>
+                            <div class="text-secondary small">${escapeHtml(labels.itemId || 'ID do item')}: ${item.item_id} | TypeId: ${item.typeid}</div>
                         </div>
                     </div>
 
                     <div class="collection-actions d-flex gap-1 ms-2">
-                        <form action="update_warehouse.php" method="post">
-                            <input type="hidden" name="csrf_token" value="${csrfToken}">
-                            <input type="hidden" name="action" value="add">
-                            <input type="hidden" name="typeid" value="${item.typeid}">
-                            <button type="submit" class="btn btn-sm btn-outline-light" title="${escapeHtml(labels.add)}"><i class="bi bi-plus-lg"></i></button>
-                        </form>
+                        ${canManageItems ? `
                         <form action="update_warehouse.php" method="post">
                             <input type="hidden" name="csrf_token" value="${csrfToken}">
                             <input type="hidden" name="action" value="remove">
-                            <input type="hidden" name="typeid" value="${item.typeid}">
+                            <input type="hidden" name="item_id" value="${item.item_id}">
                             <button type="submit" class="btn btn-sm btn-outline-danger" title="${escapeHtml(labels.remove)}"><i class="bi bi-dash-lg"></i></button>
-                        </form>
+                        </form>` : ''}
                     </div>
                 </div>
             `;
@@ -1042,4 +1063,4 @@ document.addEventListener('DOMContentLoaded', () => {
     renderItems();
 });
 </script>
-<?php require __DIR__ . '/includes/footer.php'; ?>
+<?php require __DIR__ . '/../includes/footer.php'; ?>
