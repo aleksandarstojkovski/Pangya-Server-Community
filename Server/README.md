@@ -22,7 +22,7 @@ Este projeto simula os principais componentes de um servidor PangYa:
 
 | Componente       | Progresso |
 |------------------|-----------|
-| GameServer       | 99,20%    |
+| GameServer       | 99,95%    |
 | MessengerServer  | 100%      |
 | LoginServer      | 100%      |
 | RankServer       | 100%      |
