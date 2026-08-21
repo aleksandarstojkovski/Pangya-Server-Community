@@ -844,7 +844,10 @@ namespace Pangya_GameServer.Game
                             ri.qntd_hole = 1;
                             ri.course = RoomInfo.ROOM_INFO_COURSE.GRAND_ZODIAC;
                             ri.max_player = 100;
-                            ri.channel_rookie = true;
+							
+							if (m_ci.type.only_rookie || m_ci.type.LowLevel)
+								ri.channel_rookie = true;
+							
                             ri.name = nome;
                             ri.senha = ""; // Garante que a sala seja pública 
 
@@ -909,7 +912,8 @@ namespace Pangya_GameServer.Game
                     ri.clear();
 
                     // Flag do canal, se for rookie passa para sala, que no jogo, essa type faz vir vento de 1m a 5m
-                    ri.channel_rookie = true;
+                   if (m_ci.type.only_rookie || m_ci.type.LowLevel)
+						ri.channel_rookie = true;
 
                     ri.time_30s = 35 * 60000; // 35 min
                     ri.tipo = (byte)RoomInfo.ROOM_INFO_TYPE.TOURNEY;
@@ -1449,7 +1453,8 @@ namespace Pangya_GameServer.Game
                 }
 
                 // Flag do canal, se for rookie passa para sala, que no jogo, essa type faz vir vento de 1m a 5m
-                ri.channel_rookie = true;
+                if (m_ci.type.only_rookie || m_ci.type.LowLevel)
+					 ri.channel_rookie = true;
 
                 if (ri.getTipo() == RoomInfo.ROOM_INFO_TYPE.SPECIAL_SHUFFLE_COURSE)
                 {
