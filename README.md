@@ -1,6 +1,6 @@
 # Pangya Fun - Legacy Version (v1.0) ⛳
 
-based on version JP.R7.983.00
+based on version Season 9
 
 Choose your language / Escolha seu idioma:
 
@@ -30,13 +30,20 @@ Choose your language / Escolha seu idioma:
 
 ---
 
+## 📁 Downloads & Server Files
+
+*   **Server / GB:** [Download Server GB](https://github.com/luismk/Pangya-Server-Community/tree/Develop/Server/GB)
+*   **Server / JP:** [Download Server JP](https://github.com/luismk/Pangya-Server-Community/tree/Develop/Server/JP)
+*   **Client JP Custom:** [Client Community English](https://www.mediafire.com/file/j33ghvb4lk2bjtn/JP_Building.rar/file)
+
+---
+
 ## 📢 Community & Dev
 Stay updated and join our community:
 
 *   **Discord:** [Retreev Community](https://discord.gg/HwDTssf)
 *   **Talk to me:** [My Group Community](https://discord.gg/DEwj7DnBHb)
 *   **YouTube:** [Luiz Filho](https://www.youtube.com/@devluismk)
-*   **Client:** [Client Community English](https://www.mediafire.com/file/j33ghvb4lk2bjtn/JP_Building.rar/file)
 
 ---
 
