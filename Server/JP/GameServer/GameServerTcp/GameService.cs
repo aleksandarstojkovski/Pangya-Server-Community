@@ -6,6 +6,7 @@ using Pangya_GameServer.Models.golden_time_type;
 using Pangya_GameServer.PacketFunc;
 using Pangya_GameServer.PangyaEnums;
 using Pangya_GameServer.Repository;
+using Pangya_GameServer.UTIL;
 using PangyaAPI.IFF.JP.Extensions;
 using PangyaAPI.Network.Models;
 using PangyaAPI.Network.PangyaPacket;
@@ -15,8 +16,8 @@ using PangyaAPI.Network.PangyaUtil;
 using PangyaAPI.Network.Repository;
 using PangyaAPI.SQL;
 using PangyaAPI.Utilities;
-using PangyaAPI.Utilities.Models;
 using PangyaAPI.Utilities.Log;
+using PangyaAPI.Utilities.Models;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -194,6 +195,9 @@ namespace Pangya_GameServer.GameServiceTcp
                 // Server ainda não está totalmente iniciado
                 if (!this._isRunning)
                     return;
+
+                if (!CommandDB.VerifyAchievement())
+                    _smp.message_pool.getInstance().push("[GameServer::OnHeartBeat] [Warning] Table Empty!!!", type_msg.CL_FILE_LOG_AND_CONSOLE);
 
                 // Check Invite Time Channels
                 foreach (var el in v_channel)
@@ -626,7 +630,7 @@ namespace Pangya_GameServer.GameServiceTcp
                 {
 
                     // Para o Tempo se ele não estiver parado
-                    if (m_shutdown.getState() != PangyaSyncTimer.TIMER_STATE.STOPPED)
+                    if (m_shutdown.getState() != PangyaSyncTimer.TIMER_STATE.STOP)
                         m_shutdown.Stop();
 
                     m_timer_mgr.DeleteTimer(m_shutdown);
@@ -2691,74 +2695,7 @@ namespace Pangya_GameServer.GameServiceTcp
                 if (string.IsNullOrEmpty(msg))
                     throw new exception("[GameService::requestChat][Error] PLAYER[UID=" + (_session.m_pi.uid) + "] tentou enviar ticker[MESSAGE="
                             + msg + "], vazio. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 1, 1/*UNKNOWN ERROR*/));
-
-
-                //        // 2. Lista de palavras proibidas
-                //        string[] palavrasProibidas = {
-                //    "fdp", "filho da puta", "desgraçado", "desgraça", "merda", "bosta",
-                //    "caralho", "porra", "puta", "puto", "arrombado", "corno", "viado",
-                //    "bichona", "bicha", "trouxa", "otário", "retardado", "mongoloide",
-                //    "imbecil", "idiota", "babaca", "piranha", "vagabunda", "cuzão",
-                //    "cuzao", "pau no cu", "pau no seu cu", "seu cu", "vai se foder",
-                //    "vai tomar no cu", "corna", "prostituta", "lixo"
-                //};
-
-                //        // 1. Checa se jogador está atualmente bloqueado
-                //        if (_session.ChatPenalty.IsStillBlocked())
-                //        {
-                //            if (palavrasProibidas.Any(p => msg.IndexOf(p, StringComparison.OrdinalIgnoreCase) >= 0))
-                //            {
-                //                // Bloqueia o jogador por 30 segundos
-                //                _session.ChatPenalty.RegisterOffense(_session.m_pi.uid, "Palavra ofensiva");
-
-                //                // Log da tentativa
-                //                _smp.message_pool.getInstance().push(
-                //                    new message($"[GameService::requestChat][BLOCKED][Info]: PLAYER[UID: {_session.m_pi.uid}, MSG: {msg}]",
-                //                    type_msg.CL_FILE_LOG_AND_CONSOLE));
-
-                //                // Informa o jogador
-                //                using (var packet = new PangyaBinaryWriter(0x40))
-                //                {
-                //                    packet.WriteByte(eChatMsg.CHAT_BLOCKED);
-                //                    packet.Write(_session.ChatPenalty.BlockExpireTick);
-                //                    packet_func.session_send(packet, _session);
-                //                }
-                //                return;
-                //            }
-                //            else
-                //            {
-                //                using (var packet = new PangyaBinaryWriter(0x122))
-                //                {
-                //                    packet.WriteByte(8);
-                //                    packet.Write(_session.ChatPenalty.BlockExpireTick);
-                //                    packet_func.session_send(packet, _session);
-                //                }
-                //            }
-                //            return;
-                //        }
-
-                //        // 3. Verifica se mensagem contém palavras proibidas
-                //        if (palavrasProibidas.Any(p => msg.IndexOf(p, StringComparison.OrdinalIgnoreCase) >= 0))
-                //        {
-                //            // Bloqueia o jogador por 30 segundos
-                //            _session.ChatPenalty.RegisterOffense(_session.m_pi.uid, "Palavra ofensiva");
-
-                //            // Log da tentativa
-                //            _smp.message_pool.getInstance().push(
-                //                new message($"[GameService::requestChat][BLOCKED][Info]: PLAYER[UID: {_session.m_pi.uid}, MSG: {msg}]",
-                //                type_msg.CL_FILE_LOG_AND_CONSOLE));
-
-                //            // Informa o jogador
-                //            using (var packet = new PangyaBinaryWriter(0x122))
-                //            {
-                //                packet.WriteByte(8);
-                //                packet.WritePStr("Você foi bloqueado por linguagem inapropriada.");
-                //                packet.Write(_session.ChatPenalty.BlockExpireTick);
-                //                packet_func.session_send(packet, _session);
-                //            }
-                //            return;
-                //        }
-
+                 
                 // 4. Envia mensagem para GMs
                 var c = findChannel(_session.m_pi.channel);
                 if (c != null)
@@ -2832,26 +2769,20 @@ namespace Pangya_GameServer.GameServiceTcp
                 using (var p = new PangyaBinaryWriter(0x40))
                 {
                     p.WriteByte(7); // Notice
-
                     p.WritePStr(_session.m_pi.nickname);
-                    p.WritePStr(notice);
+                    p.WritePStr(UtilChat.FixColor(UtilChat.ChatColor.Green, notice));
                     foreach (var c in v_channel)
                         packet_func.channel_broadcast(c, p.GetBytes);
                 }
+
             }
             catch (exception e)
             {
 
                 _smp.message_pool.getInstance().push(new message("[GameService::requestCommandNoticeGM][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
-                using (var p = new PangyaBinaryWriter(0x40))
-                {
-                    p.WriteByte(7); // Notice
+                
+                _session.SendChatNotice("Command no Executed", UtilChat.ChatColor.Green);
 
-                    p.WritePStr(_session.m_pi.nickname);
-                    p.WritePStr("Nao conseguiu executar o comando.");
-                    packet_func.session_send(p, _session);
-
-                }
             }
 
         }

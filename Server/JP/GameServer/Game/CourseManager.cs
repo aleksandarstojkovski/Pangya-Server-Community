@@ -52,7 +52,8 @@ namespace Pangya_GameServer.Game
             this.m_seed_rand_game = 0;
             this.m_flag_cube_coin = 1;
             this.m_wind_flag = 0;
-            this.m_wind_range = new ushort[9];
+            // [0] = Vento Mínimo, [1] = Vento Máximo
+            this.m_wind_range = new ushort[2] { 0, 15 };// -> shuffleWind é usado
             this.m_chr = new ConsecutivosHolesRain();
             this.m_holes_rain = new HolesRain();
             this.m_grand_prix_special_hole = false;

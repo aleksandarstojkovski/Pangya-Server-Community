@@ -12,7 +12,6 @@ using PangyaAPI.IFF.JP.Models.Flags;
 using PangyaAPI.IFF.JP.Models.General;
 using PangyaAPI.Network.Models;
 using PangyaAPI.Network.PangyaPacket;
-using PangyaAPI.Network.PangyaSession;
 using PangyaAPI.Network.Repository;
 using PangyaAPI.SQL;
 using PangyaAPI.Utilities;
@@ -22,13 +21,10 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading;
 using static Pangya_GameServer.Models.ChangePlayerItemRoom;
 using static Pangya_GameServer.Models.DefineConstants;
-using static PangyaAPI.IFF.JP.Models.Data.GrandPrixData;
 namespace Pangya_GameServer.Game
 {
     public class Channel
@@ -311,6 +307,11 @@ namespace Pangya_GameServer.Game
                 packet_func.channel_broadcast(this, packet_func.pacote046(new List<PlayerLobbyInfo>() { (pci == null) ? new PlayerLobbyInfo() : pci }, 1), 0);
 
                 v_pci.Clear();
+
+                // Boas-vindas
+                _session.SendChatNotice("Welcome To PangYa Community!", UtilChat.ChatColor.Green);
+                //em Cyan
+                _session.SendChatNotice("'create by Luiz Filho'", UtilChat.ChatColor.Cyan);
             }
             catch (Exception e)
             {
@@ -319,13 +320,7 @@ namespace Pangya_GameServer.Game
         }
 
         public void leaveLobby(Player _session)
-        {
-
-            /// !@tem que tira isso aqui por que tem que enviar para os outros player da lobby que ele sai,
-            /// mesmo que o sock dele não pode mais enviar
-            //if (!_session.getState())
-            //throw exception("[Channel::leaveLobby][Error] player nao esta conectado.", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE::CHANNEL, 1, 0));
-
+        { 
             // Sai da sala se estiver em uma sala
             try
             {
@@ -343,6 +338,10 @@ namespace Pangya_GameServer.Game
             updatePlayerInfo(_session);
 
             sendUpdatePlayerInfo(_session, 2);
+            if (this.v_sessions.Count > 0 )
+            {
+                packet_func.channel_broadcast(this, packet_func.pacote040("", UtilChat.FixColor(UtilChat.ChatColor.Red, $" BYE {_session.getNickname()}"), eChatMsg.CHAT_NOTICE), 0);
+            }            
         }
 
         public void enterLobbyMultiPlayer(Player _session)
@@ -5127,16 +5126,8 @@ namespace Pangya_GameServer.Game
             {
 
                 _smp.message_pool.getInstance().push(new message("[Channel::requestExecCCGDestroy][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
-
-                PangyaBinaryWriter p = new PangyaBinaryWriter((ushort)0x40); // Msg to Chat of player
-
-                p.WriteByte(7); // Notice
-
-                p.WriteString(_session.m_pi.nickname);
-                p.WriteString("Nao conseguiu executar o comando.");
-
-                packet_func.session_send(p,
-                    _session, 1);
+                 
+                _session.SendChatNotice("Command no executed!", UtilChat.ChatColor.Red); 
             }
         }
 
@@ -18093,7 +18084,8 @@ namespace Pangya_GameServer.Game
             {
                 //comandos via chat ;)
                 var p = new PangyaBinaryWriter();
-                if (!string.IsNullOrEmpty(cmd))
+                //so vai executar se for comando de GM/ADM com @ no inicio do comando, se nao for, ignora o comando
+                if (!string.IsNullOrEmpty(cmd) && cmd.Contains("@"))
                 {
                     r = m_rm.findRoom((short)_session.m_pi.mi.sala_numero);
 
@@ -18111,14 +18103,8 @@ namespace Pangya_GameServer.Game
                                 msg = msg = string.Join(separator: " ", _command.ToArray());
 
                                 snmdb.NormalManagerDB.getInstance().add(0, new CmdInsertNotice(msg, 1, 1), null, null);
-
-                                // Send Message
-                                p.init_plain(0x40); // Msg to Chat of player
-
-                                p.WriteByte(7); // Notice
-
-                                p.WriteString("@INI3");
-                                p.WriteString("\\c0xff00ff00\\cSend Notice-Broadcast");
+                                 
+                                _session.SendChatNotice("Send Notice-Broadcast", UtilChat.ChatColor.Green);
 
                                 packet_func.session_send(p, _session, 1);
 
@@ -18135,16 +18121,8 @@ namespace Pangya_GameServer.Game
                                         r.setSenha("bot");
                                         r.makeBot(_session);
                                         if (r.IsWithBot())
-                                        {
-                                            // Send Message
-                                            p.init_plain(0x40); // Msg to Chat of player
-
-                                            p.WriteByte(7); // Notice
-
-                                            p.WriteString("@INI3");
-                                            p.WriteString("\\c0xff00ff00\\cCall bot by chat.");
-
-                                            packet_func.session_send(p, _session, 1);
+                                        { 
+                                            _session.SendChatNotice("Call bot by chat!", UtilChat.ChatColor.Green); 
                                         }
 
                                         return true;
@@ -18159,13 +18137,8 @@ namespace Pangya_GameServer.Game
                             if (cmd == ("@play") && r.getNumPlayers() > 1 && !r.isGaming() && (r.getInfo().getTipo() == RoomInfo.ROOM_INFO_TYPE.STROKE || r.getInfo().getTipo() == RoomInfo.ROOM_INFO_TYPE.MATCH || r.getInfo().getTipo() == RoomInfo.ROOM_INFO_TYPE.TOURNEY || r.getInfo().getTipo() == RoomInfo.ROOM_INFO_TYPE.SPECIAL_SHUFFLE_COURSE))
                             {
                                 r.SetAllReady();//inicia tudo mundo aqui
-                                                // Send Message
-                                p.init_plain(0x40); // Msg to Chat of player
 
-                                p.WriteByte(7); // Notice
-
-                                p.WriteString("@INI3");
-                                p.WriteString("\\c0xff00ff00\\cAuto Start Room.");
+                                _session.SendChatNotice("Auto Start Room.", UtilChat.ChatColor.Green);
 
                                 packet_func.session_send(p, _session, 1);
 
@@ -18184,13 +18157,8 @@ namespace Pangya_GameServer.Game
                                     p.WriteInt32(_session.m_oid);
                                     p.WriteBytes(it.Value.ToArray());
                                     packet_func.room_broadcast(r, p, 1);
-                                    // Send Message
-                                    p.init_plain(0x40); // Msg to Chat of player
-
-                                    p.WriteByte(7); // Notice
-
-                                    p.WriteString("@INI3");
-                                    p.WriteString("\\c0xff00ff00\\cChange Character head");
+                                    // Send Message 
+                                    _session.SendChatNotice("Character head changed!", UtilChat.ChatColor.Green);
 
                                     packet_func.session_send(p, _session, 1);
 
@@ -18209,13 +18177,8 @@ namespace Pangya_GameServer.Game
                                     p.WriteInt32(_session.m_oid);
                                     p.WriteBytes(it.Value.ToArray());
                                     packet_func.room_broadcast(r, p, 1);
-                                    // Send Message
-                                    p.init_plain(0x40); // Msg to Chat of player
-
-                                    p.WriteByte(7); // Notice
-
-                                    p.WriteString("@INI3");
-                                    p.WriteString("\\c0xff00ff00\\cChange to Speed Character");
+                                    // Send Message  
+                                    _session.SendChatNotice("Speed character changed!", UtilChat.ChatColor.Green);
 
                                     packet_func.session_send(p, _session, 1);
 
@@ -18235,12 +18198,7 @@ namespace Pangya_GameServer.Game
                                     p.WriteBytes(it.Value.ToArray());
                                     packet_func.room_broadcast(r, p, 1);
                                     // Send Message
-                                    p.init_plain(0x40); // Msg to Chat of player
-
-                                    p.WriteByte(7); // Notice
-
-                                    p.WriteString("@INI3");
-                                    p.WriteString("\\c0xff00ff00\\cChange to un");
+                                    _session.SendChatNotice("Unknown character changed!", UtilChat.ChatColor.Green);
 
                                     packet_func.session_send(p, _session, 1);
 
@@ -18258,13 +18216,8 @@ namespace Pangya_GameServer.Game
                                     p.WriteInt32(_session.m_oid);
                                     p.WriteBytes(it.Value.ToArray());
                                     packet_func.room_broadcast(r, p, 1);
-                                    // Send Message
-                                    p.init_plain(0x40); // Msg to Chat of player
-
-                                    p.WriteByte(7); // Notice
-
-                                    p.WriteString("@INI3");
-                                    p.WriteString("\\c0xff00ff00\\cChange to camera by Character");
+                                    // Send Message 
+                                    _session.SendChatNotice("Camera character changed!", UtilChat.ChatColor.Green);
 
                                     packet_func.session_send(p, _session, 1);
 
@@ -18278,11 +18231,9 @@ namespace Pangya_GameServer.Game
                                 if (!ushort.TryParse(_command.Dequeue(), out ushort wind) ||
                                     !ushort.TryParse(_command.Dequeue(), out ushort degree))
                                 {
-                                    // Mensagem de erro pro GM
-                                    p.init_plain(0x40);
-                                    p.WriteByte(7);
-                                    p.WriteString("@INI3");
-                                    p.WriteString("\\c0xffff0000\\c Valores inválidos para vento.");
+                                    // Mensagem de erro pro GM 
+                                    _session.SendChatNotice("Invalid wind values.", UtilChat.ChatColor.Green);
+
                                     packet_func.session_send(p, _session, 1);
                                     return true;
                                 }
@@ -18294,11 +18245,9 @@ namespace Pangya_GameServer.Game
                                 p.WriteByte(1);
                                 packet_func.room_broadcast(r, p, 1);
 
-                                // Mensagem de confirmação
-                                p.init_plain(0x40);
-                                p.WriteByte(7);
-                                p.WriteString("@INI3");
-                                p.WriteString("\\c0xff00ff00\\c GM alterou o vento.");
+                                // Mensagem de confirmação  
+                                _session.SendChatNotice("GM altered the wind.", UtilChat.ChatColor.Green);
+
                                 packet_func.session_send(p, _session, 1);
 
                                 return true;
@@ -18342,13 +18291,8 @@ namespace Pangya_GameServer.Game
 
                                 packet_func.room_broadcast(r, p, 1);
 
-                                // Send Message
-                                p.init_plain(0x40); // Msg to Chat of player
-
-                                p.WriteByte(7); // Notice
-
-                                p.WriteString("@INI3");
-                                p.WriteString("\\c0xff00ff00\\c GM Change to Weather [" + clean.ToLowerInvariant() + "]");
+                                // Send Message 
+                                _session.SendChatNotice($"GM Change to Weather [" + clean.ToLowerInvariant() + "]", UtilChat.ChatColor.Green);
 
                                 packet_func.session_send(p, _session, 1);
 
@@ -18406,14 +18350,7 @@ namespace Pangya_GameServer.Game
                                 }
 
                                 // Send Message
-                                p.init_plain(0x40); // Msg to Chat of player
-
-                                p.WriteByte(7); // Notice
-
-                                p.WriteString("@INI3");
-                                p.WriteString("\\c0xff00ff00\\cGM Send Gift");
-
-                                packet_func.session_send(p, _session, 1);
+                                _session.SendChatNotice("GM Send Gift.", UtilChat.ChatColor.Green);
 
                                 return true;
                             }
@@ -18427,16 +18364,8 @@ namespace Pangya_GameServer.Game
 
                                 snmdb.NormalManagerDB.getInstance().add(0, new CmdInsertNotice(msg, 1, 1), null, null);
 
-                                // Send Message
-                                p.init_plain(0x40); // Msg to Chat of player
-
-                                p.WriteByte(7); // Notice
-
-                                p.WriteString("@INI3");
-                                p.WriteString("\\c0xff00ff00\\cSend Notice-Broadcast");
-
-                                packet_func.session_send(p, _session, 1);
-
+                                // Send Message 
+                                _session.SendChatNotice("Send Notice-Broadcast!", UtilChat.ChatColor.Green);
                                 return true;
                             }
 
@@ -18489,17 +18418,7 @@ namespace Pangya_GameServer.Game
                                                 + (item_qntd) + "], mas nao conseguiu colocar o item no mail box dele. Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 7, 0));
                                     }
                                 }
-
-                                // Send Message
-                                p.init_plain(0x40); // Msg to Chat of player
-
-                                p.WriteByte(7); // Notice
-
-                                p.WriteString("@INI3");
-                                p.WriteString("\\c0xff00ff00\\cGM Send Gift");
-
-                                packet_func.session_send(p, _session, 1);
-
+                                _session.SendChatNotice("Gift sent successfully!", UtilChat.ChatColor.Green);  
                                 return true;
                             }
                             if (cmd == ("@notice") || cmd == ("@noticia"))
@@ -18524,16 +18443,8 @@ namespace Pangya_GameServer.Game
                                         r.sendUpdate();
                                         r.makeBot(_session);
                                         if (r.IsWithBot())
-                                        {
-                                            // Send Message
-                                            p.init_plain(0x40); // Msg to Chat of player
-
-                                            p.WriteByte(7); // Notice
-
-                                            p.WriteString("@INI3");
-                                            p.WriteString("\\c0xff00ff00\\cCall bot by chat.");
-
-                                            packet_func.session_send(p, _session, 1);
+                                        {  
+                                            _session.SendChatNotice("Call bot by chat!", UtilChat.ChatColor.Green);                                             
                                         }
                                         return true;
                                     }

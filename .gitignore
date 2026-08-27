@@ -13,3 +13,4 @@ bld/
 *.sln.docstates
 /.vs
 /Server/.vs
+/Server/JP/Build

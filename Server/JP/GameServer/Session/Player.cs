@@ -1,22 +1,24 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using Pangya_GameServer.Repository;
-using Pangya_GameServer.Game;
+﻿using Pangya_GameServer.Game;
 using Pangya_GameServer.Game.Base;
 using Pangya_GameServer.Game.Manager;
 using Pangya_GameServer.Game.System;
 using Pangya_GameServer.Models;
 using Pangya_GameServer.PacketFunc;
+using Pangya_GameServer.PangyaEnums;
+using Pangya_GameServer.Repository;
+using Pangya_GameServer.UTIL;
 using PangyaAPI.IFF.JP.Extensions;
-using PangyaAPI.Network.Repository;
 using PangyaAPI.Network.Models;
 using PangyaAPI.Network.PangyaPacket;
 using PangyaAPI.Network.PangyaSession;
+using PangyaAPI.Network.Repository;
 using PangyaAPI.SQL;
 using PangyaAPI.Utilities;
-using PangyaAPI.Utilities.Models;
 using PangyaAPI.Utilities.Log;
+using PangyaAPI.Utilities.Models;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using static Pangya_GameServer.Models.DefineConstants;
 namespace Pangya_GameServer
 {
@@ -1983,6 +1985,11 @@ namespace Pangya_GameServer
                 default:
                     break;
             }
+        }
+
+        public void SendChatNotice(string msg, UtilChat.ChatColor color)
+        {
+            packet_func.session_send(packet_func.pacote040(getNickname(), UtilChat.FixColor(color, msg), eChatMsg.CHAT_NOTICE), this, 0);
         }
     }
 }

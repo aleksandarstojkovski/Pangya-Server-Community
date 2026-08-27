@@ -6910,7 +6910,7 @@ namespace Pangya_GameServer.PacketFunc
             {
                 p.WriteByte(option);
 
-                if (option == 0 || (option == eChatMsg.CHAT_GM) || option == eChatMsg.CHAT_REFUSE_WHISPER)
+                if (option == 0 || option == eChatMsg.CHAT_GM || option == eChatMsg.CHAT_REFUSE_WHISPER || option == eChatMsg.CHAT_NOTICE)
                 {
                     p.WritePStr(nick);
                     if (option != eChatMsg.CHAT_REFUSE_WHISPER)

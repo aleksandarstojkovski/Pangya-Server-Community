@@ -323,6 +323,11 @@ namespace Pangya_GameServer.Game.Manager
                 throw new exception("[AchievementManager::sendAchievementGuiToPlayer][Error] session is invalid", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.MGR_ACHIEVEMENT,
                     1, 0));
             }
+
+            if (map_ai == null || map_ai.Count  == 0)
+            {
+                return;
+            }
              
             // Tem que passar o 22D com os dados, e 22C para mostrar o GUI 
             packet_func.session_send(Build(map_ai.Values.ToList(), 20, 2), _session);
@@ -341,6 +346,11 @@ namespace Pangya_GameServer.Game.Manager
             {
                 throw new exception("[AchievementManager::sendAchievementToPlayer][Error] session is invalid", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.MGR_ACHIEVEMENT,
                     1, 0));
+            }
+
+            if (map_ai == null || map_ai.Count == 0)
+            {
+                return;
             }
 
             packet_func.session_send(Build(map_ai.Values.ToList(), 20, 0), _session);

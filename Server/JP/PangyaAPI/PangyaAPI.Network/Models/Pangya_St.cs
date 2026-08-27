@@ -1292,7 +1292,7 @@ namespace PangyaAPI.Network.Models
                 p.WriteUInt32(parts_typeid);
                 p.WriteUInt32(parts_id);
                 for (int i = 0; i < 216; i++)
-                    p.WriteByte(0);
+                    p.WriteByte(0);//UCCList
                 p.WriteUInt32(auxparts);
                 p.WriteUInt32(cut_in);
                 p.WriteBytes(pcl);

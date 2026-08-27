@@ -36,7 +36,7 @@
     <DebugSymbols>true</DebugSymbols>
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
-    <OutputPath>..\Build\GameServer2\</OutputPath>
+    <OutputPath>..\Build\GameServer\</OutputPath>
     <DefineConstants>TRACE;DEBUG</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
@@ -193,6 +193,7 @@
     <Compile Include="Repository\CmdInsertTicker.cs" />
     <Compile Include="Repository\CmdInsertTicketReport.cs" />
     <Compile Include="Repository\CmdInsertTicketReportData.cs" />
+    <Compile Include="Repository\CmdVerifyAchievement.cs" />
     <Compile Include="Repository\CmdWebShopPoint.cs" />
     <Compile Include="Repository\CmdItemBuffInfo.cs" />
     <Compile Include="Repository\CmdItemLeftFromEmail.cs" />
@@ -389,6 +390,7 @@
     <Compile Include="PangyaEnums\NICK_CHECK.cs" />
     <Compile Include="PangyaEnums\TranslationSubPacket.cs" />
     <Compile Include="Game\Manager\BroadcastManager.cs" />
+    <Compile Include="Repository\CommandDB.cs" />
     <Compile Include="UTIL\Lottery.cs" />
     <Compile Include="Game\Manager\AchievementManager.cs" />
     <Compile Include="Game\Manager\DailyQuestManager.cs" />
@@ -420,6 +422,7 @@
     <Compile Include="UTIL\club_info3d.cs" />
     <Compile Include="UTIL\Matrix3D.cs" />
     <Compile Include="UTIL\QuadTree3D.cs" />
+    <Compile Include="UTIL\UtilChat.cs" />
     <Compile Include="UTIL\Vector3D.cs" />
   </ItemGroup>
   <ItemGroup>

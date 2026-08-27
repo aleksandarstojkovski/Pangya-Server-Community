@@ -50,7 +50,7 @@ namespace Pangya_GameServer.Game
             init_from_IFF_STRUCT();
 
             // n�mero aleat�rio, para o id do hole(ACHO)
-            float rand_f = (float)((((int)new Random().Next()) * 2.0f) * new Random().Next());
+            float rand_f = (float)(new Random().Next() * 2.0f * new Random().Next());
 
             // Gerar n�meros grandes
             m_id = (uint)rand_f;
@@ -210,14 +210,9 @@ namespace Pangya_GameServer.Game
             // Cube ativo ou n�o
             bool cube = false;
 
-            // Modo hole repeat, tem que pegar o n�mero certo do hole
-            byte numero = (byte)m_numero;
-
-            if (m_modo == ROOM_INFO_MODO.M_REPEAT)
-            {
-                numero = m_hole_repeat;
-            }
-
+            // Modo hole repeat, tem que pegar o n�mero certo do hole, tem que pegar correto.
+            byte numero = (byte) (m_modo == ROOM_INFO_MODO.M_REPEAT ? m_hole_repeat : m_numero);
+             
             // Cube Coin Manager
             if (!sCubeCoinSystem.getInstance().isLoad())
             {
@@ -266,12 +261,8 @@ namespace Pangya_GameServer.Game
                     2, 0));
             }
 
-            var numero = m_numero;
-
-            if (m_modo == ROOM_INFO_MODO.M_REPEAT)
-            {
-                numero = m_hole_repeat;
-            }
+            // Modo hole repeat, tem que pegar o n�mero certo do hole, tem que pegar correto.
+            byte numero = (byte)(m_modo == ROOM_INFO_MODO.M_REPEAT ? m_hole_repeat : m_numero);
 
             if (numero < 1 || numero > 18)
             {

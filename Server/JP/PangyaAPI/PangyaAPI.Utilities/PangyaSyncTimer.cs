@@ -16,12 +16,9 @@ namespace PangyaAPI.Utilities
             INIT,
             STANDBY,
             RUNNING,
-            PAUSE,
-            PAUSING,
+            PAUSE, 
             PAUSED,
-            STOP,
-            STOPPING,
-            STOPPED,
+            STOP, 
             FINISH
         }
 
@@ -55,8 +52,12 @@ namespace PangyaAPI.Utilities
    TIMER_TYPE tipo,
    Action onTimeFinish,
    bool autoRepeat = false
-)
-   : this(timeMs, null, tipo, onTimeFinish, autoRepeat) { }
+,
+   TimeSpan acumulado = default)
+   : this(timeMs, null, tipo, onTimeFinish, autoRepeat)
+        {
+            this.acumulado = acumulado;
+        }
 
         // E esse aqui é o principal, que os dois construtores usam:
         public PangyaSyncTimer(
@@ -231,7 +232,7 @@ namespace PangyaAPI.Utilities
                 string minPart = minutes != 0 ? minutes.ToString("D2") : "";
                 string timeLog = $"{(minPart != "" ? minPart + ":" : "")}{seconds:D2}:{milliseconds:D3}";
 
-               // _smp.message_pool.getInstance().push(new message($"[PangyaSyncTimer::TickTime][Log] Time: {timeLog}", type_msg.CL_FILE_LOG_AND_CONSOLE));
+               _smp.message_pool.getInstance().push(new message($"[PangyaSyncTimer::TickTime][Log] Time: {timeLog}", type_msg.CL_FILE_LOG_AND_CONSOLE));
 
                 if (remaining == 0)
                 {

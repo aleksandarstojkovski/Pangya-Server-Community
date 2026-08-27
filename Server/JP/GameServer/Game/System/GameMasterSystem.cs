@@ -3,11 +3,12 @@ using Pangya_GameServer.Models;
 using Pangya_GameServer.PacketFunc;
 using Pangya_GameServer.PangyaEnums;
 using Pangya_GameServer.Repository;
+using Pangya_GameServer.UTIL;
 using PangyaAPI.IFF.JP.Extensions;
 using PangyaAPI.Network.PangyaPacket;
 using PangyaAPI.Utilities;
-using PangyaAPI.Utilities.Models;
 using PangyaAPI.Utilities.Log;
+using PangyaAPI.Utilities.Models;
 using System;
 
 namespace Pangya_GameServer.Game.System
@@ -384,43 +385,18 @@ namespace Pangya_GameServer.Game.System
                     default:
                         throw new exception("[GameMasterSystem.requestCommonCmdGM][Error] Comando do GM Comum[value=" + (cmd) + "] nao implementado ou nao existe. Hacker ou Bug", ExceptionError.STDA_MAKE_ERROR_TYPE(STDA_ERROR_TYPE.GAME_SERVER, 0, 0x5700100));
                 }
-                EasyNoticeToClient(_session);
+                _session.SendChatNotice("Executed Command.", UtilChat.ChatColor.Green); 
             }
             catch (exception e)
             {
                 _smp.message_pool.getInstance().push(new message("[GameMasterSystem.requestCommonCmdGM][ErrorSystem] " + e.getFullMessageError(), type_msg.CL_FILE_LOG_AND_CONSOLE));
-                using (var p = new PangyaBinaryWriter(0x40))   // Msg to Chat of player
-                {
-                    p.WriteByte(7);  // Notice
+                if (ExceptionError.STDA_ERROR_DECODE(e.getCodeError()) == 9/*Não pode enviar item, foi bloqueado*/)
+                    _session.SendChatNotice("Nao pode executar esse comando, voce foi bloqueado pelo ADM.", UtilChat.ChatColor.Red);
+                else
+                    _session.SendChatNotice("Nao conseguiu executar o comando.", UtilChat.ChatColor.Red);
 
-                    p.WritePStr(_session.m_pi.nickname);
-
-                    if (ExceptionError.STDA_ERROR_DECODE(e.getCodeError()) == 9/*Não pode enviar item, foi bloqueado*/)
-                        p.WritePStr("Nao pode executar esse comando, voce foi bloqueado pelo ADM.");
-                    else
-                        p.WritePStr("Nao conseguiu executar o comando.");
-
-                    packet_func.session_send(p, _session);
-                }
             }
         }
-
-        static void EasyNoticeToClient(Player _session, string notice = "")
-        {
-            if (_session == null)
-                return;
-
-            // Cria o pacote de aviso com o tipo GST_NOTICE_TO_CLIENT
-            using (var p = new PangyaBinaryWriter(0x40))   // Msg to Chat of player
-            {
-                p.WriteByte(7);  // Notice
-
-                p.WritePStr(_session.m_pi.nickname);
-
-                p.WritePStr(string.IsNullOrEmpty(notice) ? "Executed Command." : notice);
-
-                packet_func.session_send(p, _session);
-            }
-        }
+         
     }
 }
