@@ -4702,6 +4702,9 @@ class GameFlowIT {
             assertEquals(0, cutinGz.u8());
             assertEquals(GamePackets.CUTIN_GZ_DISABLED, cutinGz.u16());
             client.sendPlain(GamePackets.clientInitHole(1, 0, 0, 4, 1f, 2f, 3f, 4f));
+            awaitOpcode(client, GamePackets.SERVER_WEATHER);
+            awaitOpcode(client, GamePackets.SERVER_WIND);
+            awaitOpcode(client, GamePackets.SERVER_REMAIN_TIME);
             client.sendPlain(GamePackets.clientEmpty(GamePackets.CLIENT_GZ_FIRST_HOLE));
             assertEquals(0, awaitOpcode(client, GamePackets.SERVER_REMAIN_TIME).u32());
             PacketReader turn = awaitOpcode(client, GamePackets.SERVER_HOLE_TURN);
