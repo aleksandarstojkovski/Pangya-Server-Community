@@ -1095,6 +1095,20 @@ class GamePacketsTest {
                 GamePackets.shopSys(GamePackets.LOCKER_PANG_WITHDRAW_ERR)));
         assertEquals(GamePackets.SERVER_LOCKER_UPDATE_PANG, lockerUp.opcode());
         assertEquals(GamePackets.shopSys(5100353), lockerUp.u32());
+        PacketReader lockerDep = new PacketReader(GamePackets.sysAck(
+                GamePackets.SERVER_LOCKER_UPDATE_PANG,
+                GamePackets.shopSys(GamePackets.LOCKER_PANG_DEPOSIT_ERR)));
+        assertEquals(GamePackets.shopSys(5100352), lockerDep.u32());
+        PacketReader lockerOk = new PacketReader(GamePackets.sysAck(
+                GamePackets.SERVER_LOCKER_UPDATE_PANG, 0));
+        assertEquals(0, lockerOk.u32());
+        PacketReader lockerMoved = new PacketReader(GamePackets.pangSpent(99000, 1000));
+        assertEquals(GamePackets.SERVER_PANG_SPENT, lockerMoved.opcode());
+        assertEquals(99000, lockerMoved.u64());
+        assertEquals(1000, lockerMoved.u64());
+        PacketReader lockerAfter = new PacketReader(GamePackets.lockerPang(1000));
+        assertEquals(GamePackets.SERVER_LOCKER_PANG, lockerAfter.opcode());
+        assertEquals(1000, lockerAfter.u64());
         PacketReader cardPack = new PacketReader(GamePackets.sysAck(
                 GamePackets.SERVER_OPEN_CARD_PACK, GamePackets.CARD_PACK_ERR));
         assertEquals(GamePackets.SERVER_OPEN_CARD_PACK, cardPack.opcode());
@@ -1930,6 +1944,11 @@ class GamePacketsTest {
         assertEquals(GamePackets.PCBANG_MASCOT_MSG_MAX, 16);
         assertEquals(GamePackets.PCBANG_MASCOT_ERR_INVALID, 1);
         assertEquals(GamePackets.PCBANG_MASCOT_ERR_LONG, 2);
+        assertEquals(GamePackets.CLIENT_LOCKER_UPDATE_PANG, 0xD4);
+        assertEquals(GamePackets.LOCKER_PANG_DEPOSIT, 1);
+        assertEquals(GamePackets.LOCKER_PANG_WITHDRAW, 0);
+        assertEquals(GamePackets.LOCKER_PANG_DEPOSIT_ERR, 5100352);
+        assertEquals(GamePackets.LOCKER_PANG_OPT_ERR, 5100351);
         assertEquals(GamePackets.SERVER_BUY_ACK, 0x68);
         assertEquals(GamePackets.CREATE_ROOM_FAILED, 0x07);
         assertEquals(GamePackets.SERVER_LAST5, 0x10E);

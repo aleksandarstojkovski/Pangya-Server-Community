@@ -250,6 +250,23 @@ class InventoryRepositoryTest {
             assertEquals(0, repo.consumeWarehouseByTypeid(10001, GamePackets.TYPEID_SHOP_PANG_ITEM, 1).orElseThrow());
             assertTrue(repo.consumeWarehouseByTypeid(10001, GamePackets.TYPEID_SHOP_PANG_ITEM, 1).isEmpty());
             repo.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_SHOP_PANG_ITEM);
+            repo.setPangCookie(10001, 100000, 0);
+            assertEquals(0, repo.dolfiniLockerPang(10001));
+            var deposit = repo.updateDolfiniLockerPang(10001, GamePackets.LOCKER_PANG_DEPOSIT, 1000);
+            assertEquals(0, deposit.code());
+            assertEquals(99000, deposit.playerPang());
+            assertEquals(1000, deposit.lockerPang());
+            assertEquals(1000, repo.dolfiniLockerPang(10001));
+            assertEquals(99000, repo.pang(10001));
+            var withdraw = repo.updateDolfiniLockerPang(10001, GamePackets.LOCKER_PANG_WITHDRAW, 1000);
+            assertEquals(0, withdraw.code());
+            assertEquals(100000, withdraw.playerPang());
+            assertEquals(0, withdraw.lockerPang());
+            assertEquals(GamePackets.LOCKER_PANG_DEPOSIT_ERR,
+                    repo.updateDolfiniLockerPang(10001, GamePackets.LOCKER_PANG_DEPOSIT, 999999).code());
+            assertEquals(GamePackets.LOCKER_PANG_WITHDRAW_ERR,
+                    repo.updateDolfiniLockerPang(10001, GamePackets.LOCKER_PANG_WITHDRAW, 1).code());
+            repo.setPangCookie(10001, 100000, 0);
         }
     }
 

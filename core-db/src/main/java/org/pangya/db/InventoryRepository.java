@@ -64,6 +64,20 @@ public interface InventoryRepository {
 
     void setPangCookie(long uid, long pang, long cookie);
 
+    /**
+     * C# {@code PlayerInfo.df.pang} from {@code pangya_dolfini_locker}. Missing
+     * row is {@code 0} (character-create insert stand-in).
+     */
+    long dolfiniLockerPang(long uid);
+
+    /**
+     * C# {@code requestUpdateDolfiniLockerPang}: opt {@code 1} deposit,
+     * opt {@code 0} withdraw. Fail codes are the CHANNEL sys values
+     * ({@link GamePackets#LOCKER_PANG_DEPOSIT_ERR} /
+     * {@link GamePackets#LOCKER_PANG_WITHDRAW_ERR}).
+     */
+    LockerPangMoveResult updateDolfiniLockerPang(long uid, int opt, long pang);
+
     void setLevel(long uid, int level);
 
     void deleteWarehouseByTypeid(long uid, int typeid);
@@ -253,6 +267,13 @@ public interface InventoryRepository {
 
         public static CharCardResult fail(int code) {
             return new CharCardResult(code, List.of(), 0);
+        }
+    }
+
+    record LockerPangMoveResult(int code, long playerPang, long lockerPang, long moved) {
+
+        public static LockerPangMoveResult fail(int code) {
+            return new LockerPangMoveResult(code, 0, 0, 0);
         }
     }
 }

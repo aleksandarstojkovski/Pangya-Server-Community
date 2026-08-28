@@ -185,7 +185,7 @@ C#: `GameServer/PangyaEnums/PacketGame.cs` → Java `org.pangya.protocol.game.Ga
 | C | `CLIENT_ITEMSTORAGE_REQ_MAKE_PASS` | `0xD0` | empty → `0x176` u32 1 |
 | C | `CLIENT_ITEMSTORAGE_REQ_CHANGE_PASS` | `0xD1` | empty old → `0x174` u32 1 |
 | C | `CLIENT_ITEMSTORAGE_REQ_CHANGE_MODE` | `0xD2` | empty pass → `0x173` `shopSys(5100251)` |
-| C | `CLIENT_ITEMSTORAGE_REQ_UPDATE_PANG` | `0xD4` | opt 0 pang 1 (locker 0) → `0x171` `shopSys(5100353)` |
+| C | `CLIENT_ITEMSTORAGE_REQ_UPDATE_PANG` | `0xD4` | opt 1 deposit / opt 0 withdraw → `0x171` u32 0 + `0xC8` wallet+moved + `0x172` locker; pang&gt;wallet `shopSys(5100352)`; pang&gt;locker `shopSys(5100353)`; opt ignoto `shopSys(5100351)`; pang≤0 `5100350`. Opposite CLIENT earcuff `0x171`. |
 | C | `CLIENT_ACTIVE_CUTIN` | `0xE5` | not-in-room/not-in-game silent; in-game without IFF `0x18D` u8 0 + u16 1; GZ u16 3 |
 | C | `CLIENT_EXTEND_RENTAL` | `0xE6` | catch `0x18F` u8 1 |
 | C | `CLIENT_DELETE_RENTAL` | `0xE7` | catch `0x190` u8 1 |

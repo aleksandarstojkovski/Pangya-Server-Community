@@ -1578,10 +1578,18 @@ public final class GamePackets {
     public static final int LOCKER_ADD_ERR_DEFAULT = 5100400;
     /** C# Dolfini remove catch else. */
     public static final int LOCKER_REMOVE_ERR_DEFAULT = 5100450;
+    /** C# Dolfini unknown opt CHANNEL sys. */
+    public static final int LOCKER_PANG_OPT_ERR = 5100351;
+    /** C# Dolfini deposit pang&gt;wallet CHANNEL sys. */
+    public static final int LOCKER_PANG_DEPOSIT_ERR = 5100352;
     /** C# Dolfini withdraw pang&gt;locker CHANNEL sys. */
     public static final int LOCKER_PANG_WITHDRAW_ERR = 5100353;
     /** C# Dolfini update-pang catch else. */
     public static final int LOCKER_PANG_ERR_DEFAULT = 5100350;
+    /** C# {@code requestUpdateDolfiniLockerPang} opt 1: wallet → locker. */
+    public static final int LOCKER_PANG_DEPOSIT = 1;
+    /** C# {@code requestUpdateDolfiniLockerPang} opt 0: locker → wallet. */
+    public static final int LOCKER_PANG_WITHDRAW = 0;
     /** C# use-card typeid 0 CHANNEL sys. */
     public static final int CARD_ERR_TYPEID = 0x5500351;
     /** C# use-card catch else. */

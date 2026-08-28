@@ -1368,6 +1368,79 @@ class GameFlowIT {
     }
 
     @Test
+    void dolfiniLockerPangDepositsAndWithdraws() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config);
+             PangyaFakeClient client = new PangyaFakeClient()) {
+            InventoryRepository inv = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
+            try {
+                inv.setPangCookie(10001, 100000, 0);
+                long leftover = inv.dolfiniLockerPang(10001);
+                if (leftover > 0) {
+                    inv.updateDolfiniLockerPang(10001, GamePackets.LOCKER_PANG_WITHDRAW, leftover);
+                }
+                LoginRepository repo = new JdbiLoginRepository(DatabaseSupport.jdbi(ds));
+                String loginKey = repo.generateAuthKeyLogin(10001);
+                String gameKey = repo.generateAuthKeyGame(10001, 20202);
+                keys.putLoginKey(10001, loginKey);
+                keys.putGameKey(10001, 20202, gameKey);
+                loginToChannel(client, runtime.port(), "testuser", 10001, loginKey, gameKey);
+
+                client.sendPlain(GamePackets.clientLockerPang());
+                PacketReader empty = awaitOpcode(client, GamePackets.SERVER_LOCKER_PANG);
+                assertEquals(0, empty.u64());
+
+                client.sendPlain(GamePackets.clientLockerUpdatePang(GamePackets.LOCKER_PANG_DEPOSIT, 1000));
+                PacketReader ack = awaitOpcode(client, GamePackets.SERVER_LOCKER_UPDATE_PANG);
+                assertEquals(0, ack.u32());
+                PacketReader spent = awaitOpcode(client, GamePackets.SERVER_PANG_SPENT);
+                assertEquals(99000, spent.u64());
+                assertEquals(1000, spent.u64());
+                PacketReader locker = awaitOpcode(client, GamePackets.SERVER_LOCKER_PANG);
+                assertEquals(1000, locker.u64());
+                assertEquals(99000, inv.pang(10001));
+                assertEquals(1000, inv.dolfiniLockerPang(10001));
+
+                client.sendPlain(GamePackets.clientLockerPang());
+                PacketReader query = awaitOpcode(client, GamePackets.SERVER_LOCKER_PANG);
+                assertEquals(1000, query.u64());
+
+                client.sendPlain(GamePackets.clientLockerUpdatePang(GamePackets.LOCKER_PANG_WITHDRAW, 400));
+                PacketReader wack = awaitOpcode(client, GamePackets.SERVER_LOCKER_UPDATE_PANG);
+                assertEquals(0, wack.u32());
+                PacketReader wspent = awaitOpcode(client, GamePackets.SERVER_PANG_SPENT);
+                assertEquals(99400, wspent.u64());
+                assertEquals(400, wspent.u64());
+                PacketReader wlocker = awaitOpcode(client, GamePackets.SERVER_LOCKER_PANG);
+                assertEquals(600, wlocker.u64());
+
+                client.sendPlain(GamePackets.clientLockerUpdatePang(GamePackets.LOCKER_PANG_DEPOSIT, 200000));
+                PacketReader funds = awaitOpcode(client, GamePackets.SERVER_LOCKER_UPDATE_PANG);
+                assertEquals(GamePackets.shopSys(GamePackets.LOCKER_PANG_DEPOSIT_ERR), funds.u32());
+                client.sendPlain(GamePackets.clientLockerUpdatePang(2, 1));
+                PacketReader opt = awaitOpcode(client, GamePackets.SERVER_LOCKER_UPDATE_PANG);
+                assertEquals(GamePackets.shopSys(GamePackets.LOCKER_PANG_OPT_ERR), opt.u32());
+                assertEquals(99400, inv.pang(10001));
+                assertEquals(600, inv.dolfiniLockerPang(10001));
+            } finally {
+                long left = inv.dolfiniLockerPang(10001);
+                if (left > 0) {
+                    inv.updateDolfiniLockerPang(10001, GamePackets.LOCKER_PANG_WITHDRAW, left);
+                }
+                inv.setPangCookie(10001, 100000, 0);
+            }
+        }
+    }
+
+    @Test
     void versusAutoCommandAcksFailAndCountsUses() throws Exception {
         String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
         String user = env("PANGYA_TEST_JDBC_USER", "pangya");

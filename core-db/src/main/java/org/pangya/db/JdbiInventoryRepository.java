@@ -670,6 +670,75 @@ public final class JdbiInventoryRepository implements InventoryRepository {
     }
 
     @Override
+    public long dolfiniLockerPang(long uid) {
+        return jdbi.withHandle(h -> h.createQuery("""
+                        SELECT COALESCE(pang, 0) FROM pangya.pangya_dolfini_locker
+                         WHERE uid = :uid
+                        """)
+                .bind("uid", uid)
+                .mapTo(Long.class)
+                .findOne()
+                .orElse(0L));
+    }
+
+    @Override
+    public LockerPangMoveResult updateDolfiniLockerPang(long uid, int opt, long pang) {
+        if (pang <= 0 || (opt != GamePackets.LOCKER_PANG_WITHDRAW && opt != GamePackets.LOCKER_PANG_DEPOSIT)) {
+            return LockerPangMoveResult.fail(GamePackets.LOCKER_PANG_ERR_DEFAULT);
+        }
+        return jdbi.inTransaction(h -> {
+            h.createUpdate("""
+                            INSERT INTO pangya.pangya_dolfini_locker (uid, pang, locker)
+                            VALUES (:uid, 0, 0)
+                            ON CONFLICT (uid) DO NOTHING
+                            """)
+                    .bind("uid", uid)
+                    .execute();
+            long player = h.createQuery("""
+                            SELECT COALESCE("Pang", 0) FROM pangya.user_info
+                             WHERE "UID" = :uid
+                             FOR UPDATE
+                            """)
+                    .bind("uid", uid)
+                    .mapTo(Long.class)
+                    .findOne()
+                    .orElse(0L);
+            long locker = h.createQuery("""
+                            SELECT COALESCE(pang, 0) FROM pangya.pangya_dolfini_locker
+                             WHERE uid = :uid
+                             FOR UPDATE
+                            """)
+                    .bind("uid", uid)
+                    .mapTo(Long.class)
+                    .one();
+            long nextPlayer;
+            long nextLocker;
+            if (opt == GamePackets.LOCKER_PANG_DEPOSIT) {
+                if (pang > player) {
+                    return LockerPangMoveResult.fail(GamePackets.LOCKER_PANG_DEPOSIT_ERR);
+                }
+                nextPlayer = player - pang;
+                nextLocker = locker + pang;
+            } else {
+                if (pang > locker) {
+                    return LockerPangMoveResult.fail(GamePackets.LOCKER_PANG_WITHDRAW_ERR);
+                }
+                nextPlayer = player + pang;
+                nextLocker = locker - pang;
+            }
+            h.createUpdate("UPDATE pangya.user_info SET \"Pang\" = :pang WHERE \"UID\" = :uid")
+                    .bind("pang", nextPlayer)
+                    .bind("uid", uid)
+                    .execute();
+            h.createUpdate("UPDATE pangya.pangya_dolfini_locker SET pang = :pang WHERE uid = :uid")
+                    .bind("pang", nextLocker)
+                    .bind("uid", uid)
+                    .execute();
+            return new LockerPangMoveResult(0, nextPlayer, nextLocker, pang);
+        });
+    }
+
+    @Override
     public void deleteWarehouseByTypeid(long uid, int typeid) {
         jdbi.useHandle(h -> h.createUpdate("""
                         DELETE FROM pangya.pangya_item_warehouse

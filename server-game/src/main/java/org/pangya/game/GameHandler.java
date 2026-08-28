@@ -4133,13 +4133,13 @@ public final class GameHandler {
     }
 
     /**
-     * C# {@code requestDolfiniLockerPang}: {@code 0x172} u64 pang (seed 0).
+     * C# {@code requestDolfiniLockerPang}: {@code 0x172} u64 locker pang.
      */
     private void lockerPang(Session session) {
         if (!inChannel(session)) {
             return;
         }
-        session.send(GamePackets.lockerPang(0));
+        session.send(GamePackets.lockerPang(inventory.dolfiniLockerPang(session.player().uid)));
     }
 
     /**
@@ -4318,8 +4318,10 @@ public final class GameHandler {
     }
 
     /**
-     * C# {@code requestUpdateDolfiniLockerPang}: opt 0 pang&gt;locker (seed 0)
-     * → {@code 0x171} {@code shopSys(5100353)}.
+     * C# {@code requestUpdateDolfiniLockerPang}: opt 1 deposit / opt 0 withdraw.
+     * Success {@code 0x171} u32 0 then {@code 0xC8} wallet+moved then
+     * {@code 0x172} locker pang. pang≤0 is {@code consomePang}/{@code addPang}
+     * PLAYER_INFO → {@code 5100350}. CHANNEL fails are {@code shopSys}.
      */
     private void lockerUpdatePang(Session session, PacketReader reader) {
         if (!inChannel(session)) {
@@ -4332,19 +4334,33 @@ public final class GameHandler {
         }
         int opt = reader.u8();
         long pang = reader.u64();
-        if (opt == 0 && pang > 0) {
+        if (opt != GamePackets.LOCKER_PANG_WITHDRAW && opt != GamePackets.LOCKER_PANG_DEPOSIT) {
             session.send(GamePackets.sysAck(
                     GamePackets.SERVER_LOCKER_UPDATE_PANG,
-                    GamePackets.shopSys(GamePackets.LOCKER_PANG_WITHDRAW_ERR)));
+                    GamePackets.shopSys(GamePackets.LOCKER_PANG_OPT_ERR)));
             return;
         }
-        if (opt != 0 && opt != 1) {
+        if (pang <= 0) {
             session.send(GamePackets.sysAck(
-                    GamePackets.SERVER_LOCKER_UPDATE_PANG, GamePackets.shopSys(5100351)));
+                    GamePackets.SERVER_LOCKER_UPDATE_PANG, GamePackets.LOCKER_PANG_ERR_DEFAULT));
             return;
         }
-        session.send(GamePackets.sysAck(
-                GamePackets.SERVER_LOCKER_UPDATE_PANG, GamePackets.LOCKER_PANG_ERR_DEFAULT));
+        try {
+            InventoryRepository.LockerPangMoveResult moved =
+                    inventory.updateDolfiniLockerPang(session.player().uid, opt, pang);
+            if (moved.code() != 0) {
+                session.send(GamePackets.sysAck(
+                        GamePackets.SERVER_LOCKER_UPDATE_PANG, GamePackets.shopSys(moved.code())));
+                return;
+            }
+            session.send(GamePackets.sysAck(GamePackets.SERVER_LOCKER_UPDATE_PANG, 0));
+            session.send(GamePackets.pangSpent(moved.playerPang(), pang));
+            session.send(GamePackets.lockerPang(moved.lockerPang()));
+        } catch (RuntimeException e) {
+            log.warn("locker pang uid={} failed: {}", session.player().uid, e.toString());
+            session.send(GamePackets.sysAck(
+                    GamePackets.SERVER_LOCKER_UPDATE_PANG, GamePackets.LOCKER_PANG_ERR_DEFAULT));
+        }
     }
 
     /**
