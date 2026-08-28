@@ -142,6 +142,45 @@ public final class GamePackets {
     public static final int SERVER_LOCKER_ITEMS = 0x16D;
     /** C# locker pang {@code 0x172}. */
     public static final int SERVER_LOCKER_PANG = 0x172;
+    /**
+     * C# My Room check {@code 0x12B}. Option 0 is deny (seed {@code allow_enter==0}).
+     */
+    public static final int SERVER_MY_ROOM = 0x12B;
+    /** C# Dolfini make-pass {@code 0x176}. */
+    public static final int SERVER_LOCKER_MAKE_PASS = 0x176;
+    /** C# Dolfini change-pass {@code 0x174}. */
+    public static final int SERVER_LOCKER_CHANGE_PASS = 0x174;
+    /** C# Dolfini mode-enter {@code 0x173}. */
+    public static final int SERVER_LOCKER_MODE = 0x173;
+    /** C# Dolfini add-item catch {@code 0x16E}. */
+    public static final int SERVER_LOCKER_ADD = 0x16E;
+    /** C# Dolfini remove-item catch {@code 0x16F}. */
+    public static final int SERVER_LOCKER_REMOVE = 0x16F;
+    /** C# Dolfini update-pang catch {@code 0x171}. Opposite CLIENT earcuff {@code 0x171}. */
+    public static final int SERVER_LOCKER_UPDATE_PANG = 0x171;
+    /**
+     * C# open-card-pack catch {@code 0x154} u32 1. Same numeric as
+     * {@link #CLIENT_LEAVE_DAILY_QUEST}, opposite direction.
+     */
+    public static final int SERVER_OPEN_CARD_PACK = 0x154;
+    /** C# use-card-special catch {@code 0x160}. */
+    public static final int SERVER_USE_CARD = 0x160;
+    /** C# extend-rental catch {@code 0x18F} u8 1. */
+    public static final int SERVER_EXTEND_RENTAL = 0x18F;
+    /** C# delete-rental catch {@code 0x190} u8 1. */
+    public static final int SERVER_DELETE_RENTAL = 0x190;
+    /** C# workshop transform-confirm catch {@code 0x242}. */
+    public static final int SERVER_WORKSHOP_TRANSFORM_CONFIRM = 0x242;
+    /** C# workshop transform-cancel catch {@code 0x243}. */
+    public static final int SERVER_WORKSHOP_TRANSFORM_CANCEL = 0x243;
+    /** C# workshop transfer catch {@code 0x245}. */
+    public static final int SERVER_WORKSHOP_TRANSFER = 0x245;
+    /** C# workshop recovery catch {@code 0x246}. */
+    public static final int SERVER_WORKSHOP_RECOVERY = 0x246;
+    /** C# club-set reset catch {@code 0x247}. */
+    public static final int SERVER_CLUBSET_RESET = 0x247;
+    /** C# memorial catch {@code 0x264}. */
+    public static final int SERVER_MEMORIAL = 0x264;
     /** C# {@code pacote0AA} / {@code SERVER_NEW_ITEM}. */
     public static final int SERVER_NEW_ITEM = 0xAA;
     /** C# pang spent after shop buy ({@code 0xC8} + remaining + spent). */
@@ -456,6 +495,56 @@ public final class GamePackets {
     public static final int CLIENT_CLUB_WORKSHOP_CANCEL = 0x166;
     /** C# {@code packet167} workshop rank. Missing card → {@code 0x240}. */
     public static final int CLIENT_CLUB_WORKSHOP_RANK = 0x167;
+    /** C# {@code packet168} transform confirm. No pending ClubSet → {@code 0x242}. */
+    public static final int CLIENT_WORKSHOP_TRANSFORM_CONFIRM = 0x168;
+    /** C# {@code packet169} transform cancel. No pending ClubSet → {@code 0x243}. */
+    public static final int CLIENT_WORKSHOP_TRANSFORM_CANCEL = 0x169;
+    /** C# {@code packet16B} recovery. Missing warehouse → {@code 0x246}. */
+    public static final int CLIENT_WORKSHOP_RECOVERY = 0x16B;
+    /**
+     * C# {@code packet16C} workshop transfer. Same numeric as
+     * {@link #SERVER_LOCKER_ACCESS}, opposite direction.
+     */
+    public static final int CLIENT_WORKSHOP_TRANSFER = 0x16C;
+    /**
+     * C# {@code packet16D} club-set reset. Same numeric as
+     * {@link #SERVER_LOCKER_ITEMS}, opposite direction.
+     */
+    public static final int CLIENT_CLUBSET_RESET = 0x16D;
+    /** C# {@code packet17F} memorial. Coin 0 → {@code 0x264}. */
+    public static final int CLIENT_MEMORIAL = 0x17F;
+    /**
+     * C# {@code packet0B5} My Room check. Seed {@code allow_enter==0} →
+     * {@code 0x12B} option 0 + to_uid. No channel.
+     */
+    public static final int CLIENT_MY_ROOM = 0xB5;
+    /** C# {@code packet0BD} use card special. Typeid 0 → {@code 0x160}. */
+    public static final int CLIENT_USE_CARD = 0xBD;
+    /**
+     * C# {@code packet0CA} open card pack. Same numeric as
+     * {@link #SERVER_ONELINE_QUERY}, opposite direction. Catch always u32 1.
+     */
+    public static final int CLIENT_OPEN_CARD_PACK = 0xCA;
+    /** C# {@code packet0CE} Dolfini add. Count 0 → {@code 0x16E}. */
+    public static final int CLIENT_LOCKER_ADD = 0xCE;
+    /** C# {@code packet0CF} Dolfini remove. Truncated → {@code 0x16F}. */
+    public static final int CLIENT_LOCKER_REMOVE = 0xCF;
+    /** C# {@code packet0D0} make Dolfini pass. Empty → {@code 0x176} u32 1. */
+    public static final int CLIENT_LOCKER_MAKE_PASS = 0xD0;
+    /** C# {@code packet0D1} change Dolfini pass. Empty old → {@code 0x174} u32 1. */
+    public static final int CLIENT_LOCKER_CHANGE_PASS = 0xD1;
+    /** C# {@code packet0D2} Dolfini mode-enter. Empty pass → {@code 0x173}. */
+    public static final int CLIENT_LOCKER_MODE = 0xD2;
+    /** C# {@code packet0D4} Dolfini update pang. Opt 0 over-withdraw → {@code 0x171}. */
+    public static final int CLIENT_LOCKER_UPDATE_PANG = 0xD4;
+    /** C# {@code packet0E5} cutin. Not-in-room CHANNEL catch is silent. */
+    public static final int CLIENT_CUTIN = 0xE5;
+    /** C# {@code packet0E6} extend rental. Catch always {@code 0x18F} u8 1. */
+    public static final int CLIENT_EXTEND_RENTAL = 0xE6;
+    /** C# {@code packet0E7} delete rental. Catch always {@code 0x190} u8 1. */
+    public static final int CLIENT_DELETE_RENTAL = 0xE7;
+    /** C# {@code packet0FE} UCC load. No reply. */
+    public static final int CLIENT_UCC_LOAD = 0xFE;
     /** C# {@code packet041} GM identity. Non-GM CHANNEL catch is silent. */
     public static final int CLIENT_IDENTITY = 0x41;
     /** C# {@code packet0CD} Dolfini locker item page. */
@@ -884,6 +973,66 @@ public final class GamePackets {
     public static final int WORKSHOP_RANK_ERR = 0x5300351;
     /** C# workshop rank catch else. */
     public static final int WORKSHOP_RANK_DEFAULT = 0x5300350;
+    /** C# Dolfini make-pass empty CHANNEL sys 1. */
+    public static final int LOCKER_MAKE_PASS_EMPTY = 1;
+    /** C# Dolfini make-pass length&gt;4 CHANNEL sys. */
+    public static final int LOCKER_MAKE_PASS_LEN = 5100102;
+    /** C# Dolfini make-pass catch else. */
+    public static final int LOCKER_MAKE_PASS_DEFAULT = 5100100;
+    /** C# Dolfini change-pass wrong/empty CHANNEL sys 1. */
+    public static final int LOCKER_CHANGE_PASS_WRONG = 1;
+    /** C# Dolfini change-pass length&gt;4 CHANNEL sys. */
+    public static final int LOCKER_CHANGE_PASS_LEN = 5100202;
+    /** C# Dolfini change-pass catch else. */
+    public static final int LOCKER_CHANGE_PASS_DEFAULT = 5100200;
+    /** C# Dolfini mode-enter empty pass CHANNEL sys. */
+    public static final int LOCKER_MODE_EMPTY = 5100251;
+    /** C# Dolfini mode-enter catch else. */
+    public static final int LOCKER_MODE_DEFAULT = 5100250;
+    /** C# Dolfini add count 0 CHANNEL sys. */
+    public static final int LOCKER_ADD_ERR_NONE = 5100404;
+    /** C# Dolfini add catch else. */
+    public static final int LOCKER_ADD_ERR_DEFAULT = 5100400;
+    /** C# Dolfini remove catch else. */
+    public static final int LOCKER_REMOVE_ERR_DEFAULT = 5100450;
+    /** C# Dolfini withdraw pang&gt;locker CHANNEL sys. */
+    public static final int LOCKER_PANG_WITHDRAW_ERR = 5100353;
+    /** C# Dolfini update-pang catch else. */
+    public static final int LOCKER_PANG_ERR_DEFAULT = 5100350;
+    /** C# use-card typeid 0 CHANNEL sys. */
+    public static final int CARD_ERR_TYPEID = 0x5500351;
+    /** C# use-card catch else. */
+    public static final int CARD_ERR_DEFAULT = 0x5500350;
+    /** C# open-card-pack catch always u32 1. */
+    public static final int CARD_PACK_ERR = 1;
+    /** C# extend/delete rental catch u8 1. */
+    public static final int RENTAL_FAIL = 1;
+    /** C# transform-confirm missing ClubSet CHANNEL sys. */
+    public static final int WORKSHOP_TRANSFORM_CONFIRM_ERR = 0x5300451;
+    /** C# transform-confirm catch else. */
+    public static final int WORKSHOP_TRANSFORM_CONFIRM_DEFAULT = 0x5300450;
+    /** C# transform-cancel missing ClubSet CHANNEL sys. */
+    public static final int WORKSHOP_TRANSFORM_CANCEL_ERR = 0x5300401;
+    /** C# transform-cancel catch else. */
+    public static final int WORKSHOP_TRANSFORM_CANCEL_DEFAULT = 0x5300400;
+    /** C# recovery missing warehouse CHANNEL sys. */
+    public static final int WORKSHOP_RECOVERY_ERR = 0x5300151;
+    /** C# recovery catch else. */
+    public static final int WORKSHOP_RECOVERY_DEFAULT = 0x5300150;
+    /** C# transfer missing UCIM CHANNEL sys. */
+    public static final int WORKSHOP_TRANSFER_ERR = 0x5300104;
+    /** C# transfer catch else. */
+    public static final int WORKSHOP_TRANSFER_DEFAULT = 0x5300100;
+    /** C# club-set reset unknown typeid CHANNEL sys. */
+    public static final int CLUBSET_RESET_ERR = 0x5300506;
+    /** C# club-set reset catch else. */
+    public static final int CLUBSET_RESET_DEFAULT = 0x5300500;
+    /** C# memorial coin 0 CHANNEL sys. */
+    public static final int MEMORIAL_ERR_COIN = 0x6300301;
+    /** C# memorial catch else. */
+    public static final int MEMORIAL_ERR_DEFAULT = 0x6300300;
+    /** C# My Room deny option. */
+    public static final int MY_ROOM_DENY = 0;
     /** C# {@code IFF_GROUP.ITEM}. {@code (typeid & 0xFC000000) >> 26}. */
     public static final int IFF_GROUP_ITEM = 6;
     /** C# {@code WriteSByte(-1)} on delete-item fail. */
@@ -2167,6 +2316,25 @@ public final class GamePackets {
     /** C# locker pang {@code 0x172} u64. */
     public static byte[] lockerPang(long pang) {
         return new PacketWriter().opcode(SERVER_LOCKER_PANG).u64(pang).toBytes();
+    }
+
+    /**
+     * C# My Room check {@code 0x12B}: u32 option + u32 to_uid. Option 1 also
+     * appends {@code MyRoomConfig.ToArray()} (108 bytes); seed never takes that
+     * path.
+     */
+    public static byte[] myRoomCheck(int option, int toUid) {
+        return new PacketWriter().opcode(SERVER_MY_ROOM).u32(option).u32(toUid).toBytes();
+    }
+
+    /** C# opcode + u32 sys (Dolfini / card / workshop / memorial catch). */
+    public static byte[] sysAck(int opcode, int code) {
+        return new PacketWriter().opcode(opcode).u32(code).toBytes();
+    }
+
+    /** C# rental catch {@code 0x18F}/{@code 0x190} u8 1. */
+    public static byte[] rentalFail(int opcode) {
+        return new PacketWriter().opcode(opcode).u8(RENTAL_FAIL).toBytes();
     }
 
     /** C# {@code 0x20E}: two int32 zeros. */
@@ -3528,6 +3696,88 @@ public final class GamePackets {
     /** C# CLIENT {@code 0x41}: i32 cap + PStr nick. */
     public static byte[] clientIdentity(int cap, String nick) {
         return new PacketWriter().opcode(CLIENT_IDENTITY).i32(cap).pstr(nick == null ? "" : nick).toBytes();
+    }
+
+    /** C# CLIENT {@code 0xB5}: u32 from_uid + u32 to_uid. */
+    public static byte[] clientMyRoom(int fromUid, int toUid) {
+        return new PacketWriter().opcode(CLIENT_MY_ROOM).u32(fromUid).u32(toUid).toBytes();
+    }
+
+    /** C# CLIENT {@code 0xBD}: u32 card typeid. */
+    public static byte[] clientUseCard(int typeid) {
+        return new PacketWriter().opcode(CLIENT_USE_CARD).u32(typeid).toBytes();
+    }
+
+    /** C# CLIENT {@code 0xCA}: u32 typeid + i32 id. */
+    public static byte[] clientOpenCardPack(int typeid, int id) {
+        return new PacketWriter().opcode(CLIENT_OPEN_CARD_PACK).u32(typeid).i32(id).toBytes();
+    }
+
+    /** C# CLIENT {@code 0xCE}/{@code 0xCF}: u8 count (0 skips {@code ToRead}). */
+    public static byte[] clientLockerCount(int opcode, int count) {
+        return new PacketWriter().opcode(opcode).u8(count).toBytes();
+    }
+
+    /** C# CLIENT {@code 0xD0}: PStr pass. */
+    public static byte[] clientLockerMakePass(String pass) {
+        return new PacketWriter().opcode(CLIENT_LOCKER_MAKE_PASS).pstr(pass == null ? "" : pass).toBytes();
+    }
+
+    /** C# CLIENT {@code 0xD1}: PStr old + PStr neu. */
+    public static byte[] clientLockerChangePass(String oldPass, String newPass) {
+        return new PacketWriter()
+                .opcode(CLIENT_LOCKER_CHANGE_PASS)
+                .pstr(oldPass == null ? "" : oldPass)
+                .pstr(newPass == null ? "" : newPass)
+                .toBytes();
+    }
+
+    /** C# CLIENT {@code 0xD2}: u8 locker + PStr pass. */
+    public static byte[] clientLockerMode(int locker, String pass) {
+        return new PacketWriter()
+                .opcode(CLIENT_LOCKER_MODE)
+                .u8(locker)
+                .pstr(pass == null ? "" : pass)
+                .toBytes();
+    }
+
+    /** C# CLIENT {@code 0xD4}: u8 opt + u64 pang. */
+    public static byte[] clientLockerUpdatePang(int opt, long pang) {
+        return new PacketWriter().opcode(CLIENT_LOCKER_UPDATE_PANG).u8(opt).u64(pang).toBytes();
+    }
+
+    /** C# CLIENT {@code 0xE6}/{@code 0xE7}: i32 item id. */
+    public static byte[] clientRental(int opcode, int itemId) {
+        return new PacketWriter().opcode(opcode).i32(itemId).toBytes();
+    }
+
+    /** C# CLIENT {@code 0x16B}/{@code 0x16D}: u32 typeid + i32 clubset id. */
+    public static byte[] clientWorkshopTypeidClub(int opcode, int typeid, int clubsetId) {
+        return new PacketWriter().opcode(opcode).u32(typeid).i32(clubsetId).toBytes();
+    }
+
+    /**
+     * C# {@code ClubSetWorkShopTransferMasteryPts}: u32 UCIM + i32 src + i32 dst
+     * + u32 qntd.
+     */
+    public static byte[] clientWorkshopTransfer(int typeid, int srcId, int dstId, int qntd) {
+        return new PacketWriter()
+                .opcode(CLIENT_WORKSHOP_TRANSFER)
+                .u32(typeid)
+                .i32(srcId)
+                .i32(dstId)
+                .u32(qntd)
+                .toBytes();
+    }
+
+    /** C# CLIENT {@code 0x17F}: u32 coin typeid. */
+    public static byte[] clientMemorial(int coinTypeid) {
+        return new PacketWriter().opcode(CLIENT_MEMORIAL).u32(coinTypeid).toBytes();
+    }
+
+    /** C# CLIENT {@code 0xE5}/{@code 0xFE} empty. */
+    public static byte[] clientEmpty(int opcode) {
+        return new PacketWriter().opcode(opcode).toBytes();
     }
 
     /** C# CLIENT {@code 0x63}: type + remaining payload. */

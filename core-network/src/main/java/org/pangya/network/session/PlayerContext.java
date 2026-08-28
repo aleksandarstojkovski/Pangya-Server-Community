@@ -39,4 +39,6 @@ public final class PlayerContext {
     public volatile int dailyCount;
     /** C# {@code DailyQuestInfoUser._typeid[3]}. */
     public final int[] dailyQuestTypeids = new int[3];
+    /** C# {@code DolfiniLocker.pass}. Seed empty. */
+    public volatile String dolfiniPass = "";
 }

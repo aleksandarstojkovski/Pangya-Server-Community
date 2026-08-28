@@ -1414,6 +1414,67 @@ class GameFlowIT {
             assertEquals("TestNick", refuse.pstr());
             host.sendPlain(GamePackets.clientIdentity(-1, "TestNick"));
 
+            host.sendPlain(GamePackets.clientMyRoom(10001, 10001));
+            PacketReader myRoom = awaitOpcode(host, GamePackets.SERVER_MY_ROOM);
+            assertEquals(GamePackets.MY_ROOM_DENY, myRoom.u32());
+            assertEquals(10001, myRoom.u32());
+            host.sendPlain(GamePackets.clientLockerMakePass(""));
+            PacketReader makePass = awaitOpcode(host, GamePackets.SERVER_LOCKER_MAKE_PASS);
+            assertEquals(GamePackets.LOCKER_MAKE_PASS_EMPTY, makePass.u32());
+            host.sendPlain(GamePackets.clientLockerChangePass("", "ab"));
+            PacketReader changePass = awaitOpcode(host, GamePackets.SERVER_LOCKER_CHANGE_PASS);
+            assertEquals(GamePackets.LOCKER_CHANGE_PASS_WRONG, changePass.u32());
+            host.sendPlain(GamePackets.clientLockerMode(1, ""));
+            PacketReader lockerMode = awaitOpcode(host, GamePackets.SERVER_LOCKER_MODE);
+            assertEquals(GamePackets.shopSys(GamePackets.LOCKER_MODE_EMPTY), lockerMode.u32());
+            host.sendPlain(GamePackets.clientLockerCount(GamePackets.CLIENT_LOCKER_ADD, 0));
+            PacketReader lockerAdd = awaitOpcode(host, GamePackets.SERVER_LOCKER_ADD);
+            assertEquals(GamePackets.shopSys(GamePackets.LOCKER_ADD_ERR_NONE), lockerAdd.u32());
+            host.sendPlain(GamePackets.clientEmpty(GamePackets.CLIENT_LOCKER_REMOVE));
+            PacketReader lockerRm = awaitOpcode(host, GamePackets.SERVER_LOCKER_REMOVE);
+            assertEquals(GamePackets.LOCKER_REMOVE_ERR_DEFAULT, lockerRm.u32());
+            host.sendPlain(GamePackets.clientLockerUpdatePang(0, 1));
+            PacketReader lockerUp = awaitOpcode(host, GamePackets.SERVER_LOCKER_UPDATE_PANG);
+            assertEquals(GamePackets.shopSys(GamePackets.LOCKER_PANG_WITHDRAW_ERR), lockerUp.u32());
+            host.sendPlain(GamePackets.clientOpenCardPack(0, 0));
+            PacketReader cardPack = awaitOpcode(host, GamePackets.SERVER_OPEN_CARD_PACK);
+            assertEquals(GamePackets.CARD_PACK_ERR, cardPack.u32());
+            host.sendPlain(GamePackets.clientUseCard(0));
+            PacketReader useCard = awaitOpcode(host, GamePackets.SERVER_USE_CARD);
+            assertEquals(GamePackets.shopSys(GamePackets.CARD_ERR_TYPEID), useCard.u32());
+            host.sendPlain(GamePackets.clientRental(GamePackets.CLIENT_EXTEND_RENTAL, 0));
+            PacketReader extend = awaitOpcode(host, GamePackets.SERVER_EXTEND_RENTAL);
+            assertEquals(GamePackets.RENTAL_FAIL, extend.u8());
+            host.sendPlain(GamePackets.clientRental(GamePackets.CLIENT_DELETE_RENTAL, 0));
+            PacketReader deleteRental = awaitOpcode(host, GamePackets.SERVER_DELETE_RENTAL);
+            assertEquals(GamePackets.RENTAL_FAIL, deleteRental.u8());
+            host.sendPlain(GamePackets.clientClubWorkshopEmpty(
+                    GamePackets.CLIENT_WORKSHOP_TRANSFORM_CONFIRM));
+            PacketReader xfConfirm = awaitOpcode(host, GamePackets.SERVER_WORKSHOP_TRANSFORM_CONFIRM);
+            assertEquals(
+                    GamePackets.shopSys(GamePackets.WORKSHOP_TRANSFORM_CONFIRM_ERR), xfConfirm.u32());
+            host.sendPlain(GamePackets.clientClubWorkshopEmpty(
+                    GamePackets.CLIENT_WORKSHOP_TRANSFORM_CANCEL));
+            PacketReader xfCancel = awaitOpcode(host, GamePackets.SERVER_WORKSHOP_TRANSFORM_CANCEL);
+            assertEquals(
+                    GamePackets.shopSys(GamePackets.WORKSHOP_TRANSFORM_CANCEL_ERR), xfCancel.u32());
+            host.sendPlain(GamePackets.clientWorkshopTypeidClub(
+                    GamePackets.CLIENT_WORKSHOP_RECOVERY, 0, 0));
+            PacketReader recovery = awaitOpcode(host, GamePackets.SERVER_WORKSHOP_RECOVERY);
+            assertEquals(GamePackets.shopSys(GamePackets.WORKSHOP_RECOVERY_ERR), recovery.u32());
+            host.sendPlain(GamePackets.clientWorkshopTransfer(0, 0, 0, 1));
+            PacketReader transfer = awaitOpcode(host, GamePackets.SERVER_WORKSHOP_TRANSFER);
+            assertEquals(GamePackets.shopSys(GamePackets.WORKSHOP_TRANSFER_ERR), transfer.u32());
+            host.sendPlain(GamePackets.clientWorkshopTypeidClub(
+                    GamePackets.CLIENT_CLUBSET_RESET, 0, 0));
+            PacketReader reset = awaitOpcode(host, GamePackets.SERVER_CLUBSET_RESET);
+            assertEquals(GamePackets.shopSys(GamePackets.CLUBSET_RESET_ERR), reset.u32());
+            host.sendPlain(GamePackets.clientMemorial(0));
+            PacketReader memorial = awaitOpcode(host, GamePackets.SERVER_MEMORIAL);
+            assertEquals(GamePackets.shopSys(GamePackets.MEMORIAL_ERR_COIN), memorial.u32());
+            host.sendPlain(GamePackets.clientEmpty(GamePackets.CLIENT_CUTIN));
+            host.sendPlain(GamePackets.clientEmpty(GamePackets.CLIENT_UCC_LOAD));
+
             host.sendPlain(GamePackets.clientDeleteItem(1, 1));
             PacketReader deleted = awaitOpcode(host, GamePackets.SERVER_DELETE_ITEM);
             assertEquals(GamePackets.DELETE_ITEM_FAIL, deleted.u8());

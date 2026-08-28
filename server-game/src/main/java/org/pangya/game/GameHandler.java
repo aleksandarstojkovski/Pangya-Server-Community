@@ -200,6 +200,25 @@ public final class GameHandler {
             case GamePackets.CLIENT_LOCKER_STATE -> lockerState(session);
             case GamePackets.CLIENT_LOCKER_ITEMS -> lockerItems(session, reader);
             case GamePackets.CLIENT_LOCKER_PANG -> lockerPang(session);
+            case GamePackets.CLIENT_LOCKER_ADD -> lockerAdd(session, reader);
+            case GamePackets.CLIENT_LOCKER_REMOVE -> lockerRemove(session, reader);
+            case GamePackets.CLIENT_LOCKER_MAKE_PASS -> lockerMakePass(session, reader);
+            case GamePackets.CLIENT_LOCKER_CHANGE_PASS -> lockerChangePass(session, reader);
+            case GamePackets.CLIENT_LOCKER_MODE -> lockerMode(session, reader);
+            case GamePackets.CLIENT_LOCKER_UPDATE_PANG -> lockerUpdatePang(session, reader);
+            case GamePackets.CLIENT_MY_ROOM -> myRoomCheck(session, reader);
+            case GamePackets.CLIENT_USE_CARD -> useCardSpecial(session, reader);
+            case GamePackets.CLIENT_OPEN_CARD_PACK -> openCardPack(session, reader);
+            case GamePackets.CLIENT_EXTEND_RENTAL -> extendRental(session, reader);
+            case GamePackets.CLIENT_DELETE_RENTAL -> deleteRental(session, reader);
+            case GamePackets.CLIENT_CUTIN -> { }
+            case GamePackets.CLIENT_UCC_LOAD -> { }
+            case GamePackets.CLIENT_WORKSHOP_TRANSFORM_CONFIRM -> workshopTransformConfirm(session);
+            case GamePackets.CLIENT_WORKSHOP_TRANSFORM_CANCEL -> workshopTransformCancel(session);
+            case GamePackets.CLIENT_WORKSHOP_RECOVERY -> workshopRecovery(session, reader);
+            case GamePackets.CLIENT_WORKSHOP_TRANSFER -> workshopTransfer(session, reader);
+            case GamePackets.CLIENT_CLUBSET_RESET -> clubSetReset(session, reader);
+            case GamePackets.CLIENT_MEMORIAL -> playMemorial(session, reader);
             case GamePackets.CLIENT_HEARTBEAT -> { }
             case GamePackets.CLIENT_WEB_AUTH_KEY -> webAuthKey(session);
             case GamePackets.CLIENT_ACTIVE_PAWS -> activePaws(session);
@@ -2938,7 +2957,15 @@ public final class GameHandler {
             session.send(GamePackets.lockerAccess(GamePackets.shopSys(5100152)));
             return;
         }
-        session.send(GamePackets.lockerAccess(GamePackets.LOCKER_ERR_WRONG));
+        String stored = session.player().dolfiniPass;
+        if (stored == null) {
+            stored = "";
+        }
+        if (!pass.equals(stored)) {
+            session.send(GamePackets.lockerAccess(GamePackets.LOCKER_ERR_WRONG));
+            return;
+        }
+        session.send(GamePackets.lockerAccess(0));
     }
 
     /**
@@ -3102,6 +3129,391 @@ public final class GameHandler {
             return;
         }
         session.send(GamePackets.lockerPang(0));
+    }
+
+    /**
+     * C# {@code packet0B5}: seed {@code allow_enter==0} → {@code 0x12B} option 0
+     * + to_uid. No channel required.
+     */
+    private void myRoomCheck(Session session, PacketReader reader) {
+        if (!session.authorized() || reader.remaining() < 8) {
+            return;
+        }
+        reader.u32();
+        int toUid = reader.u32();
+        session.send(GamePackets.myRoomCheck(GamePackets.MY_ROOM_DENY, toUid));
+    }
+
+    /**
+     * C# {@code requestMakePassDolfiniLocker}: empty/{@code Sanitize} →
+     * {@code 0x176} u32 1; length&gt;4 → {@code shopSys(5100102)}.
+     */
+    private void lockerMakePass(Session session, PacketReader reader) {
+        if (!inChannel(session)) {
+            return;
+        }
+        if (reader.remaining() < 2) {
+            session.send(GamePackets.sysAck(
+                    GamePackets.SERVER_LOCKER_MAKE_PASS, GamePackets.LOCKER_MAKE_PASS_DEFAULT));
+            return;
+        }
+        String pass = reader.pstr();
+        if (pass == null || pass.isEmpty() || !mailSanitize(pass)) {
+            session.send(GamePackets.sysAck(
+                    GamePackets.SERVER_LOCKER_MAKE_PASS, GamePackets.LOCKER_MAKE_PASS_EMPTY));
+            return;
+        }
+        if (pass.length() > 4) {
+            session.send(GamePackets.sysAck(
+                    GamePackets.SERVER_LOCKER_MAKE_PASS,
+                    GamePackets.shopSys(GamePackets.LOCKER_MAKE_PASS_LEN)));
+            return;
+        }
+        session.player().dolfiniPass = pass;
+        session.send(GamePackets.sysAck(GamePackets.SERVER_LOCKER_MAKE_PASS, 0));
+    }
+
+    /**
+     * C# {@code requestChangeDolfiniLockerPass}: empty old → {@code 0x174} u32 1.
+     */
+    private void lockerChangePass(Session session, PacketReader reader) {
+        if (!inChannel(session)) {
+            return;
+        }
+        if (reader.remaining() < 2) {
+            session.send(GamePackets.sysAck(
+                    GamePackets.SERVER_LOCKER_CHANGE_PASS, GamePackets.LOCKER_CHANGE_PASS_DEFAULT));
+            return;
+        }
+        String oldPass = reader.pstr();
+        if (oldPass == null || oldPass.isEmpty() || !mailSanitize(oldPass)) {
+            session.send(GamePackets.sysAck(
+                    GamePackets.SERVER_LOCKER_CHANGE_PASS, GamePackets.LOCKER_CHANGE_PASS_WRONG));
+            return;
+        }
+        if (reader.remaining() < 2) {
+            session.send(GamePackets.sysAck(
+                    GamePackets.SERVER_LOCKER_CHANGE_PASS, GamePackets.LOCKER_CHANGE_PASS_DEFAULT));
+            return;
+        }
+        String newPass = reader.pstr();
+        if (newPass == null || newPass.isEmpty() || !mailSanitize(newPass)) {
+            session.send(GamePackets.sysAck(
+                    GamePackets.SERVER_LOCKER_CHANGE_PASS, GamePackets.LOCKER_CHANGE_PASS_WRONG));
+            return;
+        }
+        if (oldPass.length() > 4 || newPass.length() > 4) {
+            session.send(GamePackets.sysAck(
+                    GamePackets.SERVER_LOCKER_CHANGE_PASS,
+                    GamePackets.shopSys(GamePackets.LOCKER_CHANGE_PASS_LEN)));
+            return;
+        }
+        String stored = session.player().dolfiniPass;
+        if (stored == null) {
+            stored = "";
+        }
+        if (!oldPass.equals(stored)) {
+            session.send(GamePackets.sysAck(
+                    GamePackets.SERVER_LOCKER_CHANGE_PASS, GamePackets.LOCKER_CHANGE_PASS_WRONG));
+            return;
+        }
+        session.player().dolfiniPass = newPass;
+        session.send(GamePackets.sysAck(GamePackets.SERVER_LOCKER_CHANGE_PASS, 0));
+    }
+
+    /**
+     * C# {@code requestChangeDolfiniLockerModeEnter}: empty pass →
+     * {@code 0x173} {@code shopSys(5100251)}.
+     */
+    private void lockerMode(Session session, PacketReader reader) {
+        if (!inChannel(session)) {
+            return;
+        }
+        if (reader.remaining() < 3) {
+            session.send(GamePackets.sysAck(
+                    GamePackets.SERVER_LOCKER_MODE, GamePackets.LOCKER_MODE_DEFAULT));
+            return;
+        }
+        reader.u8();
+        String pass = reader.pstr();
+        if (pass == null || pass.isEmpty()) {
+            session.send(GamePackets.sysAck(
+                    GamePackets.SERVER_LOCKER_MODE,
+                    GamePackets.shopSys(GamePackets.LOCKER_MODE_EMPTY)));
+            return;
+        }
+        if (pass.length() > 4) {
+            session.send(GamePackets.sysAck(
+                    GamePackets.SERVER_LOCKER_MODE, GamePackets.shopSys(5100252)));
+            return;
+        }
+        String stored = session.player().dolfiniPass;
+        if (stored == null) {
+            stored = "";
+        }
+        if (!pass.equals(stored)) {
+            session.send(GamePackets.sysAck(GamePackets.SERVER_LOCKER_MODE, 1));
+            return;
+        }
+        session.send(GamePackets.sysAck(GamePackets.SERVER_LOCKER_MODE, 0));
+    }
+
+    /**
+     * C# {@code requestAddDolfiniLockerItem}: count 0 → {@code 0x16E}
+     * {@code shopSys(5100404)}.
+     */
+    private void lockerAdd(Session session, PacketReader reader) {
+        if (!inChannel(session)) {
+            return;
+        }
+        if (reader.remaining() < 1) {
+            session.send(GamePackets.sysAck(
+                    GamePackets.SERVER_LOCKER_ADD, GamePackets.LOCKER_ADD_ERR_DEFAULT));
+            return;
+        }
+        int count = reader.u8();
+        if (count == 0) {
+            session.send(GamePackets.sysAck(
+                    GamePackets.SERVER_LOCKER_ADD,
+                    GamePackets.shopSys(GamePackets.LOCKER_ADD_ERR_NONE)));
+            return;
+        }
+        session.send(GamePackets.sysAck(
+                GamePackets.SERVER_LOCKER_ADD, GamePackets.LOCKER_ADD_ERR_DEFAULT));
+    }
+
+    /**
+     * C# {@code requestRemoveDolfiniLockerItem}: truncated → {@code 0x16F}
+     * else {@code 5100450}.
+     */
+    private void lockerRemove(Session session, PacketReader reader) {
+        if (!inChannel(session)) {
+            return;
+        }
+        if (reader.remaining() < 1) {
+            session.send(GamePackets.sysAck(
+                    GamePackets.SERVER_LOCKER_REMOVE, GamePackets.LOCKER_REMOVE_ERR_DEFAULT));
+            return;
+        }
+        int count = reader.u8();
+        if (count == 0) {
+            session.send(GamePackets.sysAck(
+                    GamePackets.SERVER_LOCKER_REMOVE,
+                    GamePackets.shopSys(GamePackets.LOCKER_ADD_ERR_NONE)));
+            return;
+        }
+        session.send(GamePackets.sysAck(
+                GamePackets.SERVER_LOCKER_REMOVE, GamePackets.LOCKER_REMOVE_ERR_DEFAULT));
+    }
+
+    /**
+     * C# {@code requestUpdateDolfiniLockerPang}: opt 0 pang&gt;locker (seed 0)
+     * → {@code 0x171} {@code shopSys(5100353)}.
+     */
+    private void lockerUpdatePang(Session session, PacketReader reader) {
+        if (!inChannel(session)) {
+            return;
+        }
+        if (reader.remaining() < 9) {
+            session.send(GamePackets.sysAck(
+                    GamePackets.SERVER_LOCKER_UPDATE_PANG, GamePackets.LOCKER_PANG_ERR_DEFAULT));
+            return;
+        }
+        int opt = reader.u8();
+        long pang = reader.u64();
+        if (opt == 0 && pang > 0) {
+            session.send(GamePackets.sysAck(
+                    GamePackets.SERVER_LOCKER_UPDATE_PANG,
+                    GamePackets.shopSys(GamePackets.LOCKER_PANG_WITHDRAW_ERR)));
+            return;
+        }
+        if (opt != 0 && opt != 1) {
+            session.send(GamePackets.sysAck(
+                    GamePackets.SERVER_LOCKER_UPDATE_PANG, GamePackets.shopSys(5100351)));
+            return;
+        }
+        session.send(GamePackets.sysAck(
+                GamePackets.SERVER_LOCKER_UPDATE_PANG, GamePackets.LOCKER_PANG_ERR_DEFAULT));
+    }
+
+    /**
+     * C# {@code requestUseCardSpecial}: typeid 0 → {@code 0x160}
+     * {@code shopSys(0x5500351)}.
+     */
+    private void useCardSpecial(Session session, PacketReader reader) {
+        if (!inChannel(session)) {
+            return;
+        }
+        if (reader.remaining() < 4) {
+            session.send(GamePackets.sysAck(
+                    GamePackets.SERVER_USE_CARD, GamePackets.CARD_ERR_DEFAULT));
+            return;
+        }
+        int typeid = reader.u32();
+        if (typeid == 0) {
+            session.send(GamePackets.sysAck(
+                    GamePackets.SERVER_USE_CARD, GamePackets.shopSys(GamePackets.CARD_ERR_TYPEID)));
+            return;
+        }
+        session.send(GamePackets.sysAck(
+                GamePackets.SERVER_USE_CARD, GamePackets.shopSys(0x5500352)));
+    }
+
+    /**
+     * C# {@code requestOpenCardPack}: catch always {@code 0x154} u32 1.
+     */
+    private void openCardPack(Session session, PacketReader reader) {
+        if (!inChannel(session)) {
+            return;
+        }
+        session.send(GamePackets.sysAck(
+                GamePackets.SERVER_OPEN_CARD_PACK, GamePackets.CARD_PACK_ERR));
+    }
+
+    /**
+     * C# {@code requestExtendRental}: catch always {@code 0x18F} u8 1.
+     */
+    private void extendRental(Session session, PacketReader reader) {
+        if (!inChannel(session)) {
+            return;
+        }
+        session.send(GamePackets.rentalFail(GamePackets.SERVER_EXTEND_RENTAL));
+    }
+
+    /**
+     * C# {@code requestDeleteRental}: catch always {@code 0x190} u8 1.
+     */
+    private void deleteRental(Session session, PacketReader reader) {
+        if (!inChannel(session)) {
+            return;
+        }
+        session.send(GamePackets.rentalFail(GamePackets.SERVER_DELETE_RENTAL));
+    }
+
+    /**
+     * C# {@code requestClubSetWorkShopUpRankTransformConfirm}: no pending
+     * ClubSet → {@code 0x242} {@code shopSys(0x5300451)}.
+     */
+    private void workshopTransformConfirm(Session session) {
+        if (!inChannel(session)) {
+            return;
+        }
+        session.send(GamePackets.sysAck(
+                GamePackets.SERVER_WORKSHOP_TRANSFORM_CONFIRM,
+                GamePackets.shopSys(GamePackets.WORKSHOP_TRANSFORM_CONFIRM_ERR)));
+    }
+
+    /**
+     * C# {@code requestClubSetWorkShopUpRankTransformCancel}: no pending
+     * ClubSet → {@code 0x243} {@code shopSys(0x5300401)}.
+     */
+    private void workshopTransformCancel(Session session) {
+        if (!inChannel(session)) {
+            return;
+        }
+        session.send(GamePackets.sysAck(
+                GamePackets.SERVER_WORKSHOP_TRANSFORM_CANCEL,
+                GamePackets.shopSys(GamePackets.WORKSHOP_TRANSFORM_CANCEL_ERR)));
+    }
+
+    /**
+     * C# {@code requestClubSetWorkShopRecoveryPts}: missing warehouse →
+     * {@code 0x246} {@code shopSys(0x5300151)}.
+     */
+    private void workshopRecovery(Session session, PacketReader reader) {
+        if (!inChannel(session)) {
+            return;
+        }
+        if (reader.remaining() < 8) {
+            session.send(GamePackets.sysAck(
+                    GamePackets.SERVER_WORKSHOP_RECOVERY, GamePackets.WORKSHOP_RECOVERY_DEFAULT));
+            return;
+        }
+        int typeid = reader.u32();
+        reader.i32();
+        if (typeid == 0) {
+            session.send(GamePackets.sysAck(
+                    GamePackets.SERVER_WORKSHOP_RECOVERY,
+                    GamePackets.shopSys(GamePackets.WORKSHOP_RECOVERY_ERR)));
+            return;
+        }
+        session.send(GamePackets.sysAck(
+                GamePackets.SERVER_WORKSHOP_RECOVERY, GamePackets.shopSys(0x5300152)));
+    }
+
+    /**
+     * C# {@code requestClubSetWorkShopTransferMasteryPts}: missing UCIM →
+     * {@code 0x245} {@code shopSys(0x5300104)}.
+     */
+    private void workshopTransfer(Session session, PacketReader reader) {
+        if (!inChannel(session)) {
+            return;
+        }
+        if (reader.remaining() < 16) {
+            session.send(GamePackets.sysAck(
+                    GamePackets.SERVER_WORKSHOP_TRANSFER, GamePackets.WORKSHOP_TRANSFER_DEFAULT));
+            return;
+        }
+        int typeid = reader.u32();
+        reader.i32();
+        reader.i32();
+        reader.u32();
+        if (typeid == 0) {
+            session.send(GamePackets.sysAck(
+                    GamePackets.SERVER_WORKSHOP_TRANSFER,
+                    GamePackets.shopSys(GamePackets.WORKSHOP_TRANSFER_ERR)));
+            return;
+        }
+        session.send(GamePackets.sysAck(
+                GamePackets.SERVER_WORKSHOP_TRANSFER, GamePackets.shopSys(0x5300104)));
+    }
+
+    /**
+     * C# {@code requestClubSetReset}: unknown typeid → {@code 0x247}
+     * {@code shopSys(0x5300506)}.
+     */
+    private void clubSetReset(Session session, PacketReader reader) {
+        if (!inChannel(session)) {
+            return;
+        }
+        if (reader.remaining() < 8) {
+            session.send(GamePackets.sysAck(
+                    GamePackets.SERVER_CLUBSET_RESET, GamePackets.CLUBSET_RESET_DEFAULT));
+            return;
+        }
+        int typeid = reader.u32();
+        reader.i32();
+        if (typeid != 0x1A00024B && typeid != 0x1A000247) {
+            session.send(GamePackets.sysAck(
+                    GamePackets.SERVER_CLUBSET_RESET,
+                    GamePackets.shopSys(GamePackets.CLUBSET_RESET_ERR)));
+            return;
+        }
+        session.send(GamePackets.sysAck(
+                GamePackets.SERVER_CLUBSET_RESET, GamePackets.shopSys(0x5300501)));
+    }
+
+    /**
+     * C# {@code requestPlayMemorial}: coin 0 → {@code 0x264}
+     * {@code shopSys(0x6300301)}.
+     */
+    private void playMemorial(Session session, PacketReader reader) {
+        if (!inChannel(session)) {
+            return;
+        }
+        if (reader.remaining() < 4) {
+            session.send(GamePackets.sysAck(
+                    GamePackets.SERVER_MEMORIAL, GamePackets.MEMORIAL_ERR_DEFAULT));
+            return;
+        }
+        int coin = reader.u32();
+        if (coin == 0) {
+            session.send(GamePackets.sysAck(
+                    GamePackets.SERVER_MEMORIAL, GamePackets.shopSys(GamePackets.MEMORIAL_ERR_COIN)));
+            return;
+        }
+        session.send(GamePackets.sysAck(
+                GamePackets.SERVER_MEMORIAL, GamePackets.shopSys(0x6300303)));
     }
 
     /**

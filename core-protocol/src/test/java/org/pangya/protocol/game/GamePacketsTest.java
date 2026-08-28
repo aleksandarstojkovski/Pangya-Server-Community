@@ -979,6 +979,81 @@ class GamePacketsTest {
         assertEquals(GamePackets.CHAT_REFUSE_WHISPER, refuse.u8());
         assertEquals("TestNick", refuse.pstr());
         assertEquals(0, refuse.remaining());
+        PacketReader myRoom = new PacketReader(GamePackets.myRoomCheck(GamePackets.MY_ROOM_DENY, 10001));
+        assertEquals(GamePackets.SERVER_MY_ROOM, myRoom.opcode());
+        assertEquals(0, myRoom.u32());
+        assertEquals(10001, myRoom.u32());
+        PacketReader makePass = new PacketReader(GamePackets.sysAck(
+                GamePackets.SERVER_LOCKER_MAKE_PASS, GamePackets.LOCKER_MAKE_PASS_EMPTY));
+        assertEquals(GamePackets.SERVER_LOCKER_MAKE_PASS, makePass.opcode());
+        assertEquals(1, makePass.u32());
+        PacketReader changePass = new PacketReader(GamePackets.sysAck(
+                GamePackets.SERVER_LOCKER_CHANGE_PASS, GamePackets.LOCKER_CHANGE_PASS_WRONG));
+        assertEquals(GamePackets.SERVER_LOCKER_CHANGE_PASS, changePass.opcode());
+        assertEquals(1, changePass.u32());
+        PacketReader lockerMode = new PacketReader(GamePackets.sysAck(
+                GamePackets.SERVER_LOCKER_MODE, GamePackets.shopSys(GamePackets.LOCKER_MODE_EMPTY)));
+        assertEquals(GamePackets.SERVER_LOCKER_MODE, lockerMode.opcode());
+        assertEquals(GamePackets.shopSys(5100251), lockerMode.u32());
+        PacketReader lockerAdd = new PacketReader(GamePackets.sysAck(
+                GamePackets.SERVER_LOCKER_ADD, GamePackets.shopSys(GamePackets.LOCKER_ADD_ERR_NONE)));
+        assertEquals(GamePackets.SERVER_LOCKER_ADD, lockerAdd.opcode());
+        assertEquals(GamePackets.shopSys(5100404), lockerAdd.u32());
+        PacketReader lockerRm = new PacketReader(GamePackets.sysAck(
+                GamePackets.SERVER_LOCKER_REMOVE, GamePackets.LOCKER_REMOVE_ERR_DEFAULT));
+        assertEquals(GamePackets.SERVER_LOCKER_REMOVE, lockerRm.opcode());
+        assertEquals(5100450, lockerRm.u32());
+        PacketReader lockerUp = new PacketReader(GamePackets.sysAck(
+                GamePackets.SERVER_LOCKER_UPDATE_PANG,
+                GamePackets.shopSys(GamePackets.LOCKER_PANG_WITHDRAW_ERR)));
+        assertEquals(GamePackets.SERVER_LOCKER_UPDATE_PANG, lockerUp.opcode());
+        assertEquals(GamePackets.shopSys(5100353), lockerUp.u32());
+        PacketReader cardPack = new PacketReader(GamePackets.sysAck(
+                GamePackets.SERVER_OPEN_CARD_PACK, GamePackets.CARD_PACK_ERR));
+        assertEquals(GamePackets.SERVER_OPEN_CARD_PACK, cardPack.opcode());
+        assertEquals(1, cardPack.u32());
+        PacketReader useCard = new PacketReader(GamePackets.sysAck(
+                GamePackets.SERVER_USE_CARD, GamePackets.shopSys(GamePackets.CARD_ERR_TYPEID)));
+        assertEquals(GamePackets.SERVER_USE_CARD, useCard.opcode());
+        assertEquals(0x0351, useCard.u32());
+        PacketReader extend = new PacketReader(GamePackets.rentalFail(GamePackets.SERVER_EXTEND_RENTAL));
+        assertEquals(GamePackets.SERVER_EXTEND_RENTAL, extend.opcode());
+        assertEquals(1, extend.u8());
+        PacketReader deleteRental = new PacketReader(GamePackets.rentalFail(GamePackets.SERVER_DELETE_RENTAL));
+        assertEquals(GamePackets.SERVER_DELETE_RENTAL, deleteRental.opcode());
+        assertEquals(1, deleteRental.u8());
+        PacketReader xfConfirm = new PacketReader(GamePackets.sysAck(
+                GamePackets.SERVER_WORKSHOP_TRANSFORM_CONFIRM,
+                GamePackets.shopSys(GamePackets.WORKSHOP_TRANSFORM_CONFIRM_ERR)));
+        assertEquals(GamePackets.SERVER_WORKSHOP_TRANSFORM_CONFIRM, xfConfirm.opcode());
+        assertEquals(0x0451, xfConfirm.u32());
+        PacketReader xfCancel = new PacketReader(GamePackets.sysAck(
+                GamePackets.SERVER_WORKSHOP_TRANSFORM_CANCEL,
+                GamePackets.shopSys(GamePackets.WORKSHOP_TRANSFORM_CANCEL_ERR)));
+        assertEquals(GamePackets.SERVER_WORKSHOP_TRANSFORM_CANCEL, xfCancel.opcode());
+        assertEquals(0x0401, xfCancel.u32());
+        PacketReader recovery = new PacketReader(GamePackets.sysAck(
+                GamePackets.SERVER_WORKSHOP_RECOVERY,
+                GamePackets.shopSys(GamePackets.WORKSHOP_RECOVERY_ERR)));
+        assertEquals(GamePackets.SERVER_WORKSHOP_RECOVERY, recovery.opcode());
+        assertEquals(0x0151, recovery.u32());
+        PacketReader transfer = new PacketReader(GamePackets.sysAck(
+                GamePackets.SERVER_WORKSHOP_TRANSFER,
+                GamePackets.shopSys(GamePackets.WORKSHOP_TRANSFER_ERR)));
+        assertEquals(GamePackets.SERVER_WORKSHOP_TRANSFER, transfer.opcode());
+        assertEquals(0x0104, transfer.u32());
+        PacketReader reset = new PacketReader(GamePackets.sysAck(
+                GamePackets.SERVER_CLUBSET_RESET, GamePackets.shopSys(GamePackets.CLUBSET_RESET_ERR)));
+        assertEquals(GamePackets.SERVER_CLUBSET_RESET, reset.opcode());
+        assertEquals(0x0506, reset.u32());
+        PacketReader memorial = new PacketReader(GamePackets.sysAck(
+                GamePackets.SERVER_MEMORIAL, GamePackets.shopSys(GamePackets.MEMORIAL_ERR_COIN)));
+        assertEquals(GamePackets.SERVER_MEMORIAL, memorial.opcode());
+        assertEquals(0x0301, memorial.u32());
+        PacketReader myRoomClient = new PacketReader(GamePackets.clientMyRoom(10001, 10001));
+        assertEquals(GamePackets.CLIENT_MY_ROOM, myRoomClient.opcode());
+        assertEquals(10001, myRoomClient.u32());
+        assertEquals(10001, myRoomClient.u32());
         assertEquals(GamePackets.CLIENT_WEB_AUTH_KEY, 0xFB);
         assertEquals(GamePackets.CLIENT_CHANGE_GAME_SERVER, 0x119);
         assertEquals(GamePackets.CLIENT_OPEN_TICKET_REPORT, 0xAB);
@@ -1014,6 +1089,42 @@ class GamePacketsTest {
         assertEquals(GamePackets.CLIENT_LOCKER_PANG, 0xD5);
         assertEquals(GamePackets.CLIENT_REFUSE_WHISPER, 0xDE);
         assertEquals(GamePackets.CLIENT_IDENTITY, 0x41);
+        assertEquals(GamePackets.CLIENT_MY_ROOM, 0xB5);
+        assertEquals(GamePackets.CLIENT_USE_CARD, 0xBD);
+        assertEquals(GamePackets.CLIENT_OPEN_CARD_PACK, 0xCA);
+        assertEquals(GamePackets.CLIENT_LOCKER_ADD, 0xCE);
+        assertEquals(GamePackets.CLIENT_LOCKER_REMOVE, 0xCF);
+        assertEquals(GamePackets.CLIENT_LOCKER_MAKE_PASS, 0xD0);
+        assertEquals(GamePackets.CLIENT_LOCKER_CHANGE_PASS, 0xD1);
+        assertEquals(GamePackets.CLIENT_LOCKER_MODE, 0xD2);
+        assertEquals(GamePackets.CLIENT_LOCKER_UPDATE_PANG, 0xD4);
+        assertEquals(GamePackets.CLIENT_CUTIN, 0xE5);
+        assertEquals(GamePackets.CLIENT_EXTEND_RENTAL, 0xE6);
+        assertEquals(GamePackets.CLIENT_DELETE_RENTAL, 0xE7);
+        assertEquals(GamePackets.CLIENT_UCC_LOAD, 0xFE);
+        assertEquals(GamePackets.CLIENT_WORKSHOP_TRANSFORM_CONFIRM, 0x168);
+        assertEquals(GamePackets.CLIENT_WORKSHOP_TRANSFORM_CANCEL, 0x169);
+        assertEquals(GamePackets.CLIENT_WORKSHOP_RECOVERY, 0x16B);
+        assertEquals(GamePackets.CLIENT_WORKSHOP_TRANSFER, 0x16C);
+        assertEquals(GamePackets.CLIENT_CLUBSET_RESET, 0x16D);
+        assertEquals(GamePackets.CLIENT_MEMORIAL, 0x17F);
+        assertEquals(GamePackets.SERVER_MY_ROOM, 0x12B);
+        assertEquals(GamePackets.SERVER_LOCKER_MAKE_PASS, 0x176);
+        assertEquals(GamePackets.SERVER_LOCKER_CHANGE_PASS, 0x174);
+        assertEquals(GamePackets.SERVER_LOCKER_MODE, 0x173);
+        assertEquals(GamePackets.SERVER_LOCKER_ADD, 0x16E);
+        assertEquals(GamePackets.SERVER_LOCKER_REMOVE, 0x16F);
+        assertEquals(GamePackets.SERVER_LOCKER_UPDATE_PANG, 0x171);
+        assertEquals(GamePackets.SERVER_OPEN_CARD_PACK, 0x154);
+        assertEquals(GamePackets.SERVER_USE_CARD, 0x160);
+        assertEquals(GamePackets.SERVER_EXTEND_RENTAL, 0x18F);
+        assertEquals(GamePackets.SERVER_DELETE_RENTAL, 0x190);
+        assertEquals(GamePackets.SERVER_WORKSHOP_TRANSFORM_CONFIRM, 0x242);
+        assertEquals(GamePackets.SERVER_WORKSHOP_TRANSFORM_CANCEL, 0x243);
+        assertEquals(GamePackets.SERVER_WORKSHOP_TRANSFER, 0x245);
+        assertEquals(GamePackets.SERVER_WORKSHOP_RECOVERY, 0x246);
+        assertEquals(GamePackets.SERVER_CLUBSET_RESET, 0x247);
+        assertEquals(GamePackets.SERVER_MEMORIAL, 0x264);
         assertEquals(GamePackets.SERVER_TIKI_POINTS, 0x1E8);
         assertEquals(GamePackets.SERVER_TIKI_EXCHANGE_TP, 0x1E9);
         assertEquals(GamePackets.SERVER_TIKI_EXCHANGE_ITEM, 0x1EA);
