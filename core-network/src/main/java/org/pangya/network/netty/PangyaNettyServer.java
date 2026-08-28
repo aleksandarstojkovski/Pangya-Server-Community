@@ -28,14 +28,21 @@ public final class PangyaNettyServer implements AutoCloseable {
     private final ServerKind kind;
     private final SessionManager sessions;
     private final PangyaClientDecryptHandler.PacketSink sink;
+    private final int authUid;
     private final EventLoopGroup boss;
     private final EventLoopGroup worker;
     private Channel channel;
 
     public PangyaNettyServer(ServerKind kind, SessionManager sessions, PangyaClientDecryptHandler.PacketSink sink) {
+        this(kind, sessions, sink, 8888);
+    }
+
+    public PangyaNettyServer(
+            ServerKind kind, SessionManager sessions, PangyaClientDecryptHandler.PacketSink sink, int authUid) {
         this.kind = kind;
         this.sessions = sessions;
         this.sink = sink;
+        this.authUid = authUid;
         this.boss = new NioEventLoopGroup(1);
         this.worker = new NioEventLoopGroup();
     }
@@ -82,17 +89,11 @@ public final class PangyaNettyServer implements AutoCloseable {
             case GAME -> PacketIo.gameHello(session.key(), session.ip());
             case AUTH -> PacketIo.makeRaw(PacketIo.concat(
                     PacketIo.opcode(0x00),
-                    intLe(session.key()),
-                    intLe(8888)
+                    PacketIo.u32le(session.key()),
+                    PacketIo.u32le(authUid)
             ));
         };
         ch.writeAndFlush(ch.alloc().buffer(hello.length).writeBytes(hello));
-    }
-
-    private static byte[] intLe(int v) {
-        return new byte[] {
-                (byte) v, (byte) (v >>> 8), (byte) (v >>> 16), (byte) (v >>> 24)
-        };
     }
 
     @Override

@@ -1,7 +1,14 @@
 server:
   name: auth
+  uid: 8888
+  tipo: 5
   port: 7777
   healthPort: 9077
+  ip: 127.0.0.1
+  maxUser: 100
+  version: AS.Release.2.0
+  clientVersion: "852.00"
+  packetVersion: 2024100800
 database:
   url: jdbc:postgresql://postgres:5432/pangya
   user: pangya

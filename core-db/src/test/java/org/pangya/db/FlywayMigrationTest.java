@@ -2,32 +2,23 @@ package org.pangya.db;
 
 import org.junit.jupiter.api.Test;
 
-import java.sql.DriverManager;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Migrates the empty Compose Postgres ({@code docker compose up -d postgres}).
+ * Migrates Compose Postgres ({@code docker compose up -d postgres}).
+ * Does not DROP the schema so other modules can test against the same database in parallel.
  * JDBC URL can be overridden with {@code PANGYA_TEST_JDBC_URL}.
  */
 class FlywayMigrationTest {
 
     @Test
-    void migratesEmptyDatabaseAndIsIdempotent() throws Exception {
+    void migratesAndIsIdempotent() throws Exception {
         String url = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
         String user = env("PANGYA_TEST_JDBC_USER", "pangya");
         String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
 
-        try (var conn = DriverManager.getConnection(url, user, password);
-             var st = conn.createStatement()) {
-            st.execute("DROP SCHEMA IF EXISTS pangya CASCADE");
-            st.execute("DROP TABLE IF EXISTS public.flyway_schema_history");
-        }
-
-        int first = DatabaseSupport.migrate(url, user, password);
-        assertTrue(first >= 2, "expected V1 schema + V2 seed, executed=" + first);
-
+        DatabaseSupport.migrate(url, user, password);
         int second = DatabaseSupport.migrate(url, user, password);
         assertEquals(0, second, "second migrate must be a no-op");
 
@@ -44,6 +35,13 @@ class FlywayMigrationTest {
                             .mapTo(Integer.class)
                             .one());
             assertEquals(1, rankRows);
+
+            int accounts = jdbi.withHandle(h ->
+                    h.createQuery("select count(*) from pangya.account where \"ID\" = 'testuser'")
+                            .mapTo(Integer.class)
+                            .one());
+            assertEquals(1, accounts);
+            assertTrue(accounts >= 1);
         }
     }
 

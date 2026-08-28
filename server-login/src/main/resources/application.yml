@@ -1,7 +1,16 @@
 server:
   name: login
+  uid: 10203
+  tipo: 0
   port: 10203
   healthPort: 9103
+  ip: 127.0.0.1
+  maxUser: 2001
+  property: 2048
+  version: LS.Release.852.00
+  clientVersion: "852.00"
+  packetVersion: 2016110200
+  maintenance: false
 database:
   url: jdbc:postgresql://postgres:5432/pangya
   user: pangya
@@ -9,5 +18,24 @@ database:
 redis:
   uri: redis://redis:6379
 auth:
+  enabled: true
   host: auth
   port: 7777
+game:
+  name: PAPEL
+  uid: 20202
+  ip: 127.0.0.1
+  port: 20202
+  maxUser: 2001
+  property: 2048
+  version: GS.Release.852.00
+  clientVersion: "852.00"
+messenger:
+  name: Messenger Server
+  uid: 30201
+  ip: 127.0.0.1
+  port: 30201
+  maxUser: 2001
+  property: 4096
+  version: MS.Release.2.0
+  clientVersion: "852.00"

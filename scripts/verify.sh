@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Local CI: Gradle tests + docker compose health for the current slice.
-# S0: postgres/redis healthy + :core-db:test :core-protocol:test :core-network:test
+# S2: postgres/redis healthy + protocol/network/db + Auth/Login fake-client tests
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
@@ -23,11 +23,13 @@ for i in $(seq 1 60); do
   sleep 2
 done
 
-echo "== gradle test (S0 modules) =="
-./gradlew --no-daemon :core-protocol:test :core-network:test :core-db:test
-
-echo "== flyway migrate on compose postgres =="
-./gradlew --no-daemon :core-db:test --tests org.pangya.db.FlywayMigrationTest
+echo "== gradle test (S0–S2 modules) =="
+./gradlew --no-daemon \
+  :core-protocol:test \
+  :core-network:test \
+  :core-db:test \
+  :server-login:test \
+  :server-auth:test
 
 echo "== docker compose ps =="
 docker compose ps

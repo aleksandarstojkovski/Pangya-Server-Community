@@ -12,6 +12,7 @@ public final class Session {
     private final int oid;
     private final String ip;
     private final AtomicBoolean authorized = new AtomicBoolean(false);
+    private final PlayerContext player = new PlayerContext();
 
     public Session(Channel channel, int key, int oid) {
         this.channel = channel;
@@ -46,5 +47,19 @@ public final class Session {
 
     public boolean authorized() {
         return authorized.get();
+    }
+
+    public PlayerContext player() {
+        return player;
+    }
+
+    public void send(byte[] plaintext) {
+        if (channel.isActive()) {
+            channel.writeAndFlush(plaintext);
+        }
+    }
+
+    public void disconnect() {
+        channel.close();
     }
 }

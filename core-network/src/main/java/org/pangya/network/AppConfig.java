@@ -71,6 +71,87 @@ public final class AppConfig {
         return envOr("REDIS_URI", nested("redis", "uri", "redis://localhost:6379"));
     }
 
+    public int uid() {
+        return envInt("PANGYA_UID", nestedInt("server", "uid", 0));
+    }
+
+    public String advertisedIp() {
+        return envOr("PANGYA_IP", nested("server", "ip", "127.0.0.1"));
+    }
+
+    public int maxUser() {
+        return nestedInt("server", "maxUser", 2001);
+    }
+
+    public int property() {
+        return nestedInt("server", "property", 0);
+    }
+
+    public String version() {
+        return nested("server", "version", "Java.S2");
+    }
+
+    public String clientVersion() {
+        return nested("server", "clientVersion", "852.00");
+    }
+
+    public int packetVersion() {
+        return nestedInt("server", "packetVersion", 2016110200);
+    }
+
+    public int tipo() {
+        return nestedInt("server", "tipo", 0);
+    }
+
+    public boolean maintenance() {
+        return nestedBoolean("server", "maintenance", false);
+    }
+
+    public String authHost() {
+        return envOr("PANGYA_AUTH_HOST", nested("auth", "host", "127.0.0.1"));
+    }
+
+    public int authPort() {
+        return envInt("PANGYA_AUTH_PORT", nestedInt("auth", "port", 7777));
+    }
+
+    public int authGuid() {
+        return envInt("PANGYA_AUTH_GUID", nestedInt("auth", "guid", 8888));
+    }
+
+    public boolean authEnabled() {
+        String v = System.getenv("PANGYA_AUTH_ENABLED");
+        if (v != null) {
+            return Boolean.parseBoolean(v);
+        }
+        return nestedBoolean("auth", "enabled", true);
+    }
+
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> section(String name) {
+        Object s = root.get(name);
+        if (s instanceof Map<?, ?> map) {
+            return (Map<String, Object>) map;
+        }
+        return Map.of();
+    }
+
+    public int nestedIntFrom(Map<String, Object> map, String key, int fallback) {
+        Object v = map.get(key);
+        if (v instanceof Number n) {
+            return n.intValue();
+        }
+        if (v != null) {
+            return Integer.parseInt(String.valueOf(v));
+        }
+        return fallback;
+    }
+
+    public String nestedFrom(Map<String, Object> map, String key, String fallback) {
+        Object v = map.get(key);
+        return v == null ? fallback : String.valueOf(v);
+    }
+
     private static String envOr(String env, String fallback) {
         String v = System.getenv(env);
         return (v == null || v.isBlank()) ? fallback : v;

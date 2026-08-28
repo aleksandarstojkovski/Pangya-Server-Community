@@ -20,9 +20,11 @@ docker compose up -d postgres redis
 docker compose up --build
 ```
 
-Health endpoints (S0 stubs): Auth `9077/health`, Login `9103`, Game `9202`, Ranking `9474`, Messenger `9302`.
+Health endpoints: Auth `9077/health`, Login `9103`, Game `9202`, Ranking `9474`, Messenger `9302`.
 
-S0 servers bind the historic Pangya TCP ports and answer HTTP health only. Cipher, login, and game modes land in slices S1–S4.
+S2: Auth (port 7777) and Login (10203) speak the GB Season 9 cipher + login packets. Game/Ranking/Messenger still bind health + historic TCP ports only. Practice lands in S3.
+
+Dev login (Flyway V3): user `testuser` / password `testpass`.
 
 ## Verify
 

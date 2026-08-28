@@ -9,8 +9,8 @@ Cipher: `PangyaAPI.Network.Cryptor.Cipher`.
 
 C# handlers are inline in `AuthServer/AuthServerTcp/AuthServer.cs` and `unit_auth_server_connect.cs` (no enum file).
 
-| Dir | C# | Opcode | Java (planned) |
-|-----|----|--------|----------------|
+| Dir | C# | Opcode | Java |
+|-----|----|--------|------|
 | Auth→child raw | first key packet | `0x00` | `AuthS2s.FIRST_KEY` |
 | Child→Auth | register server | `0x01` | `AuthS2s.REGISTER` |
 | Auth→child | oid assigned | `0x01` | `AuthS2s.REGISTER_ACK` |
@@ -23,7 +23,7 @@ C# handlers are inline in `AuthServer/AuthServerTcp/AuthServer.cs` and `unit_aut
 
 ## Login
 
-C#: `LoginServer/PangyaEnums/PacketLogin.cs` → Java `org.pangya.protocol.login.LoginPackets` (S2)
+C#: `LoginServer/PangyaEnums/PacketLogin.cs` → Java `org.pangya.protocol.login.LoginPackets` (S2 done)
 
 Framing + cipher Java: `org.pangya.protocol.crypto.Cipher`, `MiniLzo`, `CryptoOracle`; Netty `org.pangya.network.netty.PangyaNettyServer`.
 
@@ -54,9 +54,13 @@ Login first raw frame (14 bytes, key at index 6): see `LoginServer.cs:159-161`.
 CLIENT_CONNECT `0x01` body (`LoginData` in `pangya_login_st.cs`):
 `PStr id`, `PStr password`, `byte opt_count`, `uint32 * (opt_count*8/4)`, `PStr mac`.
 
-SERVER_LOGIN `0x01` success (`pacote001` option=0):
+SERVER_LOGIN `0x01` success (`pacote001` option=0, **GB**):
 `byte 0`, `PStr id`, `uint32 uid`, `uint32 cap`, `int32 level`, `int32 10`, `uint16 12`, `PStr nickname`.
-Then `0x02` server list, `0x09` messenger list, `0x06` macros.
+Then `0x10` was already sent (auth key login), then `0x02` GS list, `0x09` messenger list, `0x06` macros (9×64-byte `WriteStr`).
+
+GB `requestLogin` hashes MD5 then **overwrites with plaintext** `result.password` — Java stores/compares the client string as sent.
+
+`ServerInfo.ToArray()` is 92 bytes: `WriteStr(nome,40)`, int32 uid/max/curr, `WriteStr(ip,18)`, int32 port, uint32 property, int32 angelic, uint16 event_flag, int16 event_map/app_rate/scratch_rate/img_no.
 
 ## Game (subset; full enum in `PacketGame.cs`)
 

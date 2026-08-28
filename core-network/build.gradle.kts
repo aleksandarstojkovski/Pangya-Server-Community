@@ -8,6 +8,7 @@ dependencies {
     api(libs.netty.all)
     api(libs.snakeyaml)
     api(libs.micrometer.core)
+    api(libs.jedis)
     implementation(libs.bundles.logging)
     testImplementation(libs.bundles.test)
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")

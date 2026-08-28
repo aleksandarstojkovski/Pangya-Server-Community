@@ -8,8 +8,8 @@ Questo repo è **solo** la riscrittura Java.
 
 | Campo | Valore |
 |-------|--------|
-| Slice completata | **S0 + S1** verdi |
-| Prossima | **S2** Auth + Login + Redis session key + fake client login |
+| Slice completata | **S0 + S1 + S2** verdi |
+| Prossima | **S3** Game Server core + Practice (room type 18) |
 | Blocked | nessuno |
 | VM | Java 21.0.10, Docker 29.7.2, Compose v5.5.0, 4 CPU / 15 GiB |
 
@@ -19,11 +19,11 @@ Questo repo è **solo** la riscrittura Java.
 |---------|------|
 | `PangyaAPI.Network.Cryptor.Cipher` | `org.pangya.protocol.crypto.Cipher` (S1 done) |
 | `PangyaAPI.Network.Cryptor.CryptoOracle` | `org.pangya.protocol.crypto.CryptoOracle` — tabelle 4096 byte embeddate da C# |
-| `PangyaAPI.Network.Cryptor.MiniLzo` | `org.pangya.protocol.crypto.MiniLzo` (S1, port letterale) |
+| `PangyaAPI.Network.Cryptor.MiniLzo` | `org.pangya.protocol.crypto.MiniLzo` (S1 done) |
 | `PangyaAPI.Network.PangyaPacket.PacketBuffer` | `org.pangya.protocol.frame.PacketBuffer` (S1) |
 | `PangyaAPI.Network.PangyaSession.Session` | `org.pangya.network.session.Session` (S1) |
 | `PangyaAPI.Network.PangyaUtil.ConfigDDos` | `org.pangya.network.ddos.IpDdosFilter` (S1) |
-| `PangyaAPI.Network.PangyaUnit.unit_auth_server_connect` | `org.pangya.network.auth.AuthServerConnector` (S2) |
+| `PangyaAPI.Network.PangyaUnit.unit_auth_server_connect` | `org.pangya.network.auth.AuthServerConnector` (S2 done) |
 | `PangyaAPI.SQL` ODBC/SQL Server | `org.pangya.db` Jdbi + PostgreSQL. **Niente stored proc**: 502 `Proc*` restano in C#; Java userà SQL esplicito equivalente quando serve un comando |
 | `AuthServer` tipo=5 port 7777 | `:server-auth` |
 | `LoginServer` tipo=0 port 10203 | `:server-login` |
@@ -118,6 +118,28 @@ Nota VM: Docker nested overlayfs fallisce (`invalid argument`); daemon.json `sto
 Cipher + MiniLZO portati da `Cipher.cs` / `MiniLzo.cs`. Roundtrip Java encrypt↔decrypt verde. Handshake Login 14-byte (key al byte 6) verificato con client Netty. Dispatch dominio su virtual thread; eccezione handler non abbatte il process (`SessionIsolationTest`).
 
 Golden bytes da capture client reale: ancora assenti (gap documentato).
+
+## S2 evidenza (2026-08-28)
+
+GB `Develop` è la fonte dei byte Login (`packet_func_ls.pacote001` option=0: PStr id, uid, cap, int32 level, int32 10, uint16 12, PStr nick). JP S9 ha un layout diverso — **non** usato.
+
+Flusso implementato:
+1. Login hello 14 byte → CLIENT_CONNECT `0x01` (`LoginData`) → ban IP → verify ID/pass su `pangya.account` (password **come inviata dal client**, GB sovrascrive l'MD5) → `user_info.level` → success `0x10` authkey + `0x01` + `0x02` GS list + `0x09` MS list + `0x06` 9×64 macros.
+2. CLIENT_SELECT_GS `0x03` → `0x03` auth key game (8 hex) in `authkey_game` + Redis.
+3. Auth S2S: raw `0x00` key+uid → child `0x01` register (tipo, uid, PStr name/key/version, packetVersion) → ack `0x01` int32 oid. Chiave in `pangya_auth_key`. Reconnect exponential backoff su virtual thread.
+4. Seed V3: account `testuser`/`testpass` uid=10001, FIRST_LOGIN=1, FIRST_SET=1. Login heartbeat mantiene `pangya_server_list` (Game type=1, Messenger type=3) dentro la finestra 8s di `ProcGetServerList`.
+
+```
+./gradlew --no-daemon :core-protocol:test :core-network:test :core-db:test :server-login:test :server-auth:test
+# LoginPacketsTest 11/11 PASSED
+# LoginRepositoryTest PASSED (auth keys 8/16, server list upsert)
+# LoginFlowIT fakeClientLoginReceivesServerListAndCanSelectGs PASSED
+# LoginFlowIT badPasswordSendsOption6 PASSED
+# AuthS2sIT loginChildRegistersAndReceivesOid PASSED
+# BUILD SUCCESSFUL
+```
+
+Create-user flag C# (`CREATEUSER=1`) **non** portato in S2: account assente → option 6. FIRST_LOGIN/FIRST_SET packet 0xD8/0xD9 implementati ma lo seed è già completo.
 
 ## Inventario Practice (S3)
 

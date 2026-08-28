@@ -14,8 +14,24 @@ public final class PacketIo {
         return new byte[] {(byte) value, (byte) (value >>> 8)};
     }
 
+    public static byte[] u32le(int value) {
+        return new byte[] {
+                (byte) value,
+                (byte) (value >>> 8),
+                (byte) (value >>> 16),
+                (byte) (value >>> 24)
+        };
+    }
+
     public static int readU16le(byte[] buf, int offset) {
         return (buf[offset] & 0xff) | ((buf[offset + 1] & 0xff) << 8);
+    }
+
+    public static int readU32le(byte[] buf, int offset) {
+        return (buf[offset] & 0xff)
+                | ((buf[offset + 1] & 0xff) << 8)
+                | ((buf[offset + 2] & 0xff) << 16)
+                | ((buf[offset + 3] & 0xff) << 24);
     }
 
     public static byte[] pstr(String value) {

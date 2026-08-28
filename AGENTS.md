@@ -9,7 +9,7 @@ git clone --depth 1 --branch Develop https://github.com/luismk/Pangya-Server-Com
 ## Commands
 
 ```bash
-# S0 verify (postgres + redis + Flyway + unit tests)
+# S2 verify (postgres + redis + Flyway + Auth/Login fake client)
 ./scripts/verify.sh
 
 # Full Gradle tests
@@ -18,7 +18,7 @@ git clone --depth 1 --branch Develop https://github.com/luismk/Pangya-Server-Com
 # Infrastructure only
 docker compose up -d postgres redis
 
-# Full stack (servers are protocol stubs until S1+)
+# Full stack
 docker compose up --build
 ```
 
