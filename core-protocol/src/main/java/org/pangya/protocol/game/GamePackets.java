@@ -38,8 +38,10 @@ public final class GamePackets {
     public static final int SERVER_ENTER_LOBBY = 0xF5;
     public static final int SERVER_LEAVE_LOBBY = 0xF6;
     public static final int SERVER_WHISPER = 0x84;
+    public static final int SERVER_INVITE = 0x83;
     public static final int SERVER_ROOM_DETAIL = 0x86;
     public static final int SERVER_PLAYER_INFO = 0x89;
+    public static final int SERVER_INVITE_REPLY = 0x12F;
     public static final int SERVER_TEAM = 0x7D;
     public static final int SERVER_SERVER_LIST = 0x9F;
     public static final int SERVER_RANK_ADDRESS = 0xA2;
@@ -78,6 +80,7 @@ public final class GamePackets {
     public static final int CLIENT_LEAVE_LOBBY = 0x82;
     public static final int CLIENT_KEEPALIVE = 0x01;
     public static final int CLIENT_WHISPER = 0x2A;
+    public static final int CLIENT_CHECK_INVITE = 0x29;
     public static final int CLIENT_REQUEST_DETAIL_ROOM_INFO = 0x2D;
     public static final int CLIENT_REQUEST_CASH = 0x3D;
     public static final int CLIENT_REQUEST_USERINFO = 0x2F;
@@ -85,6 +88,7 @@ public final class GamePackets {
     public static final int CLIENT_REQUEST_SERVER_LIST = 0x43;
     public static final int CLIENT_REQUEST_RANK = 0x47;
     public static final int CLIENT_CHANGE_TEAM = 0x10;
+    public static final int CLIENT_INVITE = 0xBA;
 
     public static final int ACK_LOGIN_OK = 0;
     public static final int ACK_LOGIN_FAIL = 1;
@@ -120,6 +124,8 @@ public final class GamePackets {
     public static final int PLAYER_TEAM_BIT = 1;
     public static final int CHANNEL_INFO_BYTES = 77;
     public static final int SERVER_INFO_BYTES = 92;
+    public static final int INVITE_PLACE = 70;
+    public static final int INVITE_FAIL = 23;
     public static final int LOBBY_USER_JOIN = 1;
     public static final int LOBBY_USER_LEAVE = 2;
     public static final int LOBBY_USER_UPDATE = 3;
@@ -842,6 +848,9 @@ public final class GamePackets {
         PacketWriter w = new PacketWriter().opcode(SERVER_ROOM_PLAYERS).u8(kind).i16(-1);
         if (kind == 0 || kind == 5) {
             w.u8(players.size());
+        } else if (kind == 2) {
+            int oid = players.isEmpty() ? 0 : players.getFirst().oid;
+            return w.i32(oid).toBytes();
         } else if (kind == 3) {
             int oid = players.isEmpty() ? 0 : players.getFirst().oid;
             w.i32(oid);
@@ -1444,6 +1453,36 @@ public final class GamePackets {
 
     public static byte[] clientRequestRoomDetail(int numero) {
         return new PacketWriter().opcode(CLIENT_REQUEST_DETAIL_ROOM_INFO).u16(numero).toBytes();
+    }
+
+    public static byte[] clientInvite(String nick, int uid) {
+        return new PacketWriter()
+                .opcode(CLIENT_INVITE)
+                .pstr(nick == null ? "" : nick)
+                .u32(uid)
+                .toBytes();
+    }
+
+    /**
+     * C# invite success {@code 0x12F}/{@code 0x83}: u16 0 + GS uid + channel + room +
+     * inviter uid + nick + invited uid. Fail {@code 0x12F} is u16 err only.
+     */
+    public static byte[] inviteOk(int opcode, int serverUid, int channelId, int room,
+            int fromUid, String fromNick, int toUid) {
+        return new PacketWriter()
+                .opcode(opcode)
+                .u16(0)
+                .u32(serverUid)
+                .u8(channelId)
+                .u16(room)
+                .u32(fromUid)
+                .pstr(fromNick == null ? "" : fromNick)
+                .u32(toUid)
+                .toBytes();
+    }
+
+    public static byte[] inviteFail(int err) {
+        return new PacketWriter().opcode(SERVER_INVITE_REPLY).u16(err).toBytes();
     }
 
     public static byte[] clientInitHole(int numero, int option, int unknown, int par,

@@ -626,6 +626,23 @@ class GameFlowIT {
             PacketReader created = awaitOpcode(host, GamePackets.SERVER_ROOM_ENTER_RESULT);
             assertEquals(0, created.i16());
             int numero = roomNumberFromInfo(created.readBytes(GamePackets.ROOM_INFO_BYTES));
+            host.sendPlain(GamePackets.clientInvite("TestNick2", 10002));
+            PacketReader inviteAck = awaitOpcode(host, GamePackets.SERVER_INVITE_REPLY);
+            assertEquals(0, inviteAck.u16());
+            assertEquals(20202, inviteAck.u32());
+            assertEquals(0, inviteAck.u8());
+            assertEquals(numero, inviteAck.u16());
+            assertEquals(10001, inviteAck.u32());
+            assertEquals("TestNick", inviteAck.pstr());
+            assertEquals(10002, inviteAck.u32());
+            PacketReader invite = awaitOpcode(guest, GamePackets.SERVER_INVITE);
+            assertEquals(0, invite.u16());
+            assertEquals(20202, invite.u32());
+            assertEquals(0, invite.u8());
+            assertEquals(numero, invite.u16());
+            assertEquals(10001, invite.u32());
+            assertEquals("TestNick", invite.pstr());
+            assertEquals(10002, invite.u32());
             guest.sendPlain(GamePackets.clientJoinRoom(numero, ""));
             assertEquals(0, awaitOpcode(guest, GamePackets.SERVER_ROOM_ENTER_RESULT).i16());
 
@@ -655,6 +672,14 @@ class GameFlowIT {
             detail.u32();
             detail.u8();
             assertEquals(GamePackets.TIPO_STROKE, detail.u8());
+
+            guest.sendPlain(GamePackets.clientExitRoom());
+            PacketReader left = awaitOpcode(host, GamePackets.SERVER_ROOM_PLAYERS);
+            assertEquals(2, left.u8());
+            assertEquals(-1, left.i16());
+            assertTrue(left.i32() > 0);
+            PacketReader exit = awaitOpcode(guest, GamePackets.SERVER_EXIT_ROOM);
+            assertEquals(-1, exit.i16());
         }
     }
 

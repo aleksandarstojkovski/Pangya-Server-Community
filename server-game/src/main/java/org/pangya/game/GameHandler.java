@@ -111,6 +111,8 @@ public final class GameHandler {
             case GamePackets.CLIENT_REQUEST_RANK -> requestRank(session);
             case GamePackets.CLIENT_CHANGE_TEAM -> changeTeam(session, reader);
             case GamePackets.CLIENT_REQUEST_DETAIL_ROOM_INFO -> requestRoomDetail(session, reader);
+            case GamePackets.CLIENT_INVITE -> invite(session, reader);
+            case GamePackets.CLIENT_CHECK_INVITE -> { }
             default -> log.debug("unhandled game opcode 0x{}", Integer.toHexString(opcode));
         }
     }
@@ -302,6 +304,7 @@ public final class GameHandler {
         rooms.put(number, created);
         pi.roomNumber = number;
         pi.inPractice = room.tipo() == GamePackets.TIPO_PRACTICE;
+        pi.place = 0;
         sendRoomEnterPackets(session, created);
         sendLobbyRoomInfo(created, GamePackets.ROOM_LIST_ADD);
         sendLobbyPlayerInfo(session, GamePackets.LOBBY_USER_UPDATE);
@@ -330,6 +333,7 @@ public final class GameHandler {
         PlayerContext pi = session.player();
         pi.roomNumber = room.info.numero;
         pi.inPractice = room.tipo == GamePackets.TIPO_PRACTICE;
+        pi.place = 0;
         room.putPlayerInfo(session, makePlayerInfo(session, room));
         sendRoomEnterPackets(session, room);
         sendLobbyRoomInfo(room, GamePackets.ROOM_LIST_UPDATE);
@@ -592,6 +596,7 @@ public final class GameHandler {
         GameRoom room = rooms.get(pi.roomNumber);
         boolean destroyed = false;
         GameRoom leftover = null;
+        GamePackets.PlayerRoomInfo leaver = room == null ? null : room.playerInfo(session);
         if (room != null) {
             room.removePlayer(session);
             if (room.info.numPlayer <= 0 || room.info.master == (int) pi.uid) {
@@ -604,10 +609,22 @@ public final class GameHandler {
         }
         pi.inPractice = false;
         pi.roomNumber = -1;
+        pi.place = 0;
+        if (leftover != null && !destroyed) {
+            leftover.broadcast(GamePackets.roomUpdate(leftover.info));
+            int base = GamePackets.usesCompactPlayerRoomInfo(leftover.tipo) ? 0x100 : 0;
+            GamePackets.PlayerRoomInfo left = leaver;
+            if (left == null) {
+                left = new GamePackets.PlayerRoomInfo();
+                left.oid = session.oid();
+            }
+            leftover.broadcast(GamePackets.roomPlayers(base + 2, List.of(left)));
+        }
         if (leftover != null) {
             sendLobbyRoomInfo(leftover, destroyed ? GamePackets.ROOM_LIST_REMOVE : GamePackets.ROOM_LIST_UPDATE);
         }
         sendLobbyPlayerInfo(session, GamePackets.LOBBY_USER_UPDATE);
+        session.send(GamePackets.exitRoomAck(-1));
     }
 
     private void leavePractice(Session session) {
@@ -1030,6 +1047,40 @@ public final class GameHandler {
                     info.oid, info.level, 0, info.capability, info.title, info.teamPoint));
         }
         session.send(GamePackets.roomDetail(room.info, room.tipo, players));
+    }
+
+    private void invite(Session session, PacketReader reader) {
+        if (!session.authorized() || reader.remaining() < 2) {
+            return;
+        }
+        String nick = reader.pstr();
+        if (reader.remaining() < 4) {
+            session.send(GamePackets.inviteFail(GamePackets.INVITE_FAIL));
+            return;
+        }
+        long uid = reader.u32() & 0xffff_ffffL;
+        PlayerContext pi = session.player();
+        GameRoom room = rooms.get(pi.roomNumber);
+        Session target = sessions.findByNickname(nick);
+        if (room == null
+                || target == null
+                || target.player().uid != uid
+                || target.player().channelId != pi.channelId
+                || target.player().roomNumber >= 0
+                || target.player().place != 0) {
+            session.send(GamePackets.inviteFail(GamePackets.INVITE_FAIL));
+            return;
+        }
+        target.player().place = GamePackets.INVITE_PLACE;
+        int fromUid = (int) pi.uid;
+        String fromNick = pi.nickname == null ? "" : pi.nickname;
+        int toUid = (int) uid;
+        session.send(GamePackets.inviteOk(
+                GamePackets.SERVER_INVITE_REPLY, config.uid(), pi.channelId, room.info.numero,
+                fromUid, fromNick, toUid));
+        target.send(GamePackets.inviteOk(
+                GamePackets.SERVER_INVITE, config.uid(), pi.channelId, room.info.numero,
+                fromUid, fromNick, toUid));
     }
 
     private GamePackets.ChannelInfo findChannel(int id) {

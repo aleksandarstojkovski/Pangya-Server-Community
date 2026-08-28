@@ -8,8 +8,8 @@ Questo repo è **solo** la riscrittura Java.
 
 | Campo | Valore |
 |-------|--------|
-| Slice completata | **S0–S6** packet paths: shop, messenger pages, lounge, GZ/SSC, lobby `0x81`/`0x46`/`0x47`/`0xF5`, chat `0x40`, whisper `0x84`, cookie `0x96`, ready `0x78`, change-room `0x0A`→`0x4A`, player info `0x2F` dump+`0x89`, macros `0x69`, GS list `0x9F`, rank `0xA2`, team `0x7D`, room detail `0x86` |
-| Prossima | IFF cubes/pins/`initComboDef`; leave-room `0x4C`/`0x48` remaining; invite `0xBA`; full lounge walk/zoom; real JP client captures |
+| Slice completata | **S0–S6** packet paths: shop, messenger pages, lounge, GZ/SSC, lobby `0x81`/`0x46`/`0x47`/`0xF5`, chat `0x40`, whisper `0x84`, cookie `0x96`, ready `0x78`, change-room `0x0A`→`0x4A`, player info `0x2F` dump+`0x89`, macros `0x69`, GS list `0x9F`, rank `0xA2`, team `0x7D`, room detail `0x86`, invite `0xBA`→`0x12F`/`0x83`, leave `0x4C`/`0x48` option 2 |
+| Prossima | IFF cubes/pins/`initComboDef`; full lounge walk/zoom; real JP client captures |
 | Blocked | IFF files absent (live pin/cube coords, IFF shop prices beyond SQL catalog, `initComboDef` parts) |
 | VM | Java 21.0.10, Docker 29.7.2, Compose v5.5.0, 4 CPU / 15 GiB |
 
