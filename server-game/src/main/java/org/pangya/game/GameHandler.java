@@ -180,6 +180,7 @@ public final class GameHandler {
             case GamePackets.CLIENT_UPDATE_MACRO -> updateMacros(session, reader);
             case GamePackets.CLIENT_REQUEST_SERVER_LIST -> requestServerList(session);
             case GamePackets.CLIENT_REQUEST_RANK -> requestRank(session);
+            case GamePackets.CLIENT_USER_MATCH_HISTORY -> last5Players(session);
             case GamePackets.CLIENT_CHANGE_TEAM -> changeTeam(session, reader);
             case GamePackets.CLIENT_REQUEST_DETAIL_ROOM_INFO -> requestRoomDetail(session, reader);
             case GamePackets.CLIENT_INVITE -> invite(session, reader);
@@ -2330,6 +2331,16 @@ public final class GameHandler {
         }
         LoginRepository.ServerListRow rank = ranks.getFirst();
         session.send(GamePackets.rankAddress(rank.ip(), rank.port()));
+    }
+
+    /**
+     * C# {@code packet09C}: {@code pacote10E} with 5 zeroed {@code LastPlayerGame} rows.
+     */
+    private void last5Players(Session session) {
+        if (!session.authorized()) {
+            return;
+        }
+        session.send(GamePackets.last5Players());
     }
 
     private void changeTeam(Session session, PacketReader reader) {

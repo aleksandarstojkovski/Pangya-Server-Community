@@ -88,6 +88,8 @@ public final class GamePackets {
     /** C# {@code SERVER_RESPONSE_USERINFO_OFFLINE}. */
     public static final int SERVER_USERINFO_OFFLINE = 0xA1;
     public static final int SERVER_RANK_ADDRESS = 0xA2;
+    /** C# {@code pacote10E} last-5 players. */
+    public static final int SERVER_LAST5 = 0x10E;
     /** C# {@code pacote0AA} / {@code SERVER_NEW_ITEM}. */
     public static final int SERVER_NEW_ITEM = 0xAA;
     /** C# pang spent after shop buy ({@code 0xC8} + remaining + spent). */
@@ -276,6 +278,8 @@ public final class GamePackets {
     public static final int CLIENT_UPDATE_MACRO = 0x69;
     public static final int CLIENT_REQUEST_SERVER_LIST = 0x43;
     public static final int CLIENT_REQUEST_RANK = 0x47;
+    /** C# {@code CLIENT_USER_MATCH_HISTORY} / {@code packet09C}. */
+    public static final int CLIENT_USER_MATCH_HISTORY = 0x9C;
     public static final int CLIENT_CHANGE_TEAM = 0x10;
     public static final int CLIENT_LOADING_INFO = 0x48;
     public static final int CLIENT_TEAMCHAT = 0x54;
@@ -560,6 +564,10 @@ public final class GamePackets {
     public static final int MAIL_ERR_DELETE_DEFAULT = 0x5500150;
     /** C# {@code EmailInfo.ToArray} when {@code from_id} is empty. */
     public static final String MAIL_FROM_ADM = "@ADM";
+    /** C# {@code Last5PlayersGame.LastPlayerGame.ToArray}: sex 4 + nick 22 + id 22 + uid 4. */
+    public static final int LAST5_PLAYER_BYTES = 52;
+    /** C# always writes 5 {@code LastPlayerGame} rows. */
+    public static final int LAST5_COUNT = 5;
     /** C# view {@code WriteString(nick, 22)}. */
     public static final int SHOP_NICK_BYTES = 22;
     /** C# {@code requestBuyItemShop} {@code 0x68} option codes. */
@@ -1989,6 +1997,13 @@ public final class GamePackets {
         return new PacketWriter().opcode(SERVER_RANK_ADDRESS).pstr(ip == null ? "" : ip).i32(port).toBytes();
     }
 
+    /**
+     * C# {@code pacote10E}: 5× {@code LastPlayerGame.ToArray} (seed zeros).
+     */
+    public static byte[] last5Players() {
+        return new PacketWriter().opcode(SERVER_LAST5).zero(LAST5_COUNT * LAST5_PLAYER_BYTES).toBytes();
+    }
+
     public static byte[] teamState(int oid, int team) {
         return new PacketWriter().opcode(SERVER_TEAM).i32(oid).u8(team).toBytes();
     }
@@ -2200,6 +2215,11 @@ public final class GamePackets {
 
     public static byte[] clientRequestRank() {
         return new PacketWriter().opcode(CLIENT_REQUEST_RANK).toBytes();
+    }
+
+    /** C# CLIENT {@code 0x9C} empty. */
+    public static byte[] clientLast5() {
+        return new PacketWriter().opcode(CLIENT_USER_MATCH_HISTORY).toBytes();
     }
 
     public static byte[] clientChangeTeam(int team) {

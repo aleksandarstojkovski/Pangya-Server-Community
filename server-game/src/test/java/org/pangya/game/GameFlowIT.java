@@ -1191,6 +1191,16 @@ class GameFlowIT {
             PacketReader rank = awaitOpcode(host, GamePackets.SERVER_RANK_ADDRESS);
             assertEquals("127.0.0.1", rank.pstr());
             assertEquals(4774, rank.i32());
+
+            host.sendPlain(GamePackets.clientLast5());
+            PacketReader last5 = awaitOpcode(host, GamePackets.SERVER_LAST5);
+            assertEquals(GamePackets.LAST5_COUNT * GamePackets.LAST5_PLAYER_BYTES, last5.remaining());
+            for (int i = 0; i < GamePackets.LAST5_COUNT; i++) {
+                assertEquals(0, last5.u32());
+                assertEquals("", last5.fixedStr(22));
+                assertEquals("", last5.fixedStr(22));
+                assertEquals(0, last5.u32());
+            }
         }
     }
 

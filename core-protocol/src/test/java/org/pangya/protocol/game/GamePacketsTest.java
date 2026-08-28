@@ -775,6 +775,11 @@ class GamePacketsTest {
         assertEquals(GamePackets.CLIENT_DELETE_MAIL, 0x147);
         assertEquals(GamePackets.SERVER_MAILBOX, 0x211);
         assertEquals(GamePackets.SERVER_MAIL_DELETE, 0x215);
+        PacketReader last5 = new PacketReader(GamePackets.last5Players());
+        assertEquals(GamePackets.SERVER_LAST5, last5.opcode());
+        assertEquals(GamePackets.LAST5_COUNT * GamePackets.LAST5_PLAYER_BYTES, last5.remaining());
+        assertEquals(GamePackets.CLIENT_USER_MATCH_HISTORY, 0x9C);
+        assertEquals(GamePackets.SERVER_LAST5, 0x10E);
         assertEquals(GamePackets.SERVER_BUY_ACK, 0x68);
         assertEquals(GamePackets.CREATE_ROOM_FAILED, 0x07);
     }
