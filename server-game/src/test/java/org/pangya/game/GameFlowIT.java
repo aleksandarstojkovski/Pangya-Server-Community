@@ -5173,6 +5173,8 @@ class GameFlowIT {
             PacketReader created = awaitOpcode(host, GamePackets.SERVER_ROOM_ENTER_RESULT);
             assertEquals(0, created.i16());
             int roomNumber = roomNumberFromInfo(created.readBytes(GamePackets.ROOM_INFO_BYTES));
+            guest.sendPlain(GamePackets.clientJoinRoom(roomNumber, ""));
+            assertEquals(0, awaitOpcode(guest, GamePackets.SERVER_ROOM_ENTER_RESULT).i16());
             host.sendPlain(GamePackets.clientStartGame());
             awaitOpcode(host, GamePackets.SERVER_START_GAME_FLAG);
             awaitOpcode(host, GamePackets.SERVER_START_GAME_FLAG2);
