@@ -43,7 +43,7 @@ public final class MessengerRuntime implements AutoCloseable {
         this.health = new HealthHttp(config.healthPort(), config.serverName(), metrics);
         if (config.authEnabled()) {
             this.auth = new AuthServerConnector(config, repo::generateAuthServerKey);
-            this.auth.setAuthCommandListener(handler::onAuthCommand);
+            this.auth.setAuthInboundListener(handler::onAuthPacket);
             this.auth.start();
         } else {
             this.auth = null;

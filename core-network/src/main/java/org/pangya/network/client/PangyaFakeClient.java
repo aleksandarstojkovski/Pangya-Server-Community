@@ -120,6 +120,12 @@ public final class PangyaFakeClient implements AutoCloseable {
         return key;
     }
 
+    /** True while the TCP channel is still open (tests verify server-initiated disconnect). */
+    public boolean connected() {
+        Channel ch = channel;
+        return ch != null && ch.isActive();
+    }
+
     public void sendPlain(byte[] plaintext) {
         if (key < 0) {
             throw new IllegalStateException("hello not received");

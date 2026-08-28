@@ -11,6 +11,7 @@ import java.util.List;
 public final class MessengerPackets {
 
     public static final int CLIENT_CONNECT = 0x12;
+    public static final int CLIENT_REQ_USERINFO_OFFLINE = 0x13;
     public static final int CLIENT_REQ_USERINFO = 0x14;
     public static final int CLIENT_REQ_REGISTER_FRIEND = 0x18;
     public static final int CLIENT_REQ_FRIEND_AGREE = 0x19;

@@ -16,9 +16,9 @@ S4 profondità: **173** opcode success 1:1 / **0** opcode solo fail-stub / **0**
 
 | Campo | Valore |
 |-------|--------|
-| Fatto | Auth guild callbacks `packet_as001`–`003` (Auth `0x0D` → refresh friend pages + `0x3B`/`0x3C`) |
-| Prossimo opcode/file C# | IFF pin/cube/`initComboDef`, Messenger `0x2A`–`0x2D` auth-check stubs, capture JP S9 |
-| Percentuale epic | scheletro **85%** / parità client reale **42%** |
+| Fatto | Auth inbound `0x06`/`0x0C`/`0x0D`; Messenger `0x13` stub + friend-list online visibility |
+| Prossimo opcode/file C# | Auth `0x0B`, IFF pin/cube/`initComboDef`, capture JP S9 |
+| Percentuale epic | scheletro **85%** / parità client reale **43%** |
 | VM | Java 21.0.10, Docker 29.7.2, Compose v5.5.0, 4 CPU / 15 GiB |
 
 ## Mappa C# → Java

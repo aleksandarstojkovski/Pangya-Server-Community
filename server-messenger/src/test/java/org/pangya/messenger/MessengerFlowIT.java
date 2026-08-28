@@ -16,6 +16,8 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class MessengerFlowIT {
 
@@ -432,6 +434,37 @@ class MessengerFlowIT {
             assertEquals(1, page.u8());
             assertEquals(2, page.u16());
             assertEquals(2, page.u16());
+        }
+    }
+
+    @Test
+    void authDisconnectDisconnectsLoggedInPlayer() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        DatabaseSupport.migrate(jdbc, user, password);
+        clearGuildMembership(jdbc, user, password, 10001);
+
+        try (MessengerRuntime runtime = new MessengerRuntime(new AppConfig(testYaml(jdbc, user, password)));
+             PangyaFakeClient client = new PangyaFakeClient()) {
+            client.connect("127.0.0.1", runtime.port(), PangyaFakeClient.HelloKind.MESSENGER);
+            client.awaitHello(5, TimeUnit.SECONDS);
+            client.sendPlain(MessengerPackets.clientLogin(10001, "TestNick"));
+            PacketReader login = new PacketReader(client.awaitPlain(5, TimeUnit.SECONDS));
+            assertEquals(MessengerPackets.SERVER_LOGIN_ACK, login.opcode());
+            assertEquals(0, login.u8());
+
+            assertTrue(client.connected());
+
+            runtime.handler().onAuthPacket(
+                    AuthS2s.AUTH_DISCONNECT_PLAYER,
+                    new PacketReader(new PacketWriter().u32(10001).u32(30201).u8(1).toBytes()));
+
+            long deadline = System.currentTimeMillis() + 2000;
+            while (client.connected() && System.currentTimeMillis() < deadline) {
+                Thread.sleep(20);
+            }
+            assertFalse(client.connected());
         }
     }
 

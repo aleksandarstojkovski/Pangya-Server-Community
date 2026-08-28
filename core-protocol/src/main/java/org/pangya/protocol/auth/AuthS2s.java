@@ -19,7 +19,12 @@ public final class AuthS2s {
     public static final int CONFIRM_INFO = 0x05;
     public static final int COMMAND_TO_OTHER = 0x06;
     public static final int REPLY_TO_OTHER = 0x07;
-    /** Auth→child: {@code requestSendCommandToOtherServer} (C# {@code unit_auth_server_connect} 0x0D). */
+
+    /** Auth→child opcodes ({@code unit_auth_server_connect.init_Packets}). */
+    public static final int AUTH_DISCONNECT_PLAYER = 0x06;
+    /** Auth→child: {@code requestConfirmSendInfoPlayerOnline}. */
+    public static final int AUTH_CONFIRM_PLAYER_INFO = 0x0C;
+    /** Auth→child: {@code requestSendCommandToOtherServer}. */
     public static final int SEND_COMMAND_TO_OTHER = 0x0D;
 
     /** Messenger {@code funcs_as} guild callbacks ({@code packet_as001}–{@code packet_as003}). */
@@ -75,6 +80,32 @@ public final class AuthS2s {
     public static byte[] registerAck(int oid) {
         return new PacketWriter().opcode(REGISTER_ACK).i32(oid).toBytes();
     }
+
+    /** Auth→child {@code 0x06}: player uid, server uid, force u8. */
+    public static AuthDisconnectRequest readAuthDisconnect(PacketReader reader) {
+        long playerUid = reader.u32() & 0xffff_ffffL;
+        long serverUid = reader.u32() & 0xffff_ffffL;
+        int force = reader.u8();
+        return new AuthDisconnectRequest(playerUid, serverUid, force);
+    }
+
+    /** Auth→child {@code 0x0C}: req server uid, option i32, uid u32, optional id+ip PStr. */
+    public static AuthConfirmPlayerInfo readAuthConfirmPlayerInfo(PacketReader reader) {
+        int reqServerUid = reader.u32();
+        int option = reader.i32();
+        long uid = reader.u32() & 0xffff_ffffL;
+        if (option == 1 && reader.remaining() >= 2) {
+            String id = reader.pstr();
+            String ip = reader.remaining() >= 2 ? reader.pstr() : "";
+            return new AuthConfirmPlayerInfo(reqServerUid, option, uid, id, ip);
+        }
+        return new AuthConfirmPlayerInfo(reqServerUid, option, uid, "", "");
+    }
+
+    public record AuthDisconnectRequest(long playerUid, long serverUid, int force) {}
+
+    public record AuthConfirmPlayerInfo(
+            int reqServerUid, int option, long uid, String id, String ip) {}
 
     public record RegisterRequest(
             int tipo, int uid, String name, String key, String clientVersion, int packetVersion) {}

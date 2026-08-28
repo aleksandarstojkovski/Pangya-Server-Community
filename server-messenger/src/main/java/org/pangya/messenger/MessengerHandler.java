@@ -40,6 +40,7 @@ public final class MessengerHandler {
         int opcode = reader.opcode();
         switch (opcode) {
             case MessengerPackets.CLIENT_CONNECT -> requestLogin(session, reader);
+            case MessengerPackets.CLIENT_REQ_USERINFO_OFFLINE -> offlineUserInfoNotify(session);
             case MessengerPackets.CLIENT_REQ_USERINFO -> friendList(session);
             case MessengerPackets.CLIENT_REQ_REGISTER_FRIEND -> addFriend(session, reader);
             case MessengerPackets.CLIENT_REQ_FRIEND_AGREE -> agreeFriend(session, reader);
@@ -69,7 +70,23 @@ public final class MessengerHandler {
     }
 
     /**
-     * C# {@code authCmdSendCommandToOtherServer} → {@code funcs_as} ({@code packet_as001}–{@code packet_as003}).
+     * C# {@code authCmd*} from Auth via {@code unit_auth_server_connect}.
+     */
+    public void onAuthPacket(int opcode, PacketReader body) {
+        switch (opcode) {
+            case AuthS2s.AUTH_DISCONNECT_PLAYER -> authDisconnectPlayer(body);
+            case AuthS2s.AUTH_CONFIRM_PLAYER_INFO -> authConfirmPlayerInfo(body);
+            case AuthS2s.SEND_COMMAND_TO_OTHER -> {
+                int reqServerUid = body.u32();
+                short commandId = (short) body.i16();
+                onAuthCommand(reqServerUid, commandId, body);
+            }
+            default -> log.debug("unhandled auth packet 0x{}", Integer.toHexString(opcode));
+        }
+    }
+
+    /**
+     * C# {@code funcs_as} guild callbacks ({@code packet_as001}–{@code packet_as003}).
      */
     public void onAuthCommand(int reqServerUid, short commandId, PacketReader body) {
         switch (commandId) {
@@ -99,29 +116,60 @@ public final class MessengerHandler {
                 session.disconnect();
                 return;
             }
-            PlayerContext pi = session.player();
-            pi.uid = info.uid();
-            pi.id = info.id();
-            pi.nickname = info.nickname();
-            pi.level = info.level();
-            pi.messengerState = MessengerPackets.STATE_ONLINE;
-            pi.channelPlayerInfo = MessengerPackets.emptyChannelPlayerInfo();
-            pi.messengerLogoutSent = false;
-            pi.guildUid = 0;
-            pi.guildName = "";
-            repo.guildMembership(pi.uid).ifPresent(g -> {
-                pi.guildUid = g.guildUid();
-                pi.guildName = g.guildName() == null ? "" : g.guildName();
-            });
-            sessions.disconnectOthersWithUid(pi.uid, session);
-            session.setAuthorized(true);
-            session.send(MessengerPackets.loginOk((int) pi.uid));
-            log.info("messenger login nick={} uid={}", pi.nickname, pi.uid);
+            finishLogin(session, info);
         } catch (RuntimeException e) {
             log.warn("messenger login failed: {}", e.toString());
             session.send(MessengerPackets.loginFail());
             session.disconnect();
         }
+    }
+
+    /** C# {@code confirmLoginOnOtherServer} success path. */
+    private void finishLogin(Session session, LoginRepository.PlayerLoginInfo info) {
+        PlayerContext pi = session.player();
+        pi.uid = info.uid();
+        pi.id = info.id();
+        pi.nickname = info.nickname();
+        pi.level = info.level();
+        pi.messengerState = MessengerPackets.STATE_ONLINE;
+        pi.channelPlayerInfo = MessengerPackets.emptyChannelPlayerInfo();
+        pi.messengerLogoutSent = false;
+        reloadGuild(pi);
+        sessions.disconnectOthersWithUid(pi.uid, session);
+        session.setAuthorized(true);
+        session.send(MessengerPackets.loginOk((int) pi.uid));
+        log.info("messenger login nick={} uid={}", pi.nickname, pi.uid);
+    }
+
+    private void authDisconnectPlayer(PacketReader body) {
+        AuthS2s.AuthDisconnectRequest req = AuthS2s.readAuthDisconnect(body);
+        Session target = sessions.findByUid(req.playerUid());
+        if (target == null) {
+            log.debug("auth disconnect uid={} not on messenger", req.playerUid());
+            return;
+        }
+        target.disconnect();
+        log.info("auth disconnect uid={} server={} force={}", req.playerUid(), req.serverUid(), req.force());
+    }
+
+    private void authConfirmPlayerInfo(PacketReader body) {
+        AuthS2s.AuthConfirmPlayerInfo info = AuthS2s.readAuthConfirmPlayerInfo(body);
+        Session session = sessions.findByUid(info.uid());
+        if (session == null) {
+            log.debug("auth confirm login uid={} not connected", info.uid());
+            return;
+        }
+        if (session.authorized()) {
+            return;
+        }
+        var player = repo.playerInfo(info.uid()).orElse(null);
+        if (player == null) {
+            session.send(MessengerPackets.loginFail());
+            session.disconnect();
+            return;
+        }
+        finishLogin(session, player);
+        log.info("auth confirmed messenger login uid={} reqServer={}", info.uid(), info.reqServerUid());
     }
 
     private void friendList(Session session) {
@@ -270,7 +318,7 @@ public final class MessengerHandler {
         int state = row.stateFlag();
         byte[] channel;
         int icon;
-        if (live != null) {
+        if (live != null && canSeeOnline(viewerUid, row.friendUid())) {
             channel = channelInfo(live.player());
             icon = live.player().messengerState;
             state |= MessengerPackets.FLAG_ONLINE;
@@ -291,6 +339,35 @@ public final class MessengerHandler {
             return;
         }
         log.debug("guild client notify 0x{} uid={}", Integer.toHexString(opcode), session.player().uid);
+    }
+
+    /** C# {@code packet013}: auth-check only, no response. */
+    private void offlineUserInfoNotify(Session session) {
+        if (!session.authorized()) {
+            log.warn("offline userinfo notify before login");
+            return;
+        }
+        log.debug("offline userinfo notify uid={}", session.player().uid);
+    }
+
+    /**
+     * C# {@code findFriendInAllFriend} + block check before showing live
+     * {@code ChannelPlayerInfo} on friend-list rows.
+     */
+    private boolean canSeeOnline(long viewerUid, long targetUid) {
+        if (viewerUid == targetUid) {
+            return true;
+        }
+        var reverse = friends.find(targetUid, viewerUid);
+        if (reverse.isPresent() && (reverse.get().stateFlag() & MessengerPackets.FLAG_BLOCK) == 0) {
+            return true;
+        }
+        Session viewer = sessions.findByUid(viewerUid);
+        Session target = sessions.findByUid(targetUid);
+        return viewer != null
+                && target != null
+                && viewer.player().guildUid > 0
+                && viewer.player().guildUid == target.player().guildUid;
     }
 
     private void addFriend(Session session, PacketReader reader) {
