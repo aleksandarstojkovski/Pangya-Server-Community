@@ -160,7 +160,7 @@ C#: `GameServer/PangyaEnums/PacketGame.cs` → Java `org.pangya.protocol.game.Ga
 | C | `CLIENT_COMPLETE_QUEST` | `0xAE` | tipo not 0/1/2 → `0x44` u8 `0xE2` + `shopSys(0x5300552)` |
 | C | `CLIENT_HEARTBEAT` | `0xF4` | no reply |
 | C | `CLIENT_REQUEST_UPDATE_USER_PLACE` | `0xC1` | sbyte place; no reply |
-| C | `CLIENT_USE_TICKET_REPORT` | `0xAA` | not-in-room silent; opposite `SERVER_NEW_ITEM` |
+| C | `CLIENT_USE_TICKET_REPORT` | `0xAA` | Tourney FINISH + level≥6 + typeid `0x1A000041`: `pacote0AA` remaining C0, `0x12A` u32 0, `0x4C` -1, leave 10 (`0x61`+`0x11B` oid). Versus/not-FINISH/no item silent. Opposite `SERVER_NEW_ITEM` |
 | C | `CLIENT_ACTIVE_PAWS_EFFECT` | `0x15C` | not-in-room silent |
 | C | `CLIENT_ACTIVE_RING_EFFECT` | `0x15D` | not-in-room silent |
 | C | `CLIENT_REQ_POINT_SHOP_TP` | `0x127` | not blocked → `0x1E8` u32 0 + u32 tiki pts (seed 0) |

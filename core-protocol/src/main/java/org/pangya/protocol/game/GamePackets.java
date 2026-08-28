@@ -131,6 +131,36 @@ public final class GamePackets {
     public static final int SERVER_LAST5 = 0x10E;
     /** C# {@code SERVER_OPEN_TIKI_REPORT} fail {@code 0x11A}. */
     public static final int SERVER_TICKET_REPORT = 0x11A;
+    /**
+     * C# Tourney {@code deletePlayer} option 10 {@code 0x11B}
+     * ({@code SERVER_TIKI_REPORT_LEAVE_USER}): i32 oid to remaining players.
+     */
+    public static final int SERVER_TICKET_REPORT_LEAVE = 0x11B;
+    /**
+     * C# Tourney {@code finish_game(1)} {@code 0x12A}
+     * ({@code SERVER_NOTICE_TO_CLIENT}): u32 0.
+     */
+    public static final int SERVER_TICKET_REPORT_NOTICE = 0x12A;
+    /**
+     * C# {@code sendTreasureHunterItemDrawGUI} {@code 0x133}: u8 count then
+     * (uid + typeid + u16 qntd + u8) per item. Empty is u8 0.
+     */
+    public static final int SERVER_TREASURE_DRAW = 0x133;
+    /**
+     * C# {@code SERVER_NEW_END_GAME_FLAG} {@code 0x244} u32 0 after a finished
+     * game (including ticket-report {@code finish_game(1)}).
+     */
+    public static final int SERVER_NEW_END_GAME_FLAG = 0x244;
+    /**
+     * C# {@code SERVER_NEW_END_GAME_FLAG2} {@code 0x24F} u32 0 (JP).
+     */
+    public static final int SERVER_NEW_END_GAME_FLAG2 = 0x24F;
+    /**
+     * C# Tourney {@code deletePlayer} {@code 0x61} ({@code SERVER_DISCONNECT}):
+     * i32 oid, removes the player from the in-game score list. Same numeric as
+     * {@link #CLIENT_REQUEST_KICK}, opposite direction.
+     */
+    public static final int SERVER_SCORE_LEAVE = 0x61;
     /** C# lucky-pouch fail {@code 0x129}. Opposite direction from CLIENT tiki {@code 0x129}. */
     public static final int SERVER_LUCKY_POUCH = 0x129;
     /** C# {@code SERVER_ITEMSTORAGE_RES_ACCESS} {@code 0x16C}. */
@@ -1805,6 +1835,15 @@ public final class GamePackets {
     public static final int TYPEID_MULLIGAN_ROSE = 0x1800000E;
     /** C# {@code AUTO_COMMAND_TYPEID} {@code 0x1A00019F}. */
     public static final int TYPEID_AUTO_COMMAND = 0x1A00019F;
+    /** C# {@code TICKET_REPORT_TYPEID} {@code 0x1A000041}. */
+    public static final int TYPEID_TICKET_REPORT = 0x1A000041;
+    /**
+     * C# {@code PlayerGameInfo.eFLAG_GAME} ordinals. Ticket-report success
+     * requires {@link #FLAG_GAME_FINISH} then sets {@link #FLAG_GAME_TICKET_REPORT}.
+     */
+    public static final int FLAG_GAME_PLAYING = 0;
+    public static final int FLAG_GAME_TICKET_REPORT = 1;
+    public static final int FLAG_GAME_FINISH = 2;
     /**
      * C# {@code STDA_ERROR_TYPE.GAME} ordinal. Auto-command GAME-source catch
      * writes this as {@link #SERVER_AUTO_COMMAND_ACK} u32.
@@ -4401,6 +4440,44 @@ public final class GamePackets {
     }
 
     /**
+     * C# Tourney {@code finish_game(1)} {@code 0x12A} u32 0 before {@code 0x4C}.
+     */
+    public static byte[] ticketReportNotice() {
+        return new PacketWriter().opcode(SERVER_TICKET_REPORT_NOTICE).u32(0).toBytes();
+    }
+
+    /**
+     * C# {@code sendTreasureHunterItemDrawGUI} with no drops: {@code 0x133} u8 0.
+     */
+    public static byte[] treasureHunterDraw() {
+        return new PacketWriter().opcode(SERVER_TREASURE_DRAW).u8(0).toBytes();
+    }
+
+    /** C# {@code SERVER_NEW_END_GAME_FLAG} {@code 0x244} u32 0. */
+    public static byte[] newEndGameFlag() {
+        return new PacketWriter().opcode(SERVER_NEW_END_GAME_FLAG).u32(0).toBytes();
+    }
+
+    /** C# {@code SERVER_NEW_END_GAME_FLAG2} {@code 0x24F} u32 0. */
+    public static byte[] newEndGameFlag2() {
+        return new PacketWriter().opcode(SERVER_NEW_END_GAME_FLAG2).u32(0).toBytes();
+    }
+
+    /**
+     * C# Tourney {@code deletePlayer} {@code 0x61}: i32 oid to remaining players.
+     */
+    public static byte[] scoreLeave(int oid) {
+        return new PacketWriter().opcode(SERVER_SCORE_LEAVE).i32(oid).toBytes();
+    }
+
+    /**
+     * C# Tourney ticket-report {@code 0x11B}: i32 oid to remaining players.
+     */
+    public static byte[] ticketReportLeave(int oid) {
+        return new PacketWriter().opcode(SERVER_TICKET_REPORT_LEAVE).i32(oid).toBytes();
+    }
+
+    /**
      * C# {@code pacote196}: oid + {@code StateCharacterLounge} defaults (all 1.0f).
      */
     public static byte[] loungeState(int oid) {
@@ -4502,6 +4579,17 @@ public final class GamePackets {
                 .u8(1)
                 .u8(ROOM_CHANGE_COURSE)
                 .u8(course)
+                .toBytes();
+    }
+
+    /** C# CLIENT {@code 0x0A} type {@link #ROOM_CHANGE_HOLES}. */
+    public static byte[] clientChangeRoomHoles(int roomId, int holes) {
+        return new PacketWriter()
+                .opcode(CLIENT_CHANGE_ROOM_INFO)
+                .i16(roomId)
+                .u8(1)
+                .u8(ROOM_CHANGE_HOLES)
+                .u8(holes)
                 .toBytes();
     }
 
@@ -5321,9 +5409,12 @@ public final class GamePackets {
         return new PacketWriter().opcode(CLIENT_UPDATE_PLACE).u8(place).toBytes();
     }
 
-    /** C# CLIENT {@code 0xAA} empty. */
+    /**
+     * C# CLIENT {@code 0xAA} {@code UserInfoEx} ({@link #USER_INFO_BYTES}).
+     * Fail (not Tourney / not FINISH / level / warehouse) is silent.
+     */
     public static byte[] clientUseTicketReport() {
-        return new PacketWriter().opcode(CLIENT_USE_TICKET_REPORT).toBytes();
+        return new PacketWriter().opcode(CLIENT_USE_TICKET_REPORT).zero(USER_INFO_BYTES).toBytes();
     }
 
     /** C# CLIENT {@code 0x15C} empty. */

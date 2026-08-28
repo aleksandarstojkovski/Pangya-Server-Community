@@ -7,14 +7,14 @@ Questo repo è solo la riscrittura Java. **S4 non è done.**
 
 S0 [x] S1 [x] S2 [x] S3 [x] S4 [~] S5 [~] S6 [x]
 
-S4 profondità: **130** opcode success 1:1 / **40** opcode solo fail-stub / **43** stimati rimanenti dal C# Channel
+S4 profondità: **131** opcode success 1:1 / **40** opcode solo fail-stub / **42** stimati rimanenti dal C# Channel
 
-Conteggio Channel: **197** handler `packet_func_sv` registrati in `GameService.init_Packets`. Java ha uno `switch` per **194** di quelli (manca `0x9A` PCBang mascot; `0x174`/`0x175` sono no-op anche in C#). Success 1:1 = happy-path wire C# raggiungibile (SQL stand-in ammesso). Fail-stub = Java manda solo il catch C#; il success C# vuole IFF/`ItemManager`. Rimanenti ≈ fail-stub + `0x9A` + ticket-report leave `0xAA` + GZ first-hole pulse `0x137`.
+Conteggio Channel: **197** handler `packet_func_sv` registrati in `GameService.init_Packets`. Java ha uno `switch` per **194** di quelli (manca `0x9A` PCBang mascot; `0x174`/`0x175` sono no-op anche in C#). Success 1:1 = happy-path wire C# raggiungibile (SQL stand-in ammesso). Fail-stub = Java manda solo il catch C#; il success C# vuole IFF/`ItemManager`. Rimanenti ≈ fail-stub + `0x9A` + GZ first-hole pulse `0x137`.
 
 ## Questo turno
 
-Fatto: `docs/STATUS.md` + tabella progresso in `docs/EPIC.md`; replay `0x4A`→`0xA4` (già su branch); auto-command `0x156` → fail `0x22B` u32 (`STDA_ERROR_TYPE.GAME`=92 se C0&lt;1, `0x550001` se spent/`v_passive` miss; success silenzioso come C#).
-Prossimo opcode/file C#: `Tourney.requestUseTicketReport` (`packet0AA`, typeid `0x1A000041`) → `pacote0AA` + `finish_game`; oppure `Channel.requestUpdatePCBangMascot` (`packet09A`).
+Fatto: Tourney ticket-report `0xAA` → `pacote0AA` remaining C0 + `finish_game(1)` (`0x12A`/`0x4C`/`0x244`/`0x24F`) + `leaveRoom(..., 10)` (`0x61`+`0x11B` agli altri; niente `0x4C` extra). FINISH = last-hole `0x31` su `qntd_hole`. Versus / non-FINISH / C0&lt;1 / level&lt;6 silenziosi.
+Prossimo opcode/file C#: `Channel.requestUpdatePCBangMascot` (`packet09A`) → `0xE2`/`0xEE`; oppure GZ first-hole pulse `0x137`.
 Blocco: file IFF assenti (pin/cube live, `initComboDef`, cutin success `0xE5` `findCutinInfomation`); nessuna capture client JP Season 9.
 
 Percentuale epic: **scheletro 85%** / **parità client reale 35%**.

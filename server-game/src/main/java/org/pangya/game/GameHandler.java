@@ -193,7 +193,7 @@ public final class GameHandler {
             case GamePackets.CLIENT_JOIN_GALLERY -> enterSpyRoom(session, reader);
             case GamePackets.CLIENT_GM_COMMAND -> commonCmdGm(session, reader);
             case GamePackets.CLIENT_REQUEST_KICK -> { }
-            case GamePackets.CLIENT_USE_TICKET_REPORT -> useTicketReport(session);
+            case GamePackets.CLIENT_USE_TICKET_REPORT -> useTicketReport(session, reader);
             case GamePackets.CLIENT_OPEN_TICKET_REPORT -> openTicketReport(session, reader);
             case GamePackets.CLIENT_COMPLETE_QUEST -> makeTutorial(session, reader);
             case GamePackets.CLIENT_OPEN_LUCKY_POUCH -> openLuckyPouch(session, reader);
@@ -597,6 +597,7 @@ public final class GameHandler {
         room.reported.clear();
         room.activeUses.clear();
         room.autoCommandUses.clear();
+        room.initGameFlags();
         for (var member : room.snapshot()) {
             room.initActiveItems(member.oid(), inventory.userEquip(member.player().uid).itemSlot);
             GamePackets.WarehouseItem auto = warehouseByTypeid(member.player().uid, GamePackets.TYPEID_AUTO_COMMAND);
@@ -1862,7 +1863,9 @@ public final class GameHandler {
     }
 
     /**
-     * C# {@code packet031} / {@code requestFinishHoleData}: stores {@code UserInfoEx}, no reply.
+     * C# {@code packet031} / {@code requestFinishHoleData}: stores {@code UserInfoEx},
+     * no reply. Tourney last-hole ({@code shot.hole >= qntd_hole}) is the Java
+     * stand-in for {@code finish_tourney(0)} → {@code eFLAG_GAME.FINISH}.
      */
     private void finishHoleData(Session session, PacketReader reader) {
         GameRoom room = inGameRoom(session);
@@ -1870,6 +1873,13 @@ public final class GameHandler {
             return;
         }
         reader.readBytes(GamePackets.USER_INFO_BYTES);
+        if (room.tipo != GamePackets.TIPO_TOURNEY) {
+            return;
+        }
+        GameRoom.PlayerShot shot = room.shots.get(session.oid());
+        if (shot != null && shot.hole > 0 && shot.hole >= room.info.holes) {
+            room.setGameFlag(session.oid(), GamePackets.FLAG_GAME_FINISH);
+        }
     }
 
     /**
@@ -2035,6 +2045,7 @@ public final class GameHandler {
         room.reported.clear();
         room.activeUses.clear();
         room.autoCommandUses.clear();
+        room.gameFlags.clear();
         for (Session member : room.snapshot()) {
             GamePackets.PlayerRoomInfo pri = room.playerInfo(member);
             if (pri == null) {
@@ -3778,12 +3789,85 @@ public final class GameHandler {
     }
 
     /**
-     * C# {@code requestUseTicketReport}: not-in-room CHANNEL catch is silent.
+     * C# Channel/Room/{@code Tourney.requestUseTicketReport}. Not-in-room /
+     * no-game / Versus-Practice-GP ({@code GameBase} false) / not FINISH /
+     * level &lt; {@link GamePackets#GIFT_MIN_LEVEL} / warehouse miss / consume
+     * fail are silent. Success: {@code pacote0AA} remaining C0, Tourney
+     * {@code finish_game(1)} ({@code 0x133}/{@code 0x12A}/{@code 0x45}/
+     * {@code 0xCE}/{@code 0x4C}/{@code 0x134}/{@code 0x244}/{@code 0x24F}/
+     * {@code 0xC8}), then {@code leaveRoom(..., 10)} (no extra {@code 0x4C};
+     * remaining players get {@code 0x61}+{@code 0x11B} oid).
      */
-    private void useTicketReport(Session session) {
+    private void useTicketReport(Session session, PacketReader reader) {
         if (!inChannel(session)) {
             return;
         }
+        GameRoom room = rooms.get(session.player().roomNumber);
+        if (room == null || !room.inGame || room.tipo != GamePackets.TIPO_TOURNEY) {
+            return;
+        }
+        if (reader.remaining() < GamePackets.USER_INFO_BYTES) {
+            return;
+        }
+        reader.readBytes(GamePackets.USER_INFO_BYTES);
+        if (room.gameFlag(session.oid()) != GamePackets.FLAG_GAME_FINISH) {
+            return;
+        }
+        PlayerContext pi = session.player();
+        if (pi.level < GamePackets.GIFT_MIN_LEVEL) {
+            return;
+        }
+        GamePackets.WarehouseItem item = warehouseByTypeid(pi.uid, GamePackets.TYPEID_TICKET_REPORT);
+        if (item == null || (item.c[0] & 0xffff) < 1) {
+            return;
+        }
+        OptionalInt remaining = inventory.consumeWarehouseByTypeid(pi.uid, GamePackets.TYPEID_TICKET_REPORT, 1);
+        if (remaining.isEmpty()) {
+            return;
+        }
+        session.send(GamePackets.buyNewItems(
+                List.of(new GamePackets.BoughtItem(
+                        GamePackets.TYPEID_TICKET_REPORT, item.id, 0, 0, remaining.getAsInt())),
+                inventory.pang(pi.uid),
+                inventory.cookie(pi.uid)));
+        room.setGameFlag(session.oid(), GamePackets.FLAG_GAME_TICKET_REPORT);
+        sendTicketReportFinish(session);
+        leaveRoomTicketReport(session);
+    }
+
+    /**
+     * C# Tourney {@code finish_game(_session, 1)} without finishing the room.
+     */
+    private void sendTicketReportFinish(Session session) {
+        session.send(GamePackets.treasureHunterDraw());
+        session.send(GamePackets.ticketReportNotice());
+        session.send(GamePackets.myStatistics(GamePackets.userInfoPublic(session.player().level)));
+        session.send(GamePackets.prizeList(new int[0]));
+        session.send(GamePackets.exitRoomAck(-1));
+        session.send(GamePackets.treasureHunterItem());
+        session.send(GamePackets.newEndGameFlag());
+        session.send(GamePackets.newEndGameFlag2());
+        session.send(GamePackets.pangSpent(inventory.pang(session.player().uid), 0));
+    }
+
+    /**
+     * C# {@code leaveRoom(_session, 10)}: {@code deletePlayer} broadcasts
+     * {@code 0x61}+{@code 0x11B} then leaves without {@code leaveRoomMultiPlayer}'s
+     * extra {@code 0x4C} ({@code finish_game(1)} already sent it).
+     */
+    private void leaveRoomTicketReport(Session session) {
+        PlayerContext pi = session.player();
+        GameRoom room = rooms.get(pi.roomNumber);
+        if (room != null) {
+            int oid = session.oid();
+            for (Session member : room.snapshot()) {
+                if (member != session) {
+                    member.send(GamePackets.scoreLeave(oid));
+                    member.send(GamePackets.ticketReportLeave(oid));
+                }
+            }
+        }
+        leaveRoom(session, false);
     }
 
     /**

@@ -1204,6 +1204,120 @@ class GameFlowIT {
     }
 
     @Test
+    void tourneyTicketReportSendsNewItemAndLeavesGuestInGame() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config);
+             PangyaFakeClient host = new PangyaFakeClient();
+             PangyaFakeClient guest = new PangyaFakeClient()) {
+            InventoryRepository inv = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
+            try {
+                inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_TICKET_REPORT);
+                inv.setLevel(10001, GamePackets.GIFT_MIN_LEVEL);
+                loginTwoPlayers(ds, keys, host, guest, runtime.port());
+                host.sendPlain(GamePackets.clientCreateRoom(GamePackets.TIPO_TOURNEY, "TR", ""));
+                PacketReader created = awaitOpcode(host, GamePackets.SERVER_ROOM_ENTER_RESULT);
+                assertEquals(0, created.i16());
+                int numero = roomNumberFromInfo(created.readBytes(GamePackets.ROOM_INFO_BYTES));
+                host.drainPlain(200);
+                host.sendPlain(GamePackets.clientChangeRoomHoles(numero, 1));
+                PacketReader holesUpd = awaitOpcode(host, GamePackets.SERVER_ROOM_UPDATE);
+                assertEquals(-1, holesUpd.i16());
+                holesUpd.u8();
+                holesUpd.u8();
+                assertEquals(1, holesUpd.u8());
+                guest.sendPlain(GamePackets.clientJoinRoom(numero, ""));
+                assertEquals(0, awaitOpcode(guest, GamePackets.SERVER_ROOM_ENTER_RESULT).i16());
+                host.sendPlain(GamePackets.clientStartGame());
+                awaitOpcode(host, GamePackets.SERVER_START_GAME_FLAG);
+                awaitOpcode(host, GamePackets.SERVER_START_GAME_FLAG2);
+                awaitOpcode(host, GamePackets.SERVER_PANG_RATE);
+                awaitOpcode(host, GamePackets.SERVER_GAME_INIT);
+                awaitOpcode(host, GamePackets.SERVER_COURSE);
+                awaitOpcode(guest, GamePackets.SERVER_GAME_INIT);
+                awaitOpcode(guest, GamePackets.SERVER_COURSE);
+                host.sendPlain(GamePackets.clientInitHole(1, 0, 0, 4, 1.5f, 2.5f, 10f, 20f));
+                host.sendPlain(GamePackets.clientHoleStat());
+                host.sendPlain(GamePackets.clientUseTicketReport());
+                for (byte[] leftover : host.drainPlain(400)) {
+                    assertTrue(new PacketReader(leftover).opcode() != GamePackets.SERVER_NEW_ITEM);
+                }
+                inv.addWarehouseItem(10001, GamePackets.TYPEID_TICKET_REPORT, 1);
+                int hostOid = oidOf(runtime, 10001);
+                host.sendPlain(GamePackets.clientUseTicketReport());
+                PacketReader added = awaitOpcode(host, GamePackets.SERVER_NEW_ITEM);
+                assertEquals(1, added.u16());
+                assertEquals(GamePackets.TYPEID_TICKET_REPORT, added.u32());
+                added.i32();
+                added.u16();
+                added.u8();
+                assertEquals(0, added.u16());
+                PacketReader notice = awaitOpcode(host, GamePackets.SERVER_TICKET_REPORT_NOTICE);
+                assertEquals(0, notice.u32());
+                PacketReader exit = awaitOpcode(host, GamePackets.SERVER_EXIT_ROOM);
+                assertEquals(-1, exit.i16());
+                PacketReader score = awaitOpcode(guest, GamePackets.SERVER_SCORE_LEAVE);
+                assertEquals(hostOid, score.i32());
+                PacketReader leaveUser = awaitOpcode(guest, GamePackets.SERVER_TICKET_REPORT_LEAVE);
+                assertEquals(hostOid, leaveUser.i32());
+                for (byte[] leftover : guest.drainPlain(400)) {
+                    assertTrue(new PacketReader(leftover).opcode() != GamePackets.SERVER_NEW_ITEM);
+                }
+                guest.sendPlain(GamePackets.clientCamera(1.25f));
+                PacketReader mira = awaitOpcode(guest, GamePackets.SERVER_CAMERA);
+                assertEquals(oidOf(runtime, 10002), mira.i32());
+                assertEquals(1.25f, mira.f32());
+            } finally {
+                inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_TICKET_REPORT);
+                inv.setLevel(10001, 1);
+            }
+        }
+
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config);
+             PangyaFakeClient host = new PangyaFakeClient();
+             PangyaFakeClient guest = new PangyaFakeClient()) {
+            InventoryRepository inv = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
+            try {
+                inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_TICKET_REPORT);
+                inv.addWarehouseItem(10001, GamePackets.TYPEID_TICKET_REPORT, 1);
+                inv.setLevel(10001, GamePackets.GIFT_MIN_LEVEL);
+                loginTwoPlayers(ds, keys, host, guest, runtime.port());
+                host.sendPlain(GamePackets.clientCreateRoom(GamePackets.TIPO_STROKE, "TR-VS", ""));
+                PacketReader created = awaitOpcode(host, GamePackets.SERVER_ROOM_ENTER_RESULT);
+                assertEquals(0, created.i16());
+                int numero = roomNumberFromInfo(created.readBytes(GamePackets.ROOM_INFO_BYTES));
+                guest.sendPlain(GamePackets.clientJoinRoom(numero, ""));
+                assertEquals(0, awaitOpcode(guest, GamePackets.SERVER_ROOM_ENTER_RESULT).i16());
+                host.sendPlain(GamePackets.clientStartGame());
+                awaitOpcode(host, GamePackets.SERVER_START_GAME_FLAG);
+                awaitOpcode(host, GamePackets.SERVER_START_GAME_FLAG2);
+                awaitOpcode(host, GamePackets.SERVER_PANG_RATE);
+                awaitOpcode(host, GamePackets.SERVER_GAME_INIT);
+                awaitOpcode(host, GamePackets.SERVER_COURSE);
+                awaitOpcode(host, GamePackets.SERVER_MASCOT_SEED);
+                awaitOpcode(guest, GamePackets.SERVER_GAME_INIT);
+                host.sendPlain(GamePackets.clientUseTicketReport());
+                host.sendPlain(GamePackets.clientCamera(1.5f));
+                PacketReader mira = awaitOpcode(host, GamePackets.SERVER_CAMERA);
+                assertEquals(oidOf(runtime, 10001), mira.i32());
+                assertEquals(1.5f, mira.f32());
+            } finally {
+                inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_TICKET_REPORT);
+                inv.setLevel(10001, 1);
+            }
+        }
+    }
+
+    @Test
     void versusAutoCommandAcksFailAndCountsUses() throws Exception {
         String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
         String user = env("PANGYA_TEST_JDBC_USER", "pangya");

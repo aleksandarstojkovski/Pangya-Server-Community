@@ -49,6 +49,10 @@ final class GameRoom {
      * at {@code requestInitItemUsedGame}.
      */
     final ConcurrentHashMap<Integer, Integer> autoCommandUses = new ConcurrentHashMap<>();
+    /**
+     * C# {@code PlayerGameInfo.flag} ({@link GamePackets#FLAG_GAME_PLAYING} …).
+     */
+    final ConcurrentHashMap<Integer, Integer> gameFlags = new ConcurrentHashMap<>();
     /** C# Versus {@code m_timer} generation; increment cancels the running turn. */
     private volatile long turnTimerGen;
     private volatile Thread turnTimer;
@@ -215,6 +219,7 @@ final class GameRoom {
         loadHole.remove(session.oid());
         activeUses.remove(session.oid());
         autoCommandUses.remove(session.oid());
+        gameFlags.remove(session.oid());
         shops.remove(session.player().uid);
         for (PersonalShop shop : shops.values()) {
             shop.viewers.remove(session.player().uid);
@@ -454,6 +459,24 @@ final class GameRoom {
         }
         autoCommandUses.put(oid, used + 1);
         return 0;
+    }
+
+    /**
+     * C# {@code PlayerGameInfo.flag}. Missing oid is {@link GamePackets#FLAG_GAME_PLAYING}.
+     */
+    int gameFlag(int oid) {
+        return gameFlags.getOrDefault(oid, GamePackets.FLAG_GAME_PLAYING);
+    }
+
+    void setGameFlag(int oid, int flag) {
+        gameFlags.put(oid, flag);
+    }
+
+    void initGameFlags() {
+        gameFlags.clear();
+        for (Session member : snapshot()) {
+            gameFlags.put(member.oid(), GamePackets.FLAG_GAME_PLAYING);
+        }
     }
 
     static final class PersonalShop {
