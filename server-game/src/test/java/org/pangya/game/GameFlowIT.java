@@ -4701,6 +4701,23 @@ class GameFlowIT {
             PacketReader cutinGz = awaitOpcode(client, GamePackets.SERVER_CUTIN);
             assertEquals(0, cutinGz.u8());
             assertEquals(GamePackets.CUTIN_GZ_DISABLED, cutinGz.u16());
+            client.sendPlain(GamePackets.clientInitHole(1, 0, 0, 4, 1f, 2f, 3f, 4f));
+            client.sendPlain(GamePackets.clientEmpty(GamePackets.CLIENT_GZ_FIRST_HOLE));
+            assertEquals(0, awaitOpcode(client, GamePackets.SERVER_REMAIN_TIME).u32());
+            PacketReader turn = awaitOpcode(client, GamePackets.SERVER_HOLE_TURN);
+            int oid = oidOf(runtime, 10001);
+            assertEquals(oid, turn.i32());
+            PacketReader hole = awaitOpcode(client, GamePackets.SERVER_UPDATE_HOLE);
+            assertEquals(oid, hole.i32());
+            assertEquals(1, hole.u8());
+            assertEquals(0, hole.u8());
+            assertEquals(0, hole.i32());
+            assertEquals(0, hole.u64());
+            assertEquals(0, hole.u64());
+            assertEquals(1, hole.u8());
+            PacketReader gzStart = awaitOpcode(client, GamePackets.SERVER_GZ_START);
+            assertEquals(1, gzStart.i32());
+            assertEquals(0, gzStart.remaining());
         }
     }
 

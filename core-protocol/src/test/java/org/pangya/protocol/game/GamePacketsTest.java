@@ -1813,6 +1813,10 @@ class GamePacketsTest {
         PacketReader gzEnd = new PacketReader(GamePackets.gzEndGame());
         assertEquals(GamePackets.SERVER_GZ_END_GAME, gzEnd.opcode());
         assertEquals(0, gzEnd.remaining());
+        PacketReader gzStart = new PacketReader(GamePackets.gzStart());
+        assertEquals(GamePackets.SERVER_GZ_START, gzStart.opcode());
+        assertEquals(1, gzStart.i32());
+        assertEquals(0, gzStart.remaining());
         PacketReader activeItem = new PacketReader(GamePackets.activeItem(
                 GamePackets.TYPEID_SHOP_PANG_ITEM, 123, 7));
         assertEquals(GamePackets.SERVER_ACTIVE_ITEM, activeItem.opcode());
@@ -2621,6 +2625,7 @@ class GamePacketsTest {
         assertEquals(GamePackets.TYPEID_MILEAGE_POINT, 0x1A0002A7);
         assertEquals(GamePackets.TYPEID_TIKI_POINT, 0x1A0002A6);
         assertEquals(GamePackets.SERVER_ACHIEVEMENT_GUI_DATA, 0x22D);
+        assertEquals(GamePackets.SERVER_GZ_START, 0x1F4);
         assertEquals(GamePackets.WORKSHOP_ERR_MISSING, 0x5300202);
         assertEquals(GamePackets.SERVER_BUY_ACK, 0x68);
         assertEquals(GamePackets.CREATE_ROOM_FAILED, 0x07);

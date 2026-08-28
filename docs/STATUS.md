@@ -7,20 +7,20 @@ Questo repo è solo la riscrittura Java. **S4 non è done.**
 
 S0 [x] S1 [x] S2 [x] S3 [x] S4 [~] S5 [~] S6 [x]
 
-S4 profondità: **172** opcode success 1:1 / **0** opcode solo fail-stub / **1** stimato rimanente dal C# Channel
+S4 profondità: **173** opcode success 1:1 / **0** opcode solo fail-stub / **0** stimati rimanenti dal C# Channel
 
 Conteggio Channel: **197** handler `packet_func_sv` registrati in `GameService.init_Packets`. Java ha uno `switch` per **195** di quelli (mancano `0x174`/`0x175`, no-op anche in C#). Success 1:1 = happy-path wire C# raggiungibile (SQL stand-in ammesso). Fail-stub = Java manda solo il catch C#; il success C# vuole IFF/`ItemManager`. Rimanenti ≈ fail-stub + GZ first-hole pulse `0x137`.
 
 ## Questo turno
 
-Fatto: lucky-pouch/MyRoom box `0xB2` (`requestOpenBoxMyRoom`) generic path. Riusa SQL `box_mail_catalog`: valida/consuma box, aggiunge reward warehouse, manda per-reward `0xAA`, poi `0x129` u8 0 + box + remaining + reward rows. Ogni fail resta u8 1 + 12 zero. Schema resta **200** tabelle. Nessun fail-stub Channel noto rimane; S4 resta non-done per pulse/IFF/capture.
-Prossimo opcode/file C#: GZ first-hole `packet137` pulse; poi IFF pin/cube/`initComboDef` e capture JP S9.
+Fatto: GZ first-hole `packet137` barrier. Ogni player imposta `init_first_hole_gz`; quando tutti pronti resetta barrier/timer e, per player, manda `0x8D` 0, `0x53` own oid, broadcast `0x6D` hole start, poi `0x1F4` i32 1. Nessun fail-stub o pulse Channel noto rimane. S4 resta non-done per IFF/capture e superfici non-Channel.
+Prossimo opcode/file C#: IFF pin/cube/`initComboDef`; login `pacote11F` tutorial tipo 3; GM default-throw; audit S5 Ranking/Messenger; capture JP S9.
 Blocco: file IFF assenti (pin/cube live, `initComboDef`); nessuna capture client JP Season 9.
 
 Percentuale epic: **scheletro 85%** / **parità client reale 35%**.
 
 - Scheletro: S0–S3 e S6 chiusi (Gradle, Cipher, Auth/Login, Practice, Ranking/Messenger core, metriche 3000, compose `/health`). S4/S5 aperti.
-- Parità client reale: ~172/197 Channel con happy-path; SQL al posto IFF; zero fail-stub noti ma pulse/IFF/capture ancora aperti.
+- Parità client reale: ~173/197 Channel con happy-path; SQL al posto IFF; zero fail-stub/pulse Channel noti ma IFF/capture ancora aperti.
 
 ## Slice (non dichiarare S4 done)
 

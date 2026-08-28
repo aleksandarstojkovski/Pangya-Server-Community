@@ -235,7 +235,7 @@ public final class GameHandler {
             case GamePackets.CLIENT_MARKER -> markerOnCourse(session, reader);
             case GamePackets.CLIENT_SHOT_END -> shotEnd(session, reader);
             case GamePackets.CLIENT_LEAVE_CHIP_IN -> leaveChipIn(session);
-            case GamePackets.CLIENT_GZ_FIRST_HOLE -> { }
+            case GamePackets.CLIENT_GZ_FIRST_HOLE -> startFirstHoleGrandZodiac(session);
             case GamePackets.CLIENT_WING -> activeWing(session, reader);
             case GamePackets.CLIENT_EARCUFF -> activeEarcuff(session, reader);
             case GamePackets.CLIENT_GLOVE -> activeGlove(session, reader);
@@ -605,6 +605,7 @@ public final class GameHandler {
         room.clearLoadHole();
         room.turnOid = 0;
         room.reported.clear();
+        room.gzFirstHole.clear();
         room.activeUses.clear();
         room.autoCommandUses.clear();
         room.initGameFlags();
@@ -7918,6 +7919,35 @@ public final class GameHandler {
                 info.imageTypes(),
                 info.tempo(),
                 info.sprites()));
+    }
+
+    /**
+     * C# {@code requestStartFirstHoleGrandZodiac}: mark this player's
+     * {@code init_first_hole_gz}; when all current players are ready, reset the
+     * barrier and emit per-player {@code 0x8D}, {@code 0x53}, broadcast
+     * {@code 0x6D}, then {@code 0x1F4}.
+     */
+    private void startFirstHoleGrandZodiac(Session session) {
+        GameRoom room = inGameRoom(session);
+        if (room == null || !GamePackets.usesGrandZodiac(room.tipo)) {
+            return;
+        }
+        room.gzFirstHole.put(session.oid(), Boolean.TRUE);
+        for (Session member : room.snapshot()) {
+            if (!room.gzFirstHole.getOrDefault(member.oid(), Boolean.FALSE)) {
+                return;
+            }
+        }
+        room.gzFirstHole.clear();
+        room.startMillis = System.currentTimeMillis();
+        for (Session member : room.snapshot()) {
+            member.send(GamePackets.remainTime(0));
+            member.send(GamePackets.playerTurn(member.oid()));
+            GameRoom.PlayerShot shot = room.shots.get(member.oid());
+            int hole = shot == null ? 0 : shot.hole;
+            room.broadcast(GamePackets.updateHole(member.oid(), hole, 0, 0, 0, 0, 1));
+            member.send(GamePackets.gzStart());
+        }
     }
 
     /**

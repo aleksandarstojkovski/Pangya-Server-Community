@@ -293,6 +293,8 @@ public final class GamePackets {
      * C# Chip-in Practice / Grand Zodiac {@code 0x1F2} empty end-game.
      */
     public static final int SERVER_GZ_END_GAME = 0x1F2;
+    /** C# GZ first-hole barrier completion {@code 0x1F4} i32 1. */
+    public static final int SERVER_GZ_START = 0x1F4;
     /**
      * C# Versus/Tourney {@code requestShotEndData} {@code 0x1F7}: i32 oid +
      * u8 hole + {@code ShotEndLocationData.ToArray()} (87 bytes). Fail is
@@ -4826,6 +4828,10 @@ public final class GamePackets {
     /** C# Chip-in / GZ {@code 0x1F2} empty. */
     public static byte[] gzEndGame() {
         return new PacketWriter().opcode(SERVER_GZ_END_GAME).toBytes();
+    }
+
+    public static byte[] gzStart() {
+        return new PacketWriter().opcode(SERVER_GZ_START).i32(1).toBytes();
     }
 
     /**

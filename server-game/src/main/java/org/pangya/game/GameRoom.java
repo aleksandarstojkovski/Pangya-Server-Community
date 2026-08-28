@@ -55,6 +55,8 @@ final class GameRoom {
      * C# {@code PlayerGameInfo.flag} ({@link GamePackets#FLAG_GAME_PLAYING} …).
      */
     final ConcurrentHashMap<Integer, Integer> gameFlags = new ConcurrentHashMap<>();
+    /** C# {@code init_first_hole_gz} barrier set by CLIENT {@code 0x137}. */
+    final ConcurrentHashMap<Integer, Boolean> gzFirstHole = new ConcurrentHashMap<>();
     /** C# Versus {@code m_timer} generation; increment cancels the running turn. */
     private volatile long turnTimerGen;
     private volatile Thread turnTimer;
