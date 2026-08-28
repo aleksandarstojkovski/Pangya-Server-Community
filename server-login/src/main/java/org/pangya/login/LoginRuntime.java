@@ -16,6 +16,7 @@ import org.pangya.network.netty.ServerKind;
 import org.pangya.network.redis.SessionKeyStore;
 import org.pangya.network.session.SessionManager;
 import org.pangya.protocol.auth.AuthS2s;
+import org.pangya.protocol.iff.PangyaIffLoader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -51,6 +52,9 @@ public final class LoginRuntime implements AutoCloseable {
     /** Tests may override shutdown scheduling to avoid stopping the IT runtime. */
     LoginRuntime(AppConfig config, AuthOutbound authOutOverride, IntConsumer shutdownOverride) {
         this.config = config;
+        if (!config.pangyaIffPath().isBlank()) {
+            PangyaIffLoader.reload(java.nio.file.Path.of(config.pangyaIffPath()));
+        }
         this.dataSource = DatabaseSupport.dataSource(config.jdbcUrl(), config.dbUser(), config.dbPassword());
         LoginRepository repo = new JdbiLoginRepository(DatabaseSupport.jdbi(dataSource));
         this.redis = new SessionKeyStore(config.redisUri());

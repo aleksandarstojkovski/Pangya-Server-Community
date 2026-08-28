@@ -1,9 +1,8 @@
 package org.pangya.game.catalog;
 
 import org.pangya.db.InventoryRepository;
-import org.pangya.protocol.iff.IffCourseFile;
 import org.pangya.protocol.iff.IffCourseRecord;
-import org.pangya.protocol.iff.PangyaIffArchive;
+import org.pangya.protocol.iff.PangyaIffLoader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -44,6 +43,7 @@ public final class GlobalCatalogs {
     public GlobalCatalogs(InventoryRepository inventory, Path pangyaIffPath) {
         this.inventory = inventory;
         this.pangyaIffPath = pangyaIffPath;
+        PangyaIffLoader.reload(pangyaIffPath);
         reload(0);
     }
 
@@ -91,12 +91,13 @@ public final class GlobalCatalogs {
 
     /** C# {@code sIff.reload()} stand-in: SQL catalogs + optional {@code pangya_jp.iff} overlay. */
     private void reloadIffSqlStandIns() {
+        PangyaIffLoader.reload(pangyaIffPath);
         reloadCourseData();
         reloadCoinCube();
         if (pangyaIffPath != null) {
-            log.info("auth reload IFF (Course.iff from {})", pangyaIffPath);
+            log.info("auth reload IFF (Course/Part from {})", pangyaIffPath);
         } else {
-            log.info("auth reload IFF SQL stand-ins (map/cube; set PANGYA_IFF_PATH for binary)");
+            log.info("auth reload IFF SQL stand-ins (map/cube/part; set PANGYA_IFF_PATH for binary)");
         }
     }
 
@@ -173,20 +174,7 @@ public final class GlobalCatalogs {
     }
 
     private Optional<List<IffCourseRecord>> loadIffCourses() {
-        if (pangyaIffPath == null) {
-            return Optional.empty();
-        }
-        PangyaIffArchive archive = new PangyaIffArchive(pangyaIffPath);
-        if (!archive.exists()) {
-            log.warn("PANGYA_IFF_PATH missing file: {}", pangyaIffPath);
-            return Optional.empty();
-        }
-        try {
-            return Optional.of(IffCourseFile.load(archive));
-        } catch (Exception e) {
-            log.warn("failed to load Course.iff from {}: {}", pangyaIffPath, e.toString());
-            return Optional.empty();
-        }
+        return PangyaIffLoader.courses();
     }
 
     public int parFor(int courseId, int holeNum) {
