@@ -267,6 +267,9 @@ class InventoryRepositoryTest {
             assertEquals(GamePackets.LOCKER_PANG_WITHDRAW_ERR,
                     repo.updateDolfiniLockerPang(10001, GamePackets.LOCKER_PANG_WITHDRAW, 1).code());
             repo.setPangCookie(10001, 100000, 0);
+            assertTrue(repo.cometRefill(GamePackets.TYPEID_COMET_REFILL).isPresent());
+            assertEquals(1, repo.cometRefill(GamePackets.TYPEID_COMET_REFILL).orElseThrow().min());
+            assertEquals(30, repo.cometRefill(GamePackets.TYPEID_COMET_REFILL).orElseThrow().max());
             repo.updateTutorial(10001, 0, 0, 0);
             assertEquals(0, repo.tutorial(10001).rookie());
             repo.updateTutorial(10001, 1, 0, 0);

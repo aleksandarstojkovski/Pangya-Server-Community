@@ -148,6 +148,17 @@ public interface InventoryRepository {
     OptionalInt consumeWarehouseByTypeid(long uid, int typeid, int qntd);
 
     /**
+     * C# {@code CometRefillSystem.findCometRefill}: SQL {@code pangya_comet_refill}
+     * stand-in. Empty when the typeid is missing.
+     */
+    Optional<CometRefill> cometRefill(int typeid);
+
+    /** Test helper: insert or replace a {@code pangya_comet_refill} row. */
+    void upsertCometRefill(int typeid, int min, int max);
+
+    void deleteCometRefill(int typeid);
+
+    /**
      * C# {@code requestLoloCardCompose}: SQL {@code iff_card} stand-in for
      * IFF Card + {@code CardSystem.drawsLoloCardCompose}.
      */
@@ -303,6 +314,9 @@ public interface InventoryRepository {
             return new LockerPangMoveResult(code, 0, 0, 0);
         }
     }
+
+    /** C# {@code ctx_comet_refill}: typeid + {@code QntdRange} min/max. */
+    record CometRefill(int typeid, int min, int max) {}
 
     record TutorialFlags(int rookie, int beginner, int advancer) {}
 }

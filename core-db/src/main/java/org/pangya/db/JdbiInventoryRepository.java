@@ -2194,4 +2194,44 @@ public final class JdbiInventoryRepository implements InventoryRepository {
             return new CharCardResult(0, awards, equipped);
         });
     }
+
+    @Override
+    public Optional<CometRefill> cometRefill(int typeid) {
+        return jdbi.withHandle(h -> h.createQuery("""
+                        SELECT typeid, "min", "max" FROM pangya.pangya_comet_refill
+                         WHERE typeid = :typeid
+                         LIMIT 1
+                        """)
+                .bind("typeid", typeid)
+                .map((rs, ctx) -> new CometRefill(
+                        rs.getInt("typeid"),
+                        rs.getInt("min") & 0xffff,
+                        rs.getInt("max") & 0xffff))
+                .findOne());
+    }
+
+    @Override
+    public void upsertCometRefill(int typeid, int min, int max) {
+        jdbi.useHandle(h -> {
+            h.createUpdate("DELETE FROM pangya.pangya_comet_refill WHERE typeid = :typeid")
+                    .bind("typeid", typeid)
+                    .execute();
+            h.createUpdate("""
+                            INSERT INTO pangya.pangya_comet_refill (typeid, min, max)
+                            VALUES (:typeid, :min, :max)
+                            """)
+                    .bind("typeid", typeid)
+                    .bind("min", min)
+                    .bind("max", max)
+                    .execute();
+        });
+    }
+
+    @Override
+    public void deleteCometRefill(int typeid) {
+        jdbi.useHandle(h -> h.createUpdate(
+                        "DELETE FROM pangya.pangya_comet_refill WHERE typeid = :typeid")
+                .bind("typeid", typeid)
+                .execute());
+    }
 }

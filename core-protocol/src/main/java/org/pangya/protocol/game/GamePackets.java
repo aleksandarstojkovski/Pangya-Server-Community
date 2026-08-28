@@ -194,7 +194,11 @@ public final class GamePackets {
     public static final int SERVER_TIKI_EXCHANGE_ITEM = 0x1EA;
     /** C# item-buff catch {@code 0x181}. */
     public static final int SERVER_ITEM_BUFF = 0x181;
-    /** C# comet-refill catch {@code 0x197}. */
+    /**
+     * C# {@code requestCometRefill} {@code 0x197}: success {@code WriteByte(1)}
+     * then item typeid + ball typeid + u16 ball C0; catch u8 0 + 10 zeros.
+     * Opposite CLIENT ring-power {@code 0x197}.
+     */
     public static final int SERVER_COMET_REFILL = 0x197;
     /** C# mail-box catch {@code 0x19D}. */
     public static final int SERVER_BOX_MAIL = 0x19D;
@@ -1867,6 +1871,8 @@ public final class GamePackets {
     public static final int CARD_EQUIP_BYTES = 20;
     /** C# My Room deny option. */
     public static final int MY_ROOM_DENY = 0;
+    /** C# {@code IFF_GROUP.BALL} {@code 5}. {@code TYPEID_DEFAULT_BALL >>> 26}. */
+    public static final int IFF_GROUP_BALL = 5;
     /** C# {@code IFF_GROUP.ITEM}. {@code (typeid & 0xFC000000) >> 26}. */
     public static final int IFF_GROUP_ITEM = 6;
     /** C# {@code IFF_GROUP.ENCHANT} {@code 13}. */
@@ -1925,6 +1931,12 @@ public final class GamePackets {
     public static final int TYPEID_AUTO_COMMAND = 0x1A00019F;
     /** C# {@code TICKET_REPORT_TYPEID} {@code 0x1A000041}. */
     public static final int TYPEID_TICKET_REPORT = 0x1A000041;
+    /**
+     * C# {@code pangya_comet_refill} seed typeid {@code 0x1A000105} (436207877).
+     */
+    public static final int TYPEID_COMET_REFILL = 0x1A000105;
+    /** C# {@code pacote197} {@code WriteByte(1)} success. */
+    public static final int COMET_REFILL_OK = 1;
     /**
      * C# {@code PlayerGameInfo.eFLAG_GAME} ordinals. Ticket-report success
      * requires {@link #FLAG_GAME_FINISH} then sets {@link #FLAG_GAME_TICKET_REPORT}.
@@ -3554,6 +3566,20 @@ public final class GamePackets {
     /** C# comet-refill catch {@code 0x197}: u8 0 + 10 zeros. */
     public static byte[] cometRefillFail() {
         return new PacketWriter().opcode(SERVER_COMET_REFILL).u8(0).zero(10).toBytes();
+    }
+
+    /**
+     * C# {@code pacote197} success: {@code unsigned char 1} + item typeid + ball
+     * typeid + {@code u16} ball C0 after refill.
+     */
+    public static byte[] cometRefillOk(int itemTypeid, int ballTypeid, int ballC0) {
+        return new PacketWriter()
+                .opcode(SERVER_COMET_REFILL)
+                .u8(COMET_REFILL_OK)
+                .u32(itemTypeid)
+                .u32(ballTypeid)
+                .u16(ballC0)
+                .toBytes();
     }
 
     /** C# mail-box catch {@code 0x19D} u32 sys. */

@@ -1576,6 +1576,80 @@ class GameFlowIT {
     }
 
     @Test
+    void cometRefillAddsBallC0AndConsumesItem() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config);
+             PangyaFakeClient client = new PangyaFakeClient()) {
+            InventoryRepository inv = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
+            final int draw = 4;
+            int ballBefore = 0;
+            try {
+                inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_SHOP_PANG_ITEM);
+                inv.upsertCometRefill(GamePackets.TYPEID_SHOP_PANG_ITEM, draw, draw);
+                inv.addWarehouseItem(10001, GamePackets.TYPEID_SHOP_PANG_ITEM, 1);
+                GamePackets.WarehouseItem ball = inv.warehouse(10001).stream()
+                        .filter(w -> w.typeid == GamePackets.TYPEID_DEFAULT_BALL)
+                        .findFirst()
+                        .orElseThrow();
+                ballBefore = ball.c[0] & 0xffff;
+                LoginRepository repo = new JdbiLoginRepository(DatabaseSupport.jdbi(ds));
+                String loginKey = repo.generateAuthKeyLogin(10001);
+                String gameKey = repo.generateAuthKeyGame(10001, 20202);
+                keys.putLoginKey(10001, loginKey);
+                keys.putGameKey(10001, 20202, gameKey);
+                loginToChannel(client, runtime.port(), "testuser", 10001, loginKey, gameKey);
+
+                client.sendPlain(GamePackets.clientCometRefill(
+                        GamePackets.TYPEID_SHOP_PANG_ITEM, GamePackets.TYPEID_DEFAULT_BALL));
+                PacketReader ok = awaitOpcode(client, GamePackets.SERVER_COMET_REFILL);
+                assertEquals(GamePackets.COMET_REFILL_OK, ok.u8());
+                assertEquals(GamePackets.TYPEID_SHOP_PANG_ITEM, ok.u32());
+                assertEquals(GamePackets.TYPEID_DEFAULT_BALL, ok.u32());
+                assertEquals(ballBefore + draw, ok.u16());
+                assertTrue(inv.warehouse(10001).stream()
+                        .noneMatch(w -> w.typeid == GamePackets.TYPEID_SHOP_PANG_ITEM));
+                assertEquals(ballBefore + draw, inv.warehouse(10001).stream()
+                        .filter(w -> w.typeid == GamePackets.TYPEID_DEFAULT_BALL)
+                        .findFirst()
+                        .orElseThrow()
+                        .c[0] & 0xffff);
+
+                client.sendPlain(GamePackets.clientCometRefill(
+                        GamePackets.TYPEID_SHOP_PANG_ITEM, GamePackets.TYPEID_DEFAULT_BALL));
+                PacketReader missing = awaitOpcode(client, GamePackets.SERVER_COMET_REFILL);
+                assertEquals(0, missing.u8());
+                assertEquals(10, missing.remaining());
+
+                client.sendPlain(GamePackets.clientCometRefill(0, 0));
+                PacketReader group = awaitOpcode(client, GamePackets.SERVER_COMET_REFILL);
+                assertEquals(0, group.u8());
+                assertEquals(10, group.remaining());
+            } finally {
+                inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_SHOP_PANG_ITEM);
+                inv.deleteCometRefill(GamePackets.TYPEID_SHOP_PANG_ITEM);
+                GamePackets.WarehouseItem after = inv.warehouse(10001).stream()
+                        .filter(w -> w.typeid == GamePackets.TYPEID_DEFAULT_BALL)
+                        .findFirst()
+                        .orElse(null);
+                if (after != null && ballBefore > 0) {
+                    int extra = (after.c[0] & 0xffff) - ballBefore;
+                    if (extra > 0) {
+                        inv.consumeWarehouseByTypeid(10001, GamePackets.TYPEID_DEFAULT_BALL, extra);
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
     void makeTutorialRookieAcksFlagsAndMailsReward() throws Exception {
         String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
         String user = env("PANGYA_TEST_JDBC_USER", "pangya");

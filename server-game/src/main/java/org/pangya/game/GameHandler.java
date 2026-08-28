@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
@@ -4294,13 +4295,52 @@ public final class GameHandler {
     }
 
     /**
-     * C# {@code requestCometRefill}: catch always {@code 0x197} u8 0 + 10 zeros.
+     * C# {@code requestCometRefill} ({@code packet0EC} / {@code pacote197}).
+     * IFF {@code findItem}/{@code findBall} stand in as ITEM/BALL groups. SQL
+     * {@code pangya_comet_refill} stands in for {@code CometRefillSystem}. Catch
+     * is always u8 0 + 10 zeros (CHANNEL sys codes are log-only).
      */
     private void cometRefill(Session session, PacketReader reader) {
         if (!inChannel(session)) {
             return;
         }
-        session.send(GamePackets.cometRefillFail());
+        if (reader.remaining() < 8) {
+            session.send(GamePackets.cometRefillFail());
+            return;
+        }
+        int itemTypeid = reader.u32();
+        int ballTypeid = reader.u32();
+        if (GamePackets.itemGroupIdentify(itemTypeid) != GamePackets.IFF_GROUP_ITEM
+                || GamePackets.itemGroupIdentify(ballTypeid) != GamePackets.IFF_GROUP_BALL) {
+            session.send(GamePackets.cometRefillFail());
+            return;
+        }
+        long uid = session.player().uid;
+        GamePackets.WarehouseItem ball = warehouseByTypeid(uid, ballTypeid);
+        GamePackets.WarehouseItem item = warehouseByTypeid(uid, itemTypeid);
+        if (ball == null || item == null || (item.c[0] & 0xffff) < 1) {
+            session.send(GamePackets.cometRefillFail());
+            return;
+        }
+        Optional<InventoryRepository.CometRefill> ctx = inventory.cometRefill(itemTypeid);
+        if (ctx.isEmpty() || ctx.get().min() <= 0 || ctx.get().max() < ctx.get().min()) {
+            session.send(GamePackets.cometRefillFail());
+            return;
+        }
+        int min = ctx.get().min();
+        int max = ctx.get().max();
+        int qntd = min + ThreadLocalRandom.current().nextInt(max - min + 1);
+        if (qntd <= 0) {
+            session.send(GamePackets.cometRefillFail());
+            return;
+        }
+        if (inventory.consumeWarehouseByTypeid(uid, itemTypeid, 1).isEmpty()) {
+            session.send(GamePackets.cometRefillFail());
+            return;
+        }
+        inventory.addWarehouseItem(uid, ballTypeid, qntd);
+        int ballC0 = ((ball.c[0] & 0xffff) + qntd) & 0xffff;
+        session.send(GamePackets.cometRefillOk(itemTypeid, ballTypeid, ballC0));
     }
 
     /**

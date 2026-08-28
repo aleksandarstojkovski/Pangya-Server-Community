@@ -91,6 +91,11 @@ class FlywayMigrationTest {
                             .mapTo(Integer.class)
                             .one());
             assertEquals(0, cardIff);
+            int comet = jdbi.withHandle(h ->
+                    h.createQuery("select count(*) from pangya.pangya_comet_refill where typeid = 436207877")
+                            .mapTo(Integer.class)
+                            .one());
+            assertEquals(1, comet);
             assertTrue(accounts >= 1);
         }
     }

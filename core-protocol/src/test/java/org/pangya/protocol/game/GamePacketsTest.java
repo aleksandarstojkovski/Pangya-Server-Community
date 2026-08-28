@@ -1084,6 +1084,15 @@ class GamePacketsTest {
         assertEquals(GamePackets.SERVER_COMET_REFILL, comet.opcode());
         assertEquals(0, comet.u8());
         assertEquals(10, comet.remaining());
+        PacketReader cometOk = new PacketReader(GamePackets.cometRefillOk(
+                GamePackets.TYPEID_SHOP_PANG_ITEM, GamePackets.TYPEID_DEFAULT_BALL, 5));
+        assertEquals(GamePackets.SERVER_COMET_REFILL, cometOk.opcode());
+        assertEquals(GamePackets.COMET_REFILL_OK, cometOk.u8());
+        assertEquals(GamePackets.TYPEID_SHOP_PANG_ITEM, cometOk.u32());
+        assertEquals(GamePackets.TYPEID_DEFAULT_BALL, cometOk.u32());
+        assertEquals(5, cometOk.u16());
+        assertEquals(0, cometOk.remaining());
+        assertEquals(GamePackets.IFF_GROUP_BALL, GamePackets.itemGroupIdentify(GamePackets.TYPEID_DEFAULT_BALL));
         PacketReader boxMail = new PacketReader(GamePackets.boxMailFail(
                 GamePackets.shopSys(GamePackets.BOX_MAIL_ERR_TYPEID)));
         assertEquals(GamePackets.SERVER_BOX_MAIL, boxMail.opcode());
