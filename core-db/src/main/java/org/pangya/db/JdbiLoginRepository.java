@@ -701,5 +701,17 @@ public final class JdbiLoginRepository implements LoginRepository {
         }
     }
 
+    @Override
+    public void insertMsgOff(long fromUid, long toUid, String msg) {
+        jdbi.useHandle(h -> h.createUpdate("""
+                        INSERT INTO pangya.pangya_msg_user (uid, uid_from, valid, msg, reg_date)
+                        VALUES (:to, :from, 1, :msg, NOW())
+                        """)
+                .bind("to", toUid)
+                .bind("from", fromUid)
+                .bind("msg", msg)
+                .execute());
+    }
+
     private record IpBan(String ip, String mask) {}
 }

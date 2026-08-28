@@ -681,5 +681,34 @@ class GamePacketsTest {
         assertEquals(GamePackets.SERVER_CHAT_PENALITY, 0xAC);
         assertEquals(GamePackets.SERVER_BUY_ACK, 0x68);
         assertEquals(GamePackets.CREATE_ROOM_FAILED, 0x07);
+
+        PacketReader msnOff = new PacketReader(GamePackets.clientMsnMsgOff(10002, "offline", 0));
+        assertEquals(GamePackets.CLIENT_MSN_REQUEST, msnOff.opcode());
+        assertEquals(GamePackets.MSN_MSG_OFF, msnOff.u16());
+        assertEquals(10002, msnOff.u32());
+        assertEquals("offline", msnOff.pstr());
+        assertEquals(0, msnOff.u8());
+        PacketReader msnOk = new PacketReader(GamePackets.msnAckOk(GamePackets.MSN_MSG_OFF, 99890));
+        assertEquals(GamePackets.SERVER_MSN_ACK, msnOk.opcode());
+        assertEquals(GamePackets.MSN_MSG_OFF, msnOk.u16());
+        assertEquals(0, msnOk.u32());
+        assertEquals(99890, msnOk.u64());
+        PacketReader msnFail = new PacketReader(GamePackets.msnAckFail(
+                GamePackets.MSN_FRIEND_LIST, GamePackets.MSN_ERR_FUNDS));
+        assertEquals(GamePackets.SERVER_MSN_ACK, msnFail.opcode());
+        assertEquals(GamePackets.MSN_FRIEND_LIST, msnFail.u16());
+        assertEquals(GamePackets.MSN_ERR_FUNDS, msnFail.u32());
+        PacketReader arrows = new PacketReader(GamePackets.clientShotArrows(0x11, 0x22));
+        assertEquals(GamePackets.CLIENT_SHOT_COMMAND, arrows.opcode());
+        assertEquals(2, arrows.u8());
+        assertEquals(0x11, arrows.u32());
+        assertEquals(0x22, arrows.u32());
+        PacketReader replay = new PacketReader(GamePackets.clientReplay(0x1A000001));
+        assertEquals(GamePackets.CLIENT_REPLAY_ONLINE, replay.opcode());
+        assertEquals(0x1A000001, replay.u32());
+        assertEquals(GamePackets.SERVER_MSN_ACK, 0x95);
+        assertEquals(GamePackets.CLIENT_REPORT_ERROR, 0x33);
+        assertEquals(GamePackets.SERVER_BUY_ACK, 0x68);
+        assertEquals(GamePackets.CREATE_ROOM_FAILED, 0x07);
     }
 }

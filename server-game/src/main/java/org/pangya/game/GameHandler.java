@@ -126,6 +126,10 @@ public final class GameHandler {
             case GamePackets.CLIENT_ANSWER_GOSTOP -> replyContinueVersus(session, reader);
             case GamePackets.CLIENT_REEMPLOY_CADDIE -> payCaddieHoliday(session, reader);
             case GamePackets.CLIENT_REPORT -> reportChat(session);
+            case GamePackets.CLIENT_REPORT_ERROR -> reportClientException(session, reader);
+            case GamePackets.CLIENT_MSN_REQUEST -> translateSubPacket(session, reader);
+            case GamePackets.CLIENT_SHOT_COMMAND -> initShotArrows(session, reader);
+            case GamePackets.CLIENT_REPLAY_ONLINE -> activeReplay(session, reader);
             case GamePackets.CLIENT_CHAT_PENALITY -> changeChatBlock(session, reader);
             case GamePackets.CLIENT_NOTICE -> noticeGm(session, reader);
             case GamePackets.CLIENT_DESTROY_ROOM -> destroyRoom(session, reader);
@@ -839,6 +843,107 @@ public final class GameHandler {
             if (other.authorized()) {
                 other.send(packet);
             }
+        }
+    }
+
+    /**
+     * C# {@code packet033}: u8 + PStr then {@code DisconnectSession}.
+     */
+    private void reportClientException(Session session, PacketReader reader) {
+        if (reader.remaining() >= 1) {
+            int tipo = reader.u8();
+            String msg = reader.remaining() >= 2 ? reader.pstr() : "";
+            log.debug("client exception uid={} tipo={} msg={}",
+                    session.authorized() ? session.player().uid : 0, tipo, msg);
+        }
+        if (session.authorized()) {
+            leaveRoom(session);
+        }
+        session.disconnect();
+    }
+
+    /**
+     * C# {@code packet03C}: u16 sub. Msg_OFF spends 10 pang and {@code 0x95};
+     * Friend_List is unimplemented in C# (fail {@code 0x5700105}).
+     */
+    private void translateSubPacket(Session session, PacketReader reader) {
+        if (!session.authorized() || reader.remaining() < 2) {
+            return;
+        }
+        int sub = reader.u16();
+        if (sub == GamePackets.MSN_FRIEND_LIST) {
+            session.send(GamePackets.msnAckFail(sub, GamePackets.MSN_ERR_FUNDS));
+            return;
+        }
+        if (sub != GamePackets.MSN_MSG_OFF) {
+            return;
+        }
+        if (reader.remaining() < 4) {
+            session.send(GamePackets.msnAckFail(sub, GamePackets.MSN_ERR_DEFAULT));
+            return;
+        }
+        long toUid = reader.u32Unsigned();
+        String msg = reader.remaining() >= 2 ? reader.pstr() : "";
+        int opt = reader.remaining() >= 1 ? reader.u8() : 1;
+        if (toUid == 0) {
+            session.send(GamePackets.msnAckFail(sub, GamePackets.MSN_ERR_UID));
+            return;
+        }
+        if (msg.isEmpty()) {
+            session.send(GamePackets.msnAckFail(sub, GamePackets.MSN_ERR_EMPTY));
+            return;
+        }
+        if (msg.length() > 256) {
+            session.send(GamePackets.msnAckFail(sub, GamePackets.MSN_ERR_SIZE));
+            return;
+        }
+        if (opt != 0) {
+            session.send(GamePackets.msnAckFail(sub, GamePackets.MSN_ERR_OPT));
+            return;
+        }
+        long uid = session.player().uid;
+        long pang = inventory.pang(uid);
+        if (pang < GamePackets.MSN_OFF_PANG) {
+            session.send(GamePackets.msnAckFail(sub, GamePackets.MSN_ERR_FUNDS));
+            return;
+        }
+        try {
+            inventory.setPangCookie(uid, pang - GamePackets.MSN_OFF_PANG, inventory.cookie(uid));
+            repo.insertMsgOff(uid, toUid, msg);
+            session.send(GamePackets.msnAckOk(sub, pang - GamePackets.MSN_OFF_PANG));
+        } catch (RuntimeException e) {
+            log.debug("msg-off insert failed uid={}", uid, e);
+            session.send(GamePackets.msnAckFail(sub, GamePackets.MSN_ERR_DEFAULT));
+        }
+    }
+
+    /**
+     * C# {@code packet042}: u8 count + count×u32. No success reply.
+     */
+    private void initShotArrows(Session session, PacketReader reader) {
+        GameRoom room = inGameRoom(session);
+        if (room == null || reader.remaining() < 1) {
+            return;
+        }
+        int count = reader.u8();
+        if (count == 0 || reader.remaining() < count * 4) {
+            return;
+        }
+        for (int i = 0; i < count; i++) {
+            reader.u32();
+        }
+    }
+
+    /**
+     * C# {@code packet04A}: u32 typeid. Success {@code 0xA4} needs warehouse;
+     * catch is silent.
+     */
+    private void activeReplay(Session session, PacketReader reader) {
+        if (inGameRoom(session) == null) {
+            return;
+        }
+        if (reader.remaining() >= 4) {
+            reader.u32();
         }
     }
 

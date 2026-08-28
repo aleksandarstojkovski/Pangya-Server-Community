@@ -93,6 +93,8 @@ public final class GamePackets {
     /** C# pang spent after shop buy ({@code 0xC8} + remaining + spent). */
     public static final int SERVER_PANG_SPENT = 0xC8;
     public static final int SERVER_COOKIE = 0x96;
+    /** C# {@code SERVER_MSN_ACK} / {@code 0x95}: u16 sub + u32 + optional pang. */
+    public static final int SERVER_MSN_ACK = 0x95;
     /** C# ticker error uses {@code SERVER_CHANGE_NICK_ACK} {@code 0x50} u32. */
     public static final int SERVER_CHANGE_NICK_ACK = 0x50;
     /** C# {@code SERVER_CHAT_PENALITY} / {@code 0xAC}: oid + u8. */
@@ -179,6 +181,14 @@ public final class GamePackets {
     public static final int CLIENT_REEMPLOY_CADDIE = 0x39;
     /** C# {@code CLIENT_REPORT} / {@code packet03A} {@code requestPlayerReportChatGame}. */
     public static final int CLIENT_REPORT = 0x3A;
+    /** C# {@code CLIENT_REPORT_ERROR} / {@code packet033} client exception. */
+    public static final int CLIENT_REPORT_ERROR = 0x33;
+    /** C# {@code CLIENT_MSN_REQUEST} / {@code packet03C} translate sub-packet. */
+    public static final int CLIENT_MSN_REQUEST = 0x3C;
+    /** C# {@code CLIENT_SHOT_COMMAND} / {@code packet042} arrow sequence. */
+    public static final int CLIENT_SHOT_COMMAND = 0x42;
+    /** C# {@code CLIENT_REPLAY_ONLINE} / {@code packet04A}; catch is silent. */
+    public static final int CLIENT_REPLAY_ONLINE = 0x4A;
     /** C# {@code CLIENT_CHAT_PENALITY} / {@code packet04F} chat block. */
     public static final int CLIENT_CHAT_PENALITY = 0x4F;
     /** C# {@code CLIENT_NOTICE} / {@code packet057} GM notice. */
@@ -390,6 +400,24 @@ public final class GamePackets {
     public static final int TICKER_FAIL_FUNDS = 4;
     /** C# {@code capability.game_master} bit. */
     public static final int CAPABILITY_GM = 4;
+    /** C# {@code TranslationSubPacket.Msg_OFF}. */
+    public static final int MSN_MSG_OFF = 0x111;
+    /** C# {@code TranslationSubPacket.Friend_List} (not implemented in C#). */
+    public static final int MSN_FRIEND_LIST = 0x11F;
+    /** C# Msg_OFF pang cost. */
+    public static final int MSN_OFF_PANG = 10;
+    public static final int MSN_OK = 0;
+    /**
+     * C# catch {@code 0x95} writes {@code STDA_SYSTEM_ERROR_DECODE_TYPE}
+     * ({@code err & 0xFFFF}). {@code MAKE_ERROR_TYPE(..., 0x5700101)} stores
+     * {@code 0x0101}.
+     */
+    public static final int MSN_ERR_DEFAULT = 0x5700100;
+    public static final int MSN_ERR_UID = 0x0101;
+    public static final int MSN_ERR_EMPTY = 0x0102;
+    public static final int MSN_ERR_SIZE = 0x0103;
+    public static final int MSN_ERR_OPT = 0x0104;
+    public static final int MSN_ERR_FUNDS = 0x0105;
     /** C# {@code requestBuyItemShop} {@code 0x68} option codes. */
     public static final int BUY_FAIL_INIT = 1;
     public static final int BUY_FAIL_PRICE = 2;
@@ -1392,6 +1420,16 @@ public final class GamePackets {
                 .toBytes();
     }
 
+    /** C# Msg_OFF success {@code 0x95}: sub + u32 0 + remaining pang. */
+    public static byte[] msnAckOk(int sub, long pang) {
+        return new PacketWriter().opcode(SERVER_MSN_ACK).u16(sub).u32(MSN_OK).u64(pang).toBytes();
+    }
+
+    /** C# {@code 0x95} catch: sub + u32 error, no pang. */
+    public static byte[] msnAckFail(int sub, int code) {
+        return new PacketWriter().opcode(SERVER_MSN_ACK).u16(sub).u32(code).toBytes();
+    }
+
     /** C# {@code PlayerRoomInfo.stLocation.ToArray}: x z r. */
     public static byte[] location(float x, float z, float r) {
         return new PacketWriter().f32(x).f32(z).f32(r).toBytes();
@@ -2149,6 +2187,47 @@ public final class GamePackets {
                 .i32(mascotId)
                 .pstr(msg == null ? "" : msg)
                 .toBytes();
+    }
+
+    /** C# CLIENT {@code 0x33}: u8 tipo + PStr. */
+    public static byte[] clientReportError(int tipo, String msg) {
+        return new PacketWriter()
+                .opcode(CLIENT_REPORT_ERROR)
+                .u8(tipo)
+                .pstr(msg == null ? "" : msg)
+                .toBytes();
+    }
+
+    /** C# CLIENT {@code 0x3C} Msg_OFF: u16 0x111 + uid + PStr + u8 opt. */
+    public static byte[] clientMsnMsgOff(int uid, String msg, int opt) {
+        return new PacketWriter()
+                .opcode(CLIENT_MSN_REQUEST)
+                .u16(MSN_MSG_OFF)
+                .u32(uid)
+                .pstr(msg == null ? "" : msg)
+                .u8(opt)
+                .toBytes();
+    }
+
+    /** C# CLIENT {@code 0x3C} Friend_List: u16 0x11F. */
+    public static byte[] clientMsnFriendList() {
+        return new PacketWriter().opcode(CLIENT_MSN_REQUEST).u16(MSN_FRIEND_LIST).toBytes();
+    }
+
+    /** C# CLIENT {@code 0x42}: u8 count + count×u32 arrows. */
+    public static byte[] clientShotArrows(int... arrows) {
+        PacketWriter w = new PacketWriter().opcode(CLIENT_SHOT_COMMAND).u8(arrows == null ? 0 : arrows.length);
+        if (arrows != null) {
+            for (int arrow : arrows) {
+                w.u32(arrow);
+            }
+        }
+        return w.toBytes();
+    }
+
+    /** C# CLIENT {@code 0x4A}: u32 warehouse typeid. */
+    public static byte[] clientReplay(int typeid) {
+        return new PacketWriter().opcode(CLIENT_REPLAY_ONLINE).u32(typeid).toBytes();
     }
 
     /** C# CLIENT {@code 0x63}: type + remaining payload. */

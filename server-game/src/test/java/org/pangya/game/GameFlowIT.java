@@ -378,6 +378,9 @@ class GameFlowIT {
             assertEquals(1.5f, boost.f32());
             assertTrue(boost.i32() > 0);
 
+            host.sendPlain(GamePackets.clientShotArrows(1, 2, 3));
+            host.sendPlain(GamePackets.clientReplay(0));
+
             host.sendPlain(GamePackets.clientTeeshotReady());
             guest.sendPlain(GamePackets.clientTeeshotReady());
             PacketReader teeshot = awaitOpcode(host, GamePackets.SERVER_TEESHOT_READY_ACK);
@@ -581,6 +584,24 @@ class GameFlowIT {
             assertEquals(GamePackets.CHAT_NOTICE, destroyed.u8());
             destroyed.pstr();
             assertEquals("Command no executed!", destroyed.pstr());
+
+            client.sendPlain(GamePackets.clientMsnFriendList());
+            PacketReader friends = awaitOpcode(client, GamePackets.SERVER_MSN_ACK);
+            assertEquals(GamePackets.MSN_FRIEND_LIST, friends.u16());
+            assertEquals(GamePackets.MSN_ERR_FUNDS, friends.u32());
+            client.sendPlain(GamePackets.clientMsnMsgOff(0, "x", 0));
+            PacketReader badUid = awaitOpcode(client, GamePackets.SERVER_MSN_ACK);
+            assertEquals(GamePackets.MSN_MSG_OFF, badUid.u16());
+            assertEquals(GamePackets.MSN_ERR_UID, badUid.u32());
+            client.sendPlain(GamePackets.clientMsnMsgOff(10002, "", 0));
+            PacketReader emptyMsg = awaitOpcode(client, GamePackets.SERVER_MSN_ACK);
+            assertEquals(GamePackets.MSN_MSG_OFF, emptyMsg.u16());
+            assertEquals(GamePackets.MSN_ERR_EMPTY, emptyMsg.u32());
+            client.sendPlain(GamePackets.clientMsnMsgOff(10002, "offline", 0));
+            PacketReader msgOff = awaitOpcode(client, GamePackets.SERVER_MSN_ACK);
+            assertEquals(GamePackets.MSN_MSG_OFF, msgOff.u16());
+            assertEquals(0, msgOff.u32());
+            assertEquals(99890, msgOff.u64());
 
             inventory.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_SHOP_PANG_ITEM);
             inventory.setPangCookie(10001, 100000, 0);

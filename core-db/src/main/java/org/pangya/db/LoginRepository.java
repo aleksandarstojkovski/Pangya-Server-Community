@@ -61,6 +61,9 @@ public interface LoginRepository {
 
     void markFirstLogin(long uid);
 
+    /** C# {@code ProcAddMsgOff}: insert {@code pangya_msg_user} (uid = recipient). */
+    void insertMsgOff(long fromUid, long toUid, String msg);
+
     /**
      * JP {@code ProcAddCharacter}: insert {@code pangya_character_information} and return item_id.
      * Parts stay 0 when IFF {@code initComboDef} cannot run.
