@@ -1023,7 +1023,7 @@ class GamePacketsTest {
         assertEquals(0, ticketOk.u32());
         assertEquals(1970, ticketOk.u16());
         assertEquals(1, ticketOk.u16());
-        assertEquals(1, ticketOk.u16());
+        assertEquals(4, ticketOk.u16());
         ticketOk.readBytes(10);
         assertEquals(0, ticketOk.remaining());
         PacketReader tiki = new PacketReader(GamePackets.tikiShop(0));

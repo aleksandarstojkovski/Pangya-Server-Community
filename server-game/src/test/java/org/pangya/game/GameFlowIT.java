@@ -4414,7 +4414,7 @@ class GameFlowIT {
                 assertEquals(0, ok.u32());
                 assertEquals(1970, ok.u16());
                 assertEquals(1, ok.u16());
-                assertEquals(1, ok.u16());
+                assertEquals(4, ok.u16());
                 ok.readBytes(10);
                 assertEquals(0, ok.remaining());
                 assertTrue(inv.warehouse(10001).stream().noneMatch(w -> w.id == itemId));
