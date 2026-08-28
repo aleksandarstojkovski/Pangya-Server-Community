@@ -84,7 +84,7 @@ Room types (`RoomInfo.TIPO` in `pangya_game_st.cs`): STROKE=0, MATCH=1, LOUNGE=2
 
 Game login CLIENT `0x02` (`GameServer.ReadLoginPacket`): `PStr id`, `uint32 uid`, `uint32 ntreevUID`, `uint16 command`, `PStr authKeyLogin`, `PStr clientVersion`, `uint32 packetVersion` (XOR-encrypted with GUID `{782AE110-2EEF-4c61-B030-A53F17634F7D}`), `uint32 isPcBang`, `PStr authKeyGame`.
 
-Fail `SendLoginAck` writes **uint32** ack. Success `pacote044` writes **byte** option. S3 success is option 0 **without** C# `principal()` player blob (full inventory dump is S4). Then `0x4D` channel list.
+Fail `SendLoginAck` writes **uint32** ack. Success `pacote044` option 0 + `principal()` (12512 bytes after opcode+option). Then empty `0x73` warehouse, `0x70` characters, `0x71` caddies, `0x72` equip (116 bytes), `0xE1` mascots, then `0x4D` channel list. Live warehouse/character rows from DB are still S4.
 
 `ChannelInfo.ToArray()` is 77 bytes: `WriteStr(name,64)`, int16 max_user, int16 curr_user, byte id, uint32 flag, uint32 flag2. Channel ids are 0-based from YAML order (C# INI `CHANNEL1` → id 0).
 

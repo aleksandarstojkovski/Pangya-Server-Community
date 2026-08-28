@@ -54,4 +54,18 @@ class GamePacketsTest {
         int wire = GamePackets.xorPacketVersion(plain);
         assertEquals(plain, GamePackets.xorPacketVersion(wire));
     }
+
+    @Test
+    void principalPayloadIs12512Bytes() {
+        byte[] pkt = GamePackets.loginOkPrincipal(
+                "852.00", "GS.Release.852.00", 1, "testuser", "TestNick", 0, 10001, 1, 2048);
+        PacketReader r = new PacketReader(pkt);
+        assertEquals(GamePackets.SERVER_LOGIN_ACK, r.opcode());
+        assertEquals(GamePackets.ACK_LOGIN_OK, r.u8());
+        assertEquals(GamePackets.PRINCIPAL_PAYLOAD_BYTES, r.remaining());
+        assertEquals("852.00", r.pstr());
+        assertEquals("GS.Release.852.00", r.pstr());
+        assertEquals(GamePackets.MEMBER_INFO_EX_BYTES, GamePackets.memberInfoEx(1, "a", "b", 0).length);
+        assertEquals(GamePackets.USER_INFO_BYTES, GamePackets.userInfo(1).length);
+    }
 }

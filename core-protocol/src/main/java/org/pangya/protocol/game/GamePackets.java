@@ -45,8 +45,145 @@ public final class GamePackets {
 
     private GamePackets() {}
 
+    /** C# {@code TrofelInfo.ToArray} Debug.Assert size. */
+    public static final int TROPHY_BYTES = 78;
+    /** C# {@code UserEquip.ToArray}. */
+    public static final int USER_EQUIP_BYTES = 116;
+    /** C# {@code PlayerInfo.GetMapStatistic} (21 maps × 43 × (3+9 seasons)). */
+    public static final int MAP_STAT_BYTES = 10836;
+    /** C# {@code UserEquipedItem.ToArray}. */
+    public static final int EQUIPED_ITEM_BYTES = 628;
+    /** C# {@code MemberInfoEx.ToArrayEx}. */
+    public static final int MEMBER_INFO_EX_BYTES = 263;
+    /** C# {@code UserInfo.ToArray}. */
+    public static final int USER_INFO_BYTES = 239;
+    /** Bytes after opcode+option in {@code pacote044} ACK_LOGIN_OK / {@code principal()}. */
+    public static final int PRINCIPAL_PAYLOAD_BYTES = 12512;
+
     public static byte[] loginAck(int option) {
         return new PacketWriter().opcode(SERVER_LOGIN_ACK).u8(option).toBytes();
+    }
+
+    /**
+     * C# {@code pacote044} option 0 + {@code principal()}. Payload after opcode+option is 12512 bytes.
+     */
+    public static byte[] loginOkPrincipal(
+            String clientVersion,
+            String serverVersion,
+            int oid,
+            String id,
+            String nick,
+            int capability,
+            int uid,
+            int level,
+            int serverProperty) {
+        PacketWriter w = new PacketWriter().opcode(SERVER_LOGIN_ACK).u8(ACK_LOGIN_OK);
+        w.pstr(clientVersion == null ? "" : clientVersion);
+        w.pstr(serverVersion == null ? "" : serverVersion);
+        w.bytes(memberInfoEx(oid, id, nick, capability));
+        w.u32(uid);
+        w.bytes(userInfo(level));
+        w.zero(TROPHY_BYTES);
+        w.zero(USER_EQUIP_BYTES);
+        w.zero(MAP_STAT_BYTES);
+        w.zero(EQUIPED_ITEM_BYTES);
+        w.systemTimeNow();
+        w.u16(0);
+        w.u16(0xffff).u16(0xffff).u16(0xffff); // PlayerPapelShopInfo defaults
+        w.u32(0);
+        w.u64(0);
+        w.u32(0);
+        w.u32(serverProperty);
+        w.zero(277);
+        return w.toBytes();
+    }
+
+    /** C# {@code pacote073} empty warehouse: two uint16 counts. */
+    public static byte[] emptyWarehouse() {
+        return new PacketWriter().opcode(0x73).u16(0).u16(0).toBytes();
+    }
+
+    /** C# {@code pacote070} empty character list. */
+    public static byte[] emptyCharacters() {
+        return new PacketWriter().opcode(0x70).i16(0).i16(0).toBytes();
+    }
+
+    /** C# {@code pacote071} empty caddie list. */
+    public static byte[] emptyCaddies() {
+        return new PacketWriter().opcode(0x71).i16(0).i16(0).toBytes();
+    }
+
+    /** C# {@code pacote072} + {@code UserEquip.ToArray} zeros. */
+    public static byte[] emptyUserEquip() {
+        return new PacketWriter().opcode(0x72).zero(USER_EQUIP_BYTES).toBytes();
+    }
+
+    /** C# {@code pacote0E1} + {@code MascotManager.Build} count 0. */
+    public static byte[] emptyMascots() {
+        return new PacketWriter().opcode(0xE1).u16(0).toBytes();
+    }
+
+    static byte[] memberInfoEx(int oid, String id, String nick, int capability) {
+        PacketWriter w = new PacketWriter();
+        w.u16(0xffff); // sala_numero DEFAULT_ROOM_ID
+        w.fixedStr(id, 22);
+        w.fixedStr(nick, 22);
+        w.zero(17); // guild_name
+        w.zero(12); // guild_mark_img
+        w.u32(0); // school
+        w.i32(capability);
+        w.u32(0); // galleryUid
+        w.i32(oid);
+        w.u32(0).u32(0).u32(0); // rank[3]
+        w.u32(0); // guild_uid
+        w.u32(0); // guild_mark_img_no
+        w.u8(0); // state_flag
+        w.u8(1); // flag_login_time (first login on GS)
+        w.u16(0xffff).u16(0xffff).u16(0xffff); // papel_shop
+        w.u32(0); // point_point_event
+        w.u64(0); // flag_block
+        w.u32(0); // channeling_flag
+        w.zero(128); // sDisplayID
+        byte[] body = w.toBytes();
+        if (body.length != MEMBER_INFO_EX_BYTES) {
+            throw new IllegalStateException("MemberInfoEx size " + body.length);
+        }
+        return body;
+    }
+
+    static byte[] userInfo(int level) {
+        PacketWriter w = new PacketWriter();
+        w.zero(16); // tacada, putt, tempo, tempo_tacada
+        w.zero(4); // best_drive float
+        w.zero(24); // acerto..hole_in
+        w.zero(4); // hio
+        w.zero(2); // bunker
+        w.zero(12); // fairway, albatross, mad
+        w.zero(4); // putt_in
+        w.zero(8); // best_long_putt, best_chip_in
+        w.u32(0); // exp
+        w.u8(level);
+        w.u64(0); // pang
+        w.zero(4); // media_score
+        w.zero(5); // best_score
+        w.u8(0); // event_flag
+        w.zero(40); // best_pang[5]
+        w.zero(8); // sum_pang
+        w.zero(16); // jogado, team_hole, team_win, team_game
+        w.zero(20); // ladder_*
+        w.zero(12); // combo, all_combo, quitado
+        w.zero(8); // skin_pang
+        w.zero(16); // skin_win..strike
+        w.zero(2); // skin_all_in
+        w.zero(8); // event_value, jogados_disconnect
+        w.zero(4); // game_count_season
+        w.zero(6); // medal bytes
+        w.zero(2); // _16bit
+        byte[] body = w.toBytes();
+        if (body.length != USER_INFO_BYTES) {
+            throw new IllegalStateException("UserInfo size " + body.length);
+        }
+        return body;
     }
 
     /** Fail path used by {@code SendLoginAck}: uint32 ack. */

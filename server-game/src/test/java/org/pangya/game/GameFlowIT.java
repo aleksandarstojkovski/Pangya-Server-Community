@@ -54,14 +54,21 @@ class GameFlowIT {
                 int wireVersion = GamePackets.xorPacketVersion(2016110200);
                 client.sendPlain(GamePackets.clientLogin(
                         "testuser", 10001, loginKey, "852.00", wireVersion, gameKey));
-                List<byte[]> loginPkts = collect(client, 2, 5, TimeUnit.SECONDS);
-                assertEquals(2, loginPkts.size(), "expected 0x44 then 0x4D");
+                List<byte[]> loginPkts = collect(client, 7, 5, TimeUnit.SECONDS);
+                assertEquals(7, loginPkts.size(), "expected 0x44 principal + inventory stubs + 0x4D");
 
                 PacketReader ack = new PacketReader(loginPkts.get(0));
                 assertEquals(GamePackets.SERVER_LOGIN_ACK, ack.opcode());
                 assertEquals(GamePackets.ACK_LOGIN_OK, ack.u8());
+                assertEquals(GamePackets.PRINCIPAL_PAYLOAD_BYTES, ack.remaining());
 
-                PacketReader channels = new PacketReader(loginPkts.get(1));
+                assertEquals(0x73, new PacketReader(loginPkts.get(1)).opcode());
+                assertEquals(0x70, new PacketReader(loginPkts.get(2)).opcode());
+                assertEquals(0x71, new PacketReader(loginPkts.get(3)).opcode());
+                assertEquals(0x72, new PacketReader(loginPkts.get(4)).opcode());
+                assertEquals(0xE1, new PacketReader(loginPkts.get(5)).opcode());
+
+                PacketReader channels = new PacketReader(loginPkts.get(6));
                 assertEquals(GamePackets.SERVER_CHANNEL_LIST, channels.opcode());
                 assertEquals(2, channels.u8());
                 assertEquals(2 * 77, channels.remaining());
@@ -99,8 +106,9 @@ class GameFlowIT {
                         "852.00",
                         GamePackets.xorPacketVersion(2016110200),
                         gameKey2));
-                List<byte[]> again = collect(client, 2, 5, TimeUnit.SECONDS);
+                List<byte[]> again = collect(client, 7, 5, TimeUnit.SECONDS);
                 assertEquals(GamePackets.SERVER_LOGIN_ACK, new PacketReader(again.get(0)).opcode());
+                assertEquals(GamePackets.SERVER_CHANNEL_LIST, new PacketReader(again.get(6)).opcode());
             }
         }
     }

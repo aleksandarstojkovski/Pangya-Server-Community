@@ -182,8 +182,23 @@ public final class GameHandler {
                 log.warn("register game logon failed uid={}: {}", pi.uid, e.toString());
             }
 
-            // S3: ACK_LOGIN_OK without C# principal()/warehouse dump (S4).
-            session.send(GamePackets.loginAck(GamePackets.ACK_LOGIN_OK));
+            // C# LoginTask.sendCompleteData: pacote044 principal + warehouse + chars +
+            // caddies + equip + mascots + channel list. Remaining dump packets are S4+.
+            session.send(GamePackets.loginOkPrincipal(
+                    config.clientVersion(),
+                    config.version(),
+                    session.oid(),
+                    pi.id,
+                    pi.nickname,
+                    pi.capability,
+                    (int) pi.uid,
+                    pi.level,
+                    config.property()));
+            session.send(GamePackets.emptyWarehouse());
+            session.send(GamePackets.emptyCharacters());
+            session.send(GamePackets.emptyCaddies());
+            session.send(GamePackets.emptyUserEquip());
+            session.send(GamePackets.emptyMascots());
             session.send(GamePackets.channelList(channels));
             log.info("game login id={} uid={}", pi.id, pi.uid);
         } catch (RuntimeException e) {

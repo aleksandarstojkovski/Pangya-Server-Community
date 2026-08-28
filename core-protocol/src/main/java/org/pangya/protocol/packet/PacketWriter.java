@@ -73,6 +73,26 @@ public final class PacketWriter {
         return this;
     }
 
+    public PacketWriter zero(int n) {
+        if (n > 0) {
+            out.writeBytes(new byte[n]);
+        }
+        return this;
+    }
+
+    public PacketWriter systemTimeNow() {
+        java.time.ZonedDateTime now = java.time.ZonedDateTime.now(java.time.ZoneId.systemDefault());
+        u16(now.getYear());
+        u16(now.getMonthValue());
+        u16(now.getDayOfWeek().getValue() % 7); // C# DayOfWeek: Sunday=0
+        u16(now.getDayOfMonth());
+        u16(now.getHour());
+        u16(now.getMinute());
+        u16(now.getSecond());
+        u16(now.getNano() / 1_000_000);
+        return this;
+    }
+
     public byte[] toBytes() {
         return out.toByteArray();
     }
