@@ -139,9 +139,9 @@ C#: `GameServer/PangyaEnums/PacketGame.cs` → Java `org.pangya.protocol.game.Ga
 | C | `CLIENT_INVITE_RELOGIN` | `0xB4` | log only |
 | C | `CLIENT_WIND_NEXT_HOLE` | `0x141` | not-in-room silent; GameBase no-op |
 | C | `CLIENT_DAILY_QUEST` | `0x151` | `0x216` unix+0 then `0x225` option 0 + dates + 3 typeids |
-| C | `CLIENT_ACCEPT_DAILY_QUEST` | `0x152` | empty/zero → `0x226` option 1 + count 0 |
-| C | `CLIENT_REWARD_DAILY_QUEST` | `0x153` | empty/zero → `0x227` option 500050 + count 0 |
-| C | `CLIENT_LEAVE_DAILY_QUEST` | `0x154` | empty/zero → `0x228` option 1 only |
+| C | `CLIENT_ACCEPT_DAILY_QUEST` | `0x152` | i32 count+achievement ids. SQL quest-stuff mapping creates counter items, sets status 3/accept date, then `0x216` counters + `0x226` option 0 with full AchievementInfoEx rows. Empty/malformed → option 1 + count 0 |
+| C | `CLIENT_REWARD_DAILY_QUEST` | `0x153` | SQL QuestItem rewards; removes achievement/quest/counters, adds warehouse rewards, then `0x216` rewards+removed counters + `0x227` option 0 + ids. Empty/malformed → option 500050 + count 0 |
+| C | `CLIENT_LEAVE_DAILY_QUEST` | `0x154` | removes achievement/quest/counters, then `0x216` removed counters + `0x228` option 0 + ids. Empty/malformed → option 1 only |
 | C | `CLIENT_ACHIEVEMENT` | `0x157` | empty map no packet; short body `0x22C` i32 1 |
 | C | `CLIENT_LOLO` | `0x155` | u64 pang + 3×typeid; no IFF card → `0x22A` sys `0x151`; truncated `<20` → full `0x5400150`; success `0xC8` remaining+spent + `0x216` awards + `0x229` tipo + `0x22A` u32 0 + typeid |
 | C | `CLIENT_CADIE` | `0x158` | count 0/`>4` → `0x22F` sys `5200451&0xFFFF`; truncated/SQL miss `5200452&0xFFFF`; success `0x216` awards + `0x22F` u32 0 + seq + item |
@@ -291,9 +291,9 @@ C#: `GameServer/PangyaEnums/PacketGame.cs` → Java `org.pangya.protocol.game.Ga
 | S | `SERVER_DAILY_QUEST_STAMP` | `0x216` | unix + count; take-mail type 2 uses empty UCC PStr + status + seq + 5 zeros (15), not Papel 25-byte pad. Opposite C# `pacote216` item-update |
 | S | `SERVER_MAIL_TAKE` | `0x214` | i32 error; 0 ok after `0x216`. Opposite `CLIENT_TAKE_MAIL` `0x146` |
 | S | `SERVER_DAILY_QUEST_INFO` | `0x225` | option + current/accept unix + count + 3×typeid + deletes |
-| S | `SERVER_DAILY_QUEST_ACCEPT` | `0x226` | |
-| S | `SERVER_DAILY_QUEST_REWARD` | `0x227` | |
-| S | `SERVER_DAILY_QUEST_LEAVE` | `0x228` | |
+| S | `SERVER_DAILY_QUEST_ACCEPT` | `0x226` | option + count + accepted AchievementInfoEx rows |
+| S | `SERVER_DAILY_QUEST_REWARD` | `0x227` | option + count + removed achievement ids |
+| S | `SERVER_DAILY_QUEST_LEAVE` | `0x228` | option 0 + count + ids; fail option 1 only |
 | S | `SERVER_ACHIEVEMENT_GUI` | `0x22C` | i32 option |
 | S | `SERVER_LOLO_TIPO` | `0x229` | u32 card tipo (NORMAL 0) after compose |
 | S | `SERVER_LOLO` | `0x22A` | fail u32 error; success u32 0 + u32 typeid |

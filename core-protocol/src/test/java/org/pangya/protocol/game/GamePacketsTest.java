@@ -893,6 +893,40 @@ class GamePacketsTest {
         assertEquals(GamePackets.SERVER_DAILY_QUEST_LEAVE, leaveFail.opcode());
         assertEquals(GamePackets.DAILY_QUEST_LEAVE_FAIL, leaveFail.i32());
         assertEquals(0, leaveFail.remaining());
+        GamePackets.AchievementInfo daily = new GamePackets.AchievementInfo(
+                90,
+                GamePackets.TYPEID_DAILY_ACHIEVEMENT_TEST,
+                1,
+                3,
+                List.of(new GamePackets.QuestStuff(
+                        GamePackets.TYPEID_DAILY_QUEST_STUFF_TEST,
+                        GamePackets.TYPEID_DAILY_COUNTER_TEST,
+                        91,
+                        0)));
+        PacketReader acceptOk = new PacketReader(GamePackets.dailyQuestAcceptOk(List.of(daily)));
+        assertEquals(GamePackets.SERVER_DAILY_QUEST_ACCEPT, acceptOk.opcode());
+        assertEquals(0, acceptOk.i32());
+        assertEquals(1, acceptOk.i32());
+        assertEquals(1, acceptOk.u8());
+        assertEquals(GamePackets.TYPEID_DAILY_ACHIEVEMENT_TEST, acceptOk.u32());
+        assertEquals(90, acceptOk.i32());
+        assertEquals(3, acceptOk.i32());
+        assertEquals(1, acceptOk.u32());
+        assertEquals(GamePackets.TYPEID_DAILY_QUEST_STUFF_TEST, acceptOk.u32());
+        assertEquals(GamePackets.TYPEID_DAILY_COUNTER_TEST, acceptOk.u32());
+        assertEquals(91, acceptOk.i32());
+        assertEquals(0, acceptOk.u32());
+        assertEquals(0, acceptOk.remaining());
+        PacketReader rewardOk = new PacketReader(GamePackets.dailyQuestRewardOk(List.of(90)));
+        assertEquals(GamePackets.SERVER_DAILY_QUEST_REWARD, rewardOk.opcode());
+        assertEquals(0, rewardOk.i32());
+        assertEquals(1, rewardOk.i32());
+        assertEquals(90, rewardOk.i32());
+        PacketReader leaveOk = new PacketReader(GamePackets.dailyQuestLeaveOk(List.of(90)));
+        assertEquals(GamePackets.SERVER_DAILY_QUEST_LEAVE, leaveOk.opcode());
+        assertEquals(0, leaveOk.i32());
+        assertEquals(1, leaveOk.i32());
+        assertEquals(90, leaveOk.i32());
         PacketReader delFail = new PacketReader(GamePackets.deleteItemFail());
         assertEquals(GamePackets.SERVER_DELETE_ITEM, delFail.opcode());
         assertEquals(GamePackets.DELETE_ITEM_FAIL, delFail.u8());

@@ -1611,6 +1611,10 @@ public final class GamePackets {
     public static final int TYPEID_TIKI_VALUE_TEST = 0x1A000320;
     public static final int TYPEID_TIKI_REWARD_TEST = 0x1A000321;
     public static final int TYPEID_TIKI_NEW_TEST = 0x1A000322;
+    public static final int TYPEID_DAILY_ACHIEVEMENT_TEST = 0x6C400201;
+    public static final int TYPEID_DAILY_QUEST_STUFF_TEST = 0x6B000201;
+    public static final int TYPEID_DAILY_COUNTER_TEST = 0x6A000201;
+    public static final int TYPEID_DAILY_REWARD_TEST = 0x1A000330;
     /** C# transform lottery special typeids. */
     public static final int[] WORKSHOP_TRANSFORM_SPECIALS = {
         TYPEID_WINGTROSS_EVO, TYPEID_GIGA_YARD_TOTEM, TYPEID_DUOSTAR_MANAPIKAL
@@ -5445,6 +5449,29 @@ public final class GamePackets {
                 .toBytes();
     }
 
+    /** C# {@code pacote226} success with full accepted achievement rows. */
+    public static byte[] dailyQuestAcceptOk(List<AchievementInfo> achievements) {
+        List<AchievementInfo> rows = achievements == null ? List.of() : achievements;
+        PacketWriter w = new PacketWriter()
+                .opcode(SERVER_DAILY_QUEST_ACCEPT)
+                .i32(0)
+                .i32(rows.size());
+        for (AchievementInfo achievement : rows) {
+            w.u8(achievement.active())
+                    .u32(achievement.typeid())
+                    .i32(achievement.id())
+                    .i32(achievement.status())
+                    .u32(achievement.quests().size());
+            for (QuestStuff quest : achievement.quests()) {
+                w.u32(quest.typeid())
+                        .u32(quest.counterTypeid())
+                        .i32(quest.counterId())
+                        .u32(quest.clearDateUnix());
+            }
+        }
+        return w.toBytes();
+    }
+
     /**
      * C# {@code pacote227}: always option then count (0 when empty).
      */
@@ -5456,11 +5483,37 @@ public final class GamePackets {
                 .toBytes();
     }
 
+    /** C# {@code pacote227} success: option 0 + removed achievement ids. */
+    public static byte[] dailyQuestRewardOk(List<Integer> achievementIds) {
+        List<Integer> ids = achievementIds == null ? List.of() : achievementIds;
+        PacketWriter w = new PacketWriter()
+                .opcode(SERVER_DAILY_QUEST_REWARD)
+                .i32(0)
+                .i32(ids.size());
+        for (int id : ids) {
+            w.i32(id);
+        }
+        return w.toBytes();
+    }
+
     /**
      * C# {@code pacote228(empty, 1)}: option 1 only.
      */
     public static byte[] dailyQuestLeaveFail() {
         return new PacketWriter().opcode(SERVER_DAILY_QUEST_LEAVE).i32(DAILY_QUEST_LEAVE_FAIL).toBytes();
+    }
+
+    /** C# {@code pacote228} success: option 0 + removed achievement ids. */
+    public static byte[] dailyQuestLeaveOk(List<Integer> achievementIds) {
+        List<Integer> ids = achievementIds == null ? List.of() : achievementIds;
+        PacketWriter w = new PacketWriter()
+                .opcode(SERVER_DAILY_QUEST_LEAVE)
+                .i32(0)
+                .i32(ids.size());
+        for (int id : ids) {
+            w.i32(id);
+        }
+        return w.toBytes();
     }
 
     /** C# {@code pacote22C(option)}. */

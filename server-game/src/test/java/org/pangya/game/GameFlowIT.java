@@ -5003,6 +5003,101 @@ class GameFlowIT {
     }
 
     @Test
+    void dailyQuestAcceptLeaveAndRewardRoundtrip() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config);
+             PangyaFakeClient client = new PangyaFakeClient()) {
+            InventoryRepository inv = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
+            cleanupDailyQuest(ds);
+            inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_DAILY_REWARD_TEST);
+            inv.deleteDailyQuestStuff(GamePackets.TYPEID_DAILY_QUEST_STUFF_TEST);
+            inv.deleteDailyQuestRewards(GamePackets.TYPEID_DAILY_ACHIEVEMENT_TEST);
+            try {
+                inv.upsertDailyQuestStuff(
+                        GamePackets.TYPEID_DAILY_QUEST_STUFF_TEST,
+                        GamePackets.TYPEID_DAILY_COUNTER_TEST);
+                inv.upsertDailyQuestReward(
+                        GamePackets.TYPEID_DAILY_ACHIEVEMENT_TEST,
+                        0,
+                        GamePackets.TYPEID_DAILY_REWARD_TEST,
+                        2,
+                        0);
+                int leaveId = insertDailyAchievement(ds);
+                LoginRepository repo = new JdbiLoginRepository(DatabaseSupport.jdbi(ds));
+                String loginKey = repo.generateAuthKeyLogin(10001);
+                String gameKey = repo.generateAuthKeyGame(10001, 20202);
+                keys.putLoginKey(10001, loginKey);
+                keys.putGameKey(10001, 20202, gameKey);
+                loginToChannel(client, runtime.port(), "testuser", 10001, loginKey, gameKey);
+
+                client.sendPlain(GamePackets.clientAcceptDailyQuest(leaveId));
+                PacketReader counterAdd = awaitOpcode(client, GamePackets.SERVER_DAILY_QUEST_STAMP);
+                counterAdd.u32();
+                assertEquals(1, counterAdd.u32());
+                PacketReader accepted = awaitOpcode(client, GamePackets.SERVER_DAILY_QUEST_ACCEPT);
+                assertEquals(0, accepted.i32());
+                assertEquals(1, accepted.i32());
+                assertEquals(1, accepted.u8());
+                assertEquals(GamePackets.TYPEID_DAILY_ACHIEVEMENT_TEST, accepted.u32());
+                assertEquals(leaveId, accepted.i32());
+                assertEquals(3, accepted.i32());
+                assertEquals(1, accepted.u32());
+                assertEquals(GamePackets.TYPEID_DAILY_QUEST_STUFF_TEST, accepted.u32());
+                assertEquals(GamePackets.TYPEID_DAILY_COUNTER_TEST, accepted.u32());
+                assertTrue(accepted.i32() > 0);
+                assertEquals(0, accepted.u32());
+
+                client.sendPlain(GamePackets.clientLeaveDailyQuest(leaveId));
+                PacketReader counterRemove = awaitOpcode(client, GamePackets.SERVER_DAILY_QUEST_STAMP);
+                counterRemove.u32();
+                assertEquals(1, counterRemove.u32());
+                PacketReader left = awaitOpcode(client, GamePackets.SERVER_DAILY_QUEST_LEAVE);
+                assertEquals(0, left.i32());
+                assertEquals(1, left.i32());
+                assertEquals(leaveId, left.i32());
+                assertTrue(inv.achievements(10001).stream().noneMatch(a -> a.id() == leaveId));
+
+                int rewardId = insertDailyAchievement(ds);
+                client.sendPlain(GamePackets.clientAcceptDailyQuest(rewardId));
+                awaitOpcode(client, GamePackets.SERVER_DAILY_QUEST_STAMP);
+                awaitOpcode(client, GamePackets.SERVER_DAILY_QUEST_ACCEPT);
+                client.sendPlain(GamePackets.clientRewardDailyQuest(rewardId));
+                PacketReader rewardUpdate = awaitOpcode(client, GamePackets.SERVER_DAILY_QUEST_STAMP);
+                rewardUpdate.u32();
+                assertEquals(2, rewardUpdate.u32());
+                PacketReader rewarded = awaitOpcode(client, GamePackets.SERVER_DAILY_QUEST_REWARD);
+                assertEquals(0, rewarded.i32());
+                assertEquals(1, rewarded.i32());
+                assertEquals(rewardId, rewarded.i32());
+                assertEquals(2, inv.warehouse(10001).stream()
+                        .filter(w -> w.typeid == GamePackets.TYPEID_DAILY_REWARD_TEST)
+                        .findFirst()
+                        .orElseThrow()
+                        .c[0]);
+
+                client.sendPlain(GamePackets.clientAcceptDailyQuest());
+                assertEquals(GamePackets.DAILY_QUEST_ACCEPT_FAIL,
+                        awaitOpcode(client, GamePackets.SERVER_DAILY_QUEST_ACCEPT).i32());
+                assertTrue(inv.warehouse(10001).stream().anyMatch(
+                        w -> w.typeid == GamePackets.TYPEID_AIR_KNIGHT));
+            } finally {
+                cleanupDailyQuest(ds);
+                inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_DAILY_REWARD_TEST);
+                inv.deleteDailyQuestStuff(GamePackets.TYPEID_DAILY_QUEST_STUFF_TEST);
+                inv.deleteDailyQuestRewards(GamePackets.TYPEID_DAILY_ACHIEVEMENT_TEST);
+            }
+        }
+    }
+
+    @Test
     void dailyQuestDeleteItemOtherChannelMatchCsharp() throws Exception {
         String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
         String user = env("PANGYA_TEST_JDBC_USER", "pangya");
@@ -5813,6 +5908,63 @@ class GameFlowIT {
             assertEquals(tail, reader.u32());
         }
         return id;
+    }
+
+    private static int insertDailyAchievement(javax.sql.DataSource ds) {
+        return DatabaseSupport.jdbi(ds).inTransaction(h -> {
+            int id = h.createQuery("""
+                            INSERT INTO pangya.pangya_achievement (
+                                "UID", "Nome", "TypeID", active, status)
+                            VALUES (10001, 'Daily test', :typeid, 1, 2)
+                            RETURNING "ID_ACHIEVEMENT"
+                            """)
+                    .bind("typeid", GamePackets.TYPEID_DAILY_ACHIEVEMENT_TEST)
+                    .mapTo(Integer.class)
+                    .one();
+            h.createUpdate("""
+                            INSERT INTO pangya.pangya_quest (
+                                achievement_id, uid, "name", typeid, counter_item_id, "Date")
+                            VALUES (:achievement, 10001, 'Daily stuff', :typeid, 0, NULL)
+                            """)
+                    .bind("achievement", id)
+                    .bind("typeid", GamePackets.TYPEID_DAILY_QUEST_STUFF_TEST)
+                    .execute();
+            return id;
+        });
+    }
+
+    private static void cleanupDailyQuest(javax.sql.DataSource ds) {
+        DatabaseSupport.jdbi(ds).useTransaction(h -> {
+            List<Integer> ids = h.createQuery("""
+                            SELECT "ID_ACHIEVEMENT" FROM pangya.pangya_achievement
+                             WHERE "UID" = 10001 AND "TypeID" = :typeid
+                            """)
+                    .bind("typeid", GamePackets.TYPEID_DAILY_ACHIEVEMENT_TEST)
+                    .mapTo(Integer.class)
+                    .list();
+            if (!ids.isEmpty()) {
+                h.createUpdate("""
+                                DELETE FROM pangya.pangya_quest
+                                 WHERE uid = 10001 AND achievement_id IN (<ids>)
+                                """)
+                        .bindList("ids", ids)
+                        .execute();
+                h.createUpdate("""
+                                DELETE FROM pangya.pangya_achievement
+                                 WHERE "UID" = 10001 AND "ID_ACHIEVEMENT" IN (<ids>)
+                                """)
+                        .bindList("ids", ids)
+                        .execute();
+            }
+            h.createUpdate("""
+                            DELETE FROM pangya.pangya_counter_item
+                             WHERE "UID" = 10001 AND "TypeID" = :typeid
+                            """)
+                    .bind("typeid", GamePackets.TYPEID_DAILY_COUNTER_TEST)
+                    .execute();
+            h.createUpdate("DELETE FROM pangya.pangya_daily_quest_player WHERE uid = 10001")
+                    .execute();
+        });
     }
 
     private static int oidOf(GameRuntime runtime, long uid) {

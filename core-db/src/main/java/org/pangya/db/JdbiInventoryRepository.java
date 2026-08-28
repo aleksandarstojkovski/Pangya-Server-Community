@@ -3173,6 +3173,224 @@ public final class JdbiInventoryRepository implements InventoryRepository {
     }
 
     @Override
+    public DailyQuestMutation acceptDailyQuests(long uid, int[] achievementIds) {
+        if (achievementIds == null || achievementIds.length == 0) {
+            return new DailyQuestMutation(List.of(), List.of());
+        }
+        List<GamePackets.CounterItem> created = jdbi.inTransaction(h -> {
+            List<GamePackets.CounterItem> out = new ArrayList<>();
+            for (int achievementId : achievementIds) {
+                boolean owned = h.createQuery("""
+                                SELECT 1 FROM pangya.pangya_achievement
+                                 WHERE "UID" = :uid AND "ID_ACHIEVEMENT" = :id
+                                """)
+                        .bind("uid", uid)
+                        .bind("id", achievementId)
+                        .mapTo(Integer.class)
+                        .findOne()
+                        .isPresent();
+                if (!owned) {
+                    continue;
+                }
+                List<int[]> quests = h.createQuery("""
+                                SELECT id, typeid, counter_item_id
+                                  FROM pangya.pangya_quest
+                                 WHERE uid = :uid AND achievement_id = :id
+                                 ORDER BY id
+                                """)
+                        .bind("uid", uid)
+                        .bind("id", achievementId)
+                        .map((rs, ctx) -> new int[] {
+                            rs.getInt("id"), rs.getInt("typeid"), rs.getInt("counter_item_id")
+                        })
+                        .list();
+                for (int[] quest : quests) {
+                    if (quest[2] > 0) {
+                        continue;
+                    }
+                    int counterTypeid = h.createQuery("""
+                                    SELECT counter_typeid FROM pangya.iff_daily_quest_stuff
+                                     WHERE quest_typeid = :typeid
+                                    """)
+                            .bind("typeid", quest[1])
+                            .mapTo(Integer.class)
+                            .findOne()
+                            .orElseThrow(() -> new IllegalStateException(
+                                    "missing daily quest stuff " + quest[1]));
+                    int counterId = h.createQuery("""
+                                    INSERT INTO pangya.pangya_counter_item (
+                                        "UID", "TypeID", active, "Count_Num_Item")
+                                    VALUES (:uid, :typeid, 1, 0)
+                                    RETURNING "Count_ID"
+                                    """)
+                            .bind("uid", uid)
+                            .bind("typeid", counterTypeid)
+                            .mapTo(Integer.class)
+                            .one();
+                    h.createUpdate("""
+                                    UPDATE pangya.pangya_quest SET counter_item_id = :counter
+                                     WHERE uid = :uid AND id = :id
+                                    """)
+                            .bind("counter", counterId)
+                            .bind("uid", uid)
+                            .bind("id", quest[0])
+                            .execute();
+                    out.add(new GamePackets.CounterItem(counterId, counterTypeid, 1, 0));
+                }
+                h.createUpdate("""
+                                UPDATE pangya.pangya_achievement SET status = 3
+                                 WHERE "UID" = :uid AND "ID_ACHIEVEMENT" = :id
+                                """)
+                        .bind("uid", uid)
+                        .bind("id", achievementId)
+                        .execute();
+            }
+            return out;
+        });
+        List<GamePackets.AchievementInfo> selected = achievements(uid).stream()
+                .filter(a -> contains(achievementIds, a.id()))
+                .toList();
+        return new DailyQuestMutation(selected, created);
+    }
+
+    @Override
+    public DailyQuestMutation removeDailyQuests(long uid, int[] achievementIds) {
+        if (achievementIds == null || achievementIds.length == 0) {
+            return new DailyQuestMutation(List.of(), List.of());
+        }
+        List<GamePackets.AchievementInfo> selected = achievements(uid).stream()
+                .filter(a -> contains(achievementIds, a.id()))
+                .toList();
+        List<GamePackets.CounterItem> allCounters = counters(uid);
+        List<Integer> counterIds = selected.stream()
+                .flatMap(a -> a.quests().stream())
+                .map(GamePackets.QuestStuff::counterId)
+                .filter(id -> id > 0)
+                .distinct()
+                .toList();
+        List<GamePackets.CounterItem> removedCounters = allCounters.stream()
+                .filter(c -> counterIds.contains(c.id()))
+                .toList();
+        List<Integer> ids = selected.stream().map(GamePackets.AchievementInfo::id).toList();
+        if (!ids.isEmpty()) {
+            jdbi.useTransaction(h -> {
+                h.createUpdate("""
+                                DELETE FROM pangya.pangya_quest
+                                 WHERE uid = :uid AND achievement_id IN (<ids>)
+                                """)
+                        .bind("uid", uid)
+                        .bindList("ids", ids)
+                        .execute();
+                h.createUpdate("""
+                                DELETE FROM pangya.pangya_achievement
+                                 WHERE "UID" = :uid AND "ID_ACHIEVEMENT" IN (<ids>)
+                                """)
+                        .bind("uid", uid)
+                        .bindList("ids", ids)
+                        .execute();
+                if (!counterIds.isEmpty()) {
+                    h.createUpdate("""
+                                    DELETE FROM pangya.pangya_counter_item
+                                     WHERE "UID" = :uid AND "Count_ID" IN (<ids>)
+                                    """)
+                            .bind("uid", uid)
+                            .bindList("ids", counterIds)
+                            .execute();
+                }
+            });
+        }
+        return new DailyQuestMutation(selected, removedCounters);
+    }
+
+    private static boolean contains(int[] ids, int value) {
+        for (int id : ids) {
+            if (id == value) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @Override
+    public List<DailyQuestReward> dailyQuestRewards(int achievementTypeid) {
+        return jdbi.withHandle(h -> h.createQuery("""
+                        SELECT seq, reward_typeid, qntd, time
+                          FROM pangya.iff_daily_quest_reward
+                         WHERE achievement_typeid = :typeid
+                         ORDER BY seq
+                        """)
+                .bind("typeid", achievementTypeid)
+                .map((rs, ctx) -> new DailyQuestReward(
+                        rs.getInt("seq"),
+                        rs.getInt("reward_typeid"),
+                        rs.getInt("qntd"),
+                        rs.getInt("time")))
+                .list());
+    }
+
+    @Override
+    public void upsertDailyQuestStuff(int questTypeid, int counterTypeid) {
+        jdbi.useHandle(h -> h.createUpdate("""
+                        INSERT INTO pangya.iff_daily_quest_stuff (quest_typeid, counter_typeid)
+                        VALUES (:quest, :counter)
+                        ON CONFLICT (quest_typeid) DO UPDATE SET
+                            counter_typeid = EXCLUDED.counter_typeid
+                        """)
+                .bind("quest", questTypeid)
+                .bind("counter", counterTypeid)
+                .execute());
+    }
+
+    @Override
+    public void deleteDailyQuestStuff(int questTypeid) {
+        jdbi.useHandle(h -> h.createUpdate(
+                        "DELETE FROM pangya.iff_daily_quest_stuff WHERE quest_typeid = :typeid")
+                .bind("typeid", questTypeid)
+                .execute());
+    }
+
+    @Override
+    public void upsertDailyQuestReward(
+            int achievementTypeid, int seq, int rewardTypeid, int qntd, int time) {
+        jdbi.useHandle(h -> h.createUpdate("""
+                        INSERT INTO pangya.iff_daily_quest_reward (
+                            achievement_typeid, seq, reward_typeid, qntd, time)
+                        VALUES (:achievement, :seq, :reward, :qntd, :time)
+                        ON CONFLICT (achievement_typeid, seq) DO UPDATE SET
+                            reward_typeid = EXCLUDED.reward_typeid,
+                            qntd = EXCLUDED.qntd,
+                            time = EXCLUDED.time
+                        """)
+                .bind("achievement", achievementTypeid)
+                .bind("seq", seq)
+                .bind("reward", rewardTypeid)
+                .bind("qntd", qntd)
+                .bind("time", time)
+                .execute());
+    }
+
+    @Override
+    public void deleteDailyQuestRewards(int achievementTypeid) {
+        jdbi.useHandle(h -> h.createUpdate(
+                        "DELETE FROM pangya.iff_daily_quest_reward WHERE achievement_typeid = :typeid")
+                .bind("typeid", achievementTypeid)
+                .execute());
+    }
+
+    @Override
+    public void setDailyQuestAcceptDate(long uid, Instant date) {
+        jdbi.useHandle(h -> h.createUpdate("""
+                        INSERT INTO pangya.pangya_daily_quest_player (
+                            uid, last_quest_accept, today_quest)
+                        VALUES (:uid, :date, :date)
+                        ON CONFLICT (uid) DO UPDATE SET last_quest_accept = EXCLUDED.last_quest_accept
+                        """)
+                .bind("uid", uid)
+                .bind("date", Timestamp.from(date))
+                .execute());
+    }
+
+    @Override
     public OptionalInt consumeCardByTypeid(long uid, int typeid, int qntd) {
         if (qntd <= 0) {
             return OptionalInt.empty();

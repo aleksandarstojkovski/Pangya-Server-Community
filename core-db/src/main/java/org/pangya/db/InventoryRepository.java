@@ -334,6 +334,23 @@ public interface InventoryRepository {
     void upsertTikiNewValue(
             int typeid, long pang, int mileage, int bonusMin, int bonusMax, int bonusProb);
 
+    DailyQuestMutation acceptDailyQuests(long uid, int[] achievementIds);
+
+    DailyQuestMutation removeDailyQuests(long uid, int[] achievementIds);
+
+    List<DailyQuestReward> dailyQuestRewards(int achievementTypeid);
+
+    void upsertDailyQuestStuff(int questTypeid, int counterTypeid);
+
+    void deleteDailyQuestStuff(int questTypeid);
+
+    void upsertDailyQuestReward(
+            int achievementTypeid, int seq, int rewardTypeid, int qntd, int time);
+
+    void deleteDailyQuestRewards(int achievementTypeid);
+
+    void setDailyQuestAcceptDate(long uid, Instant date);
+
     /**
      * C# {@code ItemManager.removeItem} for cards: consume {@code qntd} from
      * {@code QNTD}. Empty when missing or insufficient. Remaining 0 deletes.
@@ -615,6 +632,11 @@ public interface InventoryRepository {
 
     record TikiNewValue(
             int typeid, long pang, int mileage, int bonusMin, int bonusMax, int bonusProb) {}
+
+    record DailyQuestMutation(
+            List<GamePackets.AchievementInfo> achievements, List<GamePackets.CounterItem> counters) {}
+
+    record DailyQuestReward(int seq, int typeid, int qntd, int time) {}
 
     /** C# IFF {@code TimeLimitItem}: {@code type}, {@code percent}, {@code time} minutes. */
     record TimeLimitItem(int typeid, int tipo, int percent, int timeMinutes) {}

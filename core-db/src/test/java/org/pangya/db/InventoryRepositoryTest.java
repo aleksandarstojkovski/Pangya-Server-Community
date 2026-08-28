@@ -498,6 +498,22 @@ class InventoryRepositoryTest {
                 var tikiNew = repo.tikiNewValue(GamePackets.TYPEID_TIKI_NEW_TEST).orElseThrow();
                 assertEquals(100, tikiNew.pang());
                 assertEquals(600, tikiNew.mileage());
+                repo.deleteDailyQuestStuff(GamePackets.TYPEID_DAILY_QUEST_STUFF_TEST);
+                repo.deleteDailyQuestRewards(GamePackets.TYPEID_DAILY_ACHIEVEMENT_TEST);
+                repo.upsertDailyQuestStuff(
+                        GamePackets.TYPEID_DAILY_QUEST_STUFF_TEST,
+                        GamePackets.TYPEID_DAILY_COUNTER_TEST);
+                repo.upsertDailyQuestReward(
+                        GamePackets.TYPEID_DAILY_ACHIEVEMENT_TEST,
+                        0,
+                        GamePackets.TYPEID_DAILY_REWARD_TEST,
+                        2,
+                        0);
+                assertEquals(
+                        GamePackets.TYPEID_DAILY_REWARD_TEST,
+                        repo.dailyQuestRewards(GamePackets.TYPEID_DAILY_ACHIEVEMENT_TEST)
+                                .get(0)
+                                .typeid());
                 repo.deleteCardByTypeid(10001, GamePackets.TYPEID_CARD_NORMAL);
                 repo.addCard(10001, GamePackets.TYPEID_CARD_NORMAL, 2);
                 assertEquals(1, repo.consumeCardByTypeid(10001, GamePackets.TYPEID_CARD_NORMAL, 1).orElseThrow());
@@ -519,6 +535,8 @@ class InventoryRepositoryTest {
                 repo.deleteTikiItemValue(GamePackets.TYPEID_TIKI_VALUE_TEST);
                 repo.deleteTikiPointShopItem(GamePackets.TYPEID_TIKI_REWARD_TEST);
                 repo.deleteTikiItemValue(GamePackets.TYPEID_TIKI_NEW_TEST);
+                repo.deleteDailyQuestStuff(GamePackets.TYPEID_DAILY_QUEST_STUFF_TEST);
+                repo.deleteDailyQuestRewards(GamePackets.TYPEID_DAILY_ACHIEVEMENT_TEST);
                 repo.deleteCardByTypeid(10001, GamePackets.TYPEID_CARD_NORMAL);
             }
             repo.deletePartIff(GamePackets.TYPEID_RENTAL_PART);

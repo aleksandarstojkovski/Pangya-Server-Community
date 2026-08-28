@@ -3299,8 +3299,29 @@ public final class GameHandler {
         if (!inChannel(session)) {
             return;
         }
-        skipDailyQuestIds(reader);
-        session.send(GamePackets.dailyQuestAcceptFail());
+        int[] ids = readDailyQuestIds(reader);
+        if (ids == null) {
+            session.send(GamePackets.dailyQuestAcceptFail());
+            return;
+        }
+        try {
+            InventoryRepository.DailyQuestMutation result =
+                    inventory.acceptDailyQuests(session.player().uid, ids);
+            List<GamePackets.PapelAward> counters = result.counters().stream()
+                    .map(c -> new GamePackets.PapelAward(
+                            GamePackets.PAPEL_AWARD_TYPE, c.typeid(), c.id(), 0, 0, 0, 0))
+                    .toList();
+            Instant now = Instant.now();
+            if (!result.achievements().isEmpty()) {
+                inventory.setDailyQuestAcceptDate(session.player().uid, now);
+                session.player().dailyAcceptDate = now.getEpochSecond();
+            }
+            session.send(GamePackets.papelAwards(GamePackets.unixNow(), counters));
+            session.send(GamePackets.dailyQuestAcceptOk(result.achievements()));
+        } catch (RuntimeException e) {
+            log.debug("accept daily quest failed uid={}: {}", session.player().uid, e.toString());
+            session.send(GamePackets.dailyQuestAcceptFail());
+        }
     }
 
     /**
@@ -3310,8 +3331,57 @@ public final class GameHandler {
         if (!inChannel(session)) {
             return;
         }
-        skipDailyQuestIds(reader);
-        session.send(GamePackets.dailyQuestRewardFail());
+        int[] ids = readDailyQuestIds(reader);
+        if (ids == null) {
+            session.send(GamePackets.dailyQuestRewardFail());
+            return;
+        }
+        try {
+            long uid = session.player().uid;
+            List<GamePackets.AchievementInfo> selected = inventory.achievements(uid).stream()
+                    .filter(a -> containsId(ids, a.id()))
+                    .toList();
+            List<InventoryRepository.DailyQuestReward> rewards = new ArrayList<>();
+            for (GamePackets.AchievementInfo achievement : selected) {
+                rewards.addAll(inventory.dailyQuestRewards(achievement.typeid()));
+            }
+            for (InventoryRepository.DailyQuestReward reward : rewards) {
+                if (reward.typeid() == 0 || reward.qntd() <= 0) {
+                    throw new IllegalStateException("invalid daily reward");
+                }
+            }
+            InventoryRepository.DailyQuestMutation removed = inventory.removeDailyQuests(uid, ids);
+            List<GamePackets.PapelAward> updates = new ArrayList<>();
+            for (InventoryRepository.DailyQuestReward reward : rewards) {
+                GamePackets.WarehouseItem existing = warehouseByTypeid(uid, reward.typeid());
+                int ant = existing == null ? 0 : existing.c[0] & 0xffff;
+                int itemId = inventory.addWarehouseItem(uid, reward.typeid(), reward.qntd());
+                updates.add(new GamePackets.PapelAward(
+                        GamePackets.PAPEL_AWARD_TYPE,
+                        reward.typeid(),
+                        itemId,
+                        0,
+                        ant,
+                        ant + reward.qntd(),
+                        reward.time() > 0 ? reward.time() : reward.qntd()));
+            }
+            for (GamePackets.CounterItem counter : removed.counters()) {
+                updates.add(new GamePackets.PapelAward(
+                        GamePackets.PAPEL_AWARD_TYPE,
+                        counter.typeid(),
+                        counter.id(),
+                        0,
+                        counter.value(),
+                        0,
+                        -counter.value()));
+            }
+            session.send(GamePackets.papelAwards(GamePackets.unixNow(), updates));
+            session.send(GamePackets.dailyQuestRewardOk(
+                    removed.achievements().stream().map(GamePackets.AchievementInfo::id).toList()));
+        } catch (RuntimeException e) {
+            log.debug("reward daily quest failed uid={}: {}", session.player().uid, e.toString());
+            session.send(GamePackets.dailyQuestRewardFail());
+        }
     }
 
     /**
@@ -3321,22 +3391,55 @@ public final class GameHandler {
         if (!inChannel(session)) {
             return;
         }
-        skipDailyQuestIds(reader);
-        session.send(GamePackets.dailyQuestLeaveFail());
+        int[] ids = readDailyQuestIds(reader);
+        if (ids == null) {
+            session.send(GamePackets.dailyQuestLeaveFail());
+            return;
+        }
+        try {
+            InventoryRepository.DailyQuestMutation removed =
+                    inventory.removeDailyQuests(session.player().uid, ids);
+            List<GamePackets.PapelAward> updates = removed.counters().stream()
+                    .map(c -> new GamePackets.PapelAward(
+                            GamePackets.PAPEL_AWARD_TYPE,
+                            c.typeid(),
+                            c.id(),
+                            0,
+                            c.value(),
+                            0,
+                            -c.value()))
+                    .toList();
+            session.send(GamePackets.papelAwards(GamePackets.unixNow(), updates));
+            session.send(GamePackets.dailyQuestLeaveOk(
+                    removed.achievements().stream().map(GamePackets.AchievementInfo::id).toList()));
+        } catch (RuntimeException e) {
+            log.debug("leave daily quest failed uid={}: {}", session.player().uid, e.toString());
+            session.send(GamePackets.dailyQuestLeaveFail());
+        }
     }
 
-    private static void skipDailyQuestIds(PacketReader reader) {
+    private static int[] readDailyQuestIds(PacketReader reader) {
         if (reader.remaining() < 4) {
-            return;
+            return null;
         }
         int num = reader.i32();
-        if (num <= 0) {
-            return;
+        if (num <= 0 || reader.remaining() < num * 4L) {
+            return null;
         }
-        int bytes = Math.min(num, reader.remaining() / 4) * 4;
-        if (bytes > 0) {
-            reader.readBytes(bytes);
+        int[] ids = new int[num];
+        for (int i = 0; i < num; i++) {
+            ids[i] = reader.i32();
         }
+        return ids;
+    }
+
+    private static boolean containsId(int[] ids, int value) {
+        for (int id : ids) {
+            if (id == value) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
