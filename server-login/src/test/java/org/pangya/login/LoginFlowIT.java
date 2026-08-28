@@ -149,10 +149,12 @@ class LoginFlowIT {
 
             client.sendPlain(LoginPackets.clientConfirmNick("TestNick"));
             PacketReader inUse = new PacketReader(client.awaitPlain(5, TimeUnit.SECONDS));
+            assertEquals(LoginPackets.SERVER_CHECK_NICK, inUse.opcode());
             assertEquals(LoginPackets.NICK_IN_USE, inUse.i32());
 
             client.sendPlain(LoginPackets.clientConfirmNick("FreshNick"));
             PacketReader ok = new PacketReader(client.awaitPlain(5, TimeUnit.SECONDS));
+            assertEquals(LoginPackets.SERVER_CHECK_NICK, ok.opcode());
             assertEquals(LoginPackets.NICK_OK, ok.i32());
             assertEquals("FreshNick", ok.pstr());
 
