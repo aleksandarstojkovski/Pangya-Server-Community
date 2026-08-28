@@ -941,6 +941,21 @@ class GamePacketsTest {
         PacketReader achFail = new PacketReader(GamePackets.achievementGui(GamePackets.ACHIEVEMENT_GUI_FAIL));
         assertEquals(GamePackets.SERVER_ACHIEVEMENT_GUI, achFail.opcode());
         assertEquals(1, achFail.i32());
+        PacketReader achData = new PacketReader(GamePackets.achievementGuiData(
+                List.of(daily),
+                List.of(new GamePackets.CounterItem(
+                        91, GamePackets.TYPEID_DAILY_COUNTER_TEST, 1, 7))));
+        assertEquals(GamePackets.SERVER_ACHIEVEMENT_GUI_DATA, achData.opcode());
+        assertEquals(0, achData.u32());
+        assertEquals(1, achData.u32());
+        assertEquals(1, achData.u32());
+        assertEquals(GamePackets.TYPEID_DAILY_ACHIEVEMENT_TEST, achData.u32());
+        assertEquals(90, achData.i32());
+        assertEquals(1, achData.u32());
+        assertEquals(GamePackets.TYPEID_DAILY_QUEST_STUFF_TEST, achData.u32());
+        assertEquals(7, achData.i32());
+        assertEquals(0, achData.u32());
+        assertEquals(0, achData.remaining());
         assertEquals(0, GamePackets.itemGroupIdentify(1));
         assertEquals(GamePackets.IFF_GROUP_ITEM, GamePackets.itemGroupIdentify(0x1A000006));
         assertEquals(1_700_000_000, GamePackets.tzLocalUnixToUnixUtc(1_700_000_000));
@@ -2558,6 +2573,7 @@ class GamePacketsTest {
         assertEquals(GamePackets.TIKI_SHOP_EXCHANGE_ITEM_BYTES, 12);
         assertEquals(GamePackets.TYPEID_MILEAGE_POINT, 0x1A0002A7);
         assertEquals(GamePackets.TYPEID_TIKI_POINT, 0x1A0002A6);
+        assertEquals(GamePackets.SERVER_ACHIEVEMENT_GUI_DATA, 0x22D);
         assertEquals(GamePackets.WORKSHOP_ERR_MISSING, 0x5300202);
         assertEquals(GamePackets.SERVER_BUY_ACK, 0x68);
         assertEquals(GamePackets.CREATE_ROOM_FAILED, 0x07);

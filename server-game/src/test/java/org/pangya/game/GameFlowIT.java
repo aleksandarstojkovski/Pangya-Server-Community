@@ -5098,6 +5098,63 @@ class GameFlowIT {
     }
 
     @Test
+    void achievementGuiSends22dThen22c() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config);
+             PangyaFakeClient client = new PangyaFakeClient()) {
+            InventoryRepository inv = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
+            cleanupDailyQuest(ds);
+            inv.deleteDailyQuestStuff(GamePackets.TYPEID_DAILY_QUEST_STUFF_TEST);
+            try {
+                inv.upsertDailyQuestStuff(
+                        GamePackets.TYPEID_DAILY_QUEST_STUFF_TEST,
+                        GamePackets.TYPEID_DAILY_COUNTER_TEST);
+                int achievementId = insertDailyAchievement(ds);
+                InventoryRepository.DailyQuestMutation accepted =
+                        inv.acceptDailyQuests(10001, new int[] {achievementId});
+                int counterId = accepted.counters().get(0).id();
+                DatabaseSupport.jdbi(ds).useHandle(h -> h.createUpdate("""
+                                UPDATE pangya.pangya_counter_item SET "Count_Num_Item" = 7
+                                 WHERE "UID" = 10001 AND "Count_ID" = :id
+                                """)
+                        .bind("id", counterId)
+                        .execute());
+                LoginRepository repo = new JdbiLoginRepository(DatabaseSupport.jdbi(ds));
+                String loginKey = repo.generateAuthKeyLogin(10001);
+                String gameKey = repo.generateAuthKeyGame(10001, 20202);
+                keys.putLoginKey(10001, loginKey);
+                keys.putGameKey(10001, 20202, gameKey);
+                loginToChannel(client, runtime.port(), "testuser", 10001, loginKey, gameKey);
+
+                client.sendPlain(GamePackets.clientAchievement(10001));
+                PacketReader data = awaitOpcode(client, GamePackets.SERVER_ACHIEVEMENT_GUI_DATA);
+                assertEquals(0, data.u32());
+                assertEquals(1, data.u32());
+                assertEquals(1, data.u32());
+                assertEquals(GamePackets.TYPEID_DAILY_ACHIEVEMENT_TEST, data.u32());
+                assertEquals(achievementId, data.i32());
+                assertEquals(1, data.u32());
+                assertEquals(GamePackets.TYPEID_DAILY_QUEST_STUFF_TEST, data.u32());
+                assertEquals(7, data.i32());
+                assertEquals(0, data.u32());
+                assertEquals(0, data.remaining());
+                assertEquals(0, awaitOpcode(client, GamePackets.SERVER_ACHIEVEMENT_GUI).i32());
+            } finally {
+                cleanupDailyQuest(ds);
+                inv.deleteDailyQuestStuff(GamePackets.TYPEID_DAILY_QUEST_STUFF_TEST);
+            }
+        }
+    }
+
+    @Test
     void dailyQuestDeleteItemOtherChannelMatchCsharp() throws Exception {
         String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
         String user = env("PANGYA_TEST_JDBC_USER", "pangya");

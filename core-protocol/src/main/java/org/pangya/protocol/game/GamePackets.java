@@ -473,6 +473,8 @@ public final class GamePackets {
     public static final int SERVER_DAILY_QUEST_LEAVE = 0x228;
     /** C# {@code pacote22C} achievement GUI result. */
     public static final int SERVER_ACHIEVEMENT_GUI = 0x22C;
+    /** C# {@code pacote22D} achievement GUI data. */
+    public static final int SERVER_ACHIEVEMENT_GUI_DATA = 0x22D;
     /** C# Cadie Magic Box fail/success {@code 0x22F}. */
     public static final int SERVER_CADIE = 0x22F;
     /**
@@ -5519,6 +5521,34 @@ public final class GamePackets {
     /** C# {@code pacote22C(option)}. */
     public static byte[] achievementGui(int option) {
         return new PacketWriter().opcode(SERVER_ACHIEVEMENT_GUI).i32(option).toBytes();
+    }
+
+    /** C# {@code pacote22D}: compact achievement GUI rows with counter values. */
+    public static byte[] achievementGuiData(
+            List<AchievementInfo> achievements, List<CounterItem> counters) {
+        List<AchievementInfo> rows = achievements == null ? List.of() : achievements;
+        List<CounterItem> counterRows = counters == null ? List.of() : counters;
+        PacketWriter w = new PacketWriter()
+                .opcode(SERVER_ACHIEVEMENT_GUI_DATA)
+                .u32(0)
+                .u32(rows.size())
+                .u32(rows.size());
+        for (AchievementInfo achievement : rows) {
+            w.u32(achievement.typeid())
+                    .i32(achievement.id())
+                    .u32(achievement.quests().size());
+            for (QuestStuff quest : achievement.quests()) {
+                int value = 0;
+                for (CounterItem counter : counterRows) {
+                    if (counter.id() == quest.counterId()) {
+                        value = counter.value();
+                        break;
+                    }
+                }
+                w.u32(quest.typeid()).i32(value).u32(quest.clearDateUnix());
+            }
+        }
+        return w.toBytes();
     }
 
     /** C# delete-item catch: {@code 0xC5} sbyte -1. */

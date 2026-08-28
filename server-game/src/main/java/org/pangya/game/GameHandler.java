@@ -3443,8 +3443,9 @@ public final class GameHandler {
     }
 
     /**
-     * C# {@code packet157}: empty {@code map_ai} returns with no packet. Short body
-     * throws → {@code pacote22C(1)}.
+     * C# {@code packet157}: loads own/online/offline SQL achievements. Empty
+     * map returns silently; otherwise sends compact {@code 0x22D} then
+     * {@code 0x22C} option 0. Short body sends option 1.
      */
     private void achievementGui(Session session, PacketReader reader) {
         if (!session.authorized()) {
@@ -3454,7 +3455,19 @@ public final class GameHandler {
             session.send(GamePackets.achievementGui(GamePackets.ACHIEVEMENT_GUI_FAIL));
             return;
         }
-        reader.u32();
+        long uid = reader.u32Unsigned();
+        try {
+            List<GamePackets.AchievementInfo> achievements = inventory.achievements(uid);
+            if (achievements.isEmpty()) {
+                return;
+            }
+            session.send(GamePackets.achievementGuiData(achievements, inventory.counters(uid)));
+            session.send(GamePackets.achievementGui(0));
+        } catch (RuntimeException e) {
+            log.debug("achievement GUI failed requester={} target={}: {}",
+                    session.player().uid, uid, e.toString());
+            session.send(GamePackets.achievementGui(GamePackets.ACHIEVEMENT_GUI_FAIL));
+        }
     }
 
     /**
