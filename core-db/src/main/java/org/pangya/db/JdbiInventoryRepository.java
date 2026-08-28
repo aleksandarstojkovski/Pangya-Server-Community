@@ -1964,18 +1964,20 @@ public final class JdbiInventoryRepository implements InventoryRepository {
             if (pCi == null) {
                 return CharStatsResult.fail(GamePackets.CHAR_STATS_UP_ERR_CHAR);
             }
-            int[] iffPcl = h.createQuery("""
+            int[] iffPcl = org.pangya.protocol.iff.PangyaIffLoader.character(pCi.typeid)
+                    .map(org.pangya.protocol.iff.IffCharacterRecord::pclMax)
+                    .orElseGet(() -> h.createQuery("""
                             SELECT pcl0, pcl1, pcl2, pcl3, pcl4
                               FROM pangya.iff_character
                              WHERE typeid = :typeid
                             """)
-                    .bind("typeid", pCi.typeid)
-                    .map((rs, ctx) -> new int[] {
-                            rs.getInt("pcl0"), rs.getInt("pcl1"), rs.getInt("pcl2"),
-                            rs.getInt("pcl3"), rs.getInt("pcl4")
-                    })
-                    .findOne()
-                    .orElse(null);
+                            .bind("typeid", pCi.typeid)
+                            .map((rs, ctx) -> new int[] {
+                                    rs.getInt("pcl0"), rs.getInt("pcl1"), rs.getInt("pcl2"),
+                                    rs.getInt("pcl3"), rs.getInt("pcl4")
+                            })
+                            .findOne()
+                            .orElse(null));
             if (iffPcl == null) {
                 return CharStatsResult.fail(GamePackets.CHAR_STATS_UP_ERR_CHAR_IFF);
             }
@@ -2063,7 +2065,9 @@ public final class JdbiInventoryRepository implements InventoryRepository {
             if (pCi == null) {
                 return CharStatsResult.fail(GamePackets.CHAR_STATS_DOWN_ERR_CHAR);
             }
-            boolean hasIff = h.createQuery("SELECT 1 FROM pangya.iff_character WHERE typeid = :typeid")
+            boolean hasIff = org.pangya.protocol.iff.PangyaIffLoader.character(pCi.typeid)
+                    .isPresent()
+                    || h.createQuery("SELECT 1 FROM pangya.iff_character WHERE typeid = :typeid")
                     .bind("typeid", pCi.typeid)
                     .mapTo(Integer.class)
                     .findOne()

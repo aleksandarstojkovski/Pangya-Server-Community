@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -24,9 +25,16 @@ public final class PangyaIffLoader {
             IffPartIndex parts,
             IffTypeIndex items,
             IffTypeIndex cards,
+            Map<Integer, IffCharacterRecord> characters,
             Path source) {
         static Snapshot empty() {
-            return new Snapshot(List.of(), IffPartIndex.empty(), IffTypeIndex.empty(), IffTypeIndex.empty(), null);
+            return new Snapshot(
+                    List.of(),
+                    IffPartIndex.empty(),
+                    IffTypeIndex.empty(),
+                    IffTypeIndex.empty(),
+                    Map.of(),
+                    null);
         }
     }
 
@@ -46,14 +54,16 @@ public final class PangyaIffLoader {
             IffPartIndex parts = IffPartFile.loadIndex(archive);
             IffTypeIndex items = IffItemFile.loadIndex(archive);
             IffTypeIndex cards = IffCardFile.loadIndex(archive);
-            snapshot = new Snapshot(courses, parts, items, cards, path);
+            Map<Integer, IffCharacterRecord> characters = IffCharacterFile.loadIndex(archive);
+            snapshot = new Snapshot(courses, parts, items, cards, characters, path);
             log.info(
-                    "loaded pangya iff {} ({} courses, {} parts, {} items, {} cards)",
+                    "loaded pangya iff {} ({} courses, {} parts, {} items, {} cards, {} chars)",
                     path,
                     courses.size(),
                     parts.size(),
                     items.size(),
-                    cards.size());
+                    cards.size(),
+                    characters.size());
         } catch (Exception e) {
             log.warn("failed to load pangya iff {}: {}", path, e.toString());
             snapshot = Snapshot.empty();
@@ -74,6 +84,10 @@ public final class PangyaIffLoader {
 
     public static Optional<List<IffCourseRecord>> courses() {
         return snapshot.courses().isEmpty() ? Optional.empty() : Optional.of(snapshot.courses());
+    }
+
+    public static Optional<IffCharacterRecord> character(int typeid) {
+        return Optional.ofNullable(snapshot.characters().get(typeid));
     }
 
     public static Optional<Path> source() {

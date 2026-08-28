@@ -13,8 +13,8 @@ Conteggio Channel: **197** handler `packet_func_sv` registrati in `GameService.i
 
 ## Questo turno
 
-Fatto: … **`Course/Part/Item/Card.iff` loaders** from `pangya_jp.iff`: map/par/star, `initComboDef`, `findItem`/`findCard`, Part `valor_rental`.
-Prossimo: pin `.gbin` / Character.iff; capture JP S9.
+Fatto: … **`Course/Part/Item/Card/Character.iff` loaders** from `pangya_jp.iff`: map/par/star, combo parts, findItem/Card, Character PCL stats.
+Prossimo: deleteActiveItem IFF shop flags; pin `.gbin`; capture JP S9.
 Blocco: pin `.gbin` binaries absent; nessuna capture client JP Season 9.
 
 Percentuale epic: **scheletro 85%** / **parità client reale 43%**.
