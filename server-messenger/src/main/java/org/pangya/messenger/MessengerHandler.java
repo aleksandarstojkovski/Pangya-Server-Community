@@ -56,6 +56,10 @@ public final class MessengerHandler {
             case MessengerPackets.CLIENT_NOTIFY_ROOM_INVITE -> notifyRoomInvite(session, reader);
             case MessengerPackets.CLIENT_GUILD_BATTLE_ROOM_INVITE -> guildBattleRoomInvite(session, reader);
             case MessengerPackets.CLIENT_GIFT_ITEM_NOTIFY -> giftItemNotify(session, reader);
+            case MessengerPackets.CLIENT_NOTIFY_GUILD_JOINED,
+                 MessengerPackets.CLIENT_NOTIFY_GUILD_BANISH,
+                 MessengerPackets.CLIENT_NOTIFY_GUILD_SHIELD_CHANGED,
+                 MessengerPackets.CLIENT_NOTIFY_GUILD_NAME_CHANGED -> guildClientNotify(session, opcode);
             default -> log.debug("unhandled messenger opcode 0x{}", Integer.toHexString(opcode));
         }
     }
@@ -134,7 +138,7 @@ public final class MessengerHandler {
         if (!session.authorized()) {
             return;
         }
-        List<FriendRepository.FriendRow> list = friends.friends(session.player().uid);
+        List<FriendRepository.FriendRow> list = friends.friendsAndGuildMembers(session.player().uid);
         if (list.isEmpty()) {
             session.send(MessengerPackets.emptyFriendPage());
             return;
@@ -146,7 +150,7 @@ public final class MessengerHandler {
             int current = Math.min(MessengerPackets.FRIEND_PAG_LIMIT, remaining);
             List<byte[]> rows = new ArrayList<>();
             for (int i = start; i < start + current; i++) {
-                rows.add(friendListRow(list.get(i)));
+                rows.add(friendListRow(list.get(i), session.player().uid));
             }
             session.send(MessengerPackets.friendPage(page + 1, remaining, current, rows));
             remaining -= current;
@@ -211,11 +215,13 @@ public final class MessengerHandler {
             pi.guildUid = g.guildUid();
             pi.guildName = g.guildName() == null ? "" : g.guildName();
         });
+        repo.syncAccountGuildUid(pi.uid, pi.guildUid);
     }
 
     private void clearGuild(PlayerContext pi) {
         pi.guildUid = 0;
         pi.guildName = "";
+        repo.syncAccountGuildUid(pi.uid, 0);
     }
 
     private void broadcastGuildJoined(long clubId, long memberUid, Session memberSession) {
@@ -248,7 +254,7 @@ public final class MessengerHandler {
         }
     }
 
-    private byte[] friendListRow(FriendRepository.FriendRow row) {
+    private byte[] friendListRow(FriendRepository.FriendRow row, long viewerUid) {
         byte[] info = MessengerPackets.friendInfo(
                 row.nickname(),
                 row.apelido(),
@@ -272,11 +278,19 @@ public final class MessengerHandler {
             channel = MessengerPackets.offlineChannelPlayerInfo();
             icon = MessengerPackets.OFFLINE_ICON;
         }
-        int level = repo.playerInfo(row.friendUid()).map(LoginRepository.PlayerLoginInfo::level).orElse(0);
-        int flag = (row.stateFlag() & (MessengerPackets.FLAG_FRIEND | MessengerPackets.FLAG_REQUEST)) != 0
-                ? MessengerPackets.FRIEND_FLAG
-                : 0;
-        return MessengerPackets.friendListRow(info, channel, icon, row.flag1(), level, state, flag);
+        int levelOrGuildRole = row.playerFlag() == MessengerPackets.GUILD_MEMBER_FLAG
+                ? (row.friendUid() == viewerUid ? 1 : 0)
+                : row.level();
+        return MessengerPackets.friendListRow(
+                info, channel, icon, row.flag1(), levelOrGuildRole, state, row.playerFlag());
+    }
+
+    private void guildClientNotify(Session session, int opcode) {
+        if (!session.authorized()) {
+            log.warn("guild notify 0x{} before login uid={}", Integer.toHexString(opcode), session.player().uid);
+            return;
+        }
+        log.debug("guild client notify 0x{} uid={}", Integer.toHexString(opcode), session.player().uid);
     }
 
     private void addFriend(Session session, PacketReader reader) {
@@ -318,10 +332,10 @@ public final class MessengerHandler {
             }
             friends.add(session.player().uid, new FriendRepository.FriendRow(
                     info.uid(), info.nickname(), "Friend", -1, 0, -1, 0, 0, 0, 255,
-                    MessengerPackets.FLAG_REQUEST));
+                    MessengerPackets.FLAG_REQUEST, info.level(), MessengerPackets.FRIEND_FLAG));
             friends.add(info.uid(), new FriendRepository.FriendRow(
                     session.player().uid, session.player().nickname, "Friend", -1, 0, -1, 0, 0, 0, 255,
-                    0));
+                    0, session.player().level, MessengerPackets.FRIEND_FLAG));
             byte[] fi = MessengerPackets.friendInfo(info.nickname(), "Friend", (int) info.uid());
             int flag = MessengerPackets.FRIEND_FLAG;
             int requestState = MessengerPackets.FLAG_REQUEST;

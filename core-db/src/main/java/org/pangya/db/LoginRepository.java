@@ -85,6 +85,9 @@ public interface LoginRepository {
     /** C# {@code player_info.sex}. */
     int playerSex(long uid);
 
+    /** Keeps {@code account.Guild_UID} aligned with guild membership (C# {@code ProcGetFriendAndGuildMemberInfo}). */
+    void syncAccountGuildUid(long uid, long guildUid);
+
     record GuildMembership(long guildUid, String guildName) {}
 
     record PlayerLoginInfo(

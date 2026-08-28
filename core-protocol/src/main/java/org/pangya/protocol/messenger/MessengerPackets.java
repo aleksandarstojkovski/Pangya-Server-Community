@@ -27,6 +27,10 @@ public final class MessengerPackets {
     public static final int CLIENT_REQ_CHAT_GUILD = 0x25;
     public static final int CLIENT_GUILD_BATTLE_ROOM_INVITE = 0x28;
     public static final int CLIENT_GIFT_ITEM_NOTIFY = 0x29;
+    public static final int CLIENT_NOTIFY_GUILD_JOINED = 0x2A;
+    public static final int CLIENT_NOTIFY_GUILD_BANISH = 0x2B;
+    public static final int CLIENT_NOTIFY_GUILD_SHIELD_CHANGED = 0x2C;
+    public static final int CLIENT_NOTIFY_GUILD_NAME_CHANGED = 0x2D;
 
     public static final int SERVER_GUILD_MEMBER_JOINED = 0x3B;
     public static final int SERVER_GUILD_MEMBER_LEFT = 0x3C;
@@ -66,6 +70,10 @@ public final class MessengerPackets {
     public static final int FLAG_BLOCK = 1 << 4;
 
     public static final int FRIEND_FLAG = 1;
+    /** C# {@code FriendInfoEx.flag.ucFlag} guild-only row. */
+    public static final int GUILD_MEMBER_FLAG = 2;
+    /** C# {@code FriendInfoEx.flag.ucFlag} friend and guild. */
+    public static final int FRIEND_AND_GUILD_FLAG = 3;
     public static final int FRIEND_INFO_BYTES = 65;
     public static final int CUNKNOWN_FLAG_DEFAULT = 255;
     public static final int OFFLINE_ICON = 5;

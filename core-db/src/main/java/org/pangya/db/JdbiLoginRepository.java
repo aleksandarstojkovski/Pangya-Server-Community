@@ -108,6 +108,21 @@ public final class JdbiLoginRepository implements LoginRepository {
                 .orElse(0));
     }
 
+    @Override
+    public void syncAccountGuildUid(long uid, long guildUid) {
+        if (uid <= 0) {
+            return;
+        }
+        jdbi.useHandle(h -> h.createUpdate("""
+                        UPDATE pangya.account
+                           SET "Guild_UID" = :gid
+                         WHERE "UID" = :uid
+                        """)
+                .bind("gid", guildUid)
+                .bind("uid", uid)
+                .execute());
+    }
+
     private Optional<PlayerLoginInfo> loadPlayerInfo(String sql, Object key) {
         return jdbi.withHandle(h -> h.createQuery(sql)
                 .bind("key", key)

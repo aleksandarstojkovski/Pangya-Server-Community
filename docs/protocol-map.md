@@ -365,6 +365,8 @@ Add friend CLIENT `0x18` uid+PStr nick → `0x30` sub `0x104` + OK + 65-byte `Fr
 | S | `SERVER_CONNECT_0x2E` | `0x2E` |
 | S | `SERVER_LOGIN_ACK_0x2F` | `0x2F` |
 | S | `SERVER_FRIEND_AND_GUILD_LIST_0x30` | `0x30` |
+| S | guild member joined (auth AS `0x01`) | `0x3B` |
+| S | guild member left/kicked (auth AS `0x02`/`0x03`) | `0x3C` |
 | S | sub register/unblock/apelido/chat/logout | `0x104`/`0x10D`/`0x119`/`0x113`/`0x10F` |
 
 ## Golden fixtures

@@ -1,11 +1,65 @@
 package org.pangya.db;
 
 import org.jdbi.v3.core.Jdbi;
+import org.jdbi.v3.core.statement.StatementContext;
 
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.List;
 import java.util.Optional;
 
 public final class JdbiFriendRepository implements FriendRepository {
+
+    private static final String FRIENDS_AND_GUILD_SQL = """
+            WITH player_guild AS (
+                SELECT COALESCE(
+                    NULLIF((SELECT "Guild_UID" FROM pangya.account WHERE "UID" = :uid), 0),
+                    (SELECT gm."GUILD_UID" FROM pangya.pangya_guild_member gm
+                      WHERE gm."MEMBER_UID" = :uid LIMIT 1),
+                    0
+                ) AS guild_uid
+            ),
+            combined AS (
+                SELECT f.uid_friend
+                  FROM pangya.pangya_friend_list f
+                 WHERE f.uid = :uid
+                UNION ALL
+                SELECT gm."MEMBER_UID"
+                  FROM pangya.pangya_guild g
+                  INNER JOIN pangya.pangya_guild_member gm ON g."GUILD_UID" = gm."GUILD_UID"
+                  CROSS JOIN player_guild pg
+                 WHERE g."GUILD_UID" = pg.guild_uid
+                   AND pg.guild_uid > 0
+                   AND gm."MEMBER_STATE_FLAG" < 9
+                   AND (g."GUILD_STATE" NOT IN (4, 5)
+                        OR g."GUILD_CLOSURE_DATE" IS NULL
+                        OR NOW() < g."GUILD_CLOSURE_DATE")
+            ),
+            grouped AS (
+                SELECT uid_friend, COUNT(*)::int AS cnt
+                  FROM combined
+                 GROUP BY uid_friend
+            )
+            SELECT COALESCE(a."NICK", '') AS nick,
+                   z.uid_friend,
+                   COALESCE(y.apelido, 'Friend') AS apelido,
+                   COALESCE(y.unknown1, -1) AS unknown1,
+                   COALESCE(y.unknown2, 0) AS unknown2,
+                   COALESCE(y.unknown3, -1) AS unknown3,
+                   COALESCE(y.unknown4, 0) AS unknown4,
+                   COALESCE(y.unknown5, 0) AS unknown5,
+                   COALESCE(y.unknown6, 0) AS unknown6,
+                   COALESCE(y.flag1, -1) AS flag1,
+                   COALESCE(y.state_flag, 0) + COALESCE(a."Sex", 0) AS state_flag,
+                   COALESCE(ui."level", 0) AS level,
+                   CASE WHEN z.cnt = 2 OR y.uid_friend IS NULL THEN z.cnt + 1 ELSE z.cnt END AS player_flag
+              FROM grouped z
+              LEFT JOIN pangya.pangya_friend_list y
+                ON y.uid_friend = z.uid_friend AND y.uid = :uid
+              LEFT JOIN pangya.account a ON a."UID" = z.uid_friend
+              LEFT JOIN pangya.user_info ui ON ui."UID" = z.uid_friend
+             ORDER BY z.uid_friend
+            """;
 
     private final Jdbi jdbi;
 
@@ -18,25 +72,23 @@ public final class JdbiFriendRepository implements FriendRepository {
         return jdbi.withHandle(h -> h.createQuery("""
                         SELECT f.uid_friend, COALESCE(a."NICK", '') AS nick, f.apelido,
                                f.unknown1, f.unknown2, f.unknown3, f.unknown4, f.unknown5, f.unknown6,
-                               f.flag1, f.state_flag
+                               f.flag1, f.state_flag, COALESCE(ui."level", 0) AS level, 1 AS player_flag
                           FROM pangya.pangya_friend_list f
                           LEFT JOIN pangya.account a ON a."UID" = f.uid_friend
+                          LEFT JOIN pangya.user_info ui ON ui."UID" = f.uid_friend
                          WHERE f.uid = :uid
                          ORDER BY f.uid_friend
                         """)
                 .bind("uid", uid)
-                .map((rs, ctx) -> new FriendRow(
-                        rs.getLong("uid_friend"),
-                        rs.getString("nick"),
-                        rs.getString("apelido"),
-                        rs.getInt("unknown1"),
-                        rs.getInt("unknown2"),
-                        rs.getInt("unknown3"),
-                        rs.getInt("unknown4"),
-                        rs.getInt("unknown5"),
-                        rs.getInt("unknown6"),
-                        rs.getInt("flag1"),
-                        rs.getInt("state_flag")))
+                .map(JdbiFriendRepository::mapRow)
+                .list());
+    }
+
+    @Override
+    public List<FriendRow> friendsAndGuildMembers(long uid) {
+        return jdbi.withHandle(h -> h.createQuery(FRIENDS_AND_GUILD_SQL)
+                .bind("uid", uid)
+                .map(JdbiFriendRepository::mapRow)
                 .list());
     }
 
@@ -125,5 +177,22 @@ public final class JdbiFriendRepository implements FriendRepository {
                 .bind("uid", uid)
                 .bind("fid", friendUid)
                 .execute());
+    }
+
+    private static FriendRow mapRow(ResultSet rs, StatementContext ctx) throws SQLException {
+        return new FriendRow(
+                rs.getLong("uid_friend"),
+                rs.getString("nick"),
+                rs.getString("apelido"),
+                rs.getInt("unknown1"),
+                rs.getInt("unknown2"),
+                rs.getInt("unknown3"),
+                rs.getInt("unknown4"),
+                rs.getInt("unknown5"),
+                rs.getInt("unknown6"),
+                rs.getInt("flag1"),
+                rs.getInt("state_flag"),
+                rs.getInt("level"),
+                rs.getInt("player_flag"));
     }
 }

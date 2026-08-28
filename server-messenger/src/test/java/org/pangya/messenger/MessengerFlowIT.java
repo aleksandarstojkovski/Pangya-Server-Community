@@ -25,6 +25,7 @@ class MessengerFlowIT {
         String user = env("PANGYA_TEST_JDBC_USER", "pangya");
         String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
         DatabaseSupport.migrate(jdbc, user, password);
+        clearGuildMembership(jdbc, user, password, 10001);
 
         try (MessengerRuntime runtime = new MessengerRuntime(new AppConfig(testYaml(jdbc, user, password)));
              PangyaFakeClient client = new PangyaFakeClient()) {
@@ -68,6 +69,7 @@ class MessengerFlowIT {
         String user = env("PANGYA_TEST_JDBC_USER", "pangya");
         String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
         DatabaseSupport.migrate(jdbc, user, password);
+        clearGuildMembership(jdbc, user, password, 10001, 10002);
 
         try (var ds = DatabaseSupport.dataSource(jdbc, user, password)) {
             var friends = new org.pangya.db.JdbiFriendRepository(DatabaseSupport.jdbi(ds));
@@ -187,10 +189,10 @@ class MessengerFlowIT {
             friendRepo.delete(10002, 10001);
             friendRepo.add(10001, new org.pangya.db.FriendRepository.FriendRow(
                     10002, "TestNick2", "Friend", -1, 0, -1, 0, 0, 0, 255,
-                    MessengerPackets.FLAG_FRIEND));
+                    MessengerPackets.FLAG_FRIEND, 1, MessengerPackets.FRIEND_FLAG));
             friendRepo.add(10002, new org.pangya.db.FriendRepository.FriendRow(
                     10001, "TestNick", "Friend", -1, 0, -1, 0, 0, 0, 255,
-                    MessengerPackets.FLAG_FRIEND));
+                    MessengerPackets.FLAG_FRIEND, 1, MessengerPackets.FRIEND_FLAG));
         }
 
         try (MessengerRuntime runtime = new MessengerRuntime(new AppConfig(testYaml(jdbc, user, password)));
@@ -262,10 +264,10 @@ class MessengerFlowIT {
             friendRepo.delete(10002, 10001);
             friendRepo.add(10001, new org.pangya.db.FriendRepository.FriendRow(
                     10002, "TestNick2", "Friend", -1, 0, -1, 0, 0, 0, 255,
-                    MessengerPackets.FLAG_FRIEND));
+                    MessengerPackets.FLAG_FRIEND, 1, MessengerPackets.FRIEND_FLAG));
             friendRepo.add(10002, new org.pangya.db.FriendRepository.FriendRow(
                     10001, "TestNick", "Friend", -1, 0, -1, 0, 0, 0, 255,
-                    MessengerPackets.FLAG_FRIEND));
+                    MessengerPackets.FLAG_FRIEND, 1, MessengerPackets.FRIEND_FLAG));
         }
 
         try (MessengerRuntime runtime = new MessengerRuntime(new AppConfig(testYaml(jdbc, user, password)));
@@ -399,6 +401,37 @@ class MessengerFlowIT {
             client.sendPlain(MessengerPackets.clientGuildBattleRoomInvite(
                     30201, 1, 42, 10001, "TestNick", 10002));
             client.sendPlain(MessengerPackets.clientGiftItemNotify(10001, 10002));
+        }
+    }
+
+    @Test
+    void friendListIncludesGuildMembers() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        DatabaseSupport.migrate(jdbc, user, password);
+        seedTestGuild(jdbc, user, password, 9001L, "TestGuild", 10001, 10002);
+
+        try (MessengerRuntime runtime = new MessengerRuntime(new AppConfig(testYaml(jdbc, user, password)));
+             PangyaFakeClient leader = new PangyaFakeClient()) {
+            leader.connect("127.0.0.1", runtime.port(), PangyaFakeClient.HelloKind.MESSENGER);
+            leader.awaitHello(5, TimeUnit.SECONDS);
+            leader.sendPlain(MessengerPackets.clientLogin(10001, "TestNick"));
+            PacketReader login = new PacketReader(leader.awaitPlain(5, TimeUnit.SECONDS));
+            assertEquals(MessengerPackets.SERVER_LOGIN_ACK, login.opcode());
+            assertEquals(0, login.u8());
+
+            leader.sendPlain(new PacketWriter().opcode(MessengerPackets.CLIENT_REQ_USERINFO).toBytes());
+            PacketReader status = new PacketReader(leader.awaitPlain(5, TimeUnit.SECONDS));
+            assertEquals(MessengerPackets.SERVER_FRIEND_AND_GUILD_LIST, status.opcode());
+            assertEquals(MessengerPackets.SUB_CHANGE_MY_STATUS, status.u16());
+
+            PacketReader page = new PacketReader(leader.awaitPlain(5, TimeUnit.SECONDS));
+            assertEquals(MessengerPackets.SERVER_FRIEND_AND_GUILD_LIST, page.opcode());
+            assertEquals(MessengerPackets.SUB_FRIEND_LIST_PAGE, page.u16());
+            assertEquals(1, page.u8());
+            assertEquals(2, page.u16());
+            assertEquals(2, page.u16());
         }
     }
 
@@ -582,6 +615,22 @@ class MessengerFlowIT {
                                     )
                                     """)
                             .bind("gid", guildUid)
+                            .bind("uid", memberUid)
+                            .execute();
+                }
+            });
+        }
+    }
+
+    private static void clearGuildMembership(
+            String jdbc, String user, String password, long... members) {
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password)) {
+            DatabaseSupport.jdbi(ds).useHandle(h -> {
+                for (long memberUid : members) {
+                    h.createUpdate("DELETE FROM pangya.pangya_guild_member WHERE \"MEMBER_UID\" = :uid")
+                            .bind("uid", memberUid)
+                            .execute();
+                    h.createUpdate("UPDATE pangya.account SET \"Guild_UID\" = 0 WHERE \"UID\" = :uid")
                             .bind("uid", memberUid)
                             .execute();
                 }

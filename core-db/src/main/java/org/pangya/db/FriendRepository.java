@@ -10,6 +10,9 @@ public interface FriendRepository {
 
     List<FriendRow> friends(long uid);
 
+    /** C# {@code ProcGetFriendAndGuildMemberInfo}: friends UNION guild members. */
+    List<FriendRow> friendsAndGuildMembers(long uid);
+
     Optional<FriendRow> find(long uid, long friendUid);
 
     int count(long uid);
@@ -33,5 +36,8 @@ public interface FriendRepository {
             int unknown5,
             int unknown6,
             int flag1,
-            int stateFlag) {}
+            int stateFlag,
+            int level,
+            /** C# {@code FriendInfoEx.flag.ucFlag}: 1 friend, 2 guild, 3 both. */
+            int playerFlag) {}
 }
