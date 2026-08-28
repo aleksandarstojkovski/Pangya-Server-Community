@@ -140,6 +140,8 @@ C#: `GameServer/PangyaEnums/PacketGame.cs` → Java `org.pangya.protocol.game.Ga
 | S | `SERVER_DAILY_QUEST_REWARD` | `0x227` | |
 | S | `SERVER_DAILY_QUEST_LEAVE` | `0x228` | |
 | S | `SERVER_ACHIEVEMENT_GUI` | `0x22C` | i32 option |
+| S | `SERVER_LOLO` | `0x22A` | u32 error |
+| S | `SERVER_CADIE` | `0x22F` | u32 error |
 
 Room types (`RoomInfo.TIPO` in `pangya_game_st.cs`): STROKE=0, MATCH=1, LOUNGE=2, TOURNEY=4, TOURNEY_TEAM=5, GUILD_BATTLE=6, PANG_BATTLE=7, APPROCH=10, GRAND_ZODIAC_INT=11, GRAND_ZODIAC_ADV=13, GRAND_ZODIAC_PRACTICE=14, SPECIAL_SHUFFLE_COURSE=18, **PRACTICE=19**, GRAND_PRIX=20.
 
