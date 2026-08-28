@@ -182,6 +182,7 @@ class GamePacketsTest {
         assertEquals(0, empty.items().size());
         PacketReader buyPkt = new PacketReader(GamePackets.clientBuyItem(
                 GamePackets.TYPEID_SHOP_PANG_ITEM, 1, GamePackets.SHOP_PANG_PRICE, 0));
+        assertEquals(GamePackets.CLIENT_REQUEST_BUY_ITEM, buyPkt.opcode());
         GamePackets.BuyRequest buy = GamePackets.readBuyRequest(buyPkt);
         assertEquals(1, buy.items().size());
         assertEquals(GamePackets.TYPEID_SHOP_PANG_ITEM, buy.items().getFirst().typeid());
