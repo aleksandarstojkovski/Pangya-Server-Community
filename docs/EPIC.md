@@ -8,7 +8,7 @@ Questo repo è **solo** la riscrittura Java.
 
 S0 [x] S1 [x] S2 [x] S3 [x] S4 [~] S5 [~] S6 [x]
 
-S4 profondità: **171** opcode success 1:1 / **1** opcode solo fail-stub / **2** stimati rimanenti dal C# Channel
+S4 profondità: **172** opcode success 1:1 / **0** opcode solo fail-stub / **1** stimato rimanente dal C# Channel
 
 (Channel C# = 197 `packet_func_sv`. Dettaglio in `docs/STATUS.md`. **S4 non è done.**)
 
@@ -16,8 +16,8 @@ S4 profondità: **171** opcode success 1:1 / **1** opcode solo fail-stub / **2**
 
 | Campo | Valore |
 |-------|--------|
-| Fatto | UCC `0xB9` option 1: warehouse UCC metadata + `0x12E` info + full 196-byte item |
-| Prossimo opcode/file C# | lucky-pouch `0xB2` o GZ `packet137` |
+| Fatto | lucky-pouch `0xB2`: SQL box draw + warehouse reward + per-item `0xAA` + `0x129` |
+| Prossimo opcode/file C# | GZ `packet137` pulse, poi IFF/capture reali |
 | Blocco | IFF assenti (pin/cube, `initComboDef`); nessuna capture JP S9 |
 | Percentuale epic | scheletro **85%** / parità client reale **35%** |
 | VM | Java 21.0.10, Docker 29.7.2, Compose v5.5.0, 4 CPU / 15 GiB |
@@ -56,7 +56,7 @@ Nel dump JP Auth INI usa `5577`; Login/Game Java restano su **7777** (stesso bin
 | **S1** | Netty + framing LE + Cipher bit-compat + session + no Sleep-poll | `./gradlew :core-protocol:test :core-network:test` + handshake fake client |
 | **S2** | Auth + Login + Redis session key + fake client login | compose Auth+Login+db+redis |
 | **S3** | Game core + Practice | integrazione Practice; kill sessione non crasha |
-| **S4** | Tutte le modalità C# + manager char/card/caddie/achievement | **non done** — Channel 197; ~171 success 1:1 / 1 fail-stub; IFF cubes/combo aperti |
+| **S4** | Tutte le modalità C# + manager char/card/caddie/achievement | **non done** — Channel 197; ~172 success 1:1 / 0 fail-stub; GZ pulse/IFF cubes/combo/capture aperti |
 | **S5** | Ranking + Messenger | compose 5 server |
 | **S6** | Metriche, carico ≥3000 o max VM, `scripts/verify.sh` completo | gradle test + compose health |
 

@@ -1118,6 +1118,20 @@ class GamePacketsTest {
         assertEquals(GamePackets.SERVER_LUCKY_POUCH, pouch.opcode());
         assertEquals(GamePackets.LUCKY_POUCH_ERR, pouch.u8());
         assertEquals(12, pouch.remaining());
+        PacketReader pouchOk = new PacketReader(GamePackets.luckyPouchOk(
+                GamePackets.TYPEID_BOX_MAIL_TEST,
+                1,
+                List.of(new GamePackets.LuckyPouchAward(
+                        9, GamePackets.TYPEID_BOX_MAIL_REWARD_TEST, 3, 3))));
+        assertEquals(GamePackets.SERVER_LUCKY_POUCH, pouchOk.opcode());
+        assertEquals(0, pouchOk.u8());
+        assertEquals(GamePackets.TYPEID_BOX_MAIL_TEST, pouchOk.u32());
+        assertEquals(1, pouchOk.i32());
+        assertEquals(1, pouchOk.u32());
+        assertEquals(GamePackets.TYPEID_BOX_MAIL_REWARD_TEST, pouchOk.u32());
+        assertEquals(9, pouchOk.i32());
+        assertEquals(3, pouchOk.i32());
+        assertEquals(8, pouchOk.remaining());
         PacketReader tuto = new PacketReader(GamePackets.tutorialFail(
                 GamePackets.shopSys(GamePackets.TUTORIAL_ERR_TIPO)));
         assertEquals(GamePackets.SERVER_LOGIN_ACK, tuto.opcode());

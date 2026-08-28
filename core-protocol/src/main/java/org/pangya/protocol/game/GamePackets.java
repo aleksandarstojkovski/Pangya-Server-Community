@@ -4266,6 +4266,25 @@ public final class GamePackets {
     }
 
     /**
+     * C# generic MyRoom box success {@code 0x129}: u8 0 + box typeid +
+     * remaining box quantity + count + reward rows with 8-byte unknown tail.
+     */
+    public static byte[] luckyPouchOk(
+            int boxTypeid, int boxRemaining, List<LuckyPouchAward> rewards) {
+        List<LuckyPouchAward> rows = rewards == null ? List.of() : rewards;
+        PacketWriter w = new PacketWriter()
+                .opcode(SERVER_LUCKY_POUCH)
+                .u8(0)
+                .u32(boxTypeid)
+                .i32(boxRemaining)
+                .u32(rows.size());
+        for (LuckyPouchAward row : rows) {
+            w.u32(row.typeid()).i32(row.id()).i32(row.qntd()).zero(8);
+        }
+        return w.toBytes();
+    }
+
+    /**
      * C# tutorial catch {@code 0x44} u8 {@code 0xE2} + u32 sys (same marker as gacha).
      */
     public static byte[] tutorialFail(int code) {
@@ -7340,6 +7359,8 @@ public final class GamePackets {
     public record CardPackAward(int id, int typeid, int qntdDep) {}
 
     public record MemorialAward(int rarity, int typeid, int qntd) {}
+
+    public record LuckyPouchAward(int id, int typeid, int qntd, int qntdDep) {}
 
     public record HoleInfo(int id, int pin, int course, int numero, int weather, int wind, int degree) {}
 

@@ -159,7 +159,7 @@ C#: `GameServer/PangyaEnums/PacketGame.cs` → Java `org.pangya.protocol.game.Ga
 | C | `CLIENT_CLUBSETWORKSHOP_REQ_UP_LEVEL` | `0x164` | group ≠ ITEM/CARD → `0x23D` `shopSys(0x5300201)`; missing item `0x5300202`; C0&lt;qntd `0x5300203`; no `iff_item`/`iff_card` `0x5300204`; missing club `0x5300205`; no `iff_clubset` `0x5300206`; tipo -1 `0x5300207`; consume fail `0x5300208`; no limit/prob `0x5300209`; rank==-1 `0x5300210`; no limit row `0x5300211`; empty lottery → full `0x5300200`; truncated → full `0x5300200`. Success persist `C[stat]++` then `0x216` count 1 (type 2) then `0x23D` u32 0 + u32 stat. SQL `iff_item` + `iff_clubset_level_up_*` |
 | C | `CLIENT_CLUBSETWORKSHOP_REQ_UP_LEVEL_CONFIRM` | `0x165` | no pending ClubSet → `0x23E` `shopSys(0x5300301)`; no IFF `0x5300302`; stat&gt;4 `0x5300303`; truncated/else full `0x5300300`. Success `0x216` type `0xCC` then `0x23E` u32 0 + stat + id |
 | C | `CLIENT_CLUBSETWORKSHOP_REQ_UP_LEVEL_CANCEL` | `0x166` | no pending ClubSet → `0x23F` `shopSys(0x5300251)`; stat&gt;4 `0x5300252`; no IFF `0x5300253`; recovery exhausted `0x5300254`; else full `0x5300250`. Success decrement `C[stat]` + recovery++ then `0x216` type `0xCC` then `0x23F` u32 0 + id |
-| C | `CLIENT_OPEN_LUCKY_POUCH` | `0xB2` | catch `0x129` u8 1 + 12 zeros |
+| C | `CLIENT_OPEN_LUCKY_POUCH` | `0xB2` | generic MyRoom box via SQL `box_mail_catalog`: consume box, add reward, per-reward `0xAA`, then `0x129` u8 0 + box typeid + remaining + count + reward typeid/id/qntd/8 zeros. Any fail u8 1 + 12 zeros |
 | C | `CLIENT_COMPLETE_QUEST` | `0xAE` | tipo 0/1/2 success `0x11F` u8 tipo + u8 1 + u32 flags + mail `@ADM`; già fatto `shopSys(0x5300551)`; ordine `shopSys(0x5300554)`; tipo ignoto `0x44` u8 `0xE2` + `shopSys(0x5300552)`. Opposite messenger Friend_List `0x11F`. |
 | C | `CLIENT_TAKE_MAIL` | `0x146` | i32 id. ITEM SQL stand-in: `leftItems` + warehouse, `0x216` type 2 empty UCC PStr+status+seq+5 zero (15 byte, non pad Papel 25) poi `0x214` u32 0. Box vuoto/`id≤0` `0x5500100`; no item `pacote214(1)`; group≠ITEM `pacote214(3)`; add fail `pacote214(2)`. Opposite `SERVER_MAIL_TAKE`. |
 | C | `CLIENT_HEARTBEAT` | `0xF4` | no reply |
@@ -237,7 +237,7 @@ C#: `GameServer/PangyaEnums/PacketGame.cs` → Java `org.pangya.protocol.game.Ga
 | S | `SERVER_ITEMSTORAGE_RES_ACCESS` | `0x16C` | u32; opposite CLIENT workshop transfer |
 | S | `SERVER_ITEMSTORAGE_RES_STATE` | `0x170` | u32 0 + u32 isLocker |
 | S | `SERVER_CLUBSETWORKSHOP_REQ_UP_LEVEL_ACK` | `0x23D` | u32 sys |
-| S | `SERVER_LUCKY_POUCH` | `0x129` | fail u8 1 + 12 zeros; opposite CLIENT tiki |
+| S | `SERVER_LUCKY_POUCH` | `0x129` | fail u8 1 + 12 zeros; success box/remaining/count/reward rows; opposite CLIENT tiki |
 | S | `SERVER_TIKI_POINTS` | `0x1E8` | u32 0 + u32 pts |
 | S | `SERVER_TIKI_EXCHANGE_TP` | `0x1E9` | u32 error; OK is 0 + pts |
 | S | `SERVER_TIKI_EXCHANGE_ITEM` | `0x1EA` | u32 error; OK is 0 + pts |

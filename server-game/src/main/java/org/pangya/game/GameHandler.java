@@ -4482,13 +4482,63 @@ public final class GameHandler {
     }
 
     /**
-     * C# {@code requestOpenBoxMyRoom}: catch always {@code 0x129} u8 1 + 12 zeros.
+     * C# {@code requestOpenBoxMyRoom} generic path. Reuses SQL BoxSystem draw,
+     * consumes one box, adds the reward to warehouse, sends per-reward
+     * {@code 0xAA}, then {@code 0x129}. Every failure is u8 1 + 12 zeros.
      */
     private void openLuckyPouch(Session session, PacketReader reader) {
         if (!inChannel(session)) {
             return;
         }
-        session.send(GamePackets.luckyPouchFail());
+        try {
+            if (reader.remaining() < 4) {
+                session.send(GamePackets.luckyPouchFail());
+                return;
+            }
+            int typeid = reader.u32();
+            long uid = session.player().uid;
+            GamePackets.WarehouseItem box = warehouseByTypeid(uid, typeid);
+            Optional<InventoryRepository.BoxMailReward> draw = inventory.boxMailReward(typeid);
+            if (typeid == 0
+                    || box == null
+                    || (box.c[0] & 0xffff) < 1
+                    || GamePackets.itemGroupIdentify(typeid) != GamePackets.IFF_GROUP_ITEM
+                    || !inventory.itemIff(typeid)
+                    || draw.isEmpty()
+                    || draw.get().rewardTypeid() == 0
+                    || draw.get().rewardQntd() <= 0) {
+                session.send(GamePackets.luckyPouchFail());
+                return;
+            }
+            InventoryRepository.BoxMailReward reward = draw.get();
+            OptionalInt boxRemaining = inventory.consumeWarehouseByTypeid(uid, typeid, 1);
+            if (boxRemaining.isEmpty()) {
+                session.send(GamePackets.luckyPouchFail());
+                return;
+            }
+            GamePackets.WarehouseItem existing = warehouseByTypeid(uid, reward.rewardTypeid());
+            int ant = existing == null ? 0 : existing.c[0] & 0xffff;
+            int rewardId = inventory.addWarehouseItem(
+                    uid, reward.rewardTypeid(), reward.rewardQntd());
+            if (rewardId <= 0) {
+                session.send(GamePackets.luckyPouchFail());
+                return;
+            }
+            int dep = ant + reward.rewardQntd();
+            session.send(GamePackets.buyNewItems(
+                    List.of(new GamePackets.BoughtItem(
+                            reward.rewardTypeid(), rewardId, 0, 0, dep)),
+                    inventory.pang(uid),
+                    inventory.cookie(uid)));
+            session.send(GamePackets.luckyPouchOk(
+                    typeid,
+                    boxRemaining.getAsInt(),
+                    List.of(new GamePackets.LuckyPouchAward(
+                            rewardId, reward.rewardTypeid(), reward.rewardQntd(), dep))));
+        } catch (RuntimeException e) {
+            log.debug("lucky pouch failed uid={}: {}", session.player().uid, e.toString());
+            session.send(GamePackets.luckyPouchFail());
+        }
     }
 
     /**
