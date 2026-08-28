@@ -116,7 +116,7 @@ class FlywayMigrationTest {
                     h.createQuery("select count(*) from pangya.iff_part")
                             .mapTo(Integer.class)
                             .one());
-            assertEquals(0, partIff);
+            assertEquals(24, partIff);
             int rankExp = jdbi.withHandle(h ->
                     h.createQuery("select count(*) from pangya.iff_clubset_rank_exp")
                             .mapTo(Integer.class)

@@ -649,6 +649,7 @@ class InventoryRepositoryTest {
                 GamePackets.UserEquip fixed = repo.reconcileEquipAtLogin(uid);
                 assertFalse(repo.characters(uid).isEmpty());
                 assertEquals(GamePackets.TYPEID_NURI, repo.characters(uid).getFirst().typeid);
+                assertEquals(134218752, repo.characters(uid).getFirst().partsTypeid[0]);
                 assertTrue(repo.warehouse(uid).stream()
                         .anyMatch(w -> w.typeid == GamePackets.TYPEID_AIR_KNIGHT));
                 assertTrue(repo.warehouse(uid).stream()

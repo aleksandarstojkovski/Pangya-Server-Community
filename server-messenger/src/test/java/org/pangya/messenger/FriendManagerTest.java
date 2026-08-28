@@ -20,23 +20,39 @@ class FriendManagerTest {
         DatabaseSupport.migrate(url, user, password);
 
         try (var ds = DatabaseSupport.dataSource(url, user, password)) {
-            FriendRepository repo = new JdbiFriendRepository(DatabaseSupport.jdbi(ds));
-            repo.delete(10001, 10002);
-            repo.delete(10002, 10001);
-            repo.add(10001, new FriendRepository.FriendRow(
-                    10002, "TestNick2", "Friend", -1, 0, -1, 0, 0, 0, 255,
-                    MessengerPackets.FLAG_FRIEND, 1, MessengerPackets.FRIEND_FLAG));
-            repo.add(10002, new FriendRepository.FriendRow(
-                    10001, "TestNick", "Friend", -1, 0, -1, 0, 0, 0, 255,
-                    MessengerPackets.FLAG_FRIEND, 1, MessengerPackets.FRIEND_FLAG));
+            var jdbi = DatabaseSupport.jdbi(ds);
+            jdbi.useHandle(h -> {
+                h.createUpdate("DELETE FROM pangya.pangya_guild_member WHERE \"MEMBER_UID\" IN (10001, 10002)")
+                        .execute();
+                h.createUpdate("DELETE FROM pangya.pangya_guild WHERE \"GUILD_UID\" IN (9001, 9002)").execute();
+            });
+            FriendRepository repo = new JdbiFriendRepository(jdbi);
+            try {
+                repo.delete(10001, 10002);
+                repo.delete(10002, 10001);
+                repo.add(10001, new FriendRepository.FriendRow(
+                        10002, "TestNick2", "Friend", -1, 0, -1, 0, 0, 0, 255,
+                        MessengerPackets.FLAG_FRIEND, 1, MessengerPackets.FRIEND_FLAG));
+                repo.add(10002, new FriendRepository.FriendRow(
+                        10001, "TestNick", "Friend", -1, 0, -1, 0, 0, 0, 255,
+                        MessengerPackets.FLAG_FRIEND, 1, MessengerPackets.FRIEND_FLAG));
 
-            FriendManager fm = new FriendManager();
-            fm.init(repo, 10001);
-            assertTrue(fm.isInitialized());
-            assertEquals(1, fm.countFriend());
-            assertEquals(1, fm.getAllFriendAndGuildMember(false).size());
-            assertTrue(fm.findInAllFriend(10002).isPresent());
-            assertTrue(fm.findFriend(10002).isPresent());
+                FriendManager fm = new FriendManager();
+                fm.init(repo, 10001);
+                assertTrue(fm.isInitialized());
+                assertEquals(1, fm.countFriend());
+                assertEquals(1, fm.getAllFriendAndGuildMember(false).size());
+                assertTrue(fm.findInAllFriend(10002).isPresent());
+                assertTrue(fm.findFriend(10002).isPresent());
+            } finally {
+                repo.delete(10001, 10002);
+                repo.delete(10002, 10001);
+                jdbi.useHandle(h -> {
+                    h.createUpdate("DELETE FROM pangya.pangya_guild_member WHERE \"MEMBER_UID\" IN (10001, 10002)")
+                            .execute();
+                    h.createUpdate("DELETE FROM pangya.pangya_guild WHERE \"GUILD_UID\" IN (9001, 9002)").execute();
+                });
+            }
         }
     }
 

@@ -72,7 +72,7 @@ public interface LoginRepository {
 
     /**
      * JP {@code ProcAddCharacter}: insert {@code pangya_character_information} and return item_id.
-     * Parts stay 0 when IFF {@code initComboDef} cannot run.
+     * Default parts from C# {@code initComboDef} when {@code pangya.iff_part} rows exist.
      */
     int insertCharacter(long uid, int typeid, int hair, int shirts);
 

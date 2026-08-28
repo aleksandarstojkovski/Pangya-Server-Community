@@ -252,7 +252,9 @@ public final class JdbiInventoryRepository implements InventoryRepository {
     }
 
     private void insertDefaultCharacter(long uid, int typeid) {
-        jdbi.useHandle(h -> h.createUpdate("""
+        jdbi.useHandle(h -> {
+            int[] parts = CharacterComboDefSql.defaultParts(h, typeid);
+            var u = h.createUpdate("""
                         INSERT INTO pangya.pangya_character_information (
                             typeid, "UID",
                             parts_1, parts_2, parts_3, parts_4, parts_5, parts_6, parts_7, parts_8,
@@ -264,18 +266,20 @@ public final class JdbiInventoryRepository implements InventoryRepository {
                             "CutIn_1", "CutIn_2", "CutIn_3", "CutIn_4", "Mastery"
                         ) VALUES (
                             :typeid, :uid,
-                            0, 0, 0, 0, 0, 0, 0, 0,
-                            0, 0, 0, 0, 0, 0, 0, 0,
-                            0, 0, 0, 0, 0, 0, 0, 0,
+                            :p1, :p2, :p3, :p4, :p5, :p6, :p7, :p8,
+                            :p9, :p10, :p11, :p12, :p13, :p14, :p15, :p16,
+                            :p17, :p18, :p19, :p20, :p21, :p22, :p23, :p24,
                             0, 0, 0,
                             0, 0, 0, 0, 0, 0,
                             0, 0, 0, 0, 0,
                             0, 0, 0, 0, 0
                         )
                         """)
-                .bind("typeid", typeid)
-                .bind("uid", uid)
-                .execute());
+                    .bind("typeid", typeid)
+                    .bind("uid", uid);
+            CharacterPartsBinder.bind(u, parts);
+            u.execute();
+        });
     }
 
     private static int findWarehouseIdByTypeid(List<GamePackets.WarehouseItem> wh, int typeid) {

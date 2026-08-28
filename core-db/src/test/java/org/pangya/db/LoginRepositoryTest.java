@@ -69,6 +69,36 @@ class LoginRepositoryTest {
         }
     }
 
+    @Test
+    void insertCharacterAppliesInitComboDefParts() {
+        String url = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        DatabaseSupport.migrate(url, user, password);
+
+        try (var ds = DatabaseSupport.dataSource(url, user, password)) {
+            var jdbi = DatabaseSupport.jdbi(ds);
+            LoginRepository repo = new JdbiLoginRepository(jdbi);
+            InventoryRepository inv = new JdbiInventoryRepository(jdbi);
+            long uid = 10002L;
+            try {
+                jdbi.useHandle(h -> h.createUpdate(
+                                "DELETE FROM pangya.pangya_character_information WHERE \"UID\" = :uid")
+                        .bind("uid", uid)
+                        .execute());
+                int charId = repo.insertCharacter(uid, GamePackets.TYPEID_NURI, 3, 1);
+                assertTrue(charId > 0);
+                var chars = inv.characters(uid);
+                assertEquals(1, chars.size());
+                assertEquals(charId, chars.getFirst().id);
+                assertEquals(134218752, chars.getFirst().partsTypeid[0]);
+                assertEquals(134407168, chars.getFirst().partsTypeid[23]);
+            } finally {
+                DatabaseSupport.migrate(url, user, password);
+            }
+        }
+    }
+
     private static String env(String name, String fallback) {
         String v = System.getenv(name);
         return (v == null || v.isBlank()) ? fallback : v;

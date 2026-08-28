@@ -614,7 +614,9 @@ public final class JdbiLoginRepository implements LoginRepository {
 
     @Override
     public int insertCharacter(long uid, int typeid, int hair, int shirts) {
-        return jdbi.withHandle(h -> h.createQuery("""
+        return jdbi.withHandle(h -> {
+            int[] parts = CharacterComboDefSql.defaultParts(h, typeid);
+            var q = h.createQuery("""
                         INSERT INTO pangya.pangya_character_information (
                             typeid, "UID",
                             parts_1, parts_2, parts_3, parts_4, parts_5, parts_6, parts_7, parts_8,
@@ -626,9 +628,9 @@ public final class JdbiLoginRepository implements LoginRepository {
                             "CutIn_1", "CutIn_2", "CutIn_3", "CutIn_4", "Mastery"
                         ) VALUES (
                             :typeid, :uid,
-                            0, 0, 0, 0, 0, 0, 0, 0,
-                            0, 0, 0, 0, 0, 0, 0, 0,
-                            0, 0, 0, 0, 0, 0, 0, 0,
+                            :p1, :p2, :p3, :p4, :p5, :p6, :p7, :p8,
+                            :p9, :p10, :p11, :p12, :p13, :p14, :p15, :p16,
+                            :p17, :p18, :p19, :p20, :p21, :p22, :p23, :p24,
                             :hair, :shirts, 0,
                             0, 0, 0, 0, 0, 0,
                             0, 0, 0, 0, 0,
@@ -636,12 +638,13 @@ public final class JdbiLoginRepository implements LoginRepository {
                         )
                         RETURNING item_id
                         """)
-                .bind("typeid", typeid)
-                .bind("uid", uid)
-                .bind("hair", hair)
-                .bind("shirts", shirts)
-                .mapTo(Integer.class)
-                .one());
+                    .bind("typeid", typeid)
+                    .bind("uid", uid)
+                    .bind("hair", hair)
+                    .bind("shirts", shirts);
+            CharacterPartsBinder.bind(q, parts);
+            return q.mapTo(Integer.class).one();
+        });
     }
 
     @Override
