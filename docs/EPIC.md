@@ -147,7 +147,7 @@ C# `LoginTask.sendCompleteData` invia `pacote044` option 0 con `principal()` (12
 
 ## S3 evidenza (2026-08-28)
 
-`RoomInfo.TIPO.PRACTICE = 19` (SSC = 18). Game hello raw `0x3F`. CLIENT `0x02` valida auth keys Redis+SQL e `Version_Decrypt` (XOR GUID). Success: `0x44` + `principal()` 12512 byte + warehouse/chars/caddies/equip/mascot vuoti + `0x4D`. `0x04` → `0x4E` option 1. Practice `0x08` tipo 19 → stub `0x49`; leave `0x130`. Kill sessione: secondo login dopo disconnect.
+`RoomInfo.TIPO.PRACTICE = 19` (SSC = 18). Game hello raw `0x3F`. CLIENT `0x02` valida auth keys Redis+SQL e `Version_Decrypt` (XOR GUID). Success: `0x44` + `principal()` 12512 byte + warehouse/chars/caddies/equip/mascot + `0x4D`. `0x04` → `0x4E` option 1. Leave `0x130`. Kill sessione: secondo login dopo disconnect.
 
 ```
 ./gradlew --no-daemon :core-protocol:test :core-network:test :core-db:test :server-login:test :server-auth:test :server-game:test
@@ -156,6 +156,24 @@ C# `LoginTask.sendCompleteData` invia `pacote044` option 0 con `principal()` (12
 # GameFlowIT badGameKeySendsSecurityAck PASSED
 # BUILD SUCCESSFUL
 ```
+
+## S4/S5/S6 evidenza (2026-08-28)
+
+`RoomInfoEx.ToArray` = 210 byte. Practice `tipo_show=4`, `tipo_ex=19`. Start-game C# `requestStartGame`: `0x230`, `0x231`, `0x77` pang rate; Versus 1 player → `0x253` `0x5900202`. Ranking hello raw `0x1388` key+type 5; first page `0x1389` empty registry. Messenger hello raw `0x2E` + uint32 key; login `0x2F` + friend `0x30` sub `0x115`. `/metrics` Prometheus su ogni health port.
+
+```
+./gradlew --no-daemon :core-protocol:test :core-network:test :core-db:test \
+  :server-login:test :server-auth:test :server-game:test :server-ranking:test :server-messenger:test
+# GamePacketsTest warehouseAndCharacterSizesMatchCsharp PASSED (RoomInfo 210, Mascot 62, Card 58)
+# GameFlowIT fakeClientLogsInEntersChannelCreatesAndLeavesPractice PASSED
+# RankingFlowIT fakeClientLoginReceivesEmptyFirstPage PASSED
+# MessengerFlowIT fakeClientLoginThenEmptyFriendList PASSED
+# SessionLoadIT loginHellosHoldThousandsOfSessions PASSED (3000)
+# PangyaProcessTest metricsEndpointScrapesSessionGauge PASSED
+# BUILD SUCCESSFUL
+```
+
+Hole/shot IFF (Versus/Tourney play), manager shop/equip, registry ranking da SQL, e `docker compose up --build` health dei 5 processi Java restano aperti.
 
 ## Note GC / Netty (S6)
 
