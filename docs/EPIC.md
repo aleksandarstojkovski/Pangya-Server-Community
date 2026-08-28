@@ -8,7 +8,7 @@ Questo repo è **solo** la riscrittura Java.
 
 S0 [x] S1 [x] S2 [x] S3 [x] S4 [~] S5 [~] S6 [x]
 
-S4 profondità: **134** opcode success 1:1 / **38** opcode solo fail-stub / **39** stimati rimanenti dal C# Channel
+S4 profondità: **135** opcode success 1:1 / **37** opcode solo fail-stub / **38** stimati rimanenti dal C# Channel
 
 (Channel C# = 197 `packet_func_sv`. Dettaglio in `docs/STATUS.md`. **S4 non è done.**)
 
@@ -16,8 +16,8 @@ S4 profondità: **134** opcode success 1:1 / **38** opcode solo fail-stub / **39
 
 | Campo | Valore |
 |-------|--------|
-| Fatto | Tutorial `0xAE` → `0x11F` u8 tipo + u8 1 + u32 flags; mail Rookie; SQL `pangya.tutorial` |
-| Prossimo opcode/file C# | GZ first-hole `packet137` pulse, o fail-stub IFF-free (locker add PART, take-mail, daily `0x152`) |
+| Fatto | Take-mail `0x146` ITEM: `0x216` type-2 UCC 15 byte + `pacote214(0)`; Rookie mail Pang Mastery ×3 |
+| Prossimo opcode/file C# | GZ first-hole `packet137` pulse, o fail-stub IFF-free (locker add PART, daily `0x152`) |
 | Blocco | IFF assenti (pin/cube, `initComboDef`, cutin success `0xE5`); nessuna capture JP S9 |
 | Percentuale epic | scheletro **85%** / parità client reale **35%** |
 | VM | Java 21.0.10, Docker 29.7.2, Compose v5.5.0, 4 CPU / 15 GiB |
@@ -56,7 +56,7 @@ Nel dump JP Auth INI usa `5577`; Login/Game Java restano su **7777** (stesso bin
 | **S1** | Netty + framing LE + Cipher bit-compat + session + no Sleep-poll | `./gradlew :core-protocol:test :core-network:test` + handshake fake client |
 | **S2** | Auth + Login + Redis session key + fake client login | compose Auth+Login+db+redis |
 | **S3** | Game core + Practice | integrazione Practice; kill sessione non crasha |
-| **S4** | Tutte le modalità C# + manager char/card/caddie/achievement | **non done** — Channel 197; ~134 success 1:1 / 38 fail-stub; IFF cubes/cutin/combo aperti |
+| **S4** | Tutte le modalità C# + manager char/card/caddie/achievement | **non done** — Channel 197; ~135 success 1:1 / 37 fail-stub; IFF cubes/cutin/combo aperti |
 | **S5** | Ranking + Messenger | compose 5 server |
 | **S6** | Metriche, carico ≥3000 o max VM, `scripts/verify.sh` completo | gradle test + compose health |
 

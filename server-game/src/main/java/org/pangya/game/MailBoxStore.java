@@ -24,16 +24,26 @@ final class MailBoxStore {
     private final AtomicInteger nextId = new AtomicInteger(1);
 
     MailEntry add(long toUid, String fromId, String msg) {
-        return add(toUid, fromId, msg, 0);
+        return add(toUid, fromId, msg, 0, List.of());
     }
 
     MailEntry add(long toUid, String fromId, String msg, int itemNum) {
+        return add(toUid, fromId, msg, itemNum, List.of());
+    }
+
+    MailEntry add(long toUid, String fromId, String msg, List<MailAttachment> items) {
+        List<MailAttachment> copy = items == null ? List.of() : List.copyOf(items);
+        return add(toUid, fromId, msg, copy.size(), copy);
+    }
+
+    private MailEntry add(long toUid, String fromId, String msg, int itemNum, List<MailAttachment> items) {
         MailEntry entry = new MailEntry(
                 nextId.getAndIncrement(),
                 fromId == null ? "" : fromId,
                 msg == null ? "" : msg,
                 LocalDate.now().format(DATE),
-                itemNum);
+                itemNum,
+                new ArrayList<>(items));
         boxes.computeIfAbsent(toUid, uid -> new ArrayList<>()).add(entry);
         return entry;
     }
@@ -102,6 +112,29 @@ final class MailBoxStore {
         return Optional.empty();
     }
 
+    /**
+     * C# {@code leftItensFromEmail}: clear attachments. Empty box or id &le; 0 throws
+     * (Channel catch {@code 0x5500100}). Missing id is a no-op.
+     */
+    void leftItems(long uid, int emailId) {
+        if (emailId <= 0) {
+            throw new IllegalArgumentException("id");
+        }
+        List<MailEntry> box = boxes.get(uid);
+        if (box == null || box.isEmpty()) {
+            throw new IllegalArgumentException("empty");
+        }
+        synchronized (box) {
+            for (MailEntry entry : box) {
+                if (entry.id == emailId) {
+                    entry.items.clear();
+                    entry.itemNum = 0;
+                    return;
+                }
+            }
+        }
+    }
+
     boolean isEmpty(long uid) {
         List<MailEntry> box = boxes.get(uid);
         return box == null || box.isEmpty();
@@ -151,21 +184,39 @@ final class MailBoxStore {
         return GamePackets.mailBoxEntry(entry.id, entry.fromId, entry.msg, entry.visitCount, entry.lidaYn, entry.itemNum);
     }
 
+    static final class MailAttachment {
+        final int typeid;
+        final int qntd;
+
+        MailAttachment(int typeid, int qntd) {
+            this.typeid = typeid;
+            this.qntd = qntd;
+        }
+    }
+
     static final class MailEntry {
         final int id;
         final String fromId;
         final String msg;
         final String giftDate;
-        final int itemNum;
+        int itemNum;
+        final List<MailAttachment> items;
         int visitCount;
         int lidaYn;
 
-        MailEntry(int id, String fromId, String msg, String giftDate, int itemNum) {
+        MailEntry(
+                int id,
+                String fromId,
+                String msg,
+                String giftDate,
+                int itemNum,
+                List<MailAttachment> items) {
             this.id = id;
             this.fromId = fromId;
             this.msg = msg;
             this.giftDate = giftDate;
             this.itemNum = itemNum;
+            this.items = items;
         }
     }
 }

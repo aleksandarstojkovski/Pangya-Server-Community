@@ -1456,6 +1456,7 @@ class GameFlowIT {
             InventoryRepository inv = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
             try {
                 inv.updateTutorial(10001, 0, 0, 0);
+                inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_PANG_MASTERY);
                 LoginRepository repo = new JdbiLoginRepository(DatabaseSupport.jdbi(ds));
                 String loginKey = repo.generateAuthKeyLogin(10001);
                 String gameKey = repo.generateAuthKeyGame(10001, 20202);
@@ -1489,7 +1490,8 @@ class GameFlowIT {
                 assertEquals(1, page.i32());
                 assertEquals(1, page.i32());
                 assertEquals(1, page.i32());
-                assertTrue(page.i32() > 0);
+                int mailId = page.i32();
+                assertTrue(mailId > 0);
                 assertEquals(GamePackets.MAIL_FROM_ADM, page.fixedStr(GamePackets.MAIL_FROM_BYTES));
                 assertEquals(GamePackets.TUTORIAL_ROOKIE_MSG,
                         page.fixedStr(GamePackets.MAIL_MSG_PREVIEW_BYTES));
@@ -1497,8 +1499,35 @@ class GameFlowIT {
                 assertEquals(0, page.u32());
                 assertEquals(0, page.u8());
                 assertEquals(1, page.u32());
+
+                client.sendPlain(GamePackets.clientTakeMail(mailId));
+                PacketReader awards = awaitOpcode(client, GamePackets.SERVER_DAILY_QUEST_STAMP);
+                assertTrue(awards.u32() > 0);
+                assertEquals(1, awards.u32());
+                assertEquals(GamePackets.PAPEL_AWARD_TYPE, awards.u8());
+                assertEquals(GamePackets.TYPEID_PANG_MASTERY, awards.u32());
+                assertTrue(awards.i32() > 0);
+                assertEquals(0, awards.u32());
+                assertEquals(0, awards.i32());
+                assertEquals(3, awards.i32());
+                assertEquals(3, awards.i32());
+                assertEquals(0, awards.u16());
+                assertEquals(0, awards.u32());
+                assertEquals(0, awards.u32());
+                assertEquals(5, awards.remaining());
+                assertEquals(0, awaitOpcode(client, GamePackets.SERVER_MAIL_TAKE).u32());
+                assertEquals(3, inv.warehouse(10001).stream()
+                        .filter(w -> w.typeid == GamePackets.TYPEID_PANG_MASTERY)
+                        .mapToInt(w -> w.c[0] & 0xffff)
+                        .findFirst()
+                        .orElse(-1));
+
+                client.sendPlain(GamePackets.clientTakeMail(mailId));
+                assertEquals(GamePackets.MAIL_ERR_TAKE_EMPTY,
+                        awaitOpcode(client, GamePackets.SERVER_MAIL_TAKE).u32());
             } finally {
                 inv.updateTutorial(10001, 0, 0, 0);
+                inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_PANG_MASTERY);
             }
         }
     }

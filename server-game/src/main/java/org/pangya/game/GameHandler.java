@@ -1695,20 +1695,58 @@ public final class GameHandler {
     }
 
     /**
-     * C# {@code packet146}: i32 id. No IFF warehouse move; empty attachments
-     * write {@code pacote214(1)}. Empty mailbox catch writes {@code 0x5500100}.
+     * C# {@code packet146}: i32 id. Empty mailbox / invalid id throw →
+     * {@code 0x5500100}. No attachments {@code pacote214(1)}. IFF/group miss
+     * {@code pacote214(3)}. ITEM group SQL stand-in: warehouse add, {@code 0x216}
+     * then {@code pacote214(0)}.
      */
     private void takeMail(Session session, PacketReader reader) {
         if (!inChannel(session) || reader.remaining() < 4) {
             return;
         }
         int emailId = reader.i32();
-        if (mailboxes.isEmpty(session.player().uid)) {
+        if (mailboxes.isEmpty(session.player().uid) || emailId <= 0) {
             session.send(GamePackets.mailFail(GamePackets.SERVER_MAIL_TAKE, GamePackets.MAIL_ERR_TAKE_DEFAULT));
             return;
         }
-        mailboxes.get(session.player().uid, emailId, false);
-        session.send(GamePackets.mailFail(GamePackets.SERVER_MAIL_TAKE, GamePackets.MAIL_ERR_TAKE_EMPTY));
+        var found = mailboxes.get(session.player().uid, emailId, false);
+        if (found.isEmpty() || found.get().items.isEmpty()) {
+            session.send(GamePackets.mailFail(GamePackets.SERVER_MAIL_TAKE, GamePackets.MAIL_ERR_TAKE_EMPTY));
+            return;
+        }
+        MailBoxStore.MailEntry mail = found.get();
+        for (MailBoxStore.MailAttachment item : mail.items) {
+            if (item.typeid == 0 || item.qntd <= 0
+                    || GamePackets.itemGroupIdentify(item.typeid) != GamePackets.IFF_GROUP_ITEM) {
+                session.send(GamePackets.mailFail(
+                        GamePackets.SERVER_MAIL_TAKE, GamePackets.MAIL_ERR_TAKE_INIT));
+                return;
+            }
+        }
+        List<MailBoxStore.MailAttachment> attachments = List.copyOf(mail.items);
+        List<GamePackets.PapelAward> awards = new ArrayList<>();
+        try {
+            mailboxes.leftItems(session.player().uid, emailId);
+            long uid = session.player().uid;
+            for (MailBoxStore.MailAttachment item : attachments) {
+                GamePackets.WarehouseItem existing = warehouseByTypeid(uid, item.typeid);
+                int ant = existing == null ? 0 : existing.c[0] & 0xffff;
+                int id = inventory.addWarehouseItem(uid, item.typeid, item.qntd);
+                awards.add(new GamePackets.PapelAward(
+                        GamePackets.PAPEL_AWARD_TYPE,
+                        item.typeid,
+                        id,
+                        0,
+                        ant,
+                        ant + item.qntd,
+                        item.qntd));
+            }
+            session.send(GamePackets.mailTakeAwards(GamePackets.unixNow(), awards));
+            session.send(GamePackets.mailFail(GamePackets.SERVER_MAIL_TAKE, 0));
+        } catch (RuntimeException e) {
+            log.debug("take-mail failed uid={}", session.player().uid, e);
+            session.send(GamePackets.mailFail(GamePackets.SERVER_MAIL_TAKE, GamePackets.MAIL_ERR_TAKE_MOVE));
+        }
     }
 
     /**
@@ -3958,12 +3996,13 @@ public final class GameHandler {
                     return;
                 }
                 int which = tutorialWhatBit(rookieByte);
-                if (which < 1 || which > 8) {
+                int[] reward = tutorialRookieReward(which);
+                if (reward == null) {
                     session.send(GamePackets.tutorialFail(GamePackets.shopSys(GamePackets.TUTORIAL_ERR_VALUE)));
                     return;
                 }
                 pi.tutoRookie |= value;
-                sendTutorialMail(session, GamePackets.TUTORIAL_ROOKIE_MSG, 1);
+                sendTutorialMail(session, GamePackets.TUTORIAL_ROOKIE_MSG, reward[0], reward[1]);
                 if ((pi.tutoRookie & 0xff) != 0 && finish != 0) {
                     sendTutorialMail(session, GamePackets.TUTORIAL_ROOKIE_ALL_MSG, 2);
                 }
@@ -3988,12 +4027,13 @@ public final class GameHandler {
                     return;
                 }
                 int beginnerWhich = tutorialWhatBit(beginnerByte);
-                if (beginnerWhich < 1 || beginnerWhich > 6) {
+                int[] beginnerReward = tutorialBeginnerReward(beginnerWhich);
+                if (beginnerReward == null) {
                     session.send(GamePackets.tutorialFail(GamePackets.shopSys(GamePackets.TUTORIAL_ERR_VALUE)));
                     return;
                 }
                 pi.tutoBeginner |= value;
-                sendTutorialMail(session, GamePackets.TUTORIAL_BEGINNER_MSG, 1);
+                sendTutorialMail(session, GamePackets.TUTORIAL_BEGINNER_MSG, beginnerReward[0], beginnerReward[1]);
                 if (pi.tutoBeginner == (0x3f << 8)) {
                     sendTutorialMail(session, GamePackets.TUTORIAL_BEGINNER_ALL_MSG, 2);
                 }
@@ -4029,6 +4069,14 @@ public final class GameHandler {
         mailboxes.add(session.player().uid, GamePackets.MAIL_FROM_ADM, msg, itemNum);
     }
 
+    private void sendTutorialMail(Session session, String msg, int typeid, int qntd) {
+        mailboxes.add(
+                session.player().uid,
+                GamePackets.MAIL_FROM_ADM,
+                msg,
+                List.of(new MailBoxStore.MailAttachment(typeid, qntd)));
+    }
+
     private static boolean tutorialBit(int bits, int bit) {
         return (bits & (1 << bit)) != 0;
     }
@@ -4040,6 +4088,32 @@ public final class GameHandler {
             }
         }
         return 0;
+    }
+
+    private static int[] tutorialRookieReward(int which) {
+        return switch (which) {
+            case 1 -> new int[] {GamePackets.TYPEID_PANG_MASTERY, 3};
+            case 2 -> new int[] {0x1800000B, 3};
+            case 3 -> new int[] {0x18000025, 3};
+            case 4 -> new int[] {0x18000005, 3};
+            case 5 -> new int[] {0x18000004, 3};
+            case 6 -> new int[] {0x1800000A, 3};
+            case 7 -> new int[] {0x18000000, 3};
+            case 8 -> new int[] {GamePackets.TYPEID_PANG_POUCH, 1000};
+            default -> null;
+        };
+    }
+
+    private static int[] tutorialBeginnerReward(int which) {
+        return switch (which) {
+            case 1 -> new int[] {GamePackets.TYPEID_PANG_MASTERY, 10};
+            case 2 -> new int[] {0x18000028, 1};
+            case 3 -> new int[] {0x18000006, 1};
+            case 4 -> new int[] {0x1800000A, 3};
+            case 5 -> new int[] {0x18000000, 4};
+            case 6 -> new int[] {0x18000001, 3};
+            default -> null;
+        };
     }
 
     /**

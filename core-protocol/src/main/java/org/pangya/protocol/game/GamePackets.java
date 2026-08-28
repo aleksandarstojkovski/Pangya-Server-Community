@@ -1367,6 +1367,10 @@ public final class GamePackets {
     public static final int MAIL_ERR_CHANNEL = 1;
     /** C# take-item when the mail has no attachments: {@code pacote214(1)}. */
     public static final int MAIL_ERR_TAKE_EMPTY = 1;
+    /** C# {@code pacote214(2)} ItemManager add fail. */
+    public static final int MAIL_ERR_TAKE_MOVE = 2;
+    /** C# {@code pacote214(3)} {@code initItemFromEmailItem} typeid 0 / IFF miss. */
+    public static final int MAIL_ERR_TAKE_INIT = 3;
     /** C# open-mailbox catch else {@code 0x5500200}. */
     public static final int MAIL_ERR_OPEN_DEFAULT = 0x5500200;
     /** C# open-mail catch else {@code 0x5500250}. */
@@ -3264,6 +3268,25 @@ public final class GamePackets {
                     w.u32(award.extra());
                 }
             }
+        }
+        return w.toBytes();
+    }
+
+    /**
+     * C# take-mail {@code pacote216}: unix + count + {@code stItem} rows. Type 2
+     * tail is empty UCC PStr + status + seq + 5 zeros (not Papel's 25-byte pad).
+     */
+    public static byte[] mailTakeAwards(int unix, List<PapelAward> awards) {
+        PacketWriter w = new PacketWriter().opcode(SERVER_DAILY_QUEST_STAMP).u32(unix).u32(awards.size());
+        for (PapelAward award : awards) {
+            w.u8(award.type())
+                    .u32(award.typeid())
+                    .i32(award.id())
+                    .u32(award.flagTime())
+                    .i32(award.qntdAnt())
+                    .i32(award.qntdDep())
+                    .i32(award.qntd());
+            w.u16(0).u32(0).u32(0).zero(5);
         }
         return w.toBytes();
     }
