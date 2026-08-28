@@ -16,6 +16,7 @@ import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * JP {@code MessengerServer.requestLogin} + friend/presence/chat handlers.
@@ -29,6 +30,7 @@ public final class MessengerHandler {
     private final SessionManager sessions;
     private final AuthOutbound authOut;
     private final boolean authRequired;
+    private final ConcurrentHashMap<Long, FriendManager> friendManagers = new ConcurrentHashMap<>();
 
     public MessengerHandler(LoginRepository repo, FriendRepository friends, SessionManager sessions) {
         this(repo, friends, sessions, new AuthOutbound() {
@@ -85,6 +87,9 @@ public final class MessengerHandler {
 
     public void onDisconnect(Session session) {
         sendLogoutToFriends(session);
+        if (session.player().uid > 0) {
+            friendManagers.remove(session.player().uid);
+        }
     }
 
     /**
@@ -207,8 +212,27 @@ public final class MessengerHandler {
         pi.channelPlayerInfo = MessengerPackets.emptyChannelPlayerInfo();
         pi.messengerLogoutSent = false;
         reloadGuild(pi);
+        initFriendManager(pi.uid);
         session.setAuthorized(true);
         session.send(MessengerPackets.loginOk((int) pi.uid));
+    }
+
+    private FriendManager fm(long uid) {
+        return friendManagers.computeIfAbsent(uid, ignored -> new FriendManager());
+    }
+
+    private FriendManager fm(Session session) {
+        return fm(session.player().uid);
+    }
+
+    private void initFriendManager(long uid) {
+        fm(uid).init(friends, uid);
+    }
+
+    private void reloadFriendManager(Session session) {
+        if (session.authorized()) {
+            initFriendManager(session.player().uid);
+        }
     }
 
     private void authDisconnectPlayer(PacketReader body) {
@@ -268,7 +292,7 @@ public final class MessengerHandler {
         if (!session.authorized()) {
             return;
         }
-        List<FriendRepository.FriendRow> list = friends.friendsAndGuildMembers(session.player().uid);
+        List<FriendRepository.FriendRow> list = fm(session).getAllFriendAndGuildMember(false);
         if (list.isEmpty()) {
             session.send(MessengerPackets.emptyFriendPage());
             return;
@@ -297,6 +321,7 @@ public final class MessengerHandler {
         Session memberSession = sessions.findByUid(memberUid);
         if (memberSession != null) {
             reloadGuild(memberSession.player());
+            reloadFriendManager(memberSession);
         }
         refreshOnlineGuildMembers(clubId);
         broadcastGuildJoined(clubId, memberUid, memberSession);
@@ -322,10 +347,12 @@ public final class MessengerHandler {
         Session memberSession = sessions.findByUid(memberUid);
         for (Session member : guildOnline) {
             reloadGuild(member.player());
+            reloadFriendManager(member);
             pushFriendListPages(member);
         }
         if (memberSession != null) {
             clearGuild(memberSession.player());
+            reloadFriendManager(memberSession);
         }
         broadcastGuildLeft(guildOnline, memberUid, memberSession);
         log.info("guild {} member={} club={}", reason, memberUid, clubId);
@@ -334,6 +361,7 @@ public final class MessengerHandler {
     private void refreshOnlineGuildMembers(long clubId) {
         for (Session member : sessions.findByGuildUid(clubId)) {
             reloadGuild(member.player());
+            reloadFriendManager(member);
             pushFriendListPages(member);
         }
     }
@@ -433,23 +461,14 @@ public final class MessengerHandler {
     }
 
     /**
-     * C# {@code findFriendInAllFriend} + block check before showing live
-     * {@code ChannelPlayerInfo} on friend-list rows.
+     * C# friend-list row: target online and {@code findFriendInAllFriend(viewer)} on target cache.
      */
     private boolean canSeeOnline(long viewerUid, long targetUid) {
-        if (viewerUid == targetUid) {
-            return true;
+        Session live = sessions.findByUid(targetUid);
+        if (live == null) {
+            return false;
         }
-        var reverse = friends.find(targetUid, viewerUid);
-        if (reverse.isPresent() && (reverse.get().stateFlag() & MessengerPackets.FLAG_BLOCK) == 0) {
-            return true;
-        }
-        Session viewer = sessions.findByUid(viewerUid);
-        Session target = sessions.findByUid(targetUid);
-        return viewer != null
-                && target != null
-                && viewer.player().guildUid > 0
-                && viewer.player().guildUid == target.player().guildUid;
+        return fm(targetUid).findInAllFriend(viewerUid).isPresent();
     }
 
     private void addFriend(Session session, PacketReader reader) {
@@ -467,12 +486,12 @@ public final class MessengerHandler {
                 session.send(MessengerPackets.addFriendError(0x5200602));
                 return;
             }
-            var existing = friends.find(session.player().uid, uid);
+            var existing = fm(session).findFriend(uid);
             if (existing.isPresent() && (existing.get().stateFlag() & MessengerPackets.FLAG_FRIEND) != 0) {
                 session.send(MessengerPackets.addFriendError(2));
                 return;
             }
-            if (friends.count(session.player().uid) >= FriendRepository.FRIEND_LIST_LIMIT) {
+            if (fm(session).countFriend() >= FriendRepository.FRIEND_LIST_LIMIT) {
                 session.send(MessengerPackets.addFriendError(0x5200603));
                 return;
             }
@@ -485,16 +504,20 @@ public final class MessengerHandler {
                 session.send(MessengerPackets.addFriendError(0x5200607));
                 return;
             }
-            if (friends.count(info.uid()) >= FriendRepository.FRIEND_LIST_LIMIT) {
+            if (fm(info.uid()).countFriend() >= FriendRepository.FRIEND_LIST_LIMIT) {
                 session.send(MessengerPackets.addFriendError(3));
                 return;
             }
-            friends.add(session.player().uid, new FriendRepository.FriendRow(
+            FriendRepository.FriendRow requestRow = new FriendRepository.FriendRow(
                     info.uid(), info.nickname(), "Friend", -1, 0, -1, 0, 0, 0, 255,
-                    MessengerPackets.FLAG_REQUEST, info.level(), MessengerPackets.FRIEND_FLAG));
-            friends.add(info.uid(), new FriendRepository.FriendRow(
+                    MessengerPackets.FLAG_REQUEST, info.level(), MessengerPackets.FRIEND_FLAG);
+            FriendRepository.FriendRow pendingRow = new FriendRepository.FriendRow(
                     session.player().uid, session.player().nickname, "Friend", -1, 0, -1, 0, 0, 0, 255,
-                    0, session.player().level, MessengerPackets.FRIEND_FLAG));
+                    0, session.player().level, MessengerPackets.FRIEND_FLAG);
+            friends.add(session.player().uid, requestRow);
+            friends.add(info.uid(), pendingRow);
+            fm(session).putFriend(requestRow);
+            fm(info.uid()).putFriend(pendingRow);
             byte[] fi = MessengerPackets.friendInfo(info.nickname(), "Friend", (int) info.uid());
             int flag = MessengerPackets.FRIEND_FLAG;
             int requestState = MessengerPackets.FLAG_REQUEST;
@@ -536,7 +559,7 @@ public final class MessengerHandler {
                 session.send(MessengerPackets.friendUidAck(MessengerPackets.SUB_FRIEND_AGREE, 0x5200801, 0));
                 return;
             }
-            var row = friends.find(session.player().uid, uid).orElse(null);
+            var row = fm(session).findFriend(uid).orElse(null);
             if (row == null) {
                 session.send(MessengerPackets.friendUidAck(MessengerPackets.SUB_FRIEND_AGREE, 0x5200802, 0));
                 return;
@@ -549,11 +572,15 @@ public final class MessengerHandler {
                 session.send(MessengerPackets.friendUidAck(MessengerPackets.SUB_FRIEND_AGREE, 0x5200804, 0));
                 return;
             }
-            friends.updateState(session.player().uid, uid, row.stateFlag() | MessengerPackets.FLAG_FRIEND);
-            var other = friends.find(uid, session.player().uid);
-            other.ifPresent(o -> friends.updateState(
-                    uid, session.player().uid,
-                    (o.stateFlag() & ~MessengerPackets.FLAG_REQUEST) | MessengerPackets.FLAG_FRIEND));
+            int newState = row.stateFlag() | MessengerPackets.FLAG_FRIEND;
+            friends.updateState(session.player().uid, uid, newState);
+            fm(session).updateState(uid, newState);
+            var other = fm(uid).findFriend(session.player().uid);
+            if (other.isPresent()) {
+                int otherState = (other.get().stateFlag() & ~MessengerPackets.FLAG_REQUEST) | MessengerPackets.FLAG_FRIEND;
+                friends.updateState(uid, session.player().uid, otherState);
+                fm(uid).updateState(session.player().uid, otherState);
+            }
             session.send(MessengerPackets.friendUidAck(MessengerPackets.SUB_FRIEND_AGREE, 0, uid));
             Session live = sessions.findByUid(uid);
             if (live != null) {
@@ -576,7 +603,7 @@ public final class MessengerHandler {
                 session.send(MessengerPackets.friendUidAck(MessengerPackets.SUB_FRIEND_BLOCK, 0x5300101, 0));
                 return;
             }
-            var row = friends.find(session.player().uid, uid).orElse(null);
+            var row = fm(session).findFriend(uid).orElse(null);
             if (row == null) {
                 session.send(MessengerPackets.friendUidAck(MessengerPackets.SUB_FRIEND_BLOCK, 0x5300102, 0));
                 return;
@@ -585,7 +612,9 @@ public final class MessengerHandler {
                 session.send(MessengerPackets.friendUidAck(MessengerPackets.SUB_FRIEND_BLOCK, 0x5300103, 0));
                 return;
             }
-            friends.updateState(session.player().uid, uid, row.stateFlag() | MessengerPackets.FLAG_BLOCK);
+            int newState = row.stateFlag() | MessengerPackets.FLAG_BLOCK;
+            friends.updateState(session.player().uid, uid, newState);
+            fm(session).updateState(uid, newState);
             session.send(MessengerPackets.friendUidAck(MessengerPackets.SUB_FRIEND_BLOCK, 0, uid));
             Session live = sessions.findByUid(uid);
             if (live != null) {
@@ -607,7 +636,7 @@ public final class MessengerHandler {
                 session.send(MessengerPackets.friendUidAck(MessengerPackets.SUB_FRIEND_UNBLOCK, 0x5300201, 0));
                 return;
             }
-            var row = friends.find(session.player().uid, uid).orElse(null);
+            var row = fm(session).findFriend(uid).orElse(null);
             if (row == null) {
                 session.send(MessengerPackets.friendUidAck(MessengerPackets.SUB_FRIEND_UNBLOCK, 0x5300202, 0));
                 return;
@@ -617,12 +646,13 @@ public final class MessengerHandler {
                 return;
             }
             Session live = sessions.findByUid(uid);
-            if (live != null && friends.find(uid, session.player().uid).isEmpty()) {
+            if (live != null && fm(uid).findFriend(session.player().uid).isEmpty()) {
                 session.send(MessengerPackets.friendUidAck(MessengerPackets.SUB_FRIEND_UNBLOCK, 0x5200204, 0));
                 return;
             }
             int newState = row.stateFlag() & ~MessengerPackets.FLAG_BLOCK;
             friends.updateState(session.player().uid, uid, newState);
+            fm(session).updateState(uid, newState);
             session.send(MessengerPackets.friendUidAck(MessengerPackets.SUB_FRIEND_UNBLOCK, 0, uid));
             if (live != null) {
                 live.send(MessengerPackets.friendStatus(
@@ -655,12 +685,13 @@ public final class MessengerHandler {
                 session.send(MessengerPackets.assignApelidoError(0x5200903));
                 return;
             }
-            var row = friends.find(session.player().uid, uid).orElse(null);
+            var row = fm(session).findInAllFriend(uid).orElse(null);
             if (row == null) {
                 session.send(MessengerPackets.assignApelidoError(0x5200903));
                 return;
             }
             friends.updateApelido(session.player().uid, uid, apelido);
+            fm(session).updateApelido(uid, apelido);
             session.send(MessengerPackets.assignApelidoOk(uid, apelido));
         } catch (RuntimeException e) {
             log.warn("assign apelido failed: {}", e.toString());
@@ -760,7 +791,7 @@ public final class MessengerHandler {
                 session.send(MessengerPackets.friendUidAck(MessengerPackets.SUB_FRIEND_REMOVE, 0x5200701, 0));
                 return;
             }
-            var row = friends.find(session.player().uid, uid).orElse(null);
+            var row = fm(session).findFriend(uid).orElse(null);
             if (row == null) {
                 session.send(MessengerPackets.friendUidAck(MessengerPackets.SUB_FRIEND_REMOVE, 0x5200702, 0));
                 return;
@@ -771,6 +802,8 @@ public final class MessengerHandler {
             }
             friends.delete(session.player().uid, uid);
             friends.delete(uid, session.player().uid);
+            fm(session).removeFriend(uid);
+            fm(uid).removeFriend(session.player().uid);
             session.send(MessengerPackets.friendUidAck(MessengerPackets.SUB_FRIEND_REMOVE, 0, uid));
             Session live = sessions.findByUid(uid);
             if (live != null) {
@@ -856,7 +889,7 @@ public final class MessengerHandler {
                 session.send(MessengerPackets.friendChatError());
                 return;
             }
-            var row = friends.find(session.player().uid, uid).orElse(null);
+            var row = fm(session).findFriend(uid).orElse(null);
             if (row == null || (row.stateFlag() & MessengerPackets.FLAG_BLOCK) != 0) {
                 session.send(MessengerPackets.friendChatError());
                 return;
@@ -866,7 +899,7 @@ public final class MessengerHandler {
                 session.send(MessengerPackets.friendChatError());
                 return;
             }
-            var reverse = friends.find(uid, session.player().uid).orElse(null);
+            var reverse = fm(uid).findFriend(session.player().uid).orElse(null);
             if (reverse == null || (reverse.stateFlag() & MessengerPackets.FLAG_BLOCK) != 0) {
                 session.send(MessengerPackets.friendChatError());
                 return;
@@ -909,7 +942,7 @@ public final class MessengerHandler {
 
     private List<Session> onlineFriends(Session session) {
         List<Session> out = new ArrayList<>();
-        for (FriendRepository.FriendRow row : friends.friends(session.player().uid)) {
+        for (FriendRepository.FriendRow row : fm(session).getAllFriendAndGuildMember(true)) {
             if ((row.stateFlag() & MessengerPackets.FLAG_BLOCK) != 0) {
                 continue;
             }

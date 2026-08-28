@@ -13,8 +13,8 @@ Conteggio Channel: **197** handler `packet_func_sv` registrati in `GameService.i
 
 ## Questo turno
 
-Fatto: Messenger login via auth confirm (`0x04` pending → `0x0C` `confirmLoginOnOtherServer`); auth inbound `0x0B`/`0x06`/`0x0D`.
-Prossimo opcode/file C#: `FriendManager` cache; IFF pin/cube/`initComboDef`; capture JP S9.
+Fatto: `FriendManager` in-memory cache (`init`/`findFriendInAllFriend`/guild refresh); auth-confirm login.
+Prossimo opcode/file C#: IFF pin/cube/`initComboDef`; capture JP S9.
 Blocco: file IFF assenti (pin/cube live, `initComboDef`); nessuna capture client JP Season 9.
 
 Percentuale epic: **scheletro 85%** / **parità client reale 43%**.
