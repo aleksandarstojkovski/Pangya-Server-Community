@@ -99,6 +99,8 @@ class GamePacketsTest {
         assertEquals(false, GamePackets.isCharacterTypeid(GamePackets.TYPEID_AIR_KNIGHT));
         List<byte[]> tail = GamePackets.loginDumpTail(10001, 0, 0, 1);
         assertEquals(GamePackets.LOGIN_DUMP_TAIL_COUNT, tail.size());
+        assertEquals(GamePackets.LOGIN_NEW_MAIL_COUNT + GamePackets.LOGIN_DUMP_PREFIX_COUNT
+                + GamePackets.LOGIN_DUMP_TAIL_COUNT, GamePackets.LOGIN_DUMP_PACKET_COUNT);
         assertEquals(0x102, new PacketReader(tail.get(0)).opcode());
         assertEquals(0xF1, new PacketReader(tail.get(4)).opcode());
         assertEquals(0x135, new PacketReader(tail.get(5)).opcode());
@@ -730,6 +732,49 @@ class GamePacketsTest {
         assertEquals(0, enter.u32());
         assertEquals(GamePackets.CLIENT_SHOP_OPEN_EDIT, 0x76);
         assertEquals(GamePackets.CLIENT_ENTER_SHOP, 0x140);
+        PacketReader mailbox = new PacketReader(GamePackets.clientOpenMailBox(1));
+        assertEquals(GamePackets.CLIENT_OPEN_MAILBOX, mailbox.opcode());
+        assertEquals(1, mailbox.i32());
+        PacketReader emptyBox = new PacketReader(GamePackets.mailBoxPage(
+                GamePackets.SERVER_MAILBOX, 0, 1, 1, List.of()));
+        assertEquals(GamePackets.SERVER_MAILBOX, emptyBox.opcode());
+        assertEquals(0, emptyBox.i32());
+        assertEquals(1, emptyBox.i32());
+        assertEquals(1, emptyBox.i32());
+        assertEquals(0, emptyBox.i32());
+        byte[] row = GamePackets.mailBoxEntry(7, "TestNick", "hello", 0, 0, 0);
+        assertEquals(GamePackets.MAIL_BOX_ENTRY_BYTES, row.length);
+        PacketReader info = new PacketReader(GamePackets.mailInfoOk(7, "TestNick", "28/08/2026", "hello", 1));
+        assertEquals(GamePackets.SERVER_MAIL_INFO, info.opcode());
+        assertEquals(0, info.u32());
+        assertEquals(7, info.i32());
+        assertEquals("TestNick", info.pstr());
+        assertEquals("28/08/2026", info.pstr());
+        assertEquals("hello", info.pstr());
+        assertEquals(1, info.u8());
+        assertEquals(0, info.i32());
+        assertEquals(GamePackets.MAIL_ITEM_BYTES, info.remaining());
+        PacketReader sendOk = new PacketReader(GamePackets.mailFail(GamePackets.SERVER_MAIL_SEND, 0));
+        assertEquals(GamePackets.SERVER_MAIL_SEND, sendOk.opcode());
+        assertEquals(0, sendOk.u32());
+        PacketReader unread = new PacketReader(GamePackets.newMail(List.of()));
+        assertEquals(GamePackets.SERVER_NEW_MAIL, unread.opcode());
+        assertEquals(0, unread.i32());
+        assertEquals(0, unread.i32());
+        PacketReader sendPkt = new PacketReader(GamePackets.clientSendMail(
+                10001, 10002, "TestNick2", 0, "hello", GamePackets.MAIL_SEND_PANG, 0, null));
+        assertEquals(GamePackets.CLIENT_SEND_MAIL, sendPkt.opcode());
+        assertEquals(10001, sendPkt.u32());
+        assertEquals(10002, sendPkt.u32());
+        assertEquals("TestNick2", sendPkt.pstr());
+        assertEquals(0, sendPkt.u16());
+        assertEquals("hello", sendPkt.pstr());
+        assertEquals(GamePackets.MAIL_SEND_PANG, sendPkt.u64());
+        assertEquals(0, sendPkt.u8());
+        assertEquals(GamePackets.CLIENT_OPEN_MAILBOX, 0x143);
+        assertEquals(GamePackets.CLIENT_DELETE_MAIL, 0x147);
+        assertEquals(GamePackets.SERVER_MAILBOX, 0x211);
+        assertEquals(GamePackets.SERVER_MAIL_DELETE, 0x215);
         assertEquals(GamePackets.SERVER_BUY_ACK, 0x68);
         assertEquals(GamePackets.CREATE_ROOM_FAILED, 0x07);
     }

@@ -43,6 +43,15 @@ public final class GameHandler {
     private final ConcurrentHashMap<Integer, GameRoom> rooms = new ConcurrentHashMap<>();
     /** C# {@code BroadcastManager} ticker queue; count × {@link GamePackets#TICKER_WAIT_MS}. */
     private final List<String> tickers = new ArrayList<>();
+    /** C# {@code PlayerMailBox} / {@code MailBoxManager.sendMessage} in-memory store. */
+    private final MailBoxStore mailboxes = new MailBoxStore();
+    /** C# {@code Tools.Sanitize} SQL-keyword blacklist (OrdinalIgnoreCase). */
+    private static final String[] MAIL_SANITIZE = {
+            "--", ";--", "/*", "*/", "@@", "char", "nchar", "varchar", "nvarchar",
+            "alter", "begin", "cast", "create", "cursor", "declare", "delete", "drop",
+            "exec", "execute", "fetch", "insert", "kill", "open", "select", "sys",
+            "sysobjects", "syscolumns", "table", "update"
+    };
 
     public GameHandler(
             AppConfig config,
@@ -149,6 +158,11 @@ public final class GameHandler {
             case GamePackets.CLIENT_SHOP_BUY -> buySaleShop(session, reader);
             case GamePackets.CLIENT_PAPEL_SHOP -> openPapelShop(session);
             case GamePackets.CLIENT_ENTER_SHOP -> enterShop(session);
+            case GamePackets.CLIENT_OPEN_MAILBOX -> openMailBox(session, reader);
+            case GamePackets.CLIENT_OPEN_MAIL -> openMail(session, reader);
+            case GamePackets.CLIENT_SEND_MAIL -> sendMail(session, reader);
+            case GamePackets.CLIENT_TAKE_MAIL -> takeMail(session, reader);
+            case GamePackets.CLIENT_DELETE_MAIL -> deleteMail(session, reader);
             case GamePackets.CLIENT_ENTER_LOBBY -> enterLobby(session);
             case GamePackets.CLIENT_LEAVE_LOBBY -> leaveLobby(session);
             case GamePackets.CLIENT_CHAT -> chat(session, reader);
@@ -274,6 +288,8 @@ public final class GameHandler {
                 log.warn("register game logon failed uid={}: {}", pi.uid, e.toString());
             }
 
+            // C# LoginManager case 32 pacote210, then sendCompleteData 0x44…
+            session.send(GamePackets.newMail(unreadMailBytes(pi.uid)));
             // JP LoginTask.sendCompleteData: 0x44, chars 0x70, caddies 0x71,
             // warehouse 0x73, mascots 0xE1, equip 0x72, channel 0x4D, then tail.
             session.send(GamePackets.loginOkPrincipal(
@@ -1004,6 +1020,215 @@ public final class GameHandler {
             return;
         }
         session.send(GamePackets.enterShopOk());
+    }
+
+    /**
+     * C# {@code packet143} / {@code requestOpenMailBox}: i32 page → {@code 0x211}.
+     * Page ≤ 0 writes sys 2. Empty box: error 0 + page + total 1 + count 0.
+     */
+    private void openMailBox(Session session, PacketReader reader) {
+        if (!inChannel(session) || reader.remaining() < 4) {
+            return;
+        }
+        int page = reader.i32();
+        if (page <= 0) {
+            session.send(GamePackets.mailFail(GamePackets.SERVER_MAILBOX, GamePackets.MAIL_ERR_PAGE));
+            return;
+        }
+        try {
+            List<MailBoxStore.MailEntry> mails = mailboxes.page(session.player().uid, page);
+            if (mails.isEmpty()) {
+                session.send(GamePackets.mailBoxPage(
+                        GamePackets.SERVER_MAILBOX, 0, page, 1, List.of()));
+                return;
+            }
+            session.send(GamePackets.mailBoxPage(
+                    GamePackets.SERVER_MAILBOX,
+                    0,
+                    page,
+                    mailboxes.totalPages(session.player().uid),
+                    mailListBytes(mails)));
+        } catch (RuntimeException e) {
+            session.send(GamePackets.mailFail(GamePackets.SERVER_MAILBOX, GamePackets.MAIL_ERR_OPEN_DEFAULT));
+        }
+    }
+
+    /**
+     * C# {@code packet144} / {@code requestInfoMail}: i32 id → {@code 0x212}.
+     * Missing id is CHANNEL sys 1.
+     */
+    private void openMail(Session session, PacketReader reader) {
+        if (!inChannel(session) || reader.remaining() < 4) {
+            return;
+        }
+        int emailId = reader.i32();
+        var found = mailboxes.get(session.player().uid, emailId, true);
+        if (found.isEmpty()) {
+            session.send(GamePackets.mailFail(GamePackets.SERVER_MAIL_INFO, GamePackets.MAIL_ERR_CHANNEL));
+            return;
+        }
+        MailBoxStore.MailEntry mail = found.get();
+        session.send(GamePackets.mailInfoOk(mail.id, mail.fromId, mail.giftDate, mail.msg, mail.lidaYn));
+    }
+
+    /**
+     * C# {@code packet145} / {@code requestSendMail}. Text-only costs 100 pang and
+     * stores the message. Attachments need IFF ({@code 0x5500300}).
+     */
+    private void sendMail(Session session, PacketReader reader) {
+        if (!inChannel(session)) {
+            return;
+        }
+        try {
+            if (reader.remaining() < 8) {
+                session.send(GamePackets.mailFail(GamePackets.SERVER_MAIL_SEND, GamePackets.MAIL_ERR_SEND_DEFAULT));
+                return;
+            }
+            long fromUid = reader.u32Unsigned();
+            long toUid = reader.u32Unsigned();
+            String toNick = reader.remaining() >= 2 ? reader.pstr() : "";
+            if (reader.remaining() < 2) {
+                session.send(GamePackets.mailFail(GamePackets.SERVER_MAIL_SEND, GamePackets.MAIL_ERR_SEND_DEFAULT));
+                return;
+            }
+            reader.u16();
+            String msg = reader.remaining() >= 2 ? reader.pstr() : "";
+            if (reader.remaining() < 9) {
+                session.send(GamePackets.mailFail(GamePackets.SERVER_MAIL_SEND, GamePackets.MAIL_ERR_SEND_DEFAULT));
+                return;
+            }
+            long pangPrice = reader.u64();
+            int countItem = reader.u8();
+            if (toNick.isEmpty() || !mailSanitize(toNick) || msg.isEmpty() || !mailSanitize(msg)) {
+                session.send(GamePackets.mailFail(GamePackets.SERVER_MAIL_SEND, GamePackets.MAIL_ERR_CHANNEL));
+                return;
+            }
+            if (countItem > 0) {
+                if (countItem > GamePackets.MAIL_SEND_ITEM_MAX
+                        || pangPrice != (long) countItem * GamePackets.MAIL_SEND_ITEM_PANG) {
+                    session.send(GamePackets.mailFail(GamePackets.SERVER_MAIL_SEND, GamePackets.MAIL_ERR_SEND_DEFAULT));
+                    return;
+                }
+                int need = countItem * GamePackets.MAIL_ITEM_BYTES;
+                if (reader.remaining() >= need) {
+                    reader.readBytes(need);
+                }
+                session.send(GamePackets.mailFail(GamePackets.SERVER_MAIL_SEND, GamePackets.MAIL_ERR_SEND_DEFAULT));
+                return;
+            }
+            if (pangPrice != GamePackets.MAIL_SEND_PANG || toUid == 0) {
+                session.send(GamePackets.mailFail(GamePackets.SERVER_MAIL_SEND, GamePackets.MAIL_ERR_SEND_DEFAULT));
+                return;
+            }
+            long uid = session.player().uid;
+            long pang = inventory.pang(uid);
+            if (pang < pangPrice) {
+                session.send(GamePackets.mailFail(GamePackets.SERVER_MAIL_SEND, GamePackets.MAIL_ERR_SEND_DEFAULT));
+                return;
+            }
+            String fromId = fromUid == 0 ? GamePackets.MAIL_FROM_ADM : session.player().nickname;
+            mailboxes.add(toUid, fromId, msg);
+            inventory.setPangCookie(uid, pang - pangPrice, inventory.cookie(uid));
+            session.send(GamePackets.pangSpent(pang - pangPrice, pangPrice));
+            session.send(GamePackets.mailFail(GamePackets.SERVER_MAIL_SEND, 0));
+            Session target = sessions.findByUid(toUid);
+            if (target != null && target.authorized()) {
+                target.send(GamePackets.newMail(unreadMailBytes(toUid)));
+            }
+        } catch (RuntimeException e) {
+            log.debug("send-mail failed uid={}", session.player().uid, e);
+            session.send(GamePackets.mailFail(GamePackets.SERVER_MAIL_SEND, GamePackets.MAIL_ERR_SEND_DEFAULT));
+        }
+    }
+
+    /**
+     * C# {@code packet146}: i32 id. No IFF warehouse move; empty attachments
+     * write {@code pacote214(1)}. Empty mailbox catch writes {@code 0x5500100}.
+     */
+    private void takeMail(Session session, PacketReader reader) {
+        if (!inChannel(session) || reader.remaining() < 4) {
+            return;
+        }
+        int emailId = reader.i32();
+        if (mailboxes.isEmpty(session.player().uid)) {
+            session.send(GamePackets.mailFail(GamePackets.SERVER_MAIL_TAKE, GamePackets.MAIL_ERR_TAKE_DEFAULT));
+            return;
+        }
+        mailboxes.get(session.player().uid, emailId, false);
+        session.send(GamePackets.mailFail(GamePackets.SERVER_MAIL_TAKE, GamePackets.MAIL_ERR_TAKE_EMPTY));
+    }
+
+    /**
+     * C# {@code packet147}: u32 count + ids + u32 page → {@code 0x215}.
+     */
+    private void deleteMail(Session session, PacketReader reader) {
+        if (!inChannel(session) || reader.remaining() < 4) {
+            return;
+        }
+        int count = reader.u32();
+        if (count < 0 || reader.remaining() < count * 4L + 4) {
+            session.send(GamePackets.mailFail(GamePackets.SERVER_MAIL_DELETE, GamePackets.MAIL_ERR_DELETE_DEFAULT));
+            return;
+        }
+        int[] ids = new int[count];
+        for (int i = 0; i < count; i++) {
+            ids[i] = reader.u32();
+        }
+        int page = reader.u32();
+        if (page <= 0) {
+            session.send(GamePackets.mailFail(GamePackets.SERVER_MAIL_DELETE, GamePackets.MAIL_ERR_PAGE));
+            return;
+        }
+        try {
+            mailboxes.delete(session.player().uid, ids);
+            List<MailBoxStore.MailEntry> mails = mailboxes.page(session.player().uid, page);
+            if (mails.isEmpty()) {
+                session.send(GamePackets.mailBoxPage(
+                        GamePackets.SERVER_MAIL_DELETE, 0, page, 1, List.of()));
+                return;
+            }
+            session.send(GamePackets.mailBoxPage(
+                    GamePackets.SERVER_MAIL_DELETE,
+                    0,
+                    page,
+                    mailboxes.totalPages(session.player().uid),
+                    mailListBytes(mails)));
+        } catch (RuntimeException e) {
+            session.send(GamePackets.mailFail(GamePackets.SERVER_MAIL_DELETE, GamePackets.MAIL_ERR_DELETE_DEFAULT));
+        }
+    }
+
+    private boolean inChannel(Session session) {
+        return session.authorized() && session.player().channelId >= 0;
+    }
+
+    private List<byte[]> unreadMailBytes(long uid) {
+        return mailListBytes(mailboxes.unread(uid));
+    }
+
+    private static List<byte[]> mailListBytes(List<MailBoxStore.MailEntry> mails) {
+        List<byte[]> out = new ArrayList<>(mails.size());
+        for (MailBoxStore.MailEntry mail : mails) {
+            out.add(MailBoxStore.toListBytes(mail));
+        }
+        return out;
+    }
+
+    /** C# {@code Tools.Sanitize}: reject SQL-keyword substrings. */
+    private static boolean mailSanitize(String input) {
+        if (input == null || input.isBlank()) {
+            return true;
+        }
+        if (input.length() > 256) {
+            return false;
+        }
+        String lower = input.toLowerCase(java.util.Locale.ROOT);
+        for (String word : MAIL_SANITIZE) {
+            if (lower.contains(word)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**

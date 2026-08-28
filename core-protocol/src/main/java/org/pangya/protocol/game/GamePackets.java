@@ -131,6 +131,18 @@ public final class GamePackets {
     public static final int SERVER_PAPEL_SHOP = 0x10B;
     /** C# {@code SERVER_REQ_ENTER_SHOP_ACK} {@code 0x20E}. */
     public static final int SERVER_ENTER_SHOP = 0x20E;
+    /** C# {@code SERVER_YOU_RECEIVED_NEW_MAIL} / {@code pacote210}. */
+    public static final int SERVER_NEW_MAIL = 0x210;
+    /** C# {@code SERVER_REQ_NEW_MAILBOX_OPEN_MAILBOX_ACK} {@code 0x211}. */
+    public static final int SERVER_MAILBOX = 0x211;
+    /** C# {@code SERVER_REQ_NEW_MAILBOX_OPEN_MAIL_ACK} {@code 0x212}. */
+    public static final int SERVER_MAIL_INFO = 0x212;
+    /** C# {@code SERVER_REQ_NEW_MAILBOX_SEND_MAIL_ACK} {@code 0x213}. */
+    public static final int SERVER_MAIL_SEND = 0x213;
+    /** C# {@code SERVER_REQ_NEW_MAILBOX_MOVE_ITEM_TO_MYROOM_ACK} {@code 0x214}. */
+    public static final int SERVER_MAIL_TAKE = 0x214;
+    /** C# {@code SERVER_REQ_NEW_MAILBOX_DELETE_MAIL_ACK} {@code 0x215}. */
+    public static final int SERVER_MAIL_DELETE = 0x215;
     /** C# {@code SERVER_SYNC_ACTIVITY} / {@code pacote0C4}: oid + u8 type + payload. */
     public static final int SERVER_SYNC_ACTIVITY = 0xC4;
     public static final int SERVER_MASCOT_SEED = 0x16A;
@@ -251,6 +263,16 @@ public final class GamePackets {
     public static final int CLIENT_PAPEL_SHOP = 0x98;
     /** C# {@code packet140} {@code requestEnterShop}. */
     public static final int CLIENT_ENTER_SHOP = 0x140;
+    /** C# {@code packet143} {@code requestOpenMailBox}. */
+    public static final int CLIENT_OPEN_MAILBOX = 0x143;
+    /** C# {@code packet144} {@code requestInfoMail}. */
+    public static final int CLIENT_OPEN_MAIL = 0x144;
+    /** C# {@code packet145} {@code requestSendMail}. */
+    public static final int CLIENT_SEND_MAIL = 0x145;
+    /** C# {@code packet146} {@code requestTakeItemFomMail}. */
+    public static final int CLIENT_TAKE_MAIL = 0x146;
+    /** C# {@code packet147} {@code requestDeleteMail}. */
+    public static final int CLIENT_DELETE_MAIL = 0x147;
     public static final int CLIENT_UPDATE_MACRO = 0x69;
     public static final int CLIENT_REQUEST_SERVER_LIST = 0x43;
     public static final int CLIENT_REQUEST_RANK = 0x47;
@@ -493,6 +515,51 @@ public final class GamePackets {
     public static final int SHOP_ERR_OPEN_NONE = 5200252;
     public static final int SHOP_ERR_BUY_DEFAULT = 5200550;
     public static final int SHOP_ERR_BUY_NONE = 5200552;
+    /** C# {@code NUM_OF_EMAIL_PER_PAGE}. */
+    public static final int MAIL_PER_PAGE = 20;
+    /** C# {@code LIMIT_OF_UNREAD_EMAIL}. */
+    public static final int MAIL_UNREAD_LIMIT = 300;
+    /** C# {@code MailBox.ToArray} {@code WriteStr(from_id, 30)}. */
+    public static final int MAIL_FROM_BYTES = 30;
+    /** C# {@code MailBox.ToArray} {@code WriteStr(msg, 80)}. */
+    public static final int MAIL_MSG_PREVIEW_BYTES = 80;
+    /** C# {@code MailBox.unknown2[18]}. */
+    public static final int MAIL_UNKNOWN2_BYTES = 18;
+    /** C# {@code EmailInfo.item.ToArray} / empty-item pad. */
+    public static final int MAIL_ITEM_BYTES = 55;
+    /**
+     * C# {@code MailBox.ToArray}: id 4 + from 30 + msg 80 + unk 18 + visit 4 +
+     * lida 1 + item_num 4 + item 55.
+     */
+    public static final int MAIL_BOX_ENTRY_BYTES = 4 + MAIL_FROM_BYTES + MAIL_MSG_PREVIEW_BYTES
+            + MAIL_UNKNOWN2_BYTES + 4 + 1 + 4 + MAIL_ITEM_BYTES;
+    /** C# text-only send {@code pang_price} must be 100. */
+    public static final int MAIL_SEND_PANG = 100;
+    /** C# with-items send {@code pang_price} is {@code count * 500}. */
+    public static final int MAIL_SEND_ITEM_PANG = 500;
+    /** C# max attached items. */
+    public static final int MAIL_SEND_ITEM_MAX = 4;
+    /**
+     * C# {@code MAKE_ERROR_TYPE(CHANNEL, 6, 0x790002)} / delete {@code 0x791002}:
+     * catch writes {@code sys & 0xFFFF} = 2.
+     */
+    public static final int MAIL_ERR_PAGE = 2;
+    /** C# missing-mail / empty nick-msg: CHANNEL sys 1. */
+    public static final int MAIL_ERR_CHANNEL = 1;
+    /** C# take-item when the mail has no attachments: {@code pacote214(1)}. */
+    public static final int MAIL_ERR_TAKE_EMPTY = 1;
+    /** C# open-mailbox catch else {@code 0x5500200}. */
+    public static final int MAIL_ERR_OPEN_DEFAULT = 0x5500200;
+    /** C# open-mail catch else {@code 0x5500250}. */
+    public static final int MAIL_ERR_INFO_DEFAULT = 0x5500250;
+    /** C# send-mail catch else (PACKET_FUNC_SV / MAIL_BOX_MANAGER). */
+    public static final int MAIL_ERR_SEND_DEFAULT = 0x5500300;
+    /** C# take-item catch else. */
+    public static final int MAIL_ERR_TAKE_DEFAULT = 0x5500100;
+    /** C# delete-mail catch else. */
+    public static final int MAIL_ERR_DELETE_DEFAULT = 0x5500150;
+    /** C# {@code EmailInfo.ToArray} when {@code from_id} is empty. */
+    public static final String MAIL_FROM_ADM = "@ADM";
     /** C# view {@code WriteString(nick, 22)}. */
     public static final int SHOP_NICK_BYTES = 22;
     /** C# {@code requestBuyItemShop} {@code 0x68} option codes. */
@@ -529,6 +596,11 @@ public final class GamePackets {
     public static final int IFF_GROUP_CHARACTER = 1;
 
     /**
+     * C# {@code LoginManager} case 32 {@code pacote210} before
+     * {@code sendCompleteData}.
+     */
+    public static final int LOGIN_NEW_MAIL_COUNT = 1;
+    /**
      * JP {@code LoginTask.sendCompleteData} prefix after decrypt:
      * {@code 0x44, 0x70, 0x71, 0x73, 0xE1, 0x72, 0x4D}.
      */
@@ -538,7 +610,8 @@ public final class GamePackets {
      * (includes {@code 0xF1}/{@code 0x135}, no GB {@code 0x1B1}).
      */
     public static final int LOGIN_DUMP_TAIL_COUNT = 20;
-    public static final int LOGIN_DUMP_PACKET_COUNT = LOGIN_DUMP_PREFIX_COUNT + LOGIN_DUMP_TAIL_COUNT;
+    public static final int LOGIN_DUMP_PACKET_COUNT =
+            LOGIN_NEW_MAIL_COUNT + LOGIN_DUMP_PREFIX_COUNT + LOGIN_DUMP_TAIL_COUNT;
 
     public static boolean isCharacterTypeid(int typeid) {
         return (typeid >>> 26) == IFF_GROUP_CHARACTER;
@@ -1601,6 +1674,64 @@ public final class GamePackets {
         return new PacketWriter().opcode(SERVER_ENTER_SHOP).u32(0).u32(0).toBytes();
     }
 
+    /** C# {@code MailBox.ToArray} without items: 196 bytes. */
+    public static byte[] mailBoxEntry(int id, String fromId, String msg, int visitCount, int lidaYn, int itemNum) {
+        return new PacketWriter()
+                .i32(id)
+                .fixedStr(fromId, MAIL_FROM_BYTES)
+                .fixedStr(msg, MAIL_MSG_PREVIEW_BYTES)
+                .zero(MAIL_UNKNOWN2_BYTES)
+                .u32(visitCount)
+                .u8(lidaYn)
+                .u32(itemNum)
+                .zero(MAIL_ITEM_BYTES)
+                .toBytes();
+    }
+
+    /** C# {@code pacote210}: i32 option + i32 count + {@code MailBox} rows. */
+    public static byte[] newMail(List<byte[]> entries) {
+        PacketWriter w = new PacketWriter().opcode(SERVER_NEW_MAIL).i32(0).i32(entries.size());
+        for (byte[] entry : entries) {
+            w.bytes(entry);
+        }
+        return w.toBytes();
+    }
+
+    /**
+     * C# {@code pacote211}/{@code pacote215}: error, then page + pages + count + rows
+     * when error is 0.
+     */
+    public static byte[] mailBoxPage(int opcode, int error, int page, int pages, List<byte[]> entries) {
+        PacketWriter w = new PacketWriter().opcode(opcode).i32(error);
+        if (error == 0) {
+            w.i32(page).i32(pages).i32(entries.size());
+            for (byte[] entry : entries) {
+                w.bytes(entry);
+            }
+        }
+        return w.toBytes();
+    }
+
+    public static byte[] mailFail(int opcode, int error) {
+        return new PacketWriter().opcode(opcode).u32(error).toBytes();
+    }
+
+    /**
+     * C# {@code pacote212} + {@code EmailInfo.ToArray} with no attachments
+     * (count 0 still writes a 55-byte zero item).
+     */
+    public static byte[] mailInfoOk(int id, String fromId, String date, String msg, int lidaYn) {
+        PacketWriter w = new PacketWriter().opcode(SERVER_MAIL_INFO).u32(0);
+        w.i32(id);
+        w.pstr(fromId == null || fromId.isEmpty() ? MAIL_FROM_ADM : fromId);
+        w.pstr(date == null ? "" : date);
+        w.pstr(msg == null ? "" : msg);
+        w.u8(lidaYn);
+        w.i32(0);
+        w.zero(MAIL_ITEM_BYTES);
+        return w.toBytes();
+    }
+
     /** C# {@code PlayerRoomInfo.stLocation.ToArray}: x z r. */
     public static byte[] location(float x, float z, float r) {
         return new PacketWriter().f32(x).f32(z).f32(r).toBytes();
@@ -2447,6 +2578,53 @@ public final class GamePackets {
 
     public static byte[] clientEnterShop() {
         return new PacketWriter().opcode(CLIENT_ENTER_SHOP).toBytes();
+    }
+
+    /** C# CLIENT {@code 0x143}: i32 page. */
+    public static byte[] clientOpenMailBox(int page) {
+        return new PacketWriter().opcode(CLIENT_OPEN_MAILBOX).i32(page).toBytes();
+    }
+
+    /** C# CLIENT {@code 0x144}: i32 email id. */
+    public static byte[] clientOpenMail(int emailId) {
+        return new PacketWriter().opcode(CLIENT_OPEN_MAIL).i32(emailId).toBytes();
+    }
+
+    /**
+     * C# CLIENT {@code 0x145}: from/to uid, PStr nick, u16 opt, PStr msg, u64 pang,
+     * u8 count + optional {@code EmailInfo.item} rows.
+     */
+    public static byte[] clientSendMail(
+            int fromUid, int toUid, String nick, int opt, String msg, long pang, int count, byte[] items) {
+        PacketWriter w = new PacketWriter()
+                .opcode(CLIENT_SEND_MAIL)
+                .u32(fromUid)
+                .u32(toUid)
+                .pstr(nick == null ? "" : nick)
+                .u16(opt)
+                .pstr(msg == null ? "" : msg)
+                .u64(pang)
+                .u8(count);
+        if (items != null) {
+            w.bytes(items);
+        }
+        return w.toBytes();
+    }
+
+    /** C# CLIENT {@code 0x146}: i32 email id. */
+    public static byte[] clientTakeMail(int emailId) {
+        return new PacketWriter().opcode(CLIENT_TAKE_MAIL).i32(emailId).toBytes();
+    }
+
+    /** C# CLIENT {@code 0x147}: u32 count + count×u32 ids + u32 page. */
+    public static byte[] clientDeleteMail(int page, int... ids) {
+        PacketWriter w = new PacketWriter().opcode(CLIENT_DELETE_MAIL).u32(ids == null ? 0 : ids.length);
+        if (ids != null) {
+            for (int id : ids) {
+                w.u32(id);
+            }
+        }
+        return w.u32(page).toBytes();
     }
 
     /** C# CLIENT {@code 0x63}: type + remaining payload. */

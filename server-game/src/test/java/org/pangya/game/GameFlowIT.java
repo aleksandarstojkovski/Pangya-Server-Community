@@ -58,30 +58,35 @@ class GameFlowIT {
                 assertEquals(GamePackets.LOGIN_DUMP_PACKET_COUNT, loginPkts.size(),
                         "expected JP sendCompleteData prefix + tail");
 
-                PacketReader ack = new PacketReader(loginPkts.get(0));
+                PacketReader newMail = new PacketReader(loginPkts.get(0));
+                assertEquals(GamePackets.SERVER_NEW_MAIL, newMail.opcode());
+                assertEquals(0, newMail.i32());
+                assertEquals(0, newMail.i32());
+
+                PacketReader ack = new PacketReader(loginPkts.get(1));
                 assertEquals(GamePackets.SERVER_LOGIN_ACK, ack.opcode());
                 assertEquals(GamePackets.ACK_LOGIN_OK, ack.u8());
                 assertEquals(GamePackets.PRINCIPAL_PAYLOAD_BYTES, ack.remaining());
 
-                PacketReader chars = new PacketReader(loginPkts.get(1));
+                PacketReader chars = new PacketReader(loginPkts.get(2));
                 assertEquals(0x70, chars.opcode());
                 assertEquals(1, chars.i16());
                 assertEquals(1, chars.i16());
                 assertEquals(GamePackets.CHARACTER_INFO_BYTES, chars.remaining());
 
-                assertEquals(0x71, new PacketReader(loginPkts.get(2)).opcode());
-                PacketReader warehouse = new PacketReader(loginPkts.get(3));
+                assertEquals(0x71, new PacketReader(loginPkts.get(3)).opcode());
+                PacketReader warehouse = new PacketReader(loginPkts.get(4));
                 assertEquals(0x73, warehouse.opcode());
                 assertEquals(2, warehouse.u16());
                 assertEquals(2, warehouse.u16());
                 assertEquals(2 * GamePackets.WAREHOUSE_ITEM_BYTES, warehouse.remaining());
 
-                assertEquals(0xE1, new PacketReader(loginPkts.get(4)).opcode());
-                PacketReader equip = new PacketReader(loginPkts.get(5));
+                assertEquals(0xE1, new PacketReader(loginPkts.get(5)).opcode());
+                PacketReader equip = new PacketReader(loginPkts.get(6));
                 assertEquals(0x72, equip.opcode());
                 assertEquals(GamePackets.USER_EQUIP_BYTES, equip.remaining());
 
-                PacketReader channels = new PacketReader(loginPkts.get(6));
+                PacketReader channels = new PacketReader(loginPkts.get(7));
                 assertEquals(GamePackets.SERVER_CHANNEL_LIST, channels.opcode());
                 assertEquals(2, channels.u8());
                 assertEquals(2 * 77, channels.remaining());
@@ -278,11 +283,12 @@ class GameFlowIT {
                         GamePackets.xorPacketVersion(GamePackets.JP_PACKET_VERSION),
                         gameKey2));
                 List<byte[]> again = collect(client, GamePackets.LOGIN_DUMP_PACKET_COUNT, 8, TimeUnit.SECONDS);
-                assertEquals(GamePackets.SERVER_LOGIN_ACK, new PacketReader(again.get(0)).opcode());
-                assertEquals(0x70, new PacketReader(again.get(1)).opcode());
-                assertEquals(GamePackets.SERVER_CHANNEL_LIST, new PacketReader(again.get(6)).opcode());
-                assertEquals(0xF1, new PacketReader(again.get(11)).opcode());
-                assertEquals(0x25D, new PacketReader(again.get(26)).opcode());
+                assertEquals(GamePackets.SERVER_NEW_MAIL, new PacketReader(again.get(0)).opcode());
+                assertEquals(GamePackets.SERVER_LOGIN_ACK, new PacketReader(again.get(1)).opcode());
+                assertEquals(0x70, new PacketReader(again.get(2)).opcode());
+                assertEquals(GamePackets.SERVER_CHANNEL_LIST, new PacketReader(again.get(7)).opcode());
+                assertEquals(0xF1, new PacketReader(again.get(12)).opcode());
+                assertEquals(0x25D, new PacketReader(again.get(27)).opcode());
             }
         }
     }
@@ -714,6 +720,122 @@ class GameFlowIT {
             PacketReader shop = awaitOpcode(client, GamePackets.SERVER_ENTER_SHOP);
             assertEquals(0, shop.u32());
             assertEquals(0, shop.u32());
+        }
+    }
+
+    @Test
+    void mailboxOpenSendDeleteMatchCsharp() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config);
+             PangyaFakeClient host = new PangyaFakeClient();
+             PangyaFakeClient guest = new PangyaFakeClient()) {
+            var inventory = new org.pangya.db.JdbiInventoryRepository(org.pangya.db.DatabaseSupport.jdbi(ds));
+            inventory.setPangCookie(10001, 100000, 0);
+            loginTwoPlayers(ds, keys, host, guest, runtime.port());
+
+            host.sendPlain(GamePackets.clientOpenMailBox(1));
+            PacketReader empty = awaitOpcode(host, GamePackets.SERVER_MAILBOX);
+            assertEquals(0, empty.i32());
+            assertEquals(1, empty.i32());
+            assertEquals(1, empty.i32());
+            assertEquals(0, empty.i32());
+
+            host.sendPlain(GamePackets.clientOpenMailBox(0));
+            assertEquals(GamePackets.MAIL_ERR_PAGE,
+                    awaitOpcode(host, GamePackets.SERVER_MAILBOX).u32());
+
+            host.sendPlain(GamePackets.clientOpenMail(1));
+            assertEquals(GamePackets.MAIL_ERR_CHANNEL,
+                    awaitOpcode(host, GamePackets.SERVER_MAIL_INFO).u32());
+
+            host.sendPlain(GamePackets.clientTakeMail(1));
+            assertEquals(GamePackets.MAIL_ERR_TAKE_DEFAULT,
+                    awaitOpcode(host, GamePackets.SERVER_MAIL_TAKE).u32());
+
+            host.sendPlain(GamePackets.clientDeleteMail(1, 1));
+            assertEquals(GamePackets.MAIL_ERR_DELETE_DEFAULT,
+                    awaitOpcode(host, GamePackets.SERVER_MAIL_DELETE).u32());
+
+            host.sendPlain(GamePackets.clientSendMail(
+                    10001, 10002, "", 0, "hello", GamePackets.MAIL_SEND_PANG, 0, null));
+            assertEquals(GamePackets.MAIL_ERR_CHANNEL,
+                    awaitOpcode(host, GamePackets.SERVER_MAIL_SEND).u32());
+
+            host.sendPlain(GamePackets.clientSendMail(
+                    10001, 10002, "TestNick2", 0, "", GamePackets.MAIL_SEND_PANG, 0, null));
+            assertEquals(GamePackets.MAIL_ERR_CHANNEL,
+                    awaitOpcode(host, GamePackets.SERVER_MAIL_SEND).u32());
+
+            host.sendPlain(GamePackets.clientSendMail(
+                    10001, 10002, "TestNick2", 0, "hello", 50, 0, null));
+            assertEquals(GamePackets.MAIL_ERR_SEND_DEFAULT,
+                    awaitOpcode(host, GamePackets.SERVER_MAIL_SEND).u32());
+
+            host.sendPlain(GamePackets.clientSendMail(
+                    10001, 10002, "TestNick2", 0, "hello", GamePackets.MAIL_SEND_ITEM_PANG, 1,
+                    new byte[GamePackets.MAIL_ITEM_BYTES]));
+            assertEquals(GamePackets.MAIL_ERR_SEND_DEFAULT,
+                    awaitOpcode(host, GamePackets.SERVER_MAIL_SEND).u32());
+
+            host.sendPlain(GamePackets.clientSendMail(
+                    10001, 10002, "TestNick2", 0, "hello", GamePackets.MAIL_SEND_PANG, 0, null));
+            PacketReader spent = awaitOpcode(host, GamePackets.SERVER_PANG_SPENT);
+            assertEquals(99900, spent.u64());
+            assertEquals(GamePackets.MAIL_SEND_PANG, spent.u64());
+            assertEquals(0, awaitOpcode(host, GamePackets.SERVER_MAIL_SEND).u32());
+
+            guest.sendPlain(GamePackets.clientOpenMailBox(1));
+            PacketReader page = awaitOpcode(guest, GamePackets.SERVER_MAILBOX);
+            assertEquals(0, page.i32());
+            assertEquals(1, page.i32());
+            assertEquals(1, page.i32());
+            assertEquals(1, page.i32());
+            assertEquals(GamePackets.MAIL_BOX_ENTRY_BYTES, page.remaining());
+            int mailId = page.i32();
+            assertTrue(mailId > 0);
+            assertEquals("TestNick", page.fixedStr(GamePackets.MAIL_FROM_BYTES));
+            assertEquals("hello", page.fixedStr(GamePackets.MAIL_MSG_PREVIEW_BYTES));
+            page.readBytes(GamePackets.MAIL_UNKNOWN2_BYTES);
+            assertEquals(0, page.u32());
+            assertEquals(0, page.u8());
+            assertEquals(0, page.u32());
+            assertEquals(GamePackets.MAIL_ITEM_BYTES, page.remaining());
+
+            guest.sendPlain(GamePackets.clientOpenMail(mailId));
+            PacketReader info = awaitOpcode(guest, GamePackets.SERVER_MAIL_INFO);
+            assertEquals(0, info.u32());
+            assertEquals(mailId, info.i32());
+            assertEquals("TestNick", info.pstr());
+            assertFalse(info.pstr().isEmpty());
+            assertEquals("hello", info.pstr());
+            assertEquals(1, info.u8());
+            assertEquals(0, info.i32());
+            assertEquals(GamePackets.MAIL_ITEM_BYTES, info.remaining());
+
+            guest.sendPlain(GamePackets.clientTakeMail(mailId));
+            assertEquals(GamePackets.MAIL_ERR_TAKE_EMPTY,
+                    awaitOpcode(guest, GamePackets.SERVER_MAIL_TAKE).u32());
+
+            guest.sendPlain(GamePackets.clientDeleteMail(0, mailId));
+            assertEquals(GamePackets.MAIL_ERR_PAGE,
+                    awaitOpcode(guest, GamePackets.SERVER_MAIL_DELETE).u32());
+
+            guest.sendPlain(GamePackets.clientDeleteMail(1, mailId));
+            PacketReader deleted = awaitOpcode(guest, GamePackets.SERVER_MAIL_DELETE);
+            assertEquals(0, deleted.i32());
+            assertEquals(1, deleted.i32());
+            assertEquals(1, deleted.i32());
+            assertEquals(0, deleted.i32());
+
+            inventory.setPangCookie(10001, 100000, 0);
         }
     }
 
