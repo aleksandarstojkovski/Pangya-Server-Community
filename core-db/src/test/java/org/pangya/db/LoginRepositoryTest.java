@@ -1,6 +1,7 @@
 package org.pangya.db;
 
 import org.junit.jupiter.api.Test;
+import org.pangya.protocol.game.GamePackets;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -61,6 +62,10 @@ class LoginRepositoryTest {
             assertEquals("GG", macros[8]);
             repo.saveMacros(10001, new String[] {"Nice shot!"});
             assertEquals("Nice shot!", repo.macros(10001)[0]);
+            repo.setCapability(10001, GamePackets.CAPABILITY_GM);
+            assertEquals(GamePackets.CAPABILITY_GM, repo.playerInfo(10001).orElseThrow().capability());
+            repo.setCapability(10001, 0);
+            assertEquals(0, repo.playerInfo(10001).orElseThrow().capability());
         }
     }
 

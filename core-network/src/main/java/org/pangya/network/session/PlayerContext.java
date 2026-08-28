@@ -7,6 +7,11 @@ public final class PlayerContext {
     public volatile String id = "";
     public volatile String nickname = "";
     public volatile int capability;
+    /**
+     * C# {@code GMInfo.visible} / {@code state_flag.visible}. Non-GM starts at 1;
+     * GM starts at 0 (invisible until {@code CCG_VISIBLE}).
+     */
+    public volatile int gmVisible = 1;
     public volatile int level;
     public volatile long idState;
     public volatile int blockTime = -1;

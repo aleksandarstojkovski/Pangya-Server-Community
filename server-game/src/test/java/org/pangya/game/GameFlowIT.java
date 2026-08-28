@@ -487,6 +487,86 @@ class GameFlowIT {
     }
 
     @Test
+    void gmVisibleBroadcastsLobbyUpdate() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config);
+             PangyaFakeClient host = new PangyaFakeClient()) {
+            LoginRepository repo = new JdbiLoginRepository(DatabaseSupport.jdbi(ds));
+            repo.setCapability(10001, GamePackets.CAPABILITY_GM);
+            try {
+                String loginKey = repo.generateAuthKeyLogin(10001);
+                String gameKey = repo.generateAuthKeyGame(10001, 20202);
+                keys.putLoginKey(10001, loginKey);
+                keys.putGameKey(10001, 20202, gameKey);
+                loginToChannel(host, runtime.port(), "testuser", 10001, loginKey, gameKey);
+                host.sendPlain(GamePackets.clientGmVisible(1));
+                PacketReader update = awaitOpcode(host, GamePackets.SERVER_USERLIST);
+                assertEquals(GamePackets.LOBBY_USER_UPDATE, update.u8());
+                assertEquals(1, update.u8());
+                assertEquals(10001, update.u32());
+                update.i32();
+                update.u16();
+                update.readBytes(22);
+                update.u8();
+                assertEquals(GamePackets.CAPABILITY_GM, update.i32());
+                PacketReader chat = awaitOpcode(host, GamePackets.SERVER_CHAT);
+                assertEquals(GamePackets.CHAT_NOTICE, chat.u8());
+                assertEquals("TestNick", chat.pstr());
+                assertEquals(
+                        GamePackets.chatColor(GamePackets.CHAT_GREEN_HEX, GamePackets.GM_CMD_OK),
+                        chat.pstr());
+                host.sendPlain(GamePackets.clientGmVisible(0));
+                PacketReader hidden = awaitOpcode(host, GamePackets.SERVER_USERLIST);
+                assertEquals(GamePackets.LOBBY_USER_UPDATE, hidden.u8());
+                hidden.u8();
+                hidden.u32();
+                hidden.i32();
+                hidden.u16();
+                hidden.readBytes(22);
+                hidden.u8();
+                assertEquals(0, hidden.i32());
+            } finally {
+                repo.setCapability(10001, 0);
+            }
+        }
+    }
+
+    @Test
+    void spyEntersLockedRoomWithPassword() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config);
+             PangyaFakeClient host = new PangyaFakeClient();
+             PangyaFakeClient guest = new PangyaFakeClient()) {
+            loginTwoPlayers(ds, keys, host, guest, runtime.port());
+            host.sendPlain(GamePackets.clientCreateRoom(GamePackets.TIPO_LOUNGE, "LG", "pw"));
+            PacketReader created = awaitOpcode(host, GamePackets.SERVER_ROOM_ENTER_RESULT);
+            assertEquals(0, created.i16());
+            int numero = roomNumberFromInfo(created.readBytes(GamePackets.ROOM_INFO_BYTES));
+            guest.sendPlain(GamePackets.clientJoinGallery(numero, "no"));
+            guest.sendPlain(GamePackets.clientRequestCash());
+            awaitOpcode(guest, GamePackets.SERVER_COOKIE);
+            guest.sendPlain(GamePackets.clientJoinGallery(numero, "pw"));
+            assertEquals(0, awaitOpcode(guest, GamePackets.SERVER_ROOM_ENTER_RESULT).i16());
+        }
+    }
+
+    @Test
     void twoPlayersStartMatchAndReceiveVersusDump() throws Exception {
         startTwoPlayerVersusMode(GamePackets.TIPO_MATCH, "MATCH");
     }

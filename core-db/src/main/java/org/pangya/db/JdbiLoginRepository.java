@@ -57,6 +57,18 @@ public final class JdbiLoginRepository implements LoginRepository {
     }
 
     @Override
+    public void setCapability(long uid, int capability) {
+        jdbi.useHandle(h -> h.createUpdate("""
+                        UPDATE pangya.account
+                           SET capability = :cap
+                         WHERE "UID" = :uid
+                        """)
+                .bind("cap", capability)
+                .bind("uid", uid)
+                .execute());
+    }
+
+    @Override
     public Optional<PlayerLoginInfo> playerInfoByNick(String nick) {
         if (nick == null || nick.isBlank()) {
             return Optional.empty();

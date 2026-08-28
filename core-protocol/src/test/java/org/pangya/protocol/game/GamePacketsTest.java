@@ -1265,6 +1265,13 @@ class GamePacketsTest {
         assertEquals(GamePackets.CLIENT_WEB_LINK, 0xA1);
         assertEquals(GamePackets.CLIENT_JOIN_GALLERY, 0x3E);
         assertEquals(GamePackets.CLIENT_GM_COMMAND, 0x8F);
+        assertEquals(GamePackets.GM_CMD_VISIBLE, 3);
+        PacketReader gmVisible = new PacketReader(GamePackets.clientGmVisible(1));
+        assertEquals(GamePackets.CLIENT_GM_COMMAND, gmVisible.opcode());
+        assertEquals(GamePackets.GM_CMD_VISIBLE, gmVisible.i16());
+        assertEquals(1, gmVisible.u16());
+        assertEquals("\\c0xff00ff00\\cExecuted Command.", GamePackets.chatColor(
+                GamePackets.CHAT_GREEN_HEX, GamePackets.GM_CMD_OK));
         assertEquals(GamePackets.CLIENT_ACTIVE_AUTO_COMMAND, 0x156);
         assertEquals(GamePackets.CLIENT_REQUEST_KICK, 0x61);
         assertEquals(GamePackets.CLIENT_REQUEST_PANG_INFO, 0xA2);
@@ -1460,6 +1467,8 @@ class GamePacketsTest {
         assertEquals(GamePackets.TYPEID_CARD_NORMAL, 0x7C000001);
         assertEquals(GamePackets.LOLO_PANG_NORMAL, 1000);
         assertEquals(GamePackets.SERVER_LOLO_TIPO, 0x229);
+        assertEquals(GamePackets.GM_CMD_VISIBLE, 3);
+        assertEquals(GamePackets.CAPABILITY_GM, 4);
         assertEquals(GamePackets.SERVER_BUY_ACK, 0x68);
         assertEquals(GamePackets.CREATE_ROOM_FAILED, 0x07);
         assertEquals(GamePackets.SERVER_LAST5, 0x10E);

@@ -532,7 +532,10 @@ public final class GamePackets {
      * Same numeric as {@link #SERVER_PAUSE}, opposite direction.
      */
     public static final int CLIENT_REQUEST_MESSENGER_LIST = 0x8B;
-    /** C# {@code CLIENT_GM_COMMAND} / {@code packet08F}. Non-GM catch is silent. */
+    /**
+     * C# {@code CLIENT_GM_COMMAND} / {@code packet08F}. Non-GM / fail sends
+     * {@code 0x40} notice; {@code CCG_VISIBLE} success updates lobby {@code 0x46}.
+     */
     public static final int CLIENT_GM_COMMAND = 0x8F;
     /** C# {@code packet0B4}: log-only invite relog. */
     public static final int CLIENT_INVITE_RELOGIN = 0xB4;
@@ -978,6 +981,16 @@ public final class GamePackets {
     public static final int TICKER_FAIL_FUNDS = 4;
     /** C# {@code capability.game_master} bit. */
     public static final int CAPABILITY_GM = 4;
+    /** C# {@code COMMON_CMD_GM.CCG_VISIBLE}. */
+    public static final int GM_CMD_VISIBLE = 3;
+    /** C# {@code UtilChat.ChatColor.Green} {@code ToHexString}. */
+    public static final String CHAT_GREEN_HEX = "0xff00ff00";
+    /** C# {@code UtilChat.ChatColor.Red} {@code ToHexString}. */
+    public static final String CHAT_RED_HEX = "0xffff0000";
+    /** C# {@code SendChatNotice("Executed Command.")} after a GM command. */
+    public static final String GM_CMD_OK = "Executed Command.";
+    /** C# {@code SendChatNotice} catch else. */
+    public static final String GM_CMD_FAIL = "Nao conseguiu executar o comando.";
     /** C# {@code TranslationSubPacket.Msg_OFF}. */
     public static final int MSN_MSG_OFF = 0x111;
     /** C# {@code TranslationSubPacket.Friend_List} (not implemented in C#). */
@@ -3153,6 +3166,17 @@ public final class GamePackets {
     }
 
     /**
+     * C# {@code UtilChat.FixColor}: {@code \c0xff00ff00\c} + text. Empty text is
+     * returned unchanged.
+     */
+    public static String chatColor(String hex, String text) {
+        if (text == null || text.isEmpty()) {
+            return text == null ? "" : text;
+        }
+        return "\\c" + hex + "\\c" + text;
+    }
+
+    /**
      * C# {@code packet_func.pacote078} — ready state for one player.
      */
     public static byte[] readyState(int oid, int ready) {
@@ -4235,6 +4259,15 @@ public final class GamePackets {
     /** C# CLIENT {@code 0x8F}: i16 cmd. */
     public static byte[] clientGmCommand(int cmd) {
         return new PacketWriter().opcode(CLIENT_GM_COMMAND).i16(cmd).toBytes();
+    }
+
+    /** C# CLIENT {@code 0x8F} {@code CCG_VISIBLE}: i16 3 + u16 visible. */
+    public static byte[] clientGmVisible(int visible) {
+        return new PacketWriter()
+                .opcode(CLIENT_GM_COMMAND)
+                .i16(GM_CMD_VISIBLE)
+                .u16(visible)
+                .toBytes();
     }
 
     /** C# CLIENT {@code 0x156} empty. */

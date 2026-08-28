@@ -352,6 +352,7 @@ public final class GameHandler {
             }
             pi.nickname = info.nickname();
             pi.capability = info.capability();
+            pi.gmVisible = (pi.capability & GamePackets.CAPABILITY_GM) != 0 ? 0 : 1;
             pi.level = info.level();
             pi.idState = info.idState();
             pi.blockTime = info.blockTimeSeconds();
@@ -533,6 +534,14 @@ public final class GameHandler {
             session.send(GamePackets.roomCreateFailed(GamePackets.CREATE_ROOM_FAILED));
             return;
         }
+        enterExistingRoom(session, room);
+    }
+
+    /**
+     * C# {@code Room.enter} after password/invite checks: add, {@code pacote04A}/
+     * {@code 049}/{@code 048}, lobby room + player update.
+     */
+    private void enterExistingRoom(Session session, GameRoom room) {
         if (!room.addPlayer(session)) {
             session.send(GamePackets.roomCreateFailed(GamePackets.CREATE_ROOM_FAILED));
             return;
@@ -2618,6 +2627,7 @@ public final class GameHandler {
         info.nick = pi.nickname == null ? "" : pi.nickname;
         info.level = pi.level;
         info.capability = pi.capability;
+        info.flagVisibleGm = pi.gmVisible;
         info.teamPoint = 1000;
         info.nickDisplay = "@NT_" + info.nick;
         if (pi.away != 0) {
@@ -3171,30 +3181,86 @@ public final class GameHandler {
     }
 
     /**
-     * C# {@code requestEnterSpyRoom}: missing/locked room catch is silent.
+     * C# {@code requestEnterSpyRoom}: locked room + matching password enters;
+     * missing/unlocked/wrong password catch is silent.
      */
     private void enterSpyRoom(Session session, PacketReader reader) {
         if (!inChannel(session) || reader.remaining() < 2) {
             return;
         }
-        reader.u16();
-        if (reader.remaining() >= 2) {
-            reader.pstr();
+        int numero = reader.u16() & 0xffff;
+        String senha = reader.remaining() >= 2 ? reader.pstr() : "";
+        GameRoom room = rooms.get(numero);
+        if (room == null || room.info.senhaFlag != 0) {
+            return;
         }
+        if (!room.info.password.equals(senha == null ? "" : senha)) {
+            return;
+        }
+        if (room.inGame) {
+            return;
+        }
+        enterExistingRoom(session, room);
     }
 
     /**
-     * C# {@code requestCommonCmdGM}: non-GM throws GAME_SERVER; packet catch
-     * is silent.
+     * C# {@code requestCommonCmdGM}: non-GM / fail {@code 0x40} red notice;
+     * {@code CCG_VISIBLE} sets {@code GMInfo.visible} and broadcasts lobby
+     * {@code 0x46} option 3 then green {@code Executed Command.}.
      */
     private void commonCmdGm(Session session, PacketReader reader) {
         if (!session.authorized() || reader.remaining() < 2) {
             return;
         }
-        reader.i16();
-        if ((session.player().capability & 4) == 0) {
+        int cmd = reader.i16();
+        String nick = session.player().nickname == null ? "" : session.player().nickname;
+        if ((session.player().capability & GamePackets.CAPABILITY_GM) == 0) {
+            session.send(GamePackets.chat(
+                    GamePackets.CHAT_NOTICE,
+                    nick,
+                    GamePackets.chatColor(GamePackets.CHAT_RED_HEX, GamePackets.GM_CMD_FAIL)));
             return;
         }
+        if (cmd != GamePackets.GM_CMD_VISIBLE) {
+            session.send(GamePackets.chat(
+                    GamePackets.CHAT_NOTICE,
+                    nick,
+                    GamePackets.chatColor(GamePackets.CHAT_RED_HEX, GamePackets.GM_CMD_FAIL)));
+            return;
+        }
+        if (!inChannel(session) || reader.remaining() < 2) {
+            session.send(GamePackets.chat(
+                    GamePackets.CHAT_NOTICE,
+                    nick,
+                    GamePackets.chatColor(GamePackets.CHAT_RED_HEX, GamePackets.GM_CMD_FAIL)));
+            return;
+        }
+        int visible = reader.u16() & 1;
+        PlayerContext pi = session.player();
+        if (pi.roomNumber >= 0 && rooms.get(pi.roomNumber) == null) {
+            session.send(GamePackets.chat(
+                    GamePackets.CHAT_NOTICE,
+                    nick,
+                    GamePackets.chatColor(GamePackets.CHAT_RED_HEX, GamePackets.GM_CMD_FAIL)));
+            return;
+        }
+        pi.gmVisible = visible;
+        if (pi.channelId >= 0) {
+            broadcastChannel(pi.channelId, GamePackets.lobbyUsers(
+                    GamePackets.LOBBY_USER_UPDATE, List.of(makeLobbyInfo(session))));
+        }
+        GameRoom room = rooms.get(pi.roomNumber);
+        if (room != null) {
+            GamePackets.PlayerRoomInfo pri = room.playerInfo(session);
+            if (pri != null) {
+                int base = GamePackets.usesCompactPlayerRoomInfo(room.tipo) ? 0x100 : 0;
+                room.broadcast(GamePackets.roomPlayers(base + 3, List.of(pri)));
+            }
+        }
+        session.send(GamePackets.chat(
+                GamePackets.CHAT_NOTICE,
+                nick,
+                GamePackets.chatColor(GamePackets.CHAT_GREEN_HEX, GamePackets.GM_CMD_OK)));
     }
 
     /**

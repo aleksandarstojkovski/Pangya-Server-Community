@@ -12,6 +12,9 @@ public interface LoginRepository {
 
     Optional<PlayerLoginInfo> playerInfo(long uid);
 
+    /** Test/GM helper: {@code pangya.account.capability}. */
+    void setCapability(long uid, int capability);
+
     /** C# {@code CmdVerifyNick} + {@code CmdMemberInfo} lookup by nickname. */
     Optional<PlayerLoginInfo> playerInfoByNick(String nick);
 
