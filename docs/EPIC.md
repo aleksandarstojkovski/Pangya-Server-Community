@@ -8,7 +8,7 @@ Questo repo è **solo** la riscrittura Java.
 
 | Campo | Valore |
 |-------|--------|
-| Slice completata | **S0 + S1 + S2** verdi; **S3** Game login/channel/Practice stub in corso |
+| Slice completata | **S0 + S1 + S2 + S3** verdi |
 | Prossima | **S4** Versus, Tourney, GP, inventario completo |
 | Blocked | nessuno |
 | VM | Java 21.0.10, Docker 29.7.2, Compose v5.5.0, 4 CPU / 15 GiB |
@@ -145,7 +145,18 @@ Create-user flag C# (`CREATEUSER=1`) **non** portato in S2: account assente → 
 
 C# `LoginTask.sendCompleteData` invia `pacote044` option 0 con `principal()` + warehouse + characters + caddies + mascot + `pacote04D` channel list. **S3 non porta l'inventario**: success è `0x44` byte 0 (senza blob player) + `0x4D` canali da YAML. Practice (`RoomInfo.TIPO = 19`) entra con `0x08` e lascia con `0x130` senza serializzazione completa di `Room.getInfo()`. Un client reale non completa il lobby fino a S4; il fake client verifica gli opcode.
 
-## S3 evidenza
+## S3 evidenza (2026-08-28)
+
+`RoomInfo.TIPO.PRACTICE = 19` (SSC = 18). Game hello raw `0x3F`. CLIENT `0x02` valida auth keys Redis+SQL e `Version_Decrypt` (XOR GUID). Success: `0x44` byte 0 (stub) + `0x4D` canali YAML. `0x04` → `0x4E` option 1. Practice `0x08` tipo 19 → stub `0x49`; leave `0x130`. Kill sessione: secondo login dopo disconnect.
+
+```
+./gradlew --no-daemon :core-protocol:test :core-network:test :core-db:test :server-login:test :server-auth:test :server-game:test
+# GamePacketsTest 4/4 PASSED
+# GameHandlerTest 2/2 PASSED
+# GameFlowIT fakeClientLogsInEntersChannelCreatesAndLeavesPractice PASSED
+# GameFlowIT badGameKeySendsSecurityAck PASSED
+# BUILD SUCCESSFUL
+```
 
 ## Note GC / Netty (S6)
 
