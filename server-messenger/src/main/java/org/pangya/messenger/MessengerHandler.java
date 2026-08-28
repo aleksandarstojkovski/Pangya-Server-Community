@@ -17,6 +17,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.IntConsumer;
 
 /**
  * JP {@code MessengerServer.requestLogin} + friend/presence/chat handlers.
@@ -31,6 +32,7 @@ public final class MessengerHandler {
     private final AuthOutbound authOut;
     private final boolean authRequired;
     private final ConcurrentHashMap<Long, FriendManager> friendManagers = new ConcurrentHashMap<>();
+    private IntConsumer shutdownScheduler = sec -> log.warn("auth shutdown {} sec (no scheduler wired)", sec);
 
     public MessengerHandler(LoginRepository repo, FriendRepository friends, SessionManager sessions) {
         this(repo, friends, sessions, new AuthOutbound() {
@@ -50,6 +52,10 @@ public final class MessengerHandler {
         this.sessions = sessions;
         this.authOut = authOut;
         this.authRequired = authRequired;
+    }
+
+    void setShutdownScheduler(IntConsumer scheduler) {
+        this.shutdownScheduler = scheduler == null ? sec -> {} : scheduler;
     }
 
     public void onPacket(Session session, byte[] plaintext) {
@@ -97,6 +103,7 @@ public final class MessengerHandler {
      */
     public void onAuthPacket(int opcode, PacketReader body) {
         switch (opcode) {
+            case AuthS2s.AUTH_SHUTDOWN -> shutdownScheduler.accept(body.i32());
             case AuthS2s.AUTH_DISCONNECT_PLAYER -> authDisconnectPlayer(body);
             case AuthS2s.AUTH_INFO_PLAYER_ONLINE -> authInfoPlayerOnline(body);
             case AuthS2s.AUTH_CONFIRM_PLAYER_INFO -> authConfirmPlayerInfo(body);

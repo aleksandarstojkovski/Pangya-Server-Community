@@ -18,7 +18,7 @@ C# handlers are inline in `AuthServer/AuthServerTcp/AuthServer.cs` and `unit_aut
 | Child→Auth | confirm disconnect | `0x03` | `AuthS2s.confirmDisconnectResponse` → `AuthOutbound.sendConfirmDisconnectPlayer` |
 | Child→Auth | info player request | `0x04` | `AuthS2s.requestInfoPlayerOnline` |
 | Child→Auth | confirm info reply | `0x05` | `AuthS2s.infoPlayerOnlineResponse` |
-| Auth→child | shutdown | `0x02` | `AuthS2s.AUTH_SHUTDOWN` → `GameHandler.authShutdown` → `GameRuntime.scheduleAuthShutdown` |
+| Auth→child | shutdown | `0x02` | `AuthS2s.AUTH_SHUTDOWN` → child `AuthShutdownScheduler` (Game/Login/Ranking/Messenger) |
 | Auth→child | broadcast notice | `0x03` | `AuthS2s.AUTH_BROADCAST_NOTICE` → `GameHandler.authBroadcastNotice` (`0x42`) |
 | Auth→child | broadcast ticker | `0x04` | `AuthS2s.AUTH_BROADCAST_TICKER` → `GameHandler.authBroadcastTicker` (`0xC9`) |
 | Auth→child | cube win rare | `0x05` | `AuthS2s.AUTH_BROADCAST_CUBE_WIN_RARE` → `GameHandler.authBroadcastCubeWinRare` (`0x1D3`) |

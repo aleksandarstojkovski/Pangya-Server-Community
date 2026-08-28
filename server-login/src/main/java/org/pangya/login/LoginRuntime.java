@@ -9,6 +9,7 @@ import org.pangya.network.HealthHttp;
 import org.pangya.network.PangyaMetrics;
 import org.pangya.network.auth.AuthOutbound;
 import org.pangya.network.auth.AuthServerConnector;
+import org.pangya.network.auth.AuthShutdownScheduler;
 import org.pangya.network.ddos.IpDdosFilter;
 import org.pangya.network.netty.PangyaNettyServer;
 import org.pangya.network.netty.ServerKind;
@@ -21,6 +22,7 @@ import org.slf4j.LoggerFactory;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.IntConsumer;
 
 public final class LoginRuntime implements AutoCloseable {
 
@@ -35,13 +37,19 @@ public final class LoginRuntime implements AutoCloseable {
     private final LoginHandler handler;
     private final AtomicBoolean running = new AtomicBoolean(true);
     private final Thread heartbeat;
+    private final AuthShutdownScheduler shutdownScheduler;
 
     public LoginRuntime(AppConfig config) {
-        this(config, null);
+        this(config, null, null);
     }
 
     /** Tests may override auth outbound when {@code authEnabled} is false. */
     LoginRuntime(AppConfig config, AuthOutbound authOutOverride) {
+        this(config, authOutOverride, null);
+    }
+
+    /** Tests may override shutdown scheduling to avoid stopping the IT runtime. */
+    LoginRuntime(AppConfig config, AuthOutbound authOutOverride, IntConsumer shutdownOverride) {
         this.config = config;
         this.dataSource = DatabaseSupport.dataSource(config.jdbcUrl(), config.dbUser(), config.dbPassword());
         LoginRepository repo = new JdbiLoginRepository(DatabaseSupport.jdbi(dataSource));
@@ -64,6 +72,17 @@ public final class LoginRuntime implements AutoCloseable {
                     };
             this.handler = new LoginHandler(config, repo, redis, sessions, outbound);
         }
+        AuthShutdownScheduler sched = null;
+        if (shutdownOverride != null) {
+            handler.setShutdownScheduler(shutdownOverride);
+        } else {
+            sched = new AuthShutdownScheduler(() -> {
+                running.set(false);
+                close();
+            });
+            handler.setShutdownScheduler(sched::schedule);
+        }
+        this.shutdownScheduler = sched;
         this.netty = new PangyaNettyServer(ServerKind.LOGIN, sessions, handler::onPacket, config.uid());
         this.netty.bind(config.port());
         PangyaMetrics metrics = new PangyaMetrics(config.serverName(), sessions::size);
@@ -151,6 +170,9 @@ public final class LoginRuntime implements AutoCloseable {
     @Override
     public void close() {
         running.set(false);
+        if (shutdownScheduler != null) {
+            shutdownScheduler.close();
+        }
         heartbeat.interrupt();
         if (auth != null) {
             auth.close();

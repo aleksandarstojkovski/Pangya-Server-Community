@@ -11,6 +11,8 @@ import org.pangya.protocol.packet.PacketReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.function.IntConsumer;
+
 /**
  * C# base {@code Server.authCmdInfoPlayerOnline} + child disconnect for Ranking (tipo=4).
  * Ranking source is not in the JP reference tree; behavior matches Game/Messenger minus {@code 0x0C}.
@@ -23,6 +25,7 @@ public final class RankingAuthHandler {
     private final LoginRepository repo;
     private final SessionManager sessions;
     private final AuthOutbound authOut;
+    private IntConsumer shutdownScheduler = sec -> log.warn("auth shutdown {} sec (no scheduler wired)", sec);
 
     public RankingAuthHandler(AppConfig config, LoginRepository repo, SessionManager sessions, AuthOutbound authOut) {
         this.config = config;
@@ -31,8 +34,13 @@ public final class RankingAuthHandler {
         this.authOut = authOut;
     }
 
+    void setShutdownScheduler(IntConsumer scheduler) {
+        this.shutdownScheduler = scheduler == null ? sec -> {} : scheduler;
+    }
+
     public void onAuthPacket(int opcode, PacketReader body) {
         switch (opcode) {
+            case AuthS2s.AUTH_SHUTDOWN -> shutdownScheduler.accept(body.i32());
             case AuthS2s.AUTH_DISCONNECT_PLAYER -> authDisconnectPlayer(body);
             case AuthS2s.AUTH_INFO_PLAYER_ONLINE -> authInfoPlayerOnline(body);
             default -> log.debug("unhandled auth packet 0x{}", Integer.toHexString(opcode));

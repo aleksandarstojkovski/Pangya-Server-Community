@@ -17,6 +17,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.regex.Pattern;
+import java.util.function.IntConsumer;
 
 /**
  * JP {@code LoginServer.requestLogin} + {@code packet_func_ls.succes_login} / {@code packet003}.
@@ -36,6 +37,7 @@ public final class LoginHandler {
     private final SessionKeyStore redis;
     private final SessionManager sessions;
     private final AuthOutbound authOut;
+    private IntConsumer shutdownScheduler = sec -> log.warn("auth shutdown {} sec (no scheduler wired)", sec);
 
     public LoginHandler(AppConfig config, LoginRepository repo, SessionKeyStore redis, SessionManager sessions) {
         this(config, repo, redis, sessions, new AuthOutbound() {
@@ -57,6 +59,10 @@ public final class LoginHandler {
         this.authOut = authOut;
     }
 
+    void setShutdownScheduler(IntConsumer scheduler) {
+        this.shutdownScheduler = scheduler == null ? sec -> {} : scheduler;
+    }
+
     public void onPacket(Session session, byte[] plaintext) {
         if (plaintext.length < 2) {
             return;
@@ -76,6 +82,7 @@ public final class LoginHandler {
     /** C# {@code LoginServer.authCmd*} from Auth via {@code unit_auth_server_connect}. */
     public void onAuthPacket(int opcode, PacketReader body) {
         switch (opcode) {
+            case AuthS2s.AUTH_SHUTDOWN -> shutdownScheduler.accept(body.i32());
             case AuthS2s.AUTH_DISCONNECT_PLAYER -> authDisconnectPlayer(body);
             case AuthS2s.AUTH_CONFIRM_DISCONNECT -> authConfirmDisconnectPlayer(body);
             default -> log.debug("unhandled auth packet 0x{}", Integer.toHexString(opcode));

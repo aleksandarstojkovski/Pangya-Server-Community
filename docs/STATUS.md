@@ -13,7 +13,7 @@ Conteggio Channel: **197** handler `packet_func_sv` registrati in `GameService.i
 
 ## Questo turno
 
-Fatto: Auth rate change broadcast `0xF9`; auth shutdown timer (`AUTH_SHUTDOWN` → `shutdown_time`); Game auth admin/broadcast; auth inbound su tutti i child server.
+Fatto: Auth shutdown timer su tutti i child server (`AuthShutdownScheduler`); Auth rate `0xF9`; auth admin/broadcast; auth inbound completo.
 Prossimo: IFF pin/cube/`initComboDef`; capture JP S9; S4 `reloadGlobalSystem` loaders.
 Blocco: file IFF assenti (pin/cube live, `initComboDef`); nessuna capture client JP Season 9.
 

@@ -217,6 +217,23 @@ class RankingFlowIT {
     }
 
     @Test
+    void authShutdownForwardsSecondsToScheduler() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        java.util.concurrent.atomic.AtomicInteger requested = new java.util.concurrent.atomic.AtomicInteger(-1);
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password));
+        try (RankingRuntime runtime = new RankingRuntime(config, null, requested::set)) {
+            runtime.authHandler().onAuthPacket(
+                    AuthS2s.AUTH_SHUTDOWN,
+                    new PacketReader(new PacketWriter().i32(60).toBytes()));
+            assertEquals(60, requested.get());
+        }
+    }
+
+    @Test
     void unknownIdSendsErrorPage() throws Exception {
         String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
         String user = env("PANGYA_TEST_JDBC_USER", "pangya");

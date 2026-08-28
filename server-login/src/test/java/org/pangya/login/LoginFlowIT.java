@@ -174,6 +174,24 @@ class LoginFlowIT {
     }
 
     @Test
+    void authShutdownForwardsSecondsToScheduler() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redis = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        java.util.concurrent.atomic.AtomicInteger requested = new java.util.concurrent.atomic.AtomicInteger(-1);
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redis));
+        try (LoginRuntime runtime = new LoginRuntime(config, null, requested::set)) {
+            runtime.handler().onAuthPacket(
+                    AuthS2s.AUTH_SHUTDOWN,
+                    new PacketReader(new PacketWriter().i32(120).toBytes()));
+            assertEquals(120, requested.get());
+        }
+    }
+
+    @Test
     void badPasswordSendsOption6() throws Exception {
         String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
         String user = env("PANGYA_TEST_JDBC_USER", "pangya");

@@ -11,6 +11,7 @@ import org.pangya.network.HealthHttp;
 import org.pangya.network.PangyaMetrics;
 import org.pangya.network.auth.AuthOutbound;
 import org.pangya.network.auth.AuthServerConnector;
+import org.pangya.network.auth.AuthShutdownScheduler;
 import org.pangya.network.ddos.IpDdosFilter;
 import org.pangya.network.netty.PangyaNettyServer;
 import org.pangya.network.netty.ServerKind;
@@ -20,6 +21,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.concurrent.CountDownLatch;
+import java.util.function.IntConsumer;
 
 public final class RankingRuntime implements AutoCloseable {
 
@@ -30,13 +32,19 @@ public final class RankingRuntime implements AutoCloseable {
     private final HealthHttp health;
     private final AuthServerConnector auth;
     private final RankingAuthHandler authHandler;
+    private final AuthShutdownScheduler shutdownScheduler;
 
     public RankingRuntime(AppConfig config) {
-        this(config, null);
+        this(config, null, null);
     }
 
     /** Tests may override auth outbound when {@code authEnabled} is false. */
     RankingRuntime(AppConfig config, AuthOutbound authOutOverride) {
+        this(config, authOutOverride, null);
+    }
+
+    /** Tests may override shutdown scheduling to avoid stopping the IT runtime. */
+    RankingRuntime(AppConfig config, AuthOutbound authOutOverride, IntConsumer shutdownOverride) {
         this.dataSource = DatabaseSupport.dataSource(config.jdbcUrl(), config.dbUser(), config.dbPassword());
         LoginRepository repo = new JdbiLoginRepository(DatabaseSupport.jdbi(dataSource));
         RankRepository ranks = new JdbiRankRepository(DatabaseSupport.jdbi(dataSource));
@@ -59,6 +67,14 @@ public final class RankingRuntime implements AutoCloseable {
                     };
             this.authHandler = new RankingAuthHandler(config, repo, sessions, outbound);
         }
+        AuthShutdownScheduler sched = null;
+        if (shutdownOverride != null) {
+            authHandler.setShutdownScheduler(shutdownOverride);
+        } else {
+            sched = new AuthShutdownScheduler(this::close);
+            authHandler.setShutdownScheduler(sched::schedule);
+        }
+        this.shutdownScheduler = sched;
         this.netty = new PangyaNettyServer(ServerKind.RANKING, sessions, handler::onPacket);
         this.netty.bind(config.port());
         PangyaMetrics metrics = new PangyaMetrics(config.serverName(), sessions::size);
@@ -76,6 +92,9 @@ public final class RankingRuntime implements AutoCloseable {
 
     @Override
     public void close() {
+        if (shutdownScheduler != null) {
+            shutdownScheduler.close();
+        }
         if (auth != null) {
             auth.close();
         }

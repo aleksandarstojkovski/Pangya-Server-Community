@@ -11,6 +11,7 @@ import org.pangya.network.HealthHttp;
 import org.pangya.network.PangyaMetrics;
 import org.pangya.network.auth.AuthOutbound;
 import org.pangya.network.auth.AuthServerConnector;
+import org.pangya.network.auth.AuthShutdownScheduler;
 import org.pangya.protocol.auth.AuthS2s;
 import org.pangya.network.ddos.IpDdosFilter;
 import org.pangya.network.netty.PangyaNettyServer;
@@ -21,10 +22,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.IntConsumer;
 
@@ -42,9 +39,7 @@ public final class GameRuntime implements AutoCloseable {
     private final GameAuthHandler authHandler;
     private final AtomicBoolean running = new AtomicBoolean(true);
     private final Thread heartbeat;
-    private final ScheduledExecutorService shutdownExec = Executors.newSingleThreadScheduledExecutor(
-            r -> Thread.ofVirtual().name("game-auth-shutdown").unstarted(r));
-    private volatile ScheduledFuture<?> shutdownFuture;
+    private final AuthShutdownScheduler shutdownScheduler;
 
     public GameRuntime(AppConfig config) {
         this(config, null, null);
@@ -84,11 +79,17 @@ public final class GameRuntime implements AutoCloseable {
         this.netty = new PangyaNettyServer(ServerKind.GAME, sessions, handler::onPacket);
         this.netty.bind(config.port());
         handler.setBindPort(netty.localPort());
+        AuthShutdownScheduler sched = null;
         if (shutdownOverride != null) {
             handler.setShutdownScheduler(shutdownOverride);
         } else {
-            handler.setShutdownScheduler(this::scheduleAuthShutdown);
+            sched = new AuthShutdownScheduler(() -> {
+                running.set(false);
+                close();
+            });
+            handler.setShutdownScheduler(sched::schedule);
         }
+        this.shutdownScheduler = sched;
         PangyaMetrics metrics = new PangyaMetrics(config.serverName(), sessions::size);
         this.health = new HealthHttp(config.healthPort(), config.serverName(), metrics);
         heartbeatOnce(repo);
@@ -111,28 +112,6 @@ public final class GameRuntime implements AutoCloseable {
     /** Integration tests invoke auth callbacks through the live session manager. */
     GameAuthHandler authHandler() {
         return authHandler;
-    }
-
-    /** C# {@code GameService.authCmdShutdown} → {@code shutdown_time}. */
-    private void scheduleAuthShutdown(int timeSec) {
-        if (timeSec <= 0) {
-            log.warn("auth shutdown immediate");
-            triggerAuthShutdown();
-            return;
-        }
-        synchronized (this) {
-            if (shutdownFuture != null && !shutdownFuture.isDone()) {
-                log.warn("auth shutdown timer already active, ignoring {} sec request", timeSec);
-                return;
-            }
-            log.warn("auth shutdown scheduled in {} sec", timeSec);
-            shutdownFuture = shutdownExec.schedule(this::triggerAuthShutdown, timeSec, TimeUnit.SECONDS);
-        }
-    }
-
-    private void triggerAuthShutdown() {
-        running.set(false);
-        close();
     }
 
     private void heartbeatLoop(LoginRepository repo) {
@@ -174,10 +153,9 @@ public final class GameRuntime implements AutoCloseable {
     @Override
     public void close() {
         running.set(false);
-        if (shutdownFuture != null) {
-            shutdownFuture.cancel(false);
+        if (shutdownScheduler != null) {
+            shutdownScheduler.close();
         }
-        shutdownExec.shutdownNow();
         heartbeat.interrupt();
         if (auth != null) {
             auth.close();
