@@ -1608,6 +1608,8 @@ public final class GamePackets {
     public static final int TYPEID_MEMORIAL_REWARD_TEST = 0x1A000311;
     public static final int TYPEID_TICKET_SCROLL_TEST = 0x1A000312;
     public static final int TYPEID_GP_EVENT_TEST = 0x6C100001;
+    public static final int TYPEID_TIKI_VALUE_TEST = 0x1A000320;
+    public static final int TYPEID_TIKI_REWARD_TEST = 0x1A000321;
     /** C# transform lottery special typeids. */
     public static final int[] WORKSHOP_TRANSFORM_SPECIALS = {
         TYPEID_WINGTROSS_EVO, TYPEID_GIGA_YARD_TOTEM, TYPEID_DUOSTAR_MANAPIKAL
@@ -1706,6 +1708,13 @@ public final class GamePackets {
     public static final int TIKI_EXCHANGE_ERR_PTS = 0x5200905;
     /** C# Tiki exchange catch else. */
     public static final int TIKI_EXCHANGE_ERR_DEFAULT = 1;
+    public static final int TIKI_EXCHANGE_ERR_IFF = 0x5200902;
+    public static final int TIKI_EXCHANGE_ERR_CONSUME = 0x5200903;
+    public static final int TIKI_EXCHANGE_ERR_POINTS = 0x5200906;
+    public static final int TIKI_EXCHANGE_ERR_ADD = 0x5200907;
+    public static final int TIKI_EXCHANGE_OK = 0;
+    public static final int TIKI_EXCHANGE_ITEM_BYTES = 16;
+    public static final int TIKI_EXCHANGE_TP_BYTES = 12;
     /** C# workshop confirm missing ClubSet CHANNEL sys. */
     public static final int WORKSHOP_CONFIRM_ERR = 0x5300301;
     /** C# workshop confirm catch else. */
@@ -4245,6 +4254,11 @@ public final class GamePackets {
         return new PacketWriter().opcode(opcode).u32(code).toBytes();
     }
 
+    /** C# legacy Tiki exchange success: u32 0 + remaining legacy TP. */
+    public static byte[] tikiExchangeOk(int opcode, long points) {
+        return new PacketWriter().opcode(opcode).u32(TIKI_EXCHANGE_OK).u32((int) points).toBytes();
+    }
+
     /** C# workshop confirm/cancel/rank catch u32 sys. */
     public static byte[] clubWorkshopOpcodeFail(int opcode, int code) {
         return new PacketWriter().opcode(opcode).u32(code).toBytes();
@@ -6633,6 +6647,28 @@ public final class GamePackets {
     /** C# CLIENT {@code 0x128}/{@code 0x129}: u8 count. */
     public static byte[] clientTikiExchange(int opcode, int count) {
         return new PacketWriter().opcode(opcode).u8(count).toBytes();
+    }
+
+    public static byte[] clientTikiItemsToPoints(
+            int typeid, int id, int qntd, int clientValue) {
+        return new PacketWriter()
+                .opcode(CLIENT_TIKI_EXCHANGE_TP)
+                .u8(1)
+                .u32(typeid)
+                .i32(id)
+                .i32(qntd)
+                .u32(clientValue)
+                .toBytes();
+    }
+
+    public static byte[] clientTikiPointsToItem(int typeid, int qntd, int clientPoints) {
+        return new PacketWriter()
+                .opcode(CLIENT_TIKI_EXCHANGE_ITEM)
+                .u8(1)
+                .u32(typeid)
+                .i32(qntd)
+                .u32(clientPoints)
+                .toBytes();
     }
 
     /** C# CLIENT {@code 0x165}/{@code 0x166} empty. */

@@ -3027,6 +3027,110 @@ public final class JdbiInventoryRepository implements InventoryRepository {
     }
 
     @Override
+    public long legacyTikiPoints(long uid) {
+        return jdbi.withHandle(h -> h.createQuery("""
+                        SELECT COALESCE(MAX("Tiki_Points"), 0)
+                          FROM pangya.pangya_tiki_points
+                         WHERE "UID" = :uid
+                        """)
+                .bind("uid", uid)
+                .mapTo(Long.class)
+                .one());
+    }
+
+    @Override
+    public void setLegacyTikiPoints(long uid, long points) {
+        jdbi.useTransaction(h -> {
+            h.createUpdate("DELETE FROM pangya.pangya_tiki_points WHERE \"UID\" = :uid")
+                    .bind("uid", uid)
+                    .execute();
+            h.createUpdate("""
+                            INSERT INTO pangya.pangya_tiki_points (
+                                "UID", "Tiki_Points", "REG_DATE", "MOD_DATE")
+                            VALUES (:uid, :points, NOW(), NOW())
+                            """)
+                    .bind("uid", uid)
+                    .bind("points", points)
+                    .execute();
+        });
+    }
+
+    @Override
+    public Optional<TikiItemValue> tikiItemValue(int typeid) {
+        return jdbi.withHandle(h -> h.createQuery("""
+                        SELECT typeid, item_count, points
+                          FROM pangya.legacy_tiki_item_value
+                         WHERE typeid = :typeid
+                        """)
+                .bind("typeid", typeid)
+                .map((rs, ctx) -> new TikiItemValue(
+                        rs.getInt("typeid"), rs.getInt("item_count"), rs.getInt("points")))
+                .findOne());
+    }
+
+    @Override
+    public void upsertTikiItemValue(int typeid, int itemCount, int points) {
+        jdbi.useHandle(h -> h.createUpdate("""
+                        INSERT INTO pangya.legacy_tiki_item_value (typeid, item_count, points)
+                        VALUES (:typeid, :count, :points)
+                        ON CONFLICT (typeid) DO UPDATE SET
+                            item_count = EXCLUDED.item_count, points = EXCLUDED.points
+                        """)
+                .bind("typeid", typeid)
+                .bind("count", itemCount)
+                .bind("points", points)
+                .execute());
+    }
+
+    @Override
+    public void deleteTikiItemValue(int typeid) {
+        jdbi.useHandle(h -> h.createUpdate(
+                        "DELETE FROM pangya.legacy_tiki_item_value WHERE typeid = :typeid")
+                .bind("typeid", typeid)
+                .execute());
+    }
+
+    @Override
+    public Optional<TikiPointShopItem> tikiPointShopItem(int typeid) {
+        return jdbi.withHandle(h -> h.createQuery("""
+                        SELECT "ITEM_TYPEID", "ITEM_QNTD", "REQ_POINTS"
+                          FROM pangya.pangya_tiki_points_items
+                         WHERE "ITEM_TYPEID" = :typeid AND COALESCE("ITEM_ACTIVE", 0) = 1
+                         ORDER BY "INDEX"
+                         LIMIT 1
+                        """)
+                .bind("typeid", typeid)
+                .map((rs, ctx) -> new TikiPointShopItem(
+                        rs.getInt("ITEM_TYPEID"),
+                        rs.getInt("ITEM_QNTD"),
+                        rs.getInt("REQ_POINTS")))
+                .findOne());
+    }
+
+    @Override
+    public void upsertTikiPointShopItem(int typeid, int quantity, int points) {
+        deleteTikiPointShopItem(typeid);
+        jdbi.useHandle(h -> h.createUpdate("""
+                        INSERT INTO pangya.pangya_tiki_points_items (
+                            "ITEM_NAME", "ITEM_TYPEID", "ITEM_QNTD", "REQ_POINTS",
+                            "ITEM_FLAG", "ITEM_ACTIVE", "REG_DATE")
+                        VALUES ('Java test', :typeid, :qntd, :points, 0, 1, NOW())
+                        """)
+                .bind("typeid", typeid)
+                .bind("qntd", quantity)
+                .bind("points", points)
+                .execute());
+    }
+
+    @Override
+    public void deleteTikiPointShopItem(int typeid) {
+        jdbi.useHandle(h -> h.createUpdate(
+                        "DELETE FROM pangya.pangya_tiki_points_items WHERE \"ITEM_TYPEID\" = :typeid")
+                .bind("typeid", typeid)
+                .execute());
+    }
+
+    @Override
     public OptionalInt consumeCardByTypeid(long uid, int typeid, int qntd) {
         if (qntd <= 0) {
             return OptionalInt.empty();

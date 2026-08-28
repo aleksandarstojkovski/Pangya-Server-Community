@@ -4479,6 +4479,78 @@ class GameFlowIT {
     }
 
     @Test
+    void legacyTikiExchangesItemsAndPoints() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config);
+             PangyaFakeClient client = new PangyaFakeClient()) {
+            InventoryRepository inv = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
+            inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_TIKI_VALUE_TEST);
+            inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_TIKI_REWARD_TEST);
+            inv.deleteTikiItemValue(GamePackets.TYPEID_TIKI_VALUE_TEST);
+            inv.deleteTikiPointShopItem(GamePackets.TYPEID_TIKI_REWARD_TEST);
+            inv.setLegacyTikiPoints(10001, 0);
+            int valueId = inv.addWarehouseItem(10001, GamePackets.TYPEID_TIKI_VALUE_TEST, 4);
+            try {
+                inv.upsertTikiItemValue(GamePackets.TYPEID_TIKI_VALUE_TEST, 2, 10);
+                inv.upsertTikiPointShopItem(GamePackets.TYPEID_TIKI_REWARD_TEST, 3, 5);
+                LoginRepository repo = new JdbiLoginRepository(DatabaseSupport.jdbi(ds));
+                String loginKey = repo.generateAuthKeyLogin(10001);
+                String gameKey = repo.generateAuthKeyGame(10001, 20202);
+                keys.putLoginKey(10001, loginKey);
+                keys.putGameKey(10001, 20202, gameKey);
+                loginToChannel(client, runtime.port(), "testuser", 10001, loginKey, gameKey);
+
+                client.sendPlain(GamePackets.clientTikiItemsToPoints(
+                        GamePackets.TYPEID_TIKI_VALUE_TEST, valueId, 2, 999));
+                PacketReader sold = awaitOpcode(client, GamePackets.SERVER_DAILY_QUEST_STAMP);
+                sold.u32();
+                assertEquals(1, sold.u32());
+                PacketReader tp = awaitOpcode(client, GamePackets.SERVER_TIKI_EXCHANGE_TP);
+                assertEquals(GamePackets.TIKI_EXCHANGE_OK, tp.u32());
+                assertEquals(20, tp.u32());
+                assertEquals(20, inv.legacyTikiPoints(10001));
+                assertTrue(inv.warehouse(10001).stream().noneMatch(w -> w.id == valueId));
+
+                client.sendPlain(GamePackets.clientTikiPoints());
+                PacketReader points = awaitOpcode(client, GamePackets.SERVER_TIKI_POINTS);
+                assertEquals(0, points.u32());
+                assertEquals(20, points.u32());
+
+                client.sendPlain(GamePackets.clientTikiPointsToItem(
+                        GamePackets.TYPEID_TIKI_REWARD_TEST, 2, 999));
+                PacketReader bought = awaitOpcode(client, GamePackets.SERVER_DAILY_QUEST_STAMP);
+                bought.u32();
+                assertEquals(1, bought.u32());
+                PacketReader item = awaitOpcode(client, GamePackets.SERVER_TIKI_EXCHANGE_ITEM);
+                assertEquals(GamePackets.TIKI_EXCHANGE_OK, item.u32());
+                assertEquals(10, item.u32());
+                assertEquals(10, inv.legacyTikiPoints(10001));
+                assertEquals(6, inv.warehouse(10001).stream()
+                        .filter(w -> w.typeid == GamePackets.TYPEID_TIKI_REWARD_TEST)
+                        .findFirst()
+                        .orElseThrow()
+                        .c[0]);
+                assertTrue(inv.warehouse(10001).stream().anyMatch(
+                        w -> w.typeid == GamePackets.TYPEID_AIR_KNIGHT));
+            } finally {
+                inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_TIKI_VALUE_TEST);
+                inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_TIKI_REWARD_TEST);
+                inv.deleteTikiItemValue(GamePackets.TYPEID_TIKI_VALUE_TEST);
+                inv.deleteTikiPointShopItem(GamePackets.TYPEID_TIKI_REWARD_TEST);
+                inv.setLegacyTikiPoints(10001, 0);
+            }
+        }
+    }
+
+    @Test
     void soloGrandZodiacSendsTourneyInit() throws Exception {
         String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
         String user = env("PANGYA_TEST_JDBC_USER", "pangya");

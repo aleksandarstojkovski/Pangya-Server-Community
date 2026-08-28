@@ -28,7 +28,7 @@ class FlywayMigrationTest {
                     h.createQuery("select count(*) from information_schema.tables where table_schema = 'pangya'")
                             .mapTo(Integer.class)
                             .one());
-            assertEquals(197, tables);
+            assertEquals(198, tables);
 
             int rankRows = jdbi.withHandle(h ->
                     h.createQuery("select count(*) from pangya.pangya_rank_config")
@@ -202,6 +202,11 @@ class FlywayMigrationTest {
                             .mapTo(Integer.class)
                             .one());
             assertEquals(0, gpEvents);
+            int tikiValues = jdbi.withHandle(h ->
+                    h.createQuery("select count(*) from pangya.legacy_tiki_item_value")
+                            .mapTo(Integer.class)
+                            .one());
+            assertEquals(0, tikiValues);
             assertTrue(accounts >= 1);
         }
     }

@@ -1540,7 +1540,8 @@ public final class GameHandler {
         if (!inChannel(session)) {
             return;
         }
-        session.send(GamePackets.tikiPoints(0, 0));
+        session.send(GamePackets.tikiPoints(
+                0, (int) inventory.legacyTikiPoints(session.player().uid)));
     }
 
     /**
@@ -1548,7 +1549,72 @@ public final class GameHandler {
      * {@code 0x1E9} {@code shopSys(0x5200905)}.
      */
     private void tikiExchangeTp(Session session, PacketReader reader) {
-        tikiExchange(session, reader, GamePackets.SERVER_TIKI_EXCHANGE_TP);
+        if (!inChannel(session)) {
+            return;
+        }
+        try {
+            if (reader.remaining() < 1) {
+                session.send(GamePackets.tikiExchangeFail(
+                        GamePackets.SERVER_TIKI_EXCHANGE_TP, GamePackets.TIKI_EXCHANGE_ERR_DEFAULT));
+                return;
+            }
+            int count = reader.u8();
+            if (count <= 0 || reader.remaining() < count * GamePackets.TIKI_EXCHANGE_ITEM_BYTES) {
+                session.send(GamePackets.tikiExchangeFail(
+                        GamePackets.SERVER_TIKI_EXCHANGE_TP,
+                        GamePackets.shopSys(GamePackets.TIKI_EXCHANGE_ERR_PTS)));
+                return;
+            }
+            long uid = session.player().uid;
+            List<GamePackets.PapelAward> updates = new ArrayList<>();
+            long gained = 0;
+            for (int i = 0; i < count; i++) {
+                int typeid = reader.u32();
+                int id = reader.i32();
+                int qntd = reader.i32();
+                reader.u32();
+                Optional<InventoryRepository.TikiItemValue> value = inventory.tikiItemValue(typeid);
+                GamePackets.WarehouseItem item = warehouseById(uid, id);
+                if (value.isEmpty() || item == null || item.typeid != typeid || qntd <= 0) {
+                    session.send(GamePackets.tikiExchangeFail(
+                            GamePackets.SERVER_TIKI_EXCHANGE_TP,
+                            GamePackets.shopSys(GamePackets.TIKI_EXCHANGE_ERR_IFF)));
+                    return;
+                }
+                int consume = value.get().itemCount() * qntd;
+                int ant = item.c[0] & 0xffff;
+                OptionalInt remaining = inventory.consumeWarehouseByTypeid(uid, typeid, consume);
+                if (remaining.isEmpty()) {
+                    session.send(GamePackets.tikiExchangeFail(
+                            GamePackets.SERVER_TIKI_EXCHANGE_TP,
+                            GamePackets.shopSys(GamePackets.TIKI_EXCHANGE_ERR_CONSUME)));
+                    return;
+                }
+                gained += (long) value.get().points() * qntd;
+                updates.add(new GamePackets.PapelAward(
+                        GamePackets.PAPEL_AWARD_TYPE,
+                        typeid,
+                        id,
+                        0,
+                        ant,
+                        remaining.getAsInt(),
+                        -consume));
+            }
+            if (gained <= 0) {
+                session.send(GamePackets.tikiExchangeFail(
+                        GamePackets.SERVER_TIKI_EXCHANGE_TP,
+                        GamePackets.shopSys(GamePackets.TIKI_EXCHANGE_ERR_PTS)));
+                return;
+            }
+            long points = inventory.legacyTikiPoints(uid) + gained;
+            inventory.setLegacyTikiPoints(uid, points);
+            session.send(GamePackets.papelAwards(GamePackets.unixNow(), updates));
+            session.send(GamePackets.tikiExchangeOk(GamePackets.SERVER_TIKI_EXCHANGE_TP, points));
+        } catch (RuntimeException e) {
+            log.debug("Tiki item-to-points failed uid={}: {}", session.player().uid, e.toString());
+            session.send(GamePackets.tikiExchangeFail(
+                    GamePackets.SERVER_TIKI_EXCHANGE_TP, GamePackets.TIKI_EXCHANGE_ERR_DEFAULT));
+        }
     }
 
     /**
@@ -1556,20 +1622,76 @@ public final class GameHandler {
      * {@code 0x1EA} {@code shopSys(0x5200905)}.
      */
     private void tikiExchangeItem(Session session, PacketReader reader) {
-        tikiExchange(session, reader, GamePackets.SERVER_TIKI_EXCHANGE_ITEM);
-    }
-
-    private void tikiExchange(Session session, PacketReader reader, int opcode) {
         if (!inChannel(session)) {
             return;
         }
-        if (reader.remaining() < 1) {
-            session.send(GamePackets.tikiExchangeFail(opcode, GamePackets.TIKI_EXCHANGE_ERR_DEFAULT));
-            return;
+        try {
+            if (reader.remaining() < 1) {
+                session.send(GamePackets.tikiExchangeFail(
+                        GamePackets.SERVER_TIKI_EXCHANGE_ITEM, GamePackets.TIKI_EXCHANGE_ERR_DEFAULT));
+                return;
+            }
+            int count = reader.u8();
+            if (count <= 0 || reader.remaining() < count * GamePackets.TIKI_EXCHANGE_TP_BYTES) {
+                session.send(GamePackets.tikiExchangeFail(
+                        GamePackets.SERVER_TIKI_EXCHANGE_ITEM,
+                        GamePackets.shopSys(GamePackets.TIKI_EXCHANGE_ERR_PTS)));
+                return;
+            }
+            record Request(InventoryRepository.TikiPointShopItem item, int requested) {}
+            List<Request> requests = new ArrayList<>();
+            long cost = 0;
+            for (int i = 0; i < count; i++) {
+                int typeid = reader.u32();
+                int qntd = reader.i32();
+                reader.u32();
+                Optional<InventoryRepository.TikiPointShopItem> item =
+                        inventory.tikiPointShopItem(typeid);
+                if (item.isEmpty() || qntd <= 0) {
+                    session.send(GamePackets.tikiExchangeFail(
+                            GamePackets.SERVER_TIKI_EXCHANGE_ITEM,
+                            GamePackets.shopSys(GamePackets.TIKI_EXCHANGE_ERR_IFF)));
+                    return;
+                }
+                cost += (long) item.get().points() * qntd;
+                requests.add(new Request(item.get(), qntd));
+            }
+            long uid = session.player().uid;
+            long have = inventory.legacyTikiPoints(uid);
+            if (cost <= 0 || cost > have) {
+                session.send(GamePackets.tikiExchangeFail(
+                        GamePackets.SERVER_TIKI_EXCHANGE_ITEM,
+                        GamePackets.shopSys(cost <= 0
+                                ? GamePackets.TIKI_EXCHANGE_ERR_PTS
+                                : GamePackets.TIKI_EXCHANGE_ERR_POINTS)));
+                return;
+            }
+            List<GamePackets.PapelAward> updates = new ArrayList<>();
+            for (Request request : requests) {
+                int typeid = request.item().typeid();
+                int qntd = request.item().quantity() * request.requested();
+                GamePackets.WarehouseItem existing = warehouseByTypeid(uid, typeid);
+                int ant = existing == null ? 0 : existing.c[0] & 0xffff;
+                int id = inventory.addWarehouseItem(uid, typeid, qntd);
+                if (id <= 0) {
+                    session.send(GamePackets.tikiExchangeFail(
+                            GamePackets.SERVER_TIKI_EXCHANGE_ITEM,
+                            GamePackets.shopSys(GamePackets.TIKI_EXCHANGE_ERR_ADD)));
+                    return;
+                }
+                updates.add(new GamePackets.PapelAward(
+                        GamePackets.PAPEL_AWARD_TYPE, typeid, id, 0, ant, ant + qntd, qntd));
+            }
+            long remaining = have - cost;
+            inventory.setLegacyTikiPoints(uid, remaining);
+            session.send(GamePackets.papelAwards(GamePackets.unixNow(), updates));
+            session.send(GamePackets.tikiExchangeOk(
+                    GamePackets.SERVER_TIKI_EXCHANGE_ITEM, remaining));
+        } catch (RuntimeException e) {
+            log.debug("Tiki points-to-item failed uid={}: {}", session.player().uid, e.toString());
+            session.send(GamePackets.tikiExchangeFail(
+                    GamePackets.SERVER_TIKI_EXCHANGE_ITEM, GamePackets.TIKI_EXCHANGE_ERR_DEFAULT));
         }
-        reader.u8();
-        session.send(GamePackets.tikiExchangeFail(
-                opcode, GamePackets.shopSys(GamePackets.TIKI_EXCHANGE_ERR_PTS)));
     }
 
     /** C# {@code packet140}: {@code 0x20E} two zeros. */

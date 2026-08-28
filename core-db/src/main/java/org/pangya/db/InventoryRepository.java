@@ -313,6 +313,22 @@ public interface InventoryRepository {
 
     void deleteGrandPrixEvent(int typeid);
 
+    long legacyTikiPoints(long uid);
+
+    void setLegacyTikiPoints(long uid, long points);
+
+    Optional<TikiItemValue> tikiItemValue(int typeid);
+
+    void upsertTikiItemValue(int typeid, int itemCount, int points);
+
+    void deleteTikiItemValue(int typeid);
+
+    Optional<TikiPointShopItem> tikiPointShopItem(int typeid);
+
+    void upsertTikiPointShopItem(int typeid, int quantity, int points);
+
+    void deleteTikiPointShopItem(int typeid);
+
     /**
      * C# {@code ItemManager.removeItem} for cards: consume {@code qntd} from
      * {@code QNTD}. Empty when missing or insufficient. Remaining 0 deletes.
@@ -587,6 +603,10 @@ public interface InventoryRepository {
             int rule,
             int minLevel,
             int maxLevel) {}
+
+    record TikiItemValue(int typeid, int itemCount, int points) {}
+
+    record TikiPointShopItem(int typeid, int quantity, int points) {}
 
     /** C# IFF {@code TimeLimitItem}: {@code type}, {@code percent}, {@code time} minutes. */
     record TimeLimitItem(int typeid, int tipo, int percent, int timeMinutes) {}

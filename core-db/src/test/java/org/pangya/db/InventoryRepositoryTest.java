@@ -483,6 +483,16 @@ class InventoryRepositoryTest {
                 assertEquals("Test GP", gp.name());
                 assertEquals(18, gp.holes());
                 assertEquals(1, gp.minLevel());
+                repo.setLegacyTikiPoints(10001, 50);
+                assertEquals(50, repo.legacyTikiPoints(10001));
+                repo.deleteTikiItemValue(GamePackets.TYPEID_TIKI_VALUE_TEST);
+                repo.upsertTikiItemValue(GamePackets.TYPEID_TIKI_VALUE_TEST, 2, 10);
+                assertEquals(2, repo.tikiItemValue(GamePackets.TYPEID_TIKI_VALUE_TEST).orElseThrow().itemCount());
+                repo.deleteTikiPointShopItem(GamePackets.TYPEID_TIKI_REWARD_TEST);
+                repo.upsertTikiPointShopItem(GamePackets.TYPEID_TIKI_REWARD_TEST, 3, 20);
+                assertEquals(
+                        20,
+                        repo.tikiPointShopItem(GamePackets.TYPEID_TIKI_REWARD_TEST).orElseThrow().points());
                 repo.deleteCardByTypeid(10001, GamePackets.TYPEID_CARD_NORMAL);
                 repo.addCard(10001, GamePackets.TYPEID_CARD_NORMAL, 2);
                 assertEquals(1, repo.consumeCardByTypeid(10001, GamePackets.TYPEID_CARD_NORMAL, 1).orElseThrow());
@@ -500,6 +510,9 @@ class InventoryRepositoryTest {
                 repo.deleteMemorialRewards(GamePackets.TYPEID_MEMORIAL_COIN_TEST);
                 repo.deleteTicketReport(0x1234);
                 repo.deleteGrandPrixEvent(GamePackets.TYPEID_GP_EVENT_TEST);
+                repo.setLegacyTikiPoints(10001, 0);
+                repo.deleteTikiItemValue(GamePackets.TYPEID_TIKI_VALUE_TEST);
+                repo.deleteTikiPointShopItem(GamePackets.TYPEID_TIKI_REWARD_TEST);
                 repo.deleteCardByTypeid(10001, GamePackets.TYPEID_CARD_NORMAL);
             }
             repo.deletePartIff(GamePackets.TYPEID_RENTAL_PART);
