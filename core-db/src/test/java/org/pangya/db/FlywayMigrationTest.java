@@ -86,6 +86,11 @@ class FlywayMigrationTest {
                             .mapTo(Integer.class)
                             .one());
             assertEquals(1, enchantIff);
+            int cardIff = jdbi.withHandle(h ->
+                    h.createQuery("select efeito from pangya.iff_card where typeid = 2080374785")
+                            .mapTo(Integer.class)
+                            .one());
+            assertEquals(0, cardIff);
             assertTrue(accounts >= 1);
         }
     }

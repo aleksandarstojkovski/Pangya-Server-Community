@@ -1439,6 +1439,38 @@ public final class GamePackets {
     public static final int CHAR_CARD_ERR_IFF = 0x5200757;
     /** C# card-equip catch else. */
     public static final int CHAR_CARD_ERR_DEFAULT = 0x5200750;
+    /** C# card-equip missing character CHANNEL sys {@code 0x5200751}. */
+    public static final int CHAR_CARD_ERR_CHAR = 0x5200751;
+    /** C# card-equip missing card CHANNEL sys {@code 0x5200752}. */
+    public static final int CHAR_CARD_ERR_OWN = 0x5200752;
+    /** C# card-equip slot 4/8 without patcher CHANNEL sys {@code 0x5200753}. */
+    public static final int CHAR_CARD_ERR_PATCHER_SLOT = 0x5200753;
+    /** C# card-equip slot 7 without part CHANNEL sys {@code 0x5200754}. */
+    public static final int CHAR_CARD_ERR_PART_SLOT = 0x5200754;
+    /** C# card-equip unknown slot CHANNEL sys {@code 0x5200755}. */
+    public static final int CHAR_CARD_ERR_SLOT = 0x5200755;
+    /** C# card-equip subgroup mismatch CHANNEL sys {@code 0x5200756}. */
+    public static final int CHAR_CARD_ERR_SUB = 0x5200756;
+    /** C# card-equip occupied slot CHANNEL sys {@code 0x5200759}. */
+    public static final int CHAR_CARD_ERR_OCCUPIED = 0x5200759;
+    /** C# {@code stItem.type} {@code 0xCB} card-equip row on {@code 0x216}. */
+    public static final int CHAR_CARD_AWARD_TYPE = 0xCB;
+    /** C# character card slot 1 (Card_Character[0]). */
+    public static final int CHAR_CARD_SLOT = 1;
+    /** C# {@code CARD_SUB_TYPE.T_CHARACTER}. */
+    public static final int CARD_SUB_CHARACTER = 0;
+    /** C# {@code CARD_SUB_TYPE.T_CADDIE}. */
+    public static final int CARD_SUB_CADDIE = 1;
+    /** C# {@code CARD_SUB_TYPE.T_NPC}. */
+    public static final int CARD_SUB_NPC = 5;
+    /** C# {@code WriteZeroByte(10)} after 5× i16 {@code stItem.c}. */
+    public static final int CHAR_CARD_AWARD_MID_PAD = 10;
+    /** C# {@code stItem.c[1..4]} after {@code c[0]} (4× i16). */
+    public static final int CHAR_CARD_AWARD_C_REST = 8;
+    /**
+     * C# {@code STDA_C_ITEM_QNTD = -1} stores {@code c[0] = 32767}.
+     */
+    public static final int CHAR_CARD_CONSUME_C0 = 32767;
     /** C# card-equip patcher missing item CHANNEL sys. */
     public static final int CHAR_CARD_PATCHER_ERR = 0x5200810;
     /** C# card-equip patcher catch else. */
@@ -1447,6 +1479,14 @@ public final class GamePackets {
     public static final int CHAR_CARD_REMOVE_ERR_CHAR = 0x5200851;
     /** C# remove-card catch else. */
     public static final int CHAR_CARD_REMOVE_DEFAULT = 0x5200850;
+    /** C# remove-card missing removedor CHANNEL sys {@code 0x5200852}. */
+    public static final int CHAR_CARD_REMOVE_ERR_ITEM = 0x5200852;
+    /** C# remove-card unknown slot CHANNEL sys {@code 0x5200853}. */
+    public static final int CHAR_CARD_REMOVE_ERR_UNKNOWN = 0x5200853;
+    /** C# remove-card empty slot CHANNEL sys {@code 0x5200854}. */
+    public static final int CHAR_CARD_REMOVE_ERR_SLOT = 0x5200854;
+    /** C# remove-card removedor qntd CHANNEL sys {@code 0x5200855}. */
+    public static final int CHAR_CARD_REMOVE_ERR_QNTD = 0x5200855;
     /**
      * C# Tiki shop exchange count 0/{@code >5} CHANNEL sys {@code 5200451}
      * (same numeric as {@link #CADIE_ERR_COUNT}).
@@ -2741,13 +2781,42 @@ public final class GamePackets {
                     .u32(award.flagTime())
                     .i32(award.qntdAnt())
                     .i32(award.qntdDep())
-                    .i32(award.qntd())
-                    .zero(PAPEL_AWARD_PAD);
-            if (award.type() == CHAR_MASTERY_AWARD_TYPE) {
-                w.u32(award.extra());
+                    .i32(award.qntd());
+            if (award.type() == CHAR_CARD_AWARD_TYPE) {
+                writeCharCardTail(w, 0, award.extra(), award.slot());
+            } else {
+                w.zero(PAPEL_AWARD_PAD);
+                if (award.type() == CHAR_MASTERY_AWARD_TYPE) {
+                    w.u32(award.extra());
+                }
             }
         }
         return w.toBytes();
+    }
+
+    /**
+     * C# card-equip/remove {@code 0x216}: every row writes {@code stItem.c}
+     * (5× i16) + 10 zeros + u32 price + u8 slot. Consume {@code qntd == -1}
+     * stores {@code c[0] = 32767}.
+     */
+    public static byte[] charCardAwards(int unix, List<PapelAward> awards) {
+        PacketWriter w = new PacketWriter().opcode(SERVER_DAILY_QUEST_STAMP).u32(unix).u32(awards.size());
+        for (PapelAward award : awards) {
+            w.u8(award.type())
+                    .u32(award.typeid())
+                    .i32(award.id())
+                    .u32(award.flagTime())
+                    .i32(award.qntdAnt())
+                    .i32(award.qntdDep())
+                    .i32(award.qntd());
+            int c0 = award.qntd() == -1 ? CHAR_CARD_CONSUME_C0 : award.qntd();
+            writeCharCardTail(w, c0, award.extra(), award.slot());
+        }
+        return w.toBytes();
+    }
+
+    private static void writeCharCardTail(PacketWriter w, int c0, int extra, int slot) {
+        w.i16(c0).zero(CHAR_CARD_AWARD_C_REST + CHAR_CARD_AWARD_MID_PAD).u32(extra).u8(slot);
     }
 
     /**
@@ -2797,9 +2866,14 @@ public final class GamePackets {
 
     public record PapelBall(int color, int typeid, int id, int qntd, int tipo) {}
 
-    public record PapelAward(int type, int typeid, int id, int flagTime, int qntdAnt, int qntdDep, int qntd, int extra) {
+    public record PapelAward(
+            int type, int typeid, int id, int flagTime, int qntdAnt, int qntdDep, int qntd, int extra, int slot) {
         public PapelAward(int type, int typeid, int id, int flagTime, int qntdAnt, int qntdDep, int qntd) {
-            this(type, typeid, id, flagTime, qntdAnt, qntdDep, qntd, 0);
+            this(type, typeid, id, flagTime, qntdAnt, qntdDep, qntd, 0, 0);
+        }
+
+        public PapelAward(int type, int typeid, int id, int flagTime, int qntdAnt, int qntdDep, int qntd, int extra) {
+            this(type, typeid, id, flagTime, qntdAnt, qntdDep, qntd, extra, 0);
         }
     }
 
@@ -3411,6 +3485,13 @@ public final class GamePackets {
      */
     public static int itemGroupIdentify(int typeid) {
         return (typeid & 0xFC000000) >>> 26;
+    }
+
+    /**
+     * C# {@code getItemSubGroupIdentify22}: {@code (typeid & ~0xFC000000) >> 22}.
+     */
+    public static int itemSubGroupIdentify22(int typeid) {
+        return (typeid & ~0xFC000000) >>> 22;
     }
 
     /**
@@ -4628,7 +4709,24 @@ public final class GamePackets {
 
     /** C# CLIENT {@code 0x18A}/{@code 0x18B}/{@code 0x18C}: 5×u32 {@code ToRead}. */
     public static byte[] clientCardEquip(int opcode) {
-        return new PacketWriter().opcode(opcode).zero(CARD_EQUIP_BYTES).toBytes();
+        return clientCardEquip(opcode, 0, 0, 0, 0, 0);
+    }
+
+    public static byte[] clientCardEquip(
+            int opcode, int charTypeid, int charId, int cardTypeid, int cardId, int slot) {
+        return new PacketWriter()
+                .opcode(opcode)
+                .u32(charTypeid)
+                .i32(charId)
+                .u32(cardTypeid)
+                .i32(cardId)
+                .u32(slot)
+                .toBytes();
+    }
+
+    /** C# {@code 0x271}/{@code 0x273} success: u32 0 + u32 card typeid. */
+    public static byte[] charCardOk(int opcode, int cardTypeid) {
+        return new PacketWriter().opcode(opcode).u32(0).u32(cardTypeid).toBytes();
     }
 
     /** C# CLIENT {@code 0x18D}: u32 count. */

@@ -4195,8 +4195,9 @@ public final class GameHandler {
     }
 
     /**
-     * C# {@code requestCharacterCardEquip}: IFF miss → {@code 0x271}
-     * {@code shopSys(0x5200757)}.
+     * C# {@code requestCharacterCardEquip}: truncated ToRead → full
+     * {@code 0x5200750}; CHANNEL codes as {@code shopSys}; success {@code 0x216}
+     * then {@code 0x271} u32 0 + card typeid.
      */
     private void characterCardEquip(Session session, PacketReader reader) {
         if (!inChannel(session)) {
@@ -4207,10 +4208,28 @@ public final class GameHandler {
                     GamePackets.SERVER_CHAR_CARD_EQUIP, GamePackets.CHAR_CARD_ERR_DEFAULT));
             return;
         }
-        reader.readBytes(GamePackets.CARD_EQUIP_BYTES);
-        session.send(GamePackets.sysAck(
-                GamePackets.SERVER_CHAR_CARD_EQUIP,
-                GamePackets.shopSys(GamePackets.CHAR_CARD_ERR_IFF)));
+        int charTypeid = reader.u32();
+        int charId = reader.i32();
+        int cardTypeid = reader.u32();
+        int cardId = reader.i32();
+        int slot = reader.u32();
+        InventoryRepository.CharCardResult result;
+        try {
+            result = inventory.characterCardEquip(
+                    session.player().uid, charTypeid, charId, cardTypeid, cardId, slot);
+        } catch (RuntimeException e) {
+            log.warn("char card equip uid={} failed: {}", session.player().uid, e.toString());
+            session.send(GamePackets.sysAck(
+                    GamePackets.SERVER_CHAR_CARD_EQUIP, GamePackets.CHAR_CARD_ERR_DEFAULT));
+            return;
+        }
+        if (result.code() != 0) {
+            session.send(GamePackets.sysAck(
+                    GamePackets.SERVER_CHAR_CARD_EQUIP, GamePackets.shopSys(result.code())));
+            return;
+        }
+        session.send(GamePackets.charCardAwards(GamePackets.unixNow(), result.awards()));
+        session.send(GamePackets.charCardOk(GamePackets.SERVER_CHAR_CARD_EQUIP, result.cardTypeid()));
     }
 
     /**
@@ -4233,8 +4252,9 @@ public final class GameHandler {
     }
 
     /**
-     * C# {@code requestCharacterRemoveCard}: missing character → {@code 0x273}
-     * {@code shopSys(0x5200851)}.
+     * C# {@code requestCharacterRemoveCard}: truncated ToRead → full
+     * {@code 0x5200850}; CHANNEL codes as {@code shopSys}; success {@code 0x216}
+     * then {@code 0x273} u32 0 + card typeid.
      */
     private void characterRemoveCard(Session session, PacketReader reader) {
         if (!inChannel(session)) {
@@ -4245,10 +4265,28 @@ public final class GameHandler {
                     GamePackets.SERVER_CHAR_CARD_REMOVE, GamePackets.CHAR_CARD_REMOVE_DEFAULT));
             return;
         }
-        reader.readBytes(GamePackets.CARD_EQUIP_BYTES);
-        session.send(GamePackets.sysAck(
-                GamePackets.SERVER_CHAR_CARD_REMOVE,
-                GamePackets.shopSys(GamePackets.CHAR_CARD_REMOVE_ERR_CHAR)));
+        int charTypeid = reader.u32();
+        int charId = reader.i32();
+        int removerTypeid = reader.u32();
+        int removerId = reader.i32();
+        int slot = reader.u32();
+        InventoryRepository.CharCardResult result;
+        try {
+            result = inventory.characterRemoveCard(
+                    session.player().uid, charTypeid, charId, removerTypeid, removerId, slot);
+        } catch (RuntimeException e) {
+            log.warn("char card remove uid={} failed: {}", session.player().uid, e.toString());
+            session.send(GamePackets.sysAck(
+                    GamePackets.SERVER_CHAR_CARD_REMOVE, GamePackets.CHAR_CARD_REMOVE_DEFAULT));
+            return;
+        }
+        if (result.code() != 0) {
+            session.send(GamePackets.sysAck(
+                    GamePackets.SERVER_CHAR_CARD_REMOVE, GamePackets.shopSys(result.code())));
+            return;
+        }
+        session.send(GamePackets.charCardAwards(GamePackets.unixNow(), result.awards()));
+        session.send(GamePackets.charCardOk(GamePackets.SERVER_CHAR_CARD_REMOVE, result.cardTypeid()));
     }
 
     /**

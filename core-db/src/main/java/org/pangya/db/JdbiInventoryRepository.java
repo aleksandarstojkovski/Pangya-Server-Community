@@ -1577,4 +1577,214 @@ public final class JdbiInventoryRepository implements InventoryRepository {
                 .findOne()
                 .orElse(null);
     }
+
+    @Override
+    public CharCardResult characterCardEquip(
+            long uid, int charTypeid, int charId, int cardTypeid, int cardId, int slot) {
+        return jdbi.inTransaction(h -> {
+            int[] iff = h.createQuery("""
+                            SELECT efeito, efeito_qntd FROM pangya.iff_card WHERE typeid = :typeid
+                            """)
+                    .bind("typeid", cardTypeid)
+                    .map((rs, ctx) -> new int[] {rs.getInt("efeito"), rs.getInt("efeito_qntd")})
+                    .findOne()
+                    .orElse(null);
+            if (iff == null) {
+                return CharCardResult.fail(GamePackets.CHAR_CARD_ERR_IFF);
+            }
+            GamePackets.CharacterInfo pCi = loadCharacter(h, uid, charId, charTypeid);
+            if (pCi == null) {
+                return CharCardResult.fail(GamePackets.CHAR_CARD_ERR_CHAR);
+            }
+            int[] owned = h.createQuery("""
+                            SELECT card_itemid, COALESCE("QNTD", 0) FROM pangya.pangya_card
+                             WHERE "UID" = :uid AND card_itemid = :id AND card_typeid = :typeid
+                            """)
+                    .bind("uid", uid)
+                    .bind("id", cardId)
+                    .bind("typeid", cardTypeid)
+                    .map((rs, ctx) -> new int[] {rs.getInt(1), rs.getInt(2)})
+                    .findOne()
+                    .orElse(null);
+            if (owned == null || owned[1] < 1) {
+                return CharCardResult.fail(GamePackets.CHAR_CARD_ERR_OWN);
+            }
+            if (slot == 4 || slot == 8) {
+                return CharCardResult.fail(GamePackets.CHAR_CARD_ERR_PATCHER_SLOT);
+            }
+            int needSub;
+            if (slot >= 1 && slot <= 3) {
+                needSub = GamePackets.CARD_SUB_CHARACTER;
+            } else if (slot >= 5 && slot <= 7) {
+                if (slot == 7) {
+                    return CharCardResult.fail(GamePackets.CHAR_CARD_ERR_PART_SLOT);
+                }
+                needSub = GamePackets.CARD_SUB_CADDIE;
+            } else if (slot >= 9 && slot <= 12) {
+                needSub = GamePackets.CARD_SUB_NPC;
+            } else {
+                return CharCardResult.fail(GamePackets.CHAR_CARD_ERR_SLOT);
+            }
+            if (GamePackets.itemSubGroupIdentify22(cardTypeid) != needSub) {
+                return CharCardResult.fail(GamePackets.CHAR_CARD_ERR_SUB);
+            }
+            boolean occupied = h.createQuery("""
+                            SELECT 1 FROM pangya.pangya_card_equip
+                             WHERE "UID" = :uid AND parts_id = :id AND "Slot" = :slot AND "USE_YN" = 1
+                            """)
+                    .bind("uid", uid)
+                    .bind("id", charId)
+                    .bind("slot", slot)
+                    .mapTo(Integer.class)
+                    .findOne()
+                    .isPresent();
+            if (occupied) {
+                return CharCardResult.fail(GamePackets.CHAR_CARD_ERR_OCCUPIED);
+            }
+            int ant = owned[1];
+            int dep = ant - 1;
+            h.createUpdate("""
+                            UPDATE pangya.pangya_card
+                               SET "QNTD" = :qntd
+                             WHERE card_itemid = :id
+                            """)
+                    .bind("qntd", dep)
+                    .bind("id", cardId)
+                    .execute();
+            int tipo = GamePackets.itemSubGroupIdentify22(cardTypeid);
+            h.createUpdate("""
+                            INSERT INTO pangya.pangya_card_equip (
+                                "UID", parts_id, parts_typeid, card_typeid,
+                                "Efeito", "Efeito_Qntd", "Slot", "Tipo", "USE_YN", date
+                            ) VALUES (
+                                :uid, :partsId, :partsTypeid, :cardTypeid,
+                                :efeito, :efeitoQntd, :slot, :tipo, 1, NOW()
+                            )
+                            """)
+                    .bind("uid", uid)
+                    .bind("partsId", charId)
+                    .bind("partsTypeid", charTypeid)
+                    .bind("cardTypeid", cardTypeid)
+                    .bind("efeito", iff[0])
+                    .bind("efeitoQntd", iff[1])
+                    .bind("slot", slot)
+                    .bind("tipo", tipo)
+                    .execute();
+            List<GamePackets.PapelAward> awards = new ArrayList<>();
+            awards.add(new GamePackets.PapelAward(
+                    GamePackets.PAPEL_AWARD_TYPE, cardTypeid, cardId, 0, ant, dep, -1));
+            awards.add(new GamePackets.PapelAward(
+                    GamePackets.CHAR_CARD_AWARD_TYPE, charTypeid, charId, 0, 0, 0, 0, cardTypeid, slot));
+            return new CharCardResult(0, awards, cardTypeid);
+        });
+    }
+
+    @Override
+    public CharCardResult characterRemoveCard(
+            long uid, int charTypeid, int charId, int removerTypeid, int removerId, int slot) {
+        return jdbi.inTransaction(h -> {
+            GamePackets.CharacterInfo pCi = loadCharacter(h, uid, charId, charTypeid);
+            if (pCi == null) {
+                return CharCardResult.fail(GamePackets.CHAR_CARD_REMOVE_ERR_CHAR);
+            }
+            int[] remover = h.createQuery("""
+                            SELECT item_id, typeid, "C0" FROM pangya.pangya_item_warehouse
+                             WHERE "UID" = :uid AND item_id = :id AND typeid = :typeid AND valid = 1
+                            """)
+                    .bind("uid", uid)
+                    .bind("id", removerId)
+                    .bind("typeid", removerTypeid)
+                    .map((rs, ctx) -> new int[] {rs.getInt("item_id"), rs.getInt("typeid"), rs.getInt("C0") & 0xffff})
+                    .findOne()
+                    .orElse(null);
+            if (remover == null) {
+                return CharCardResult.fail(GamePackets.CHAR_CARD_REMOVE_ERR_ITEM);
+            }
+            if (remover[2] < 1) {
+                return CharCardResult.fail(GamePackets.CHAR_CARD_REMOVE_ERR_QNTD);
+            }
+            if (slot < 1 || slot > 12) {
+                return CharCardResult.fail(GamePackets.CHAR_CARD_REMOVE_ERR_UNKNOWN);
+            }
+            Integer equipped = h.createQuery("""
+                            SELECT card_typeid FROM pangya.pangya_card_equip
+                             WHERE "UID" = :uid AND parts_id = :id AND "Slot" = :slot AND "USE_YN" = 1
+                            """)
+                    .bind("uid", uid)
+                    .bind("id", charId)
+                    .bind("slot", slot)
+                    .mapTo(Integer.class)
+                    .findOne()
+                    .orElse(null);
+            if (equipped == null || equipped == 0) {
+                return CharCardResult.fail(GamePackets.CHAR_CARD_REMOVE_ERR_SLOT);
+            }
+            int remAnt = remover[2];
+            int remDep = remAnt - 1;
+            h.createUpdate("""
+                            UPDATE pangya.pangya_item_warehouse
+                               SET "C0" = :c0
+                             WHERE item_id = :id
+                            """)
+                    .bind("c0", remDep)
+                    .bind("id", removerId)
+                    .execute();
+            Integer cardRow = h.createQuery("""
+                            SELECT card_itemid FROM pangya.pangya_card
+                             WHERE "UID" = :uid AND card_typeid = :typeid
+                             ORDER BY card_itemid
+                             LIMIT 1
+                            """)
+                    .bind("uid", uid)
+                    .bind("typeid", equipped)
+                    .mapTo(Integer.class)
+                    .findOne()
+                    .orElse(null);
+            int cardAnt;
+            int cardId;
+            if (cardRow != null) {
+                cardAnt = h.createQuery("SELECT COALESCE(\"QNTD\", 0) FROM pangya.pangya_card WHERE card_itemid = :id")
+                        .bind("id", cardRow)
+                        .mapTo(Integer.class)
+                        .one();
+                cardId = cardRow;
+                h.createUpdate("UPDATE pangya.pangya_card SET \"QNTD\" = :qntd WHERE card_itemid = :id")
+                        .bind("qntd", cardAnt + 1)
+                        .bind("id", cardId)
+                        .execute();
+            } else {
+                cardAnt = 0;
+                cardId = h.createQuery("""
+                                INSERT INTO pangya.pangya_card (
+                                    "UID", card_typeid, "QNTD", "GET_DT",
+                                    "Slot", "Efeito", "Efeito_Qntd", card_type, "USE_YN"
+                                ) VALUES (
+                                    :uid, :typeid, 1, NOW(),
+                                    0, 0, 0, 0, 'N'
+                                )
+                                RETURNING card_itemid
+                                """)
+                        .bind("uid", uid)
+                        .bind("typeid", equipped)
+                        .mapTo(Integer.class)
+                        .one();
+            }
+            h.createUpdate("""
+                            DELETE FROM pangya.pangya_card_equip
+                             WHERE "UID" = :uid AND parts_id = :id AND "Slot" = :slot
+                            """)
+                    .bind("uid", uid)
+                    .bind("id", charId)
+                    .bind("slot", slot)
+                    .execute();
+            List<GamePackets.PapelAward> awards = new ArrayList<>();
+            awards.add(new GamePackets.PapelAward(
+                    GamePackets.PAPEL_AWARD_TYPE, removerTypeid, removerId, 0, remAnt, remDep, -1));
+            awards.add(new GamePackets.PapelAward(
+                    GamePackets.PAPEL_AWARD_TYPE, equipped, cardId, 0, cardAnt, cardAnt + 1, 1));
+            awards.add(new GamePackets.PapelAward(
+                    GamePackets.CHAR_CARD_AWARD_TYPE, charTypeid, charId, 0, 0, 0, 0, 0, slot));
+            return new CharCardResult(0, awards, equipped);
+        });
+    }
 }

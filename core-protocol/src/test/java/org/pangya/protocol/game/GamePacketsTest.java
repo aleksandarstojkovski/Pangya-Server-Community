@@ -1512,6 +1512,53 @@ class GamePacketsTest {
         assertEquals(GamePackets.SERVER_CHAR_STATS_UP, statsOk.opcode());
         assertEquals(0, statsOk.u32());
         assertEquals(0, statsOk.u32());
+        assertEquals(GamePackets.itemSubGroupIdentify22(GamePackets.TYPEID_CARD_NORMAL), 0);
+        assertEquals(GamePackets.CHAR_CARD_AWARD_TYPE, 0xCB);
+        GamePackets.PapelAward cardAward = new GamePackets.PapelAward(
+                GamePackets.CHAR_CARD_AWARD_TYPE, GamePackets.TYPEID_NURI, 1, 0, 0, 0, 0,
+                GamePackets.TYPEID_CARD_NORMAL, 1);
+        PacketReader cardAwards = new PacketReader(GamePackets.papelAwards(1, List.of(cardAward)));
+        assertEquals(GamePackets.SERVER_DAILY_QUEST_STAMP, cardAwards.opcode());
+        cardAwards.u32();
+        cardAwards.u32();
+        assertEquals(GamePackets.CHAR_CARD_AWARD_TYPE, cardAwards.u8());
+        assertEquals(GamePackets.TYPEID_NURI, cardAwards.u32());
+        cardAwards.i32();
+        cardAwards.u32();
+        cardAwards.i32();
+        cardAwards.i32();
+        cardAwards.i32();
+        cardAwards.readBytes(10 + GamePackets.CHAR_CARD_AWARD_MID_PAD);
+        assertEquals(GamePackets.TYPEID_CARD_NORMAL, cardAwards.u32());
+        assertEquals(1, cardAwards.u8());
+        PacketReader cardOk = new PacketReader(GamePackets.charCardOk(
+                GamePackets.SERVER_CHAR_CARD_EQUIP, GamePackets.TYPEID_CARD_NORMAL));
+        assertEquals(GamePackets.SERVER_CHAR_CARD_EQUIP, cardOk.opcode());
+        assertEquals(0, cardOk.u32());
+        assertEquals(GamePackets.TYPEID_CARD_NORMAL, cardOk.u32());
+        assertEquals(GamePackets.CHAR_CARD_ERR_PART_SLOT, 0x5200754);
+        assertEquals(GamePackets.CHAR_CARD_REMOVE_ERR_UNKNOWN, 0x5200853);
+        assertEquals(GamePackets.CARD_SUB_CADDIE, 1);
+        assertEquals(GamePackets.CARD_SUB_NPC, 5);
+        assertEquals(GamePackets.CHAR_CARD_CONSUME_C0, 32767);
+        GamePackets.PapelAward consume = new GamePackets.PapelAward(
+                GamePackets.PAPEL_AWARD_TYPE, GamePackets.TYPEID_CARD_NORMAL, 9, 0, 1, 0, -1);
+        PacketReader cardPacket = new PacketReader(GamePackets.charCardAwards(1, List.of(consume, cardAward)));
+        assertEquals(GamePackets.SERVER_DAILY_QUEST_STAMP, cardPacket.opcode());
+        assertEquals(1, cardPacket.u32());
+        assertEquals(2, cardPacket.u32());
+        assertEquals(GamePackets.PAPEL_AWARD_TYPE, cardPacket.u8());
+        assertEquals(GamePackets.TYPEID_CARD_NORMAL, cardPacket.u32());
+        cardPacket.i32();
+        cardPacket.u32();
+        cardPacket.i32();
+        cardPacket.i32();
+        assertEquals(-1, cardPacket.i32());
+        assertEquals(GamePackets.CHAR_CARD_CONSUME_C0, cardPacket.u16());
+        cardPacket.readBytes(GamePackets.CHAR_CARD_AWARD_C_REST + GamePackets.CHAR_CARD_AWARD_MID_PAD);
+        assertEquals(0, cardPacket.u32());
+        assertEquals(0, cardPacket.u8());
+        assertEquals(GamePackets.CHAR_CARD_AWARD_TYPE, cardPacket.u8());
         assertEquals(GamePackets.SERVER_BUY_ACK, 0x68);
         assertEquals(GamePackets.CREATE_ROOM_FAILED, 0x07);
         assertEquals(GamePackets.SERVER_LAST5, 0x10E);

@@ -113,6 +113,19 @@ public interface InventoryRepository {
      */
     CharStatsResult characterStatsDown(long uid, int stat, GamePackets.CharacterInfo client);
 
+    /**
+     * C# {@code requestCharacterCardEquip}: SQL {@code iff_card} +
+     * {@code pangya_card_equip}. {@code slot} is {@code char_card_slot}.
+     */
+    CharCardResult characterCardEquip(long uid, int charTypeid, int charId, int cardTypeid, int cardId, int slot);
+
+    /**
+     * C# {@code requestCharacterRemoveCard}: consume warehouse removedor,
+     * return the card, clear {@code pangya_card_equip}.
+     */
+    CharCardResult characterRemoveCard(
+            long uid, int charTypeid, int charId, int removerTypeid, int removerId, int slot);
+
     record ShopItem(int typeid, int pangPrice, int cookiePrice, boolean canOverlap) {}
 
     record ShopBuyResult(
@@ -209,6 +222,13 @@ public interface InventoryRepository {
 
         public static CharStatsResult fail(int code) {
             return new CharStatsResult(code, 0, 0, new byte[5], 0, 0, 0);
+        }
+    }
+
+    record CharCardResult(int code, List<GamePackets.PapelAward> awards, int cardTypeid) {
+
+        public static CharCardResult fail(int code) {
+            return new CharCardResult(code, List.of(), 0);
         }
     }
 }

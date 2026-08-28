@@ -195,9 +195,9 @@ C#: `GameServer/PangyaEnums/PacketGame.cs` → Java `org.pangya.protocol.game.Ga
 | C | `CLIENT_CHAR_MASTERY_EXPAND` | `0x187` | typeid/id 0 → `0x26E` `shopSys(0x5200651)`; truncated → full `0x5200650`; success `0x216` awards (consume + type `0xCD` mastery) then `0x26E` u32 0 |
 | C | `CLIENT_CHAR_STATS_UP` | `0x188` | missing char → `0x26F` `shopSys(0x5200501)`; truncated `ToRead` → full `0x5200500`; success `0xC8` remaining+spent then `0x216` type `0xC9` PCL then `0x26F` u32 0 + stat |
 | C | `CLIENT_CHAR_STATS_DOWN` | `0x189` | missing char → `0x270` `shopSys(0x5200551)`; truncated → full `0x5200550`; success `0x216` type `0xC9` then `0x270` u32 0 + stat |
-| C | `CLIENT_CHAR_CARD_EQUIP` | `0x18A` | IFF miss (C# NRE on `card==null && card.ID`) → `0x271` `shopSys(0x5200757)` intended; truncated → full `0x5200750` |
+| C | `CLIENT_CHAR_CARD_EQUIP` | `0x18A` | IFF miss → `0x271` `shopSys(0x5200757)`; truncated → full `0x5200750`; success `0x216` (consume + type `0xCB` price/slot) then `0x271` u32 0 + card typeid |
 | C | `CLIENT_CHAR_CARD_PATCHER` | `0x18B` | missing Club Patcher → `0x272` `shopSys(0x5200810)`; truncated → full `0x5200800` |
-| C | `CLIENT_CHAR_CARD_REMOVE` | `0x18C` | missing char → `0x273` `shopSys(0x5200851)`; truncated → full `0x5200850` |
+| C | `CLIENT_CHAR_CARD_REMOVE` | `0x18C` | missing char → `0x273` `shopSys(0x5200851)`; truncated → full `0x5200850`; success `0x216` then `0x273` u32 0 + card typeid |
 | C | `CLIENT_TIKI_SHOP_EXCHANGE` | `0x18D` | distinct from CLIENT `0x129`; count 0/`>5` → `0x274` `shopSys(5200451)`; remaining `< count*8` → `shopSys(5200452)`; truncated ReadUInt32 → full `0x5200900` |
 | C | `CLIENT_FINISH_GAME` aliases | `0xCB` / `0x12C` | same as CLIENT `0x06`; not-in-game silent |
 | C | `CLIENT_RING_PAWS_RAINBOW` / power / miracle / paws-set | `0x196`/`0x197`/`0x198`/`0x199` | not-in-room silent; `0x196` opposite `SERVER_LOUNGE_STATE`; `0x197` opposite `SERVER_COMET_REFILL` |
@@ -269,9 +269,9 @@ C#: `GameServer/PangyaEnums/PacketGame.cs` → Java `org.pangya.protocol.game.Ga
 | S | `SERVER_CHAR_MASTERY` | `0x26E` | fail u32 error; success u32 0 |
 | S | `SERVER_CHAR_STATS_UP` | `0x26F` | fail u32 error; success u32 0 + u32 stat |
 | S | `SERVER_CHAR_STATS_DOWN` | `0x270` | fail u32 error; success u32 0 + u32 stat |
-| S | `SERVER_CHAR_CARD_EQUIP` | `0x271` | u32 error |
-| S | `SERVER_CHAR_CARD_PATCHER` | `0x272` | u32 error |
-| S | `SERVER_CHAR_CARD_REMOVE` | `0x273` | u32 error |
+| S | `SERVER_CHAR_CARD_EQUIP` | `0x271` | fail u32 error; success u32 0 + u32 card typeid |
+| S | `SERVER_CHAR_CARD_PATCHER` | `0x272` | fail u32 error |
+| S | `SERVER_CHAR_CARD_REMOVE` | `0x273` | fail u32 error; success u32 0 + u32 card typeid |
 | S | `SERVER_TIKI_SHOP_EXCHANGE` | `0x274` | u32 error |
 | S | `SERVER_DELETE_ITEM` | `0xC5` | fail sbyte -1 |
 | S | `SERVER_DAILY_QUEST_STAMP` | `0x216` | unix + count |
