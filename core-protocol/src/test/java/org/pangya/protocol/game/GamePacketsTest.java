@@ -170,5 +170,34 @@ class GamePacketsTest {
         assertEquals(0, counters.u32());
         assertEquals(0, counters.u32());
         assertEquals(0, counters.u32());
+        byte[] lounge = GamePackets.loungeState(1);
+        PacketReader lg = new PacketReader(lounge);
+        assertEquals(GamePackets.SERVER_LOUNGE_STATE, lg.opcode());
+        assertEquals(1, lg.i32());
+        assertEquals(1.0f, lg.f32());
+        assertEquals(GamePackets.STATE_CHARACTER_LOUNGE_BYTES - 4, lg.remaining());
+        PacketReader emptyBuy = new PacketReader(GamePackets.clientBuyEmpty());
+        assertEquals(GamePackets.CLIENT_REQUEST_BUY_ITEM, emptyBuy.opcode());
+        GamePackets.BuyRequest empty = GamePackets.readBuyRequest(emptyBuy);
+        assertEquals(0, empty.items().size());
+        PacketReader buyPkt = new PacketReader(GamePackets.clientBuyItem(
+                GamePackets.TYPEID_SHOP_PANG_ITEM, 1, GamePackets.SHOP_PANG_PRICE, 0));
+        GamePackets.BuyRequest buy = GamePackets.readBuyRequest(buyPkt);
+        assertEquals(1, buy.items().size());
+        assertEquals(GamePackets.TYPEID_SHOP_PANG_ITEM, buy.items().getFirst().typeid());
+        assertEquals(GamePackets.SHOP_PANG_PRICE, buy.items().getFirst().pang());
+        byte[] aa = GamePackets.buyNewItems(
+                List.of(new GamePackets.BoughtItem(GamePackets.TYPEID_SHOP_PANG_ITEM, 99, 0, 0, 1)),
+                99900,
+                0);
+        PacketReader newItem = new PacketReader(aa);
+        assertEquals(GamePackets.SERVER_NEW_ITEM, newItem.opcode());
+        assertEquals(1, newItem.u16());
+        assertEquals(GamePackets.TYPEID_SHOP_PANG_ITEM, newItem.u32());
+        assertEquals(99, newItem.i32());
+        PacketReader ok = new PacketReader(GamePackets.buyOk(99900, 0));
+        assertEquals(GamePackets.SERVER_BUY_ACK, ok.opcode());
+        assertEquals(0, ok.u32());
+        assertEquals(99900, ok.u64());
     }
 }

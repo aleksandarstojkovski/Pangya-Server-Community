@@ -3,6 +3,7 @@ package org.pangya.db;
 import org.pangya.protocol.game.GamePackets;
 
 import java.util.List;
+import java.util.Optional;
 
 /** Game inventory replacing C# {@code CmdWarehouseItem} / {@code CmdCharacterInfo} / {@code CmdCaddieInfo}. */
 public interface InventoryRepository {
@@ -36,4 +37,29 @@ public interface InventoryRepository {
     List<GamePackets.CounterItem> counters(long uid);
 
     List<GamePackets.AchievementInfo> achievements(long uid);
+
+    Optional<ShopItem> shopItem(int typeid);
+
+    ShopBuyResult buyShopItem(long uid, int typeid, int qntd, int clientPang, int clientCookie);
+
+    void setPangCookie(long uid, long pang, long cookie);
+
+    void deleteWarehouseByTypeid(long uid, int typeid);
+
+    record ShopItem(int typeid, int pangPrice, int cookiePrice, boolean canOverlap) {}
+
+    record ShopBuyResult(
+            int code,
+            int itemId,
+            int typeid,
+            int qntdDep,
+            long pang,
+            long cookie,
+            long pangSpent,
+            long cookieSpent) {
+
+        public static ShopBuyResult fail(int code) {
+            return new ShopBuyResult(code, 0, 0, 0, 0, 0, 0, 0);
+        }
+    }
 }

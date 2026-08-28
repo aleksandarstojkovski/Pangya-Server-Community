@@ -30,7 +30,14 @@ public final class GamePackets {
     public static final int SERVER_WEATHER = 0x9E;
     public static final int SERVER_END_SHOT = 0xCC;
     public static final int SERVER_BUY_ACK = 0x68;
+    /** C# {@code pacote0AA} / {@code SERVER_NEW_ITEM}. */
+    public static final int SERVER_NEW_ITEM = 0xAA;
+    /** C# pang spent after shop buy ({@code 0xC8} + remaining + spent). */
+    public static final int SERVER_PANG_SPENT = 0xC8;
+    public static final int SERVER_COOKIE = 0x96;
     public static final int SERVER_MASCOT_SEED = 0x16A;
+    /** C# {@code pacote196}: oid + {@code StateCharacterLounge} (4 floats). */
+    public static final int SERVER_LOUNGE_STATE = 0x196;
     public static final int SERVER_START_GAME_FLAG = 0x230;
     public static final int SERVER_START_GAME_FLAG2 = 0x231;
     public static final int SERVER_START_GAME_FAIL = 0x253;
@@ -47,6 +54,8 @@ public final class GamePackets {
     public static final int CLIENT_SHOT_RESULT = 0x1B;
     public static final int CLIENT_SHOT_ACK = 0x1C;
     public static final int CLIENT_REQUEST_BUY_ITEM = 0x1D;
+    /** C# {@code CLIENT_REQ_CHARACTER_STAT_IN_CHATROOM} → {@code pacote196}. */
+    public static final int CLIENT_LOUNGE_STATE = 0xEB;
     public static final int CLIENT_REQUEST_EQUIP_ITEM = 0x20;
     public static final int CLIENT_LEAVE_PRACTICE = 0x130;
 
@@ -115,8 +124,23 @@ public final class GamePackets {
     public static final int SHOT_SYNC_BYTES = 54;
     /** C# {@code pacote06B} success err_code. */
     public static final int EQUIP_OK = 4;
-    /** C# {@code requestBuyItemShop} catch: {@code 0x68} uint32 10. */
+    /** C# {@code requestBuyItemShop} {@code 0x68} option codes. */
+    public static final int BUY_FAIL_INIT = 1;
+    public static final int BUY_FAIL_PRICE = 2;
+    public static final int BUY_FAIL_OWNED = 4;
+    public static final int BUY_FAIL_NOT_BUYABLE = 6;
+    public static final int BUY_FAIL_FUNDS = 7;
+    public static final int BUY_FAIL_EMPTY = 9;
+    /** C# catch: {@code 0x68} uint32 10. */
     public static final int BUY_FAIL_GENERIC = 10;
+    /** C# {@code BuyItem} body after opcode: id+typeid+time+type+qntd+pang+cookie+13. */
+    public static final int BUY_ITEM_BYTES = 37;
+    /** C# {@code SYSTEMTIME} (8 × uint16). */
+    public static final int SYSTEMTIME_BYTES = 16;
+    /** C# {@code ucc.IDX} in {@code pacote0AA}. */
+    public static final int UCC_IDX_BYTES = 9;
+    /** C# {@code StateCharacterLounge.ToArray}: 4 floats. */
+    public static final int STATE_CHARACTER_LOUNGE_BYTES = 16;
 
     /** C# {@code AIR_KNIGHT_SET} / IFF CLUBSET << 26. */
     public static final int TYPEID_AIR_KNIGHT = 0x10000000;
@@ -124,6 +148,12 @@ public final class GamePackets {
     public static final int TYPEID_NURI = 0x4000000;
     /** IFF BALL << 26. */
     public static final int TYPEID_DEFAULT_BALL = 0x14000000;
+    /**
+     * IFF ITEM {@code 0x1A000006} (436207622). SQL shop catalog stand-in for C# {@code IsBuyItem}.
+     */
+    public static final int TYPEID_SHOP_PANG_ITEM = 0x1A000006;
+    /** Seeded {@code shop_catalog.pang_price} for {@link #TYPEID_SHOP_PANG_ITEM}. */
+    public static final int SHOP_PANG_PRICE = 100;
     /** C# {@code IFF_GROUP.CHARACTER}: {@code typeid >>> 26}. */
     public static final int IFF_GROUP_CHARACTER = 1;
 
@@ -910,9 +940,60 @@ public final class GamePackets {
         return w.toBytes();
     }
 
-    /** C# {@code requestBuyItemShop} catch path. Shop catalog (IFF) is not in this env. */
+    /** C# {@code requestBuyItemShop} {@code 0x68} uint32 option. Extra pang/cookie only on option 0. */
     public static byte[] buyFailed(int code) {
         return new PacketWriter().opcode(SERVER_BUY_ACK).u32(code).toBytes();
+    }
+
+    /** C# {@code 0x68} option 0 + remaining pang + cookie. */
+    public static byte[] buyOk(long pang, long cookie) {
+        return new PacketWriter().opcode(SERVER_BUY_ACK).u32(0).u64(pang).u64(cookie).toBytes();
+    }
+
+    /**
+     * C# {@code pacote0AA}: count + per item typeid/id/time/flag_time/qntd_dep/SYSTEMTIME/ucc.IDX
+     * then u64 pang + u64 cookie. Non-rental SYSTEMTIME is zeros.
+     */
+    public static byte[] buyNewItems(List<BoughtItem> items, long pang, long cookie) {
+        PacketWriter w = new PacketWriter().opcode(SERVER_NEW_ITEM).u16(items.size());
+        for (BoughtItem item : items) {
+            w.u32(item.typeid());
+            w.i32(item.id());
+            w.u16(item.time());
+            w.u8(item.flagTime());
+            w.u16(item.qntdDep());
+            w.zero(SYSTEMTIME_BYTES);
+            w.zero(UCC_IDX_BYTES);
+        }
+        return w.u64(pang).u64(cookie).toBytes();
+    }
+
+    /** C# {@code 0xC8} after a pang shop purchase. */
+    public static byte[] pangSpent(long remaining, long spent) {
+        return new PacketWriter().opcode(SERVER_PANG_SPENT).u64(remaining).u64(spent).toBytes();
+    }
+
+    /** C# {@code 0x96} cookie balance after a cash shop purchase. */
+    public static byte[] cookieBalance(long cookie) {
+        return new PacketWriter().opcode(SERVER_COOKIE).u64(cookie).toBytes();
+    }
+
+    /**
+     * C# {@code pacote196}: oid + {@code StateCharacterLounge} defaults (all 1.0f).
+     */
+    public static byte[] loungeState(int oid) {
+        return new PacketWriter()
+                .opcode(SERVER_LOUNGE_STATE)
+                .i32(oid)
+                .f32(1)
+                .f32(1)
+                .f32(1)
+                .f32(1)
+                .toBytes();
+    }
+
+    public static byte[] clientLoungeState() {
+        return new PacketWriter().opcode(CLIENT_LOUNGE_STATE).toBytes();
     }
 
     public static boolean usesTourneyInitialData(int tipo) {
@@ -1050,8 +1131,61 @@ public final class GamePackets {
         return new PacketWriter().opcode(CLIENT_REQUEST_EQUIP_ITEM).u8(8).i32(mascotId).toBytes();
     }
 
+    /**
+     * Malformed buy (option+qntd underrun) so C# catch writes {@link #BUY_FAIL_GENERIC}.
+     */
     public static byte[] clientBuyItem() {
         return new PacketWriter().opcode(CLIENT_REQUEST_BUY_ITEM).u16(0).toBytes();
+    }
+
+    /** C# {@code requestBuyItemShop} with {@code qntd == 0} → {@link #BUY_FAIL_EMPTY}. */
+    public static byte[] clientBuyEmpty() {
+        return new PacketWriter().opcode(CLIENT_REQUEST_BUY_ITEM).u8(0).u16(0).toBytes();
+    }
+
+    /**
+     * C# CLIENT {@code 0x1D}: option, u16 count, {@code BuyItem} × count, int32 coupon id.
+     */
+    public static byte[] clientBuyItem(int typeid, int qntd, int pang, int cookie) {
+        PacketWriter w = new PacketWriter().opcode(CLIENT_REQUEST_BUY_ITEM).u8(0).u16(1);
+        w.i32(0);
+        w.u32(typeid);
+        w.i16(0);
+        w.i16(0);
+        w.u32(qntd);
+        w.u32(pang);
+        w.u32(cookie);
+        w.zero(13);
+        w.i32(0);
+        return w.toBytes();
+    }
+
+    public static BuyRequest readBuyRequest(PacketReader reader) {
+        int option = reader.u8();
+        int count = reader.u16();
+        List<BuyItem> items = new ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            items.add(readBuyItem(reader));
+        }
+        int coupon = 0;
+        if (count > 0) {
+            coupon = reader.i32();
+        }
+        return new BuyRequest(option, items, coupon);
+    }
+
+    public static BuyItem readBuyItem(PacketReader reader) {
+        int id = reader.i32();
+        int typeid = reader.u32();
+        int time = reader.i16();
+        int itemType = reader.i16();
+        int qntd = reader.u32();
+        int pang = reader.u32();
+        int cookie = reader.u32();
+        if (reader.remaining() >= 13) {
+            reader.readBytes(13);
+        }
+        return new BuyItem(id, typeid, time, itemType, qntd, pang, cookie);
     }
 
     public static InitHole readInitHole(PacketReader reader) {
@@ -1089,6 +1223,12 @@ public final class GamePackets {
         int gp = r.remaining() >= 1 ? r.u8() : 0;
         return new ShotSync(oid, x, y, z, state, bunker, unknown, pang, bonus, display, shot, tempo, gp);
     }
+
+    public record BuyItem(int id, int typeid, int time, int itemType, int qntd, int pang, int cookie) {}
+
+    public record BuyRequest(int option, List<BuyItem> items, int couponId) {}
+
+    public record BoughtItem(int typeid, int id, int time, int flagTime, int qntdDep) {}
 
     public record HoleInfo(int id, int pin, int course, int numero, int weather, int wind, int degree) {}
 

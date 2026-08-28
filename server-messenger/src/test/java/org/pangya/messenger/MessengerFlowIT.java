@@ -50,6 +50,13 @@ class MessengerFlowIT {
             assertEquals(MessengerPackets.STATE_ONLINE, friends.u32());
             assertEquals(1, friends.u8());
             assertEquals(MessengerPackets.CHANNEL_PLAYER_INFO_BYTES, friends.remaining());
+            PacketReader page = new PacketReader(client.awaitPlain(5, TimeUnit.SECONDS));
+            assertEquals(MessengerPackets.SERVER_FRIEND_AND_GUILD_LIST, page.opcode());
+            assertEquals(MessengerPackets.SUB_FRIEND_LIST_PAGE, page.u16());
+            assertEquals(1, page.u8());
+            assertEquals(0, page.u16());
+            assertEquals(0, page.u16());
+            assertEquals(0, page.remaining());
         }
     }
 
@@ -99,6 +106,22 @@ class MessengerFlowIT {
             PacketReader accepted = new PacketReader(a.awaitPlain(5, TimeUnit.SECONDS));
             assertEquals(MessengerPackets.SERVER_FRIEND_AND_GUILD_LIST, accepted.opcode());
             assertEquals(MessengerPackets.SUB_FRIEND_ACCEPTED, accepted.u16());
+
+            a.sendPlain(new org.pangya.protocol.packet.PacketWriter()
+                    .opcode(MessengerPackets.CLIENT_REQ_USERINFO)
+                    .toBytes());
+            PacketReader status = new PacketReader(a.awaitPlain(5, TimeUnit.SECONDS));
+            assertEquals(MessengerPackets.SERVER_FRIEND_AND_GUILD_LIST, status.opcode());
+            assertEquals(MessengerPackets.SUB_CHANGE_MY_STATUS, status.u16());
+            PacketReader page = new PacketReader(a.awaitPlain(5, TimeUnit.SECONDS));
+            assertEquals(MessengerPackets.SERVER_FRIEND_AND_GUILD_LIST, page.opcode());
+            assertEquals(MessengerPackets.SUB_FRIEND_LIST_PAGE, page.u16());
+            assertEquals(1, page.u8());
+            assertEquals(1, page.u16());
+            assertEquals(1, page.u16());
+            assertEquals(
+                    MessengerPackets.FRIEND_INFO_BYTES + MessengerPackets.CHANNEL_PLAYER_INFO_BYTES + 5,
+                    page.remaining());
 
             a.sendPlain(MessengerPackets.clientBlockFriend(10002));
             PacketReader blocked = new PacketReader(a.awaitPlain(5, TimeUnit.SECONDS));

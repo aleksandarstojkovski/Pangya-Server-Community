@@ -362,6 +362,160 @@ class GameFlowIT {
         }
     }
 
+    @Test
+    void shopBuySendsNewItemThenBuyOk() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config);
+             PangyaFakeClient client = new PangyaFakeClient()) {
+            var inventory = new org.pangya.db.JdbiInventoryRepository(org.pangya.db.DatabaseSupport.jdbi(ds));
+            inventory.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_SHOP_PANG_ITEM);
+            inventory.setPangCookie(10001, 100000, 0);
+            LoginRepository repo = new JdbiLoginRepository(DatabaseSupport.jdbi(ds));
+            String loginKey = repo.generateAuthKeyLogin(10001);
+            String gameKey = repo.generateAuthKeyGame(10001, 20202);
+            keys.putLoginKey(10001, loginKey);
+            keys.putGameKey(10001, 20202, gameKey);
+            loginToChannel(client, runtime.port(), "testuser", 10001, loginKey, gameKey);
+
+            client.sendPlain(GamePackets.clientBuyEmpty());
+            PacketReader empty = awaitOpcode(client, GamePackets.SERVER_BUY_ACK);
+            assertEquals(GamePackets.BUY_FAIL_EMPTY, empty.u32());
+
+            client.sendPlain(GamePackets.clientBuyItem(0x7FFF0001, 1, 1, 0));
+            PacketReader missing = awaitOpcode(client, GamePackets.SERVER_BUY_ACK);
+            assertEquals(GamePackets.BUY_FAIL_NOT_BUYABLE, missing.u32());
+
+            client.sendPlain(GamePackets.clientBuyItem(
+                    GamePackets.TYPEID_SHOP_PANG_ITEM, 1, GamePackets.SHOP_PANG_PRICE, 0));
+            PacketReader spent = awaitOpcode(client, GamePackets.SERVER_PANG_SPENT);
+            assertEquals(99900, spent.u64());
+            assertEquals(GamePackets.SHOP_PANG_PRICE, spent.u64());
+            PacketReader added = awaitOpcode(client, GamePackets.SERVER_NEW_ITEM);
+            assertEquals(1, added.u16());
+            assertEquals(GamePackets.TYPEID_SHOP_PANG_ITEM, added.u32());
+            assertTrue(added.i32() > 0);
+            assertEquals(0, added.u16());
+            assertEquals(0, added.u8());
+            assertEquals(1, added.u16());
+            added.readBytes(GamePackets.SYSTEMTIME_BYTES + GamePackets.UCC_IDX_BYTES);
+            assertEquals(99900, added.u64());
+            assertEquals(0, added.u64());
+            PacketReader ok = awaitOpcode(client, GamePackets.SERVER_BUY_ACK);
+            assertEquals(0, ok.u32());
+            assertEquals(99900, ok.u64());
+            assertEquals(0, ok.u64());
+            inventory.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_SHOP_PANG_ITEM);
+            inventory.setPangCookie(10001, 100000, 0);
+        }
+    }
+
+    @Test
+    void loungeStateBroadcastsPacote196() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config);
+             PangyaFakeClient client = new PangyaFakeClient()) {
+            LoginRepository repo = new JdbiLoginRepository(DatabaseSupport.jdbi(ds));
+            String loginKey = repo.generateAuthKeyLogin(10001);
+            String gameKey = repo.generateAuthKeyGame(10001, 20202);
+            keys.putLoginKey(10001, loginKey);
+            keys.putGameKey(10001, 20202, gameKey);
+            loginToChannel(client, runtime.port(), "testuser", 10001, loginKey, gameKey);
+            client.sendPlain(GamePackets.clientCreateRoom(GamePackets.TIPO_LOUNGE, "LG", ""));
+            assertEquals(0, awaitOpcode(client, GamePackets.SERVER_ROOM_ENTER_RESULT).i16());
+            client.sendPlain(GamePackets.clientLoungeState());
+            PacketReader state = awaitOpcode(client, GamePackets.SERVER_LOUNGE_STATE);
+            state.i32();
+            assertEquals(1.0f, state.f32());
+            assertEquals(1.0f, state.f32());
+            assertEquals(1.0f, state.f32());
+            assertEquals(1.0f, state.f32());
+        }
+    }
+
+    @Test
+    void soloGrandZodiacSendsTourneyInit() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config);
+             PangyaFakeClient client = new PangyaFakeClient()) {
+            LoginRepository repo = new JdbiLoginRepository(DatabaseSupport.jdbi(ds));
+            String loginKey = repo.generateAuthKeyLogin(10001);
+            String gameKey = repo.generateAuthKeyGame(10001, 20202);
+            keys.putLoginKey(10001, loginKey);
+            keys.putGameKey(10001, 20202, gameKey);
+            loginToChannel(client, runtime.port(), "testuser", 10001, loginKey, gameKey);
+            client.sendPlain(GamePackets.clientCreateRoom(GamePackets.TIPO_GRAND_ZODIAC_INT, "GZ", ""));
+            assertEquals(0, awaitOpcode(client, GamePackets.SERVER_ROOM_ENTER_RESULT).i16());
+            client.sendPlain(GamePackets.clientStartGame());
+            awaitOpcode(client, GamePackets.SERVER_START_GAME_FLAG);
+            awaitOpcode(client, GamePackets.SERVER_START_GAME_FLAG2);
+            awaitOpcode(client, GamePackets.SERVER_PANG_RATE);
+            PacketReader init = awaitOpcode(client, GamePackets.SERVER_GAME_INIT);
+            assertEquals(GamePackets.TIPO_GRAND_ZODIAC_INT, init.u8());
+            assertEquals(1, init.u32());
+            PacketReader course = awaitOpcode(client, GamePackets.SERVER_COURSE);
+            assertEquals(0, course.u8());
+            assertEquals(GamePackets.TIPO_GRAND_ZODIAC_INT, course.u8());
+        }
+    }
+
+    @Test
+    void twoPlayersStartSscAndReceiveCourse() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config);
+             PangyaFakeClient host = new PangyaFakeClient();
+             PangyaFakeClient guest = new PangyaFakeClient()) {
+            loginTwoPlayers(ds, keys, host, guest, runtime.port());
+            host.sendPlain(GamePackets.clientCreateRoom(GamePackets.TIPO_SPECIAL_SHUFFLE_COURSE, "SSC", ""));
+            PacketReader created = awaitOpcode(host, GamePackets.SERVER_ROOM_ENTER_RESULT);
+            assertEquals(0, created.i16());
+            int numero = roomNumberFromInfo(created.readBytes(GamePackets.ROOM_INFO_BYTES));
+            guest.sendPlain(GamePackets.clientJoinRoom(numero, ""));
+            assertEquals(0, awaitOpcode(guest, GamePackets.SERVER_ROOM_ENTER_RESULT).i16());
+            host.sendPlain(GamePackets.clientStartGame());
+            awaitOpcode(host, GamePackets.SERVER_START_GAME_FLAG);
+            awaitOpcode(host, GamePackets.SERVER_START_GAME_FLAG2);
+            awaitOpcode(host, GamePackets.SERVER_PANG_RATE);
+            PacketReader init = awaitOpcode(host, GamePackets.SERVER_GAME_INIT);
+            assertEquals(GamePackets.TIPO_TOURNEY, init.u8());
+            assertEquals(1, init.u32());
+            PacketReader course = awaitOpcode(host, GamePackets.SERVER_COURSE);
+            assertEquals(0, course.u8());
+            assertEquals(GamePackets.TIPO_TOURNEY, course.u8());
+        }
+    }
+
     private static void startTwoPlayerVersusMode(int tipo, String name) throws Exception {
         String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
         String user = env("PANGYA_TEST_JDBC_USER", "pangya");

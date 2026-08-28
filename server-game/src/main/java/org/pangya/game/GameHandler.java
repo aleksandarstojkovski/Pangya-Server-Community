@@ -94,7 +94,8 @@ public final class GameHandler {
             case GamePackets.CLIENT_SHOT_RESULT -> syncShot(session, reader);
             case GamePackets.CLIENT_SHOT_ACK -> finishShot(session);
             case GamePackets.CLIENT_REQUEST_EQUIP_ITEM -> equipItem(session, reader);
-            case GamePackets.CLIENT_REQUEST_BUY_ITEM -> buyItem(session);
+            case GamePackets.CLIENT_REQUEST_BUY_ITEM -> buyItem(session, reader);
+            case GamePackets.CLIENT_LOUNGE_STATE -> loungeState(session);
             default -> log.debug("unhandled game opcode 0x{}", Integer.toHexString(opcode));
         }
     }
@@ -499,12 +500,58 @@ public final class GameHandler {
         session.send(GamePackets.equipAck(err, type, extra));
     }
 
-    private void buyItem(Session session) {
+    private void buyItem(Session session, PacketReader reader) {
         if (!session.authorized()) {
             return;
         }
-        // IFF shop catalog is not in this env; C# catch path writes 0x68 uint32 10.
-        session.send(GamePackets.buyFailed(GamePackets.BUY_FAIL_GENERIC));
+        try {
+            GamePackets.BuyRequest req = GamePackets.readBuyRequest(reader);
+            if (req.items().isEmpty()) {
+                session.send(GamePackets.buyFailed(GamePackets.BUY_FAIL_EMPTY));
+                return;
+            }
+            List<GamePackets.BoughtItem> bought = new ArrayList<>();
+            long pang = 0;
+            long cookie = 0;
+            long pangSpent = 0;
+            long cookieSpent = 0;
+            for (GamePackets.BuyItem item : req.items()) {
+                InventoryRepository.ShopBuyResult result = inventory.buyShopItem(
+                        session.player().uid, item.typeid(), item.qntd(), item.pang(), item.cookie());
+                if (result.code() != 0) {
+                    session.send(GamePackets.buyFailed(result.code()));
+                    return;
+                }
+                bought.add(new GamePackets.BoughtItem(
+                        result.typeid(), result.itemId(), 0, 0, result.qntdDep()));
+                pang = result.pang();
+                cookie = result.cookie();
+                pangSpent += result.pangSpent();
+                cookieSpent += result.cookieSpent();
+            }
+            if (pangSpent > 0) {
+                session.send(GamePackets.pangSpent(pang, pangSpent));
+            }
+            if (cookieSpent > 0) {
+                session.send(GamePackets.cookieBalance(cookie));
+            }
+            session.send(GamePackets.buyNewItems(bought, pang, cookie));
+            session.send(GamePackets.buyOk(pang, cookie));
+        } catch (RuntimeException e) {
+            log.warn("buy item uid={} failed: {}", session.player().uid, e.toString());
+            session.send(GamePackets.buyFailed(GamePackets.BUY_FAIL_GENERIC));
+        }
+    }
+
+    private void loungeState(Session session) {
+        if (!session.authorized()) {
+            return;
+        }
+        GameRoom room = rooms.get(session.player().roomNumber);
+        if (room == null || room.tipo != GamePackets.TIPO_LOUNGE) {
+            return;
+        }
+        room.broadcast(GamePackets.loungeState(session.oid()));
     }
 
     private GameRoom inGameRoom(Session session) {

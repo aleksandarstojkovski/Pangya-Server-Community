@@ -29,5 +29,23 @@ class MessengerPacketsTest {
         assertEquals(1, r.u8());
         assertEquals(75, r.remaining());
         assertEquals(MessengerPackets.FRIEND_INFO_BYTES, MessengerPackets.friendInfo("TestNick2", "Friend", 10002).length);
+        byte[] page = MessengerPackets.emptyFriendPage();
+        PacketReader p = new PacketReader(page);
+        assertEquals(MessengerPackets.SERVER_FRIEND_AND_GUILD_LIST, p.opcode());
+        assertEquals(MessengerPackets.SUB_FRIEND_LIST_PAGE, p.u16());
+        assertEquals(1, p.u8());
+        assertEquals(0, p.u16());
+        assertEquals(0, p.u16());
+        assertEquals(0, p.remaining());
+        assertEquals(MessengerPackets.CHANNEL_PLAYER_INFO_BYTES, MessengerPackets.offlineChannelPlayerInfo().length);
+        byte[] row = MessengerPackets.friendListRow(
+                MessengerPackets.friendInfo("TestNick2", "Friend", 10002),
+                MessengerPackets.offlineChannelPlayerInfo(),
+                MessengerPackets.OFFLINE_ICON,
+                MessengerPackets.CUNKNOWN_FLAG_DEFAULT,
+                1,
+                MessengerPackets.FLAG_FRIEND,
+                MessengerPackets.FRIEND_FLAG);
+        assertEquals(MessengerPackets.FRIEND_INFO_BYTES + MessengerPackets.CHANNEL_PLAYER_INFO_BYTES + 5, row.length);
     }
 }

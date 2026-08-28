@@ -3,6 +3,8 @@ package org.pangya.protocol.messenger;
 import org.pangya.protocol.packet.PacketReader;
 import org.pangya.protocol.packet.PacketWriter;
 
+import java.util.List;
+
 /**
  * JP {@code Definition.cs} + {@code MessengerServer.requestLogin}/{@code confirmLoginOnOtherServer}.
  */
@@ -26,6 +28,8 @@ public final class MessengerPackets {
     public static final int SUB_FRIEND_REMOVE = 0x10B;
     public static final int SUB_FRIEND_BLOCK = 0x10C;
     public static final int SUB_FRIEND_LOGOUT = 0x10F;
+    /** C# {@code requestFriendAndGuildMemberList} page sub-id. */
+    public static final int SUB_FRIEND_LIST_PAGE = 0x102;
 
     /** C# {@code USER_STATUS.IS_ONLINE}. */
     public static final int STATE_ONLINE = 4;
@@ -41,6 +45,10 @@ public final class MessengerPackets {
     public static final int FRIEND_INFO_BYTES = 65;
     public static final int CUNKNOWN_FLAG_DEFAULT = 255;
     public static final int OFFLINE_ICON = 5;
+    /** C# {@code MessengerServer.FRIEND_PAG_LIMIT}. */
+    public static final int FRIEND_PAG_LIMIT = 30;
+    /** C# {@code ManyPacket.Pagina}: byte pagina + u16 total + u16 current. */
+    public static final int FRIEND_PAGE_HEADER_BYTES = 5;
 
     /** Sub-packet id written before the login player's {@code ChannelPlayerInfo}. */
     public static final int SUB_CHANGE_MY_STATUS = 0x115;
@@ -70,8 +78,8 @@ public final class MessengerPackets {
 
     /**
      * C# {@code requestFriendAndGuildMemberList} first packet: sub 0x115, uid, state, OK,
-     * then {@code ChannelPlayerInfo.ToArray()} (75 bytes). Empty friend pages follow only
-     * when {@code ManyPacket.paginas > 0}.
+     * then {@code ChannelPlayerInfo.ToArray()} (75 bytes). An empty {@code 0x102} page
+     * always follows when {@code ManyPacket.paginas == 0}.
      */
     public static byte[] friendStatus(int uid, int state, byte[] channelPlayerInfo) {
         return new PacketWriter()
@@ -100,22 +108,98 @@ public final class MessengerPackets {
     }
 
     public static byte[] friendInfo(String nickname, String apelido, int uid) {
+        return friendInfo(nickname, apelido, uid, -1, 0, -1, 0, 0, 0, 0);
+    }
+
+    public static byte[] friendInfo(
+            String nickname,
+            String apelido,
+            int uid,
+            int unknown1,
+            int unknown2,
+            int unknown3,
+            int unknown4,
+            int unknown5,
+            int unknown6,
+            int unknown7) {
         PacketWriter w = new PacketWriter();
         w.fixedStr(nickname == null ? "" : nickname, 22);
         w.fixedStr(apelido == null ? "Friend" : apelido, 11);
         w.u32(uid);
-        w.i32(-1);
-        w.i32(0);
-        w.i32(-1);
-        w.i32(0);
-        w.i32(0);
-        w.i32(0);
-        w.i32(0);
+        w.i32(unknown1);
+        w.i32(unknown2);
+        w.i32(unknown3);
+        w.i32(unknown4);
+        w.i32(unknown5);
+        w.i32(unknown6);
+        w.i32(unknown7);
         byte[] body = w.toBytes();
         if (body.length != FRIEND_INFO_BYTES) {
             throw new IllegalStateException("FriendInfo size " + body.length);
         }
         return body;
+    }
+
+    /**
+     * C# offline ChannelPlayerInfo in friend pages: room/type/server -1, channel -1, 64 zeros.
+     */
+    public static byte[] offlineChannelPlayerInfo() {
+        PacketWriter w = new PacketWriter();
+        w.i16(-1);
+        w.i32(-1);
+        w.i32(-1);
+        w.u8(0xff);
+        w.zero(64);
+        byte[] body = w.toBytes();
+        if (body.length != CHANNEL_PLAYER_INFO_BYTES) {
+            throw new IllegalStateException("offline ChannelPlayerInfo size " + body.length);
+        }
+        return body;
+    }
+
+    /**
+     * C# {@code 0x30} sub {@code 0x102}: {@code ManyPacket.Pagina} then friend rows.
+     * Empty list still sends pagina=1, total=0, current=0.
+     */
+    public static byte[] friendPage(int pagina, int total, int current, List<byte[]> rows) {
+        PacketWriter w = new PacketWriter()
+                .opcode(SERVER_FRIEND_AND_GUILD_LIST)
+                .u16(SUB_FRIEND_LIST_PAGE)
+                .u8(pagina)
+                .u16(total)
+                .u16(current);
+        if (rows != null) {
+            for (byte[] row : rows) {
+                w.bytes(row);
+            }
+        }
+        return w.toBytes();
+    }
+
+    public static byte[] emptyFriendPage() {
+        return friendPage(1, 0, 0, List.of());
+    }
+
+    /**
+     * One friend-page row: FriendInfo 65 + ChannelPlayerInfo 75 + icon + cUnknown + level + state + flag.
+     */
+    public static byte[] friendListRow(
+            byte[] friendInfo,
+            byte[] channelPlayerInfo,
+            int icon,
+            int cUnknown,
+            int level,
+            int state,
+            int flag) {
+        return new PacketWriter()
+                .bytes(friendInfo)
+                .bytes(channelPlayerInfo)
+                .u8(icon)
+                .u8(cUnknown)
+                .u8(level)
+                .u8(state)
+                .u8(flag)
+                .toBytes();
     }
 
     /**

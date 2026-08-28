@@ -10,6 +10,9 @@ import org.pangya.protocol.packet.PacketReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * JP {@code MessengerServer.requestLogin} + friend add/agree/block/remove.
  */
@@ -86,6 +89,54 @@ public final class MessengerHandler {
         PlayerContext pi = session.player();
         session.send(MessengerPackets.friendStatus(
                 (int) pi.uid, MessengerPackets.STATE_ONLINE, MessengerPackets.emptyChannelPlayerInfo()));
+        List<FriendRepository.FriendRow> list = friends.friends(pi.uid);
+        if (list.isEmpty()) {
+            session.send(MessengerPackets.emptyFriendPage());
+            return;
+        }
+        int remaining = list.size();
+        int pages = (list.size() + MessengerPackets.FRIEND_PAG_LIMIT - 1) / MessengerPackets.FRIEND_PAG_LIMIT;
+        for (int page = 0; page < pages; page++) {
+            int start = page * MessengerPackets.FRIEND_PAG_LIMIT;
+            int current = Math.min(MessengerPackets.FRIEND_PAG_LIMIT, remaining);
+            List<byte[]> rows = new ArrayList<>();
+            for (int i = start; i < start + current; i++) {
+                rows.add(friendListRow(list.get(i)));
+            }
+            session.send(MessengerPackets.friendPage(page + 1, remaining, current, rows));
+            remaining -= current;
+        }
+    }
+
+    private byte[] friendListRow(FriendRepository.FriendRow row) {
+        byte[] info = MessengerPackets.friendInfo(
+                row.nickname(),
+                row.apelido(),
+                (int) row.friendUid(),
+                row.unknown1(),
+                row.unknown2(),
+                row.unknown3(),
+                row.unknown4(),
+                row.unknown5(),
+                row.unknown6(),
+                0);
+        Session live = sessions.findByUid(row.friendUid());
+        int state = row.stateFlag();
+        byte[] channel;
+        int icon;
+        if (live != null) {
+            channel = MessengerPackets.emptyChannelPlayerInfo();
+            icon = MessengerPackets.STATE_ONLINE;
+            state |= MessengerPackets.FLAG_ONLINE;
+        } else {
+            channel = MessengerPackets.offlineChannelPlayerInfo();
+            icon = MessengerPackets.OFFLINE_ICON;
+        }
+        int level = repo.playerInfo(row.friendUid()).map(LoginRepository.PlayerLoginInfo::level).orElse(0);
+        int flag = (row.stateFlag() & (MessengerPackets.FLAG_FRIEND | MessengerPackets.FLAG_REQUEST)) != 0
+                ? MessengerPackets.FRIEND_FLAG
+                : 0;
+        return MessengerPackets.friendListRow(info, channel, icon, row.flag1(), level, state, flag);
     }
 
     private void addFriend(Session session, PacketReader reader) {
