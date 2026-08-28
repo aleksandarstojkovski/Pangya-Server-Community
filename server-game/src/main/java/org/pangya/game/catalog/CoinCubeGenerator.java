@@ -1,12 +1,11 @@
 package org.pangya.game.catalog;
 
 import org.pangya.db.InventoryRepository;
+import org.pangya.game.util.Lottery;
 import org.pangya.protocol.game.GamePackets;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.ThreadLocalRandom;
 
 /** C# {@code CubeCoinSystem.CourseCtx.Hole.getAllCoinCube} using SQL locations. */
 public final class CoinCubeGenerator {
@@ -65,9 +64,7 @@ public final class CoinCubeGenerator {
         CoinCubeInHole.Limits limits =
                 CoinCubeInHole.limitsForPar(catalogs.parFor(courseId, holeNum));
         List<GamePackets.CourseCubeEntry> out = new ArrayList<>(limits.maxCoinAndCube());
-        ThreadLocalRandom rng = ThreadLocalRandom.current();
 
-        // Edge coins are always present (C# standard path adds ground coins via lottery).
         for (InventoryRepository.CoinCubeLocation loc : locations) {
             if (loc.tipo() == TIPO_COIN && loc.tipoLocation() == LOC_EDGE) {
                 out.add(toEntry(loc, courseId, holeNum, seqIndex));
@@ -79,7 +76,7 @@ public final class CoinCubeGenerator {
                     .filter(l -> l.tipo() == TIPO_CUBE && l.tipoLocation() == LOC_AIR)
                     .toList();
             int cubeCount = Math.min(limits.maxCube(), airCubes.size());
-            out.addAll(lotteryPick(airCubes, cubeCount, rng, courseId, holeNum, seqIndex));
+            out.addAll(lotteryPick(airCubes, cubeCount, courseId, holeNum, seqIndex));
         }
 
         if (enableCoin && limits.maxCoinAndCube() > out.size()) {
@@ -87,13 +84,12 @@ public final class CoinCubeGenerator {
                     .filter(l -> l.tipo() == TIPO_COIN && l.tipoLocation() == LOC_GROUND)
                     .toList();
             if (groundCoins.isEmpty()) {
-                // V38 seed uses tipo_location 1 for ground stand-in until full JP coords exist.
                 groundCoins = locations.stream()
                         .filter(l -> l.tipo() == TIPO_COIN && l.tipoLocation() == LOC_CARPET)
                         .toList();
             }
             int rest = limits.maxCoinAndCube() - out.size();
-            out.addAll(lotteryPick(groundCoins, Math.min(rest, groundCoins.size()), rng, courseId, holeNum, seqIndex));
+            out.addAll(lotteryPick(groundCoins, Math.min(rest, groundCoins.size()), courseId, holeNum, seqIndex));
         }
 
         return List.copyOf(out);
@@ -107,7 +103,6 @@ public final class CoinCubeGenerator {
             boolean enableCube) {
         CoinCubeInHole.Limits limits = CoinCubeInHole.limitsForWizCity(holeNum);
         List<GamePackets.CourseCubeEntry> out = new ArrayList<>(limits.maxCoinAndCube());
-        ThreadLocalRandom rng = ThreadLocalRandom.current();
 
         List<InventoryRepository.CoinCubeLocation> carpetCoins = locations.stream()
                 .filter(l -> l.tipo() == TIPO_COIN && l.tipoLocation() == LOC_CARPET)
@@ -119,12 +114,23 @@ public final class CoinCubeGenerator {
             }
         }
 
-        if (enableCube && limits.maxCube() > 0 && !carpetCoins.isEmpty()) {
-            List<InventoryRepository.CoinCubeLocation> shuffled = new ArrayList<>(carpetCoins);
-            Collections.shuffle(shuffled, rng);
-            int cubeCount = Math.min(limits.maxCube(), shuffled.size());
+        if (carpetCoins.isEmpty()) {
+            return List.copyOf(out);
+        }
+
+        Lottery carpetLottery = new Lottery();
+        for (InventoryRepository.CoinCubeLocation loc : carpetCoins) {
+            carpetLottery.push(rateWeight(loc.rate()), loc);
+        }
+
+        if (enableCube && limits.maxCube() > 0) {
+            int cubeCount = Math.min(limits.maxCube(), carpetLottery.countItems());
             for (int i = 0; i < cubeCount; i++) {
-                InventoryRepository.CoinCubeLocation src = shuffled.get(i);
+                Lottery.Entry<InventoryRepository.CoinCubeLocation> draw = carpetLottery.spinRoleta(true);
+                if (draw == null || draw.value() == null) {
+                    break;
+                }
+                InventoryRepository.CoinCubeLocation src = draw.value();
                 out.add(new GamePackets.CourseCubeEntry(
                         TIPO_CUBE,
                         (int) src.index(),
@@ -140,9 +146,13 @@ public final class CoinCubeGenerator {
             }
         }
 
-        if (limits.maxCoinAndCube() > out.size() && !carpetCoins.isEmpty()) {
-            int rest = limits.maxCoinAndCube() - out.size();
-            out.addAll(lotteryPick(carpetCoins, Math.min(rest, carpetCoins.size()), rng, courseId, holeNum, seqIndex));
+        int rest = limits.maxCoinAndCube() - out.size();
+        for (int i = 0; i < rest; i++) {
+            Lottery.Entry<InventoryRepository.CoinCubeLocation> draw = carpetLottery.spinRoleta(true);
+            if (draw == null || draw.value() == null) {
+                break;
+            }
+            out.add(toEntry(draw.value(), courseId, holeNum, seqIndex));
         }
 
         return List.copyOf(out);
@@ -151,20 +161,38 @@ public final class CoinCubeGenerator {
     private static List<GamePackets.CourseCubeEntry> lotteryPick(
             List<InventoryRepository.CoinCubeLocation> pool,
             int count,
-            ThreadLocalRandom rng,
             int courseId,
             int holeNum,
             int seqIndex) {
         if (pool.isEmpty() || count <= 0) {
             return List.of();
         }
-        List<InventoryRepository.CoinCubeLocation> shuffled = new ArrayList<>(pool);
-        Collections.shuffle(shuffled, rng);
-        List<GamePackets.CourseCubeEntry> picked = new ArrayList<>(count);
-        for (int i = 0; i < count && i < shuffled.size(); i++) {
-            picked.add(toEntry(shuffled.get(i), courseId, holeNum, seqIndex));
+        Lottery lottery = new Lottery();
+        for (InventoryRepository.CoinCubeLocation loc : pool) {
+            lottery.push(rateWeight(loc.rate()), loc);
+        }
+        int draws = Math.min(count, lottery.countItems());
+        List<GamePackets.CourseCubeEntry> picked = new ArrayList<>(draws);
+        for (int i = 0; i < draws; i++) {
+            Lottery.Entry<InventoryRepository.CoinCubeLocation> draw = lottery.spinRoleta(true);
+            if (draw == null || draw.value() == null) {
+                break;
+            }
+            picked.add(toEntry(draw.value(), courseId, holeNum, seqIndex));
         }
         return picked;
+    }
+
+    /** C# {@code lottery.Push(100 * it.rate, it)}. */
+    private static int rateWeight(long rate) {
+        long weight = rate * 100L;
+        if (weight <= 0) {
+            return 100;
+        }
+        if (weight > Integer.MAX_VALUE) {
+            return Integer.MAX_VALUE;
+        }
+        return (int) weight;
     }
 
     private static GamePackets.CourseCubeEntry toEntry(

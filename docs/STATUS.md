@@ -13,8 +13,8 @@ Conteggio Channel: **197** handler `packet_func_sv` registrati in `GameService.i
 
 ## Questo turno
 
-Fatto: `reload_files` → broadcast `0xF9`; auth reload/rate su Messenger; auth shutdown su tutti i child; auth rate `0xF9` su Game; SQL `initComboDef`; `GlobalCatalogs` reload; `finishShot` cube/coin da SQL (V37); `CoinCubeGenerator` + `0x52` cube wire (V38 Blue Lagoon).
-Prossimo: IFF map/pin binary; capture JP S9; weighted lottery tuning / Wiz City path.
+Fatto: … **V39/V40 `iff_course_hole` + auth reload tipo 11**; GP `gpActive` disabilita cube; Wiz City branch; **`Lottery` C# port + rate-weighted cube/coin pick in `CoinCubeGenerator`**.
+Prossimo: IFF map/pin binary; capture JP S9.
 Blocco: file IFF assenti (map/pin binary); nessuna capture client JP Season 9.
 
 Percentuale epic: **scheletro 85%** / **parità client reale 43%**.
