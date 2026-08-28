@@ -656,6 +656,64 @@ class GameFlowIT {
             PacketReader sleep = awaitOpcode(client, GamePackets.SERVER_SLEEP);
             assertTrue(sleep.i32() > 0);
             assertEquals(1, sleep.u8());
+
+            client.sendPlain(GamePackets.clientShopCancel());
+            assertEquals(GamePackets.shopSys(GamePackets.SHOP_ERR_CANCEL_NONE),
+                    awaitOpcode(client, GamePackets.SERVER_SHOP_CANCEL).u32());
+            client.sendPlain(GamePackets.clientShopOpenEdit());
+            PacketReader opened = awaitOpcode(client, GamePackets.SERVER_SHOP_EDIT);
+            assertEquals(GamePackets.SHOP_OK, opened.u32());
+            assertEquals("TestNick", opened.pstr());
+            assertEquals(10001, opened.u32());
+            client.sendPlain(GamePackets.clientShopVisit());
+            PacketReader visit0 = awaitOpcode(client, GamePackets.SERVER_SHOP_VISIT);
+            assertEquals(GamePackets.SHOP_OK, visit0.u32());
+            assertEquals(0, visit0.u32());
+            client.sendPlain(GamePackets.clientShopPang());
+            PacketReader pang0 = awaitOpcode(client, GamePackets.SERVER_SHOP_PANG);
+            assertEquals(GamePackets.SHOP_OK, pang0.u32());
+            assertEquals(0, pang0.u64());
+            client.sendPlain(GamePackets.clientShopName(""));
+            assertEquals(GamePackets.shopSys(GamePackets.SHOP_ERR_NAME_EMPTY),
+                    awaitOpcode(client, GamePackets.SERVER_SHOP_NAME).u32());
+            client.sendPlain(GamePackets.clientShopName("MyShop"));
+            PacketReader named = awaitOpcode(client, GamePackets.SERVER_SHOP_NAME);
+            assertEquals(GamePackets.SHOP_OK, named.u32());
+            assertEquals("MyShop", named.pstr());
+            assertEquals(10001, named.u32());
+            assertEquals("TestNick", named.pstr());
+            client.sendPlain(GamePackets.clientShopView(10001));
+            assertEquals(GamePackets.SHOP_ERR_VIEW_DEFAULT,
+                    awaitOpcode(client, GamePackets.SERVER_SHOP_VIEW).u32());
+            client.sendPlain(GamePackets.clientShopVisit());
+            PacketReader visit1 = awaitOpcode(client, GamePackets.SERVER_SHOP_VISIT);
+            assertEquals(GamePackets.SHOP_OK, visit1.u32());
+            assertEquals(0, visit1.u32());
+            client.sendPlain(GamePackets.clientShopCloseView(10001));
+            assertEquals(GamePackets.SHOP_ERR_CLOSE_VIEW_DEFAULT,
+                    awaitOpcode(client, GamePackets.SERVER_SHOP_CLOSE_VIEW).u32());
+            client.sendPlain(GamePackets.clientShopOpenItems(0));
+            assertEquals(GamePackets.shopSys(GamePackets.SHOP_ERR_OPEN_COUNT),
+                    awaitOpcode(client, GamePackets.SERVER_SHOP_ITEMS).u32());
+            client.sendPlain(GamePackets.clientShopOpenItems(1));
+            assertEquals(GamePackets.SHOP_ERR_OPEN_DEFAULT,
+                    awaitOpcode(client, GamePackets.SERVER_SHOP_ITEMS).u32());
+            client.sendPlain(GamePackets.clientShopBuy(10001));
+            assertEquals(GamePackets.SHOP_ERR_BUY_DEFAULT,
+                    awaitOpcode(client, GamePackets.SERVER_SHOP_BUY).u32());
+            client.sendPlain(GamePackets.clientShopClose());
+            PacketReader closed = awaitOpcode(client, GamePackets.SERVER_SHOP_CLOSE);
+            assertEquals(GamePackets.SHOP_OK, closed.u32());
+            assertEquals("TestNick", closed.pstr());
+            assertEquals(10001, closed.u32());
+            client.sendPlain(GamePackets.clientPapelShop());
+            PacketReader papel = awaitOpcode(client, GamePackets.SERVER_PAPEL_SHOP);
+            assertEquals(0, papel.u32());
+            assertEquals(0, papel.u64());
+            client.sendPlain(GamePackets.clientEnterShop());
+            PacketReader shop = awaitOpcode(client, GamePackets.SERVER_ENTER_SHOP);
+            assertEquals(0, shop.u32());
+            assertEquals(0, shop.u32());
         }
     }
 

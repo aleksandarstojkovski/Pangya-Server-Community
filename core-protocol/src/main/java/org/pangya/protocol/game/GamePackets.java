@@ -107,6 +107,30 @@ public final class GamePackets {
     public static final int SERVER_ONELINE_QUERY = 0xCA;
     /** C# {@code SERVER_CHANGE_MASCOT} fail {@code 0xE2}. */
     public static final int SERVER_CHANGE_MASCOT = 0xE2;
+    /** C# personal-shop {@code 0xE3} cancel-edit. */
+    public static final int SERVER_SHOP_CANCEL = 0xE3;
+    /** C# personal-shop {@code 0xE4} close. */
+    public static final int SERVER_SHOP_CLOSE = 0xE4;
+    /** C# personal-shop {@code 0xE5} open-edit (close-fail also uses this). */
+    public static final int SERVER_SHOP_EDIT = 0xE5;
+    /** C# personal-shop {@code 0xE6} view. */
+    public static final int SERVER_SHOP_VIEW = 0xE6;
+    /** C# personal-shop {@code 0xE7} close-view. */
+    public static final int SERVER_SHOP_CLOSE_VIEW = 0xE7;
+    /** C# personal-shop {@code 0xE8} name. */
+    public static final int SERVER_SHOP_NAME = 0xE8;
+    /** C# personal-shop {@code 0xE9} visit count. */
+    public static final int SERVER_SHOP_VISIT = 0xE9;
+    /** C# personal-shop {@code 0xEA} pang sale. */
+    public static final int SERVER_SHOP_PANG = 0xEA;
+    /** C# personal-shop {@code 0xEB} open-with-items. */
+    public static final int SERVER_SHOP_ITEMS = 0xEB;
+    /** C# personal-shop {@code 0xEC} buy. */
+    public static final int SERVER_SHOP_BUY = 0xEC;
+    /** C# {@code SERVER_OPEN_PAPEL_SHOP} {@code 0x10B}. */
+    public static final int SERVER_PAPEL_SHOP = 0x10B;
+    /** C# {@code SERVER_REQ_ENTER_SHOP_ACK} {@code 0x20E}. */
+    public static final int SERVER_ENTER_SHOP = 0x20E;
     /** C# {@code SERVER_SYNC_ACTIVITY} / {@code pacote0C4}: oid + u8 type + payload. */
     public static final int SERVER_SYNC_ACTIVITY = 0xC4;
     public static final int SERVER_MASCOT_SEED = 0x16A;
@@ -203,6 +227,30 @@ public final class GamePackets {
     public static final int CLIENT_ONELINE_QUERY = 0x67;
     /** C# {@code CLIENT_CHANGE_MASCOT} / {@code packet073} mascot message. */
     public static final int CLIENT_CHANGE_MASCOT = 0x73;
+    /** C# {@code packet074} {@code requestCancelEditSaleShop}. */
+    public static final int CLIENT_SHOP_CANCEL = 0x74;
+    /** C# {@code packet075} {@code requestCloseSaleShop}. */
+    public static final int CLIENT_SHOP_CLOSE = 0x75;
+    /** C# {@code packet076} {@code requestOpenEditSaleShop}. */
+    public static final int CLIENT_SHOP_OPEN_EDIT = 0x76;
+    /** C# {@code packet077} {@code requestViewSaleShop}. */
+    public static final int CLIENT_SHOP_VIEW = 0x77;
+    /** C# {@code packet078} {@code requestCloseViewSaleShop}. */
+    public static final int CLIENT_SHOP_CLOSE_VIEW = 0x78;
+    /** C# {@code packet079} {@code requestChangeNameSaleShop}. */
+    public static final int CLIENT_SHOP_NAME = 0x79;
+    /** C# {@code packet07A} {@code requestVisitCountSaleShop}. */
+    public static final int CLIENT_SHOP_VISIT = 0x7A;
+    /** C# {@code packet07B} {@code requestPangSaleShop}. */
+    public static final int CLIENT_SHOP_PANG = 0x7B;
+    /** C# {@code packet07C} {@code requestOpenSaleShop} items. */
+    public static final int CLIENT_SHOP_OPEN_ITEMS = 0x7C;
+    /** C# {@code packet07D} {@code requestBuyItemSaleShop}. */
+    public static final int CLIENT_SHOP_BUY = 0x7D;
+    /** C# {@code packet098} {@code requestOpenPapelShop}. */
+    public static final int CLIENT_PAPEL_SHOP = 0x98;
+    /** C# {@code packet140} {@code requestEnterShop}. */
+    public static final int CLIENT_ENTER_SHOP = 0x140;
     public static final int CLIENT_UPDATE_MACRO = 0x69;
     public static final int CLIENT_REQUEST_SERVER_LIST = 0x43;
     public static final int CLIENT_REQUEST_RANK = 0x47;
@@ -418,6 +466,35 @@ public final class GamePackets {
     public static final int MSN_ERR_SIZE = 0x0103;
     public static final int MSN_ERR_OPT = 0x0104;
     public static final int MSN_ERR_FUNDS = 0x0105;
+    public static final int SHOP_OK = 1;
+    /** C# {@code STDA_SYSTEM_ERROR_ENCODE}: {@code sys & 0xFFFF}. */
+    public static int shopSys(int sys) {
+        return sys & 0xFFFF;
+    }
+    public static final int SHOP_ERR_EDIT_DEFAULT = 5200100;
+    public static final int SHOP_ERR_CANCEL_DEFAULT = 5200400;
+    public static final int SHOP_ERR_CANCEL_NONE = 5200401;
+    public static final int SHOP_ERR_CLOSE_DEFAULT = 5200150;
+    public static final int SHOP_ERR_CLOSE_NONE = 5200151;
+    public static final int SHOP_ERR_NAME_DEFAULT = 5200200;
+    public static final int SHOP_ERR_NAME_EMPTY = 5200201;
+    public static final int SHOP_ERR_NAME_DUP = 5200202;
+    public static final int SHOP_ERR_NAME_NONE = 5200203;
+    public static final int SHOP_ERR_VISIT_DEFAULT = 5200300;
+    public static final int SHOP_ERR_VISIT_NONE = 5200301;
+    public static final int SHOP_ERR_PANG_DEFAULT = 5200350;
+    public static final int SHOP_ERR_PANG_NONE = 5200351;
+    public static final int SHOP_ERR_VIEW_DEFAULT = 5200450;
+    public static final int SHOP_ERR_VIEW_NONE = 5200452;
+    public static final int SHOP_ERR_CLOSE_VIEW_DEFAULT = 5200500;
+    public static final int SHOP_ERR_CLOSE_VIEW_NONE = 5200502;
+    public static final int SHOP_ERR_OPEN_DEFAULT = 5200250;
+    public static final int SHOP_ERR_OPEN_COUNT = 5200251;
+    public static final int SHOP_ERR_OPEN_NONE = 5200252;
+    public static final int SHOP_ERR_BUY_DEFAULT = 5200550;
+    public static final int SHOP_ERR_BUY_NONE = 5200552;
+    /** C# view {@code WriteString(nick, 22)}. */
+    public static final int SHOP_NICK_BYTES = 22;
     /** C# {@code requestBuyItemShop} {@code 0x68} option codes. */
     public static final int BUY_FAIL_INIT = 1;
     public static final int BUY_FAIL_PRICE = 2;
@@ -1430,6 +1507,100 @@ public final class GamePackets {
         return new PacketWriter().opcode(SERVER_MSN_ACK).u16(sub).u32(code).toBytes();
     }
 
+    public static byte[] shopEditOk(String nick, int uid) {
+        return new PacketWriter()
+                .opcode(SERVER_SHOP_EDIT)
+                .u32(SHOP_OK)
+                .pstr(nick == null ? "" : nick)
+                .u32(uid)
+                .toBytes();
+    }
+
+    public static byte[] shopEditFail(int code) {
+        return new PacketWriter().opcode(SERVER_SHOP_EDIT).u32(code).toBytes();
+    }
+
+    public static byte[] shopCancelOk(String nick) {
+        return new PacketWriter()
+                .opcode(SERVER_SHOP_CANCEL)
+                .u32(SHOP_OK)
+                .pstr(nick == null ? "" : nick)
+                .toBytes();
+    }
+
+    public static byte[] shopCancelFail(int code) {
+        return new PacketWriter().opcode(SERVER_SHOP_CANCEL).u32(code).toBytes();
+    }
+
+    public static byte[] shopCloseOk(String nick, int uid) {
+        return new PacketWriter()
+                .opcode(SERVER_SHOP_CLOSE)
+                .u32(SHOP_OK)
+                .pstr(nick == null ? "" : nick)
+                .u32(uid)
+                .toBytes();
+    }
+
+    public static byte[] shopNameOk(String name, int uid, String nick) {
+        return new PacketWriter()
+                .opcode(SERVER_SHOP_NAME)
+                .u32(SHOP_OK)
+                .pstr(name == null ? "" : name)
+                .u32(uid)
+                .pstr(nick == null ? "" : nick)
+                .toBytes();
+    }
+
+    public static byte[] shopNameFail(int code) {
+        return new PacketWriter().opcode(SERVER_SHOP_NAME).u32(code).toBytes();
+    }
+
+    public static byte[] shopVisitOk(int count) {
+        return new PacketWriter().opcode(SERVER_SHOP_VISIT).u32(SHOP_OK).u32(count).toBytes();
+    }
+
+    public static byte[] shopVisitFail(int code) {
+        return new PacketWriter().opcode(SERVER_SHOP_VISIT).u32(code).toBytes();
+    }
+
+    public static byte[] shopPangOk(long pang) {
+        return new PacketWriter().opcode(SERVER_SHOP_PANG).u32(SHOP_OK).u64(pang).toBytes();
+    }
+
+    public static byte[] shopPangFail(int code) {
+        return new PacketWriter().opcode(SERVER_SHOP_PANG).u32(code).toBytes();
+    }
+
+    public static byte[] shopViewFail(int code) {
+        return new PacketWriter().opcode(SERVER_SHOP_VIEW).u32(code).toBytes();
+    }
+
+    public static byte[] shopCloseViewOk() {
+        return new PacketWriter().opcode(SERVER_SHOP_CLOSE_VIEW).u32(SHOP_OK).toBytes();
+    }
+
+    public static byte[] shopCloseViewFail(int code) {
+        return new PacketWriter().opcode(SERVER_SHOP_CLOSE_VIEW).u32(code).toBytes();
+    }
+
+    public static byte[] shopItemsFail(int code) {
+        return new PacketWriter().opcode(SERVER_SHOP_ITEMS).u32(code).toBytes();
+    }
+
+    public static byte[] shopBuyFail(int code) {
+        return new PacketWriter().opcode(SERVER_SHOP_BUY).u32(code).toBytes();
+    }
+
+    /** C# {@code 0x10B}: u32 0 + i64 daily limit. */
+    public static byte[] papelShopOk(long limit) {
+        return new PacketWriter().opcode(SERVER_PAPEL_SHOP).u32(0).i64(limit).toBytes();
+    }
+
+    /** C# {@code 0x20E}: two int32 zeros. */
+    public static byte[] enterShopOk() {
+        return new PacketWriter().opcode(SERVER_ENTER_SHOP).u32(0).u32(0).toBytes();
+    }
+
     /** C# {@code PlayerRoomInfo.stLocation.ToArray}: x z r. */
     public static byte[] location(float x, float z, float r) {
         return new PacketWriter().f32(x).f32(z).f32(r).toBytes();
@@ -2228,6 +2399,54 @@ public final class GamePackets {
     /** C# CLIENT {@code 0x4A}: u32 warehouse typeid. */
     public static byte[] clientReplay(int typeid) {
         return new PacketWriter().opcode(CLIENT_REPLAY_ONLINE).u32(typeid).toBytes();
+    }
+
+    public static byte[] clientShopCancel() {
+        return new PacketWriter().opcode(CLIENT_SHOP_CANCEL).toBytes();
+    }
+
+    public static byte[] clientShopClose() {
+        return new PacketWriter().opcode(CLIENT_SHOP_CLOSE).toBytes();
+    }
+
+    public static byte[] clientShopOpenEdit() {
+        return new PacketWriter().opcode(CLIENT_SHOP_OPEN_EDIT).toBytes();
+    }
+
+    public static byte[] clientShopView(int ownerUid) {
+        return new PacketWriter().opcode(CLIENT_SHOP_VIEW).u32(ownerUid).toBytes();
+    }
+
+    public static byte[] clientShopCloseView(int ownerUid) {
+        return new PacketWriter().opcode(CLIENT_SHOP_CLOSE_VIEW).u32(ownerUid).toBytes();
+    }
+
+    public static byte[] clientShopName(String name) {
+        return new PacketWriter().opcode(CLIENT_SHOP_NAME).pstr(name == null ? "" : name).toBytes();
+    }
+
+    public static byte[] clientShopVisit() {
+        return new PacketWriter().opcode(CLIENT_SHOP_VISIT).toBytes();
+    }
+
+    public static byte[] clientShopPang() {
+        return new PacketWriter().opcode(CLIENT_SHOP_PANG).toBytes();
+    }
+
+    public static byte[] clientShopOpenItems(int count) {
+        return new PacketWriter().opcode(CLIENT_SHOP_OPEN_ITEMS).u32(count).toBytes();
+    }
+
+    public static byte[] clientShopBuy(int ownerUid) {
+        return new PacketWriter().opcode(CLIENT_SHOP_BUY).u32(ownerUid).toBytes();
+    }
+
+    public static byte[] clientPapelShop() {
+        return new PacketWriter().opcode(CLIENT_PAPEL_SHOP).toBytes();
+    }
+
+    public static byte[] clientEnterShop() {
+        return new PacketWriter().opcode(CLIENT_ENTER_SHOP).toBytes();
     }
 
     /** C# CLIENT {@code 0x63}: type + remaining payload. */

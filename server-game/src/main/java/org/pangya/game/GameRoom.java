@@ -29,6 +29,8 @@ final class GameRoom {
     final ConcurrentHashMap<Integer, Boolean> charIntro = new ConcurrentHashMap<>();
     /** C# {@code m_player_report_game} UIDs that already sent {@code 0x3A}. */
     final ConcurrentHashMap<Long, Boolean> reported = new ConcurrentHashMap<>();
+    /** C# {@code PersonalShopManager} per-owner shops. */
+    final ConcurrentHashMap<Long, PersonalShop> shops = new ConcurrentHashMap<>();
 
     GameRoom(GamePackets.CreateRoom req, int numero, int masterUid, int ratePang, int rateExp, int channelId) {
         this.tipo = req.tipo();
@@ -189,6 +191,10 @@ final class GameRoom {
         shots.remove(session.oid());
         playerInfos.remove(session.oid());
         charIntro.remove(session.oid());
+        shops.remove(session.player().uid);
+        for (PersonalShop shop : shops.values()) {
+            shop.viewers.remove(session.player().uid);
+        }
     }
 
     /**
@@ -258,5 +264,105 @@ final class GameRoom {
         float z;
         int shotState;
         int tempo;
+    }
+
+    static final class PersonalShop {
+        final long ownerUid;
+        final String ownerNick;
+        volatile String name = "";
+        volatile int visitCount;
+        volatile long pangSale;
+        final ConcurrentHashMap<Long, Boolean> viewers = new ConcurrentHashMap<>();
+
+        PersonalShop(long ownerUid, String ownerNick) {
+            this.ownerUid = ownerUid;
+            this.ownerNick = ownerNick == null ? "" : ownerNick;
+        }
+    }
+
+    static final class ShopReply {
+        final boolean broadcast;
+        final byte[] packet;
+
+        ShopReply(boolean broadcast, byte[] packet) {
+            this.broadcast = broadcast;
+            this.packet = packet;
+        }
+    }
+
+    ShopReply openEditShop(Session session) {
+        long uid = session.player().uid;
+        String nick = session.player().nickname;
+        shops.computeIfAbsent(uid, k -> new PersonalShop(uid, nick));
+        return new ShopReply(true, GamePackets.shopEditOk(nick, (int) uid));
+    }
+
+    ShopReply cancelEditShop(Session session) {
+        PersonalShop shop = shops.get(session.player().uid);
+        if (shop == null) {
+            return new ShopReply(false, GamePackets.shopCancelFail(GamePackets.shopSys(GamePackets.SHOP_ERR_CANCEL_NONE)));
+        }
+        return new ShopReply(true, GamePackets.shopCancelOk(session.player().nickname));
+    }
+
+    ShopReply closeShop(Session session) {
+        PersonalShop shop = shops.remove(session.player().uid);
+        if (shop == null) {
+            return new ShopReply(false, GamePackets.shopEditFail(GamePackets.shopSys(GamePackets.SHOP_ERR_CLOSE_NONE)));
+        }
+        return new ShopReply(true, GamePackets.shopCloseOk(session.player().nickname, (int) session.player().uid));
+    }
+
+    ShopReply changeShopName(Session session, String name) {
+        if (name == null || name.isEmpty()) {
+            return new ShopReply(false, GamePackets.shopNameFail(GamePackets.shopSys(GamePackets.SHOP_ERR_NAME_EMPTY)));
+        }
+        long uid = session.player().uid;
+        for (PersonalShop other : shops.values()) {
+            if (other.ownerUid != uid && name.equals(other.name)) {
+                return new ShopReply(false, GamePackets.shopNameFail(GamePackets.shopSys(GamePackets.SHOP_ERR_NAME_DUP)));
+            }
+        }
+        PersonalShop shop = shops.get(uid);
+        if (shop == null) {
+            return new ShopReply(false, GamePackets.shopNameFail(GamePackets.shopSys(GamePackets.SHOP_ERR_NAME_NONE)));
+        }
+        shop.name = name;
+        return new ShopReply(true, GamePackets.shopNameOk(name, (int) uid, session.player().nickname));
+    }
+
+    byte[] visitCountShop(Session session) {
+        PersonalShop shop = shops.get(session.player().uid);
+        if (shop == null) {
+            return GamePackets.shopVisitFail(GamePackets.shopSys(GamePackets.SHOP_ERR_VISIT_NONE));
+        }
+        return GamePackets.shopVisitOk(shop.visitCount);
+    }
+
+    byte[] pangShop(Session session) {
+        PersonalShop shop = shops.get(session.player().uid);
+        if (shop == null) {
+            return GamePackets.shopPangFail(GamePackets.shopSys(GamePackets.SHOP_ERR_PANG_NONE));
+        }
+        return GamePackets.shopPangOk(shop.pangSale);
+    }
+
+    byte[] viewShop(Session session, long ownerUid) {
+        PersonalShop shop = shops.get(ownerUid);
+        if (shop == null) {
+            return GamePackets.shopViewFail(GamePackets.shopSys(GamePackets.SHOP_ERR_VIEW_NONE));
+        }
+        return GamePackets.shopViewFail(GamePackets.SHOP_ERR_VIEW_DEFAULT);
+    }
+
+    byte[] closeViewShop(Session session, long ownerUid) {
+        PersonalShop shop = shops.get(ownerUid);
+        if (shop == null) {
+            return GamePackets.shopCloseViewFail(GamePackets.shopSys(GamePackets.SHOP_ERR_CLOSE_VIEW_NONE));
+        }
+        if (shop.viewers.remove(session.player().uid) == null) {
+            return GamePackets.shopCloseViewFail(GamePackets.SHOP_ERR_CLOSE_VIEW_DEFAULT);
+        }
+        return GamePackets.shopCloseViewOk();
     }
 }

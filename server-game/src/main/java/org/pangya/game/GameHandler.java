@@ -137,6 +137,18 @@ public final class GameHandler {
             case GamePackets.CLIENT_ONELINE_REQUEST -> sendTicker(session, reader);
             case GamePackets.CLIENT_ONELINE_QUERY -> queueTicker(session);
             case GamePackets.CLIENT_CHANGE_MASCOT -> changeMascotMessage(session, reader);
+            case GamePackets.CLIENT_SHOP_CANCEL -> cancelEditShop(session);
+            case GamePackets.CLIENT_SHOP_CLOSE -> closeSaleShop(session);
+            case GamePackets.CLIENT_SHOP_OPEN_EDIT -> openEditShop(session);
+            case GamePackets.CLIENT_SHOP_VIEW -> viewSaleShop(session, reader);
+            case GamePackets.CLIENT_SHOP_CLOSE_VIEW -> closeViewSaleShop(session, reader);
+            case GamePackets.CLIENT_SHOP_NAME -> changeSaleShopName(session, reader);
+            case GamePackets.CLIENT_SHOP_VISIT -> visitSaleShop(session);
+            case GamePackets.CLIENT_SHOP_PANG -> pangSaleShop(session);
+            case GamePackets.CLIENT_SHOP_OPEN_ITEMS -> openSaleShopItems(session, reader);
+            case GamePackets.CLIENT_SHOP_BUY -> buySaleShop(session, reader);
+            case GamePackets.CLIENT_PAPEL_SHOP -> openPapelShop(session);
+            case GamePackets.CLIENT_ENTER_SHOP -> enterShop(session);
             case GamePackets.CLIENT_ENTER_LOBBY -> enterLobby(session);
             case GamePackets.CLIENT_LEAVE_LOBBY -> leaveLobby(session);
             case GamePackets.CLIENT_CHAT -> chat(session, reader);
@@ -844,6 +856,154 @@ public final class GameHandler {
                 other.send(packet);
             }
         }
+    }
+
+    private GameRoom playerRoom(Session session) {
+        if (!session.authorized()) {
+            return null;
+        }
+        int numero = session.player().roomNumber;
+        return numero < 0 ? null : rooms.get(numero);
+    }
+
+    private void sendShop(Session session, GameRoom.ShopReply reply) {
+        if (reply.broadcast) {
+            GameRoom room = playerRoom(session);
+            if (room != null) {
+                room.broadcast(reply.packet);
+                return;
+            }
+        }
+        session.send(reply.packet);
+    }
+
+    /** C# {@code packet076} {@code openShopToEdit} → {@code 0xE5} broadcast. */
+    private void openEditShop(Session session) {
+        GameRoom room = playerRoom(session);
+        if (room == null) {
+            return;
+        }
+        sendShop(session, room.openEditShop(session));
+    }
+
+    /** C# {@code packet074} cancel edit → {@code 0xE3}. */
+    private void cancelEditShop(Session session) {
+        GameRoom room = playerRoom(session);
+        if (room == null) {
+            return;
+        }
+        sendShop(session, room.cancelEditShop(session));
+    }
+
+    /** C# {@code packet075} close → {@code 0xE4} ok / {@code 0xE5} fail. */
+    private void closeSaleShop(Session session) {
+        GameRoom room = playerRoom(session);
+        if (room == null) {
+            return;
+        }
+        sendShop(session, room.closeShop(session));
+    }
+
+    /** C# {@code packet079} PStr name → {@code 0xE8}. */
+    private void changeSaleShopName(Session session, PacketReader reader) {
+        GameRoom room = playerRoom(session);
+        if (room == null) {
+            return;
+        }
+        String name = reader.remaining() >= 2 ? reader.pstr() : "";
+        sendShop(session, room.changeShopName(session, name));
+    }
+
+    /** C# {@code packet07A} → {@code 0xE9}. */
+    private void visitSaleShop(Session session) {
+        GameRoom room = playerRoom(session);
+        if (room == null) {
+            return;
+        }
+        session.send(room.visitCountShop(session));
+    }
+
+    /** C# {@code packet07B} → {@code 0xEA}. */
+    private void pangSaleShop(Session session) {
+        GameRoom room = playerRoom(session);
+        if (room == null) {
+            return;
+        }
+        session.send(room.pangShop(session));
+    }
+
+    /** C# {@code packet077}: u32 owner → {@code 0xE6}. Empty items fail 5200450. */
+    private void viewSaleShop(Session session, PacketReader reader) {
+        GameRoom room = playerRoom(session);
+        if (room == null) {
+            return;
+        }
+        long owner = reader.remaining() >= 4 ? reader.u32Unsigned() : 0;
+        session.send(room.viewShop(session, owner));
+    }
+
+    /** C# {@code packet078}: u32 owner → {@code 0xE7}. */
+    private void closeViewSaleShop(Session session, PacketReader reader) {
+        GameRoom room = playerRoom(session);
+        if (room == null) {
+            return;
+        }
+        long owner = reader.remaining() >= 4 ? reader.u32Unsigned() : 0;
+        session.send(room.closeViewShop(session, owner));
+    }
+
+    /**
+     * C# {@code packet07C}: u32 count + items. Item sale needs IFF; Java fails
+     * {@code 0xEB} after the count check.
+     */
+    private void openSaleShopItems(Session session, PacketReader reader) {
+        GameRoom room = playerRoom(session);
+        if (room == null) {
+            return;
+        }
+        int count = reader.remaining() >= 4 ? reader.u32() : 0;
+        if (count == 0 || count > 10) {
+            session.send(GamePackets.shopItemsFail(GamePackets.shopSys(GamePackets.SHOP_ERR_OPEN_COUNT)));
+            return;
+        }
+        if (room.shops.get(session.player().uid) == null) {
+            session.send(GamePackets.shopItemsFail(GamePackets.shopSys(GamePackets.SHOP_ERR_OPEN_NONE)));
+            return;
+        }
+        session.send(GamePackets.shopItemsFail(GamePackets.SHOP_ERR_OPEN_DEFAULT));
+    }
+
+    /**
+     * C# {@code packet07D}: u32 owner + item. Without IFF, missing shop is
+     * {@code 0xEC} sys; otherwise default 5200550.
+     */
+    private void buySaleShop(Session session, PacketReader reader) {
+        GameRoom room = playerRoom(session);
+        if (room == null) {
+            return;
+        }
+        long owner = reader.remaining() >= 4 ? reader.u32Unsigned() : 0;
+        if (room.shops.get(owner) == null) {
+            session.send(GamePackets.shopBuyFail(GamePackets.shopSys(GamePackets.SHOP_ERR_BUY_NONE)));
+            return;
+        }
+        session.send(GamePackets.shopBuyFail(GamePackets.SHOP_ERR_BUY_DEFAULT));
+    }
+
+    /** C# {@code packet098}: {@code 0x10B} u32 0 + i64 daily limit. */
+    private void openPapelShop(Session session) {
+        if (!session.authorized()) {
+            return;
+        }
+        session.send(GamePackets.papelShopOk(0));
+    }
+
+    /** C# {@code packet140}: {@code 0x20E} two zeros. */
+    private void enterShop(Session session) {
+        if (!session.authorized()) {
+            return;
+        }
+        session.send(GamePackets.enterShopOk());
     }
 
     /**

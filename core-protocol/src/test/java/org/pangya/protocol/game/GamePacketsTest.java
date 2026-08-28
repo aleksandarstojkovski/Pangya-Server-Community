@@ -710,5 +710,27 @@ class GamePacketsTest {
         assertEquals(GamePackets.CLIENT_REPORT_ERROR, 0x33);
         assertEquals(GamePackets.SERVER_BUY_ACK, 0x68);
         assertEquals(GamePackets.CREATE_ROOM_FAILED, 0x07);
+
+        PacketReader edit = new PacketReader(GamePackets.shopEditOk("TestNick", 10001));
+        assertEquals(GamePackets.SERVER_SHOP_EDIT, edit.opcode());
+        assertEquals(GamePackets.SHOP_OK, edit.u32());
+        assertEquals("TestNick", edit.pstr());
+        assertEquals(10001, edit.u32());
+        PacketReader cancelFail = new PacketReader(
+                GamePackets.shopCancelFail(GamePackets.shopSys(GamePackets.SHOP_ERR_CANCEL_NONE)));
+        assertEquals(GamePackets.SERVER_SHOP_CANCEL, cancelFail.opcode());
+        assertEquals(GamePackets.shopSys(GamePackets.SHOP_ERR_CANCEL_NONE), cancelFail.u32());
+        PacketReader papel = new PacketReader(GamePackets.papelShopOk(0));
+        assertEquals(GamePackets.SERVER_PAPEL_SHOP, papel.opcode());
+        assertEquals(0, papel.u32());
+        assertEquals(0, papel.u64());
+        PacketReader enter = new PacketReader(GamePackets.enterShopOk());
+        assertEquals(GamePackets.SERVER_ENTER_SHOP, enter.opcode());
+        assertEquals(0, enter.u32());
+        assertEquals(0, enter.u32());
+        assertEquals(GamePackets.CLIENT_SHOP_OPEN_EDIT, 0x76);
+        assertEquals(GamePackets.CLIENT_ENTER_SHOP, 0x140);
+        assertEquals(GamePackets.SERVER_BUY_ACK, 0x68);
+        assertEquals(GamePackets.CREATE_ROOM_FAILED, 0x07);
     }
 }
