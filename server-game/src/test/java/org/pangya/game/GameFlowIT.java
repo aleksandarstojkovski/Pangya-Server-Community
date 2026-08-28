@@ -1244,6 +1244,7 @@ class GameFlowIT {
                 awaitOpcode(guest, GamePackets.SERVER_GAME_INIT);
                 awaitOpcode(guest, GamePackets.SERVER_COURSE);
                 host.sendPlain(GamePackets.clientInitHole(1, 0, 0, 4, 1.5f, 2.5f, 10f, 20f));
+                awaitOpcode(host, GamePackets.SERVER_WEATHER);
                 host.sendPlain(GamePackets.clientHoleStat());
                 host.sendPlain(GamePackets.clientUseTicketReport());
                 for (byte[] leftover : host.drainPlain(400)) {
