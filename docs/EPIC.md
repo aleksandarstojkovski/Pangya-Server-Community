@@ -173,7 +173,19 @@ C# `LoginTask.sendCompleteData` invia `pacote044` option 0 con JP `principal()` 
 # BUILD SUCCESSFUL
 ```
 
-Hole/shot IFF cubes (live pin/cube coords from client IFF), IFF shop catalog (`0xAA`/`0x68` success) restano aperti. Compose 5-server: Java services usano `host.docker.internal` verso le porte pubblicate (il bridge nested-Docker/vfs non instrada container-to-container). Practice `0x76`/`0x52`/`0x1A`/`0x1B`/`0x1C`, Versus 2p `0x76` dump, `pacote048`/`0x4A`, equip `0x20` type 0/1/3/5/8, ranking SQL + live CharacterInfo, friend CRUD, Login first-set `0x06`/`0x07`/`0x08` sono nel fake-client.
+Compose 5-server `/health` verified 2026-08-28 on this VM (nested Docker vfs: Java → Postgres/Redis/Auth via `host.docker.internal` because the compose bridge drops inter-container packets):
+
+```
+docker compose up -d --force-recreate auth login game ranking messenger
+# auth/login/game/ranking/messenger = healthy
+curl -fsS http://127.0.0.1:9077/health   # ok auth
+curl -fsS http://127.0.0.1:9103/health   # ok login
+curl -fsS http://127.0.0.1:9202/health   # ok game
+curl -fsS http://127.0.0.1:9474/health   # ok ranking
+curl -fsS http://127.0.0.1:9302/health   # ok messenger
+```
+
+Hole/shot IFF cubes (live pin/cube coords from client IFF) e IFF shop catalog (`0xAA`/`0x68` success) restano aperti. Practice `0x76`/`0x52`/`0x1A`/`0x1B`/`0x1C`, Versus 2p `0x76` dump, `pacote048`/`0x4A`, equip `0x20` type 0/1/3/5/8, ranking SQL + live CharacterInfo, friend CRUD, Login first-set `0x06`/`0x07`/`0x08` sono nel fake-client.
 
 ## Note GC / Netty (S6)
 
