@@ -2443,6 +2443,19 @@ public final class JdbiInventoryRepository implements InventoryRepository {
     }
 
     @Override
+    public void setClubSetMasteryPts(long uid, int itemId, int masteryPts) {
+        jdbi.useHandle(h -> h.createUpdate("""
+                        UPDATE pangya.pangya_item_warehouse
+                           SET "Mastery_Pts" = :pts
+                         WHERE "UID" = :uid AND item_id = :id
+                        """)
+                .bind("uid", uid)
+                .bind("id", itemId)
+                .bind("pts", masteryPts)
+                .execute());
+    }
+
+    @Override
     public Optional<ItemBuffRow> itemBuff(long uid, int typeid) {
         return jdbi.withHandle(h -> h.createQuery("""
                         SELECT "index", typeid, reg_date, end_date, tipo, "percent", use_yn

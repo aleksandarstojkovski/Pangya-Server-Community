@@ -7,20 +7,20 @@ Questo repo è solo la riscrittura Java. **S4 non è done.**
 
 S0 [x] S1 [x] S2 [x] S3 [x] S4 [~] S5 [~] S6 [x]
 
-S4 profondità: **143** opcode success 1:1 / **29** opcode solo fail-stub / **30** stimati rimanenti dal C# Channel
+S4 profondità: **144** opcode success 1:1 / **28** opcode solo fail-stub / **29** stimati rimanenti dal C# Channel
 
 Conteggio Channel: **197** handler `packet_func_sv` registrati in `GameService.init_Packets`. Java ha uno `switch` per **195** di quelli (mancano `0x174`/`0x175`, no-op anche in C#). Success 1:1 = happy-path wire C# raggiungibile (SQL stand-in ammesso). Fail-stub = Java manda solo il catch C#; il success C# vuole IFF/`ItemManager`. Rimanenti ≈ fail-stub + GZ first-hole pulse `0x137`.
 
 ## Questo turno
 
-Fatto: workshop recovery `0x16B` (`requestClubSetWorkShopRecoveryPts` / `0x216`+`0x246`) per warehouse recovery item + ClubSet by id + SQL `iff_clubset.work_shop_tipo` stand-in (no IFF `findClubSet`): consume type 2 then type `0xCC` + `ClubSetWorkshop::ToArray` 23 byte con `recovery_pts=0`; catch else `0x5300150`. Catalogo V18 vuoto (mega `clientWorkshopTypeidClub(RECOVERY, 0, 0)` resta `shopSys(0x5300151)`). Skip achievement `0x6C4000A6`. Persist `Recovery_Pts=0` prima di `0x216`/`0x246`.
-Prossimo opcode/file C#: workshop transfer `0x16C` / up-level `0x164`; oppure GZ first-hole `packet137` pulse; daily `0x152`–`0x154`; box-mail `0xEF`.
-Blocco: file IFF assenti (pin/cube live, `initComboDef`, cutin success `0xE5` `findCutinInfomation`); nessuna capture client JP Season 9.
+Fatto: workshop transfer `0x16C` (`requestClubSetWorkShopTransferMasteryPts` / `0x216`+`0x245`) per UCIM warehouse + src/dst ClubSet by id + SQL `iff_clubset` stand-in (no IFF `findClubSet`/`SlotStats`, slots=0): consume type 2 then due type `0xCC` (300 mastery/chip); catch else `0x5300100`. Catalogo V18 vuoto (mega `clientWorkshopTransfer(0,0,0,1)` resta `shopSys(0x5300104)`). Skip achievement `0x6C4000A5`. Persist entrambi `Mastery_Pts` prima di `0x216`/`0x245` (C# aggiorna dest solo in memoria).
+Prossimo opcode/file C#: workshop up-level `0x164` / rank `0x167` / reset `0x16D`; oppure GZ first-hole `packet137` pulse; daily `0x152`–`0x154`; box-mail `0xEF`.
+Blocco: file IFF assenti (pin/cube live, `initComboDef`, cutin success `0xE5` `findCutinInfomation`, ClubSet `SlotStats`); nessuna capture client JP Season 9.
 
 Percentuale epic: **scheletro 85%** / **parità client reale 35%**.
 
 - Scheletro: S0–S3 e S6 chiusi (Gradle, Cipher, Auth/Login, Practice, Ranking/Messenger core, metriche 3000, compose `/health`). S4/S5 aperti.
-- Parità client reale: ~143/197 Channel con happy-path; SQL al posto IFF; fail-stub su workshop remaining/card/UCC/cutin/memorial; zero capture JP S9.
+- Parità client reale: ~144/197 Channel con happy-path; SQL al posto IFF; fail-stub su workshop remaining/card/UCC/cutin/memorial; zero capture JP S9.
 
 ## Slice (non dichiarare S4 done)
 

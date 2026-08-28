@@ -215,7 +215,7 @@ C#: `GameServer/PangyaEnums/PacketGame.cs` → Java `org.pangya.protocol.game.Ga
 | C | `CLIENT_CLUBSETWORKSHOP_TRANSFORM_CONFIRM` | `0x168` | no pending ClubSet → `0x242` `shopSys(0x5300451)` |
 | C | `CLIENT_CLUBSETWORKSHOP_TRANSFORM_CANCEL` | `0x169` | no pending ClubSet → `0x243` `shopSys(0x5300401)` |
 | C | `CLIENT_CLUBSETWORKSHOP_RECOVERY` | `0x16B` | typeid 0 → `0x246` `shopSys(0x5300151)`; truncated → full `0x5300150`; C0&lt;1 `shopSys(0x5300152)`; missing ClubSet `shopSys(0x5300153)`; no `iff_clubset` `shopSys(0x5300154)`; tipo -1 `shopSys(0x5300155)`; consume fail `shopSys(0x5300156)`; already recovered `shopSys(0x5300157)`; success `0x216` (type 2 consume + type `0xCC` + workshop 23) then `0x246` u32 0 |
-| C | `CLIENT_CLUBSETWORKSHOP_TRANSFER` | `0x16C` | missing UCIM → `0x245` `shopSys(0x5300104)`; opposite `SERVER_LOCKER_ACCESS` |
+| C | `CLIENT_CLUBSETWORKSHOP_TRANSFER` | `0x16C` | missing UCIM → `0x245` `shopSys(0x5300104)`; truncated → full `0x5300100`; C0&lt;qntd `shopSys(0x5300105)`; missing ClubSet `shopSys(0x5300101)`; no `iff_clubset` `shopSys(0x5300102)`; dest tipo -1 `shopSys(0x5300103)`; Rank S `shopSys(0x5300108)`; extra chips `shopSys(0x5300106)`; consume fail `shopSys(0x5300107)`; success `0x216` (type 2 + two type `0xCC`) then `0x245` u32 0. Opposite `SERVER_LOCKER_ACCESS`. SlotStats IFF as zeros |
 | C | `CLIENT_CLUBSET_RESET` | `0x16D` | unknown typeid → `0x247` `shopSys(0x5300506)`; opposite `SERVER_LOCKER_ITEMS` |
 | C | `CLIENT_PLAY_MEMORIAL` | `0x17F` | coin 0 → `0x264` `shopSys(0x6300301)` |
 | C | `CLIENT_UPDATE_INGAME_WEBPAGE` | `0xA1` | sbyte `place`; no reply |
@@ -263,7 +263,7 @@ C#: `GameServer/PangyaEnums/PacketGame.cs` → Java `org.pangya.protocol.game.Ga
 | S | `SERVER_DELETE_RENTAL` | `0x190` | fail u8 1 |
 | S | `SERVER_WORKSHOP_TRANSFORM_CONFIRM` | `0x242` | u32 sys |
 | S | `SERVER_WORKSHOP_TRANSFORM_CANCEL` | `0x243` | u32 sys |
-| S | `SERVER_WORKSHOP_TRANSFER` | `0x245` | u32 sys |
+| S | `SERVER_WORKSHOP_TRANSFER` | `0x245` | fail u32 sys; success u32 0 after `0x216`. Opposite CLIENT locker access |
 | S | `SERVER_WORKSHOP_RECOVERY` | `0x246` | fail u32 sys; success u32 0 after `0x216` |
 | S | `SERVER_CLUBSET_RESET` | `0x247` | u32 sys |
 | S | `SERVER_MEMORIAL` | `0x264` | u32 sys |

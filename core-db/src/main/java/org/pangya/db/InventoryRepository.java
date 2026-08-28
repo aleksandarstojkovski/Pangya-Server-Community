@@ -206,6 +206,9 @@ public interface InventoryRepository {
     /** C# {@code CmdUpdateClubSetWorkshop} recovery_pts. */
     void setClubSetRecoveryPts(long uid, int itemId, int recoveryPts);
 
+    /** C# {@code CmdUpdateClubSetWorkshop} {@code F_TRANSFER_MASTERY_PTS}. */
+    void setClubSetMasteryPts(long uid, int itemId, int masteryPts);
+
     /** C# {@code PlayerInfo.findItemBuff} by typeid. */
     Optional<ItemBuffRow> itemBuff(long uid, int typeid);
 

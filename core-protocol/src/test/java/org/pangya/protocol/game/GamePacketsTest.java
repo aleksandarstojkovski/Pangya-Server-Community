@@ -1326,6 +1326,71 @@ class GamePacketsTest {
                 GamePackets.shopSys(GamePackets.WORKSHOP_TRANSFER_ERR)));
         assertEquals(GamePackets.SERVER_WORKSHOP_TRANSFER, transfer.opcode());
         assertEquals(0x0104, transfer.u32());
+        PacketReader transferOk = new PacketReader(GamePackets.workshopTransferOk());
+        assertEquals(GamePackets.SERVER_WORKSHOP_TRANSFER, transferOk.opcode());
+        assertEquals(GamePackets.WORKSHOP_TRANSFER_OK, transferOk.u32());
+        PacketReader transferUpd = new PacketReader(GamePackets.workshopTransferUpdate(
+                1,
+                new GamePackets.PapelAward(
+                        GamePackets.PAPEL_AWARD_TYPE, GamePackets.TYPEID_SHOP_PANG_ITEM, 9, 0, 2, 1, -1),
+                GamePackets.TYPEID_AIR_KNIGHT,
+                2,
+                new short[] {0, 0, 0, 0, 0},
+                0,
+                0,
+                0,
+                0,
+                GamePackets.TYPEID_AIR_KNIGHT_LUCKY,
+                3,
+                new short[] {0, 0, 0, 0, 0},
+                300,
+                0,
+                0,
+                0));
+        assertEquals(GamePackets.SERVER_DAILY_QUEST_STAMP, transferUpd.opcode());
+        assertEquals(1, transferUpd.u32());
+        assertEquals(3, transferUpd.u32());
+        assertEquals(GamePackets.PAPEL_AWARD_TYPE, transferUpd.u8());
+        assertEquals(GamePackets.TYPEID_SHOP_PANG_ITEM, transferUpd.u32());
+        assertEquals(9, transferUpd.i32());
+        assertEquals(0, transferUpd.u32());
+        assertEquals(2, transferUpd.i32());
+        assertEquals(1, transferUpd.i32());
+        assertEquals(-1, transferUpd.i32());
+        transferUpd.readBytes(GamePackets.PAPEL_AWARD_PAD);
+        assertEquals(GamePackets.WORKSHOP_AWARD_TYPE, transferUpd.u8());
+        assertEquals(GamePackets.TYPEID_AIR_KNIGHT, transferUpd.u32());
+        assertEquals(2, transferUpd.i32());
+        assertEquals(0, transferUpd.u32());
+        assertEquals(0, transferUpd.i32());
+        assertEquals(0, transferUpd.i32());
+        assertEquals(0, transferUpd.i32());
+        transferUpd.readBytes(GamePackets.PAPEL_AWARD_PAD);
+        for (int i = 0; i < 5; i++) {
+            assertEquals(0, transferUpd.i16());
+        }
+        assertEquals(0, transferUpd.u32());
+        assertEquals(0, transferUpd.u8());
+        assertEquals(0, transferUpd.u32());
+        assertEquals(0, transferUpd.u32());
+        assertEquals(GamePackets.WORKSHOP_AWARD_TYPE, transferUpd.u8());
+        assertEquals(GamePackets.TYPEID_AIR_KNIGHT_LUCKY, transferUpd.u32());
+        assertEquals(3, transferUpd.i32());
+        assertEquals(0, transferUpd.u32());
+        assertEquals(0, transferUpd.i32());
+        assertEquals(0, transferUpd.i32());
+        assertEquals(0, transferUpd.i32());
+        transferUpd.readBytes(GamePackets.PAPEL_AWARD_PAD);
+        for (int i = 0; i < 5; i++) {
+            assertEquals(0, transferUpd.i16());
+        }
+        assertEquals(300, transferUpd.u32());
+        assertEquals(0, transferUpd.u8());
+        assertEquals(0, transferUpd.u32());
+        assertEquals(0, transferUpd.u32());
+        assertEquals(0, transferUpd.remaining());
+        assertEquals(Integer.MAX_VALUE, GamePackets.workshopCalcRank(new short[5]));
+        assertEquals(GamePackets.WORKSHOP_RANK_S, GamePackets.workshopCalcRank(new short[] {11, 11, 11, 11, 11}));
         PacketReader reset = new PacketReader(GamePackets.sysAck(
                 GamePackets.SERVER_CLUBSET_RESET, GamePackets.shopSys(GamePackets.CLUBSET_RESET_ERR)));
         assertEquals(GamePackets.SERVER_CLUBSET_RESET, reset.opcode());
@@ -2073,6 +2138,9 @@ class GamePacketsTest {
         assertEquals(GamePackets.IFF_GROUP_CLUBSET, GamePackets.itemGroupIdentify(GamePackets.TYPEID_AIR_KNIGHT));
         assertEquals(GamePackets.WORKSHOP_AWARD_TYPE, 0xCC);
         assertEquals(GamePackets.WORKSHOP_TIPO_BLOCKED, -1);
+        assertEquals(GamePackets.WORKSHOP_TRANSFER_PER_CHIP, 300);
+        assertEquals(GamePackets.WORKSHOP_RANK_S, 5);
+        assertEquals(GamePackets.WORKSHOP_TRANSFER_OK, 0);
         assertEquals(GamePackets.IFF_GROUP_MASCOT, 16);
         assertEquals(GamePackets.IFF_GROUP_AUX_PART, 28);
         assertEquals(GamePackets.RING_ERR_TYPEID, 0x330001);

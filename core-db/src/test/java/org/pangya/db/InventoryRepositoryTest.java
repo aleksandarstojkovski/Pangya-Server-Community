@@ -325,8 +325,15 @@ class InventoryRepositoryTest {
                         .findFirst()
                         .orElseThrow()
                         .workshopRecovery);
+                repo.setClubSetMasteryPts(10001, clubId, 300);
+                assertEquals(300, repo.warehouse(10001).stream()
+                        .filter(w -> w.id == clubId)
+                        .findFirst()
+                        .orElseThrow()
+                        .workshopMastery);
             } finally {
                 repo.setClubSetRecoveryPts(10001, clubId, 0);
+                repo.setClubSetMasteryPts(10001, clubId, 0);
                 repo.deleteClubSetIff(GamePackets.TYPEID_AIR_KNIGHT);
             }
             int partTypeid = (GamePackets.IFF_GROUP_PART << 26) | 0x99;

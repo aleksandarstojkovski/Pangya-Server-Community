@@ -261,7 +261,7 @@ public final class GamePackets {
     public static final int SERVER_WORKSHOP_TRANSFORM_CONFIRM = 0x242;
     /** C# workshop transform-cancel catch {@code 0x243}. */
     public static final int SERVER_WORKSHOP_TRANSFORM_CANCEL = 0x243;
-    /** C# workshop transfer catch {@code 0x245}. */
+    /** C# workshop transfer {@code 0x245}; success u32 0 after {@code 0x216}. */
     public static final int SERVER_WORKSHOP_TRANSFER = 0x245;
     /** C# workshop recovery catch {@code 0x246}; success u32 0 after {@code 0x216}. */
     public static final int SERVER_WORKSHOP_RECOVERY = 0x246;
@@ -767,8 +767,9 @@ public final class GamePackets {
     /** C# {@code packet16B} recovery. Success {@code 0x216} then {@code 0x246} u32 0. */
     public static final int CLIENT_WORKSHOP_RECOVERY = 0x16B;
     /**
-     * C# {@code packet16C} workshop transfer. Same numeric as
-     * {@link #SERVER_LOCKER_ACCESS}, opposite direction.
+     * C# {@code packet16C} workshop transfer. Success {@code 0x216} then
+     * {@code 0x245} u32 0. Same numeric as {@link #SERVER_LOCKER_ACCESS},
+     * opposite direction.
      */
     public static final int CLIENT_WORKSHOP_TRANSFER = 0x16C;
     /**
@@ -1722,10 +1723,30 @@ public final class GamePackets {
     public static final int WORKSHOP_AWARD_TYPE = 0xCC;
     /** C# IFF {@code ClubSet.work_shop.tipo} -1 cannot recover. */
     public static final int WORKSHOP_TIPO_BLOCKED = -1;
-    /** C# transfer missing UCIM CHANNEL sys. */
+    /** C# transfer missing UCIM CHANNEL sys {@code 0x5300104}. */
     public static final int WORKSHOP_TRANSFER_ERR = 0x5300104;
     /** C# transfer catch else. */
     public static final int WORKSHOP_TRANSFER_DEFAULT = 0x5300100;
+    /** C# transfer UCIM C0 &lt; qntd CHANNEL sys {@code 0x5300105}. */
+    public static final int WORKSHOP_TRANSFER_ERR_QNTD = 0x5300105;
+    /** C# transfer missing src/dst ClubSet CHANNEL sys {@code 0x5300101}. */
+    public static final int WORKSHOP_TRANSFER_ERR_CLUB = 0x5300101;
+    /** C# transfer {@code findClubSet} miss CHANNEL sys {@code 0x5300102}. */
+    public static final int WORKSHOP_TRANSFER_ERR_IFF = 0x5300102;
+    /** C# dest {@code work_shop.tipo == -1} CHANNEL sys {@code 0x5300103}. */
+    public static final int WORKSHOP_TRANSFER_ERR_TIPO = 0x5300103;
+    /** C# too many UCIM chips CHANNEL sys {@code 0x5300106}. */
+    public static final int WORKSHOP_TRANSFER_ERR_CHIPS = 0x5300106;
+    /** C# {@code removeItem} fail CHANNEL sys {@code 0x5300107}. */
+    public static final int WORKSHOP_TRANSFER_ERR_CONSUME = 0x5300107;
+    /** C# dest Rank S CHANNEL sys {@code 0x5300108}. */
+    public static final int WORKSHOP_TRANSFER_ERR_RANK = 0x5300108;
+    /** C# {@code 0x245} success u32 0. */
+    public static final int WORKSHOP_TRANSFER_OK = 0;
+    /** C# 300 mastery pts per UCIM chip. */
+    public static final int WORKSHOP_TRANSFER_PER_CHIP = 300;
+    /** C# {@code calcRank == 5} Rank S cannot receive. */
+    public static final int WORKSHOP_RANK_S = 5;
     /** C# club-set reset unknown typeid CHANNEL sys. */
     public static final int CLUBSET_RESET_ERR = 0x5300506;
     /** C# club-set reset catch else. */
@@ -3423,6 +3444,91 @@ public final class GamePackets {
                 .u32(rank)
                 .u32(recovery);
         return w.toBytes();
+    }
+
+    /**
+     * C# {@code ClubsetWorkshop.calcRank} with IFF {@code SlotStats} as zeros
+     * (SQL stand-in has no ClubSet slots). Rank S is {@link #WORKSHOP_RANK_S}.
+     */
+    public static int workshopCalcRank(short[] workshopC) {
+        int total = 0;
+        if (workshopC != null) {
+            int n = Math.min(5, workshopC.length);
+            for (int i = 0; i < n; i++) {
+                total += workshopC[i] & 0xffff;
+            }
+        }
+        if (total >= 30 && total < 60) {
+            return (total - 30) / 5;
+        }
+        return Integer.MAX_VALUE;
+    }
+
+    private static void writeWorkshopClubRow(
+            PacketWriter w,
+            int typeid,
+            int id,
+            short[] workshopC,
+            int mastery,
+            int level,
+            int rank,
+            int recovery) {
+        w.u8(WORKSHOP_AWARD_TYPE)
+                .u32(typeid)
+                .i32(id)
+                .u32(0)
+                .i32(0)
+                .i32(0)
+                .i32(0)
+                .zero(PAPEL_AWARD_PAD);
+        short[] c = workshopC == null ? new short[5] : workshopC;
+        for (int i = 0; i < 5; i++) {
+            w.i16(i < c.length ? c[i] : 0);
+        }
+        w.u32(mastery)
+                .u8(level)
+                .u32(rank)
+                .u32(recovery);
+    }
+
+    /**
+     * C# transfer {@code 0x216}: consume type 2 then two type {@code 0xCC}
+     * ClubSet workshop tails (src then dest).
+     */
+    public static byte[] workshopTransferUpdate(
+            int unix,
+            PapelAward consume,
+            int srcTypeid,
+            int srcId,
+            short[] srcC,
+            int srcMastery,
+            int srcLevel,
+            int srcRank,
+            int srcRecovery,
+            int dstTypeid,
+            int dstId,
+            short[] dstC,
+            int dstMastery,
+            int dstLevel,
+            int dstRank,
+            int dstRecovery) {
+        PacketWriter w = new PacketWriter().opcode(SERVER_DAILY_QUEST_STAMP).u32(unix).u32(3);
+        w.u8(consume.type())
+                .u32(consume.typeid())
+                .i32(consume.id())
+                .u32(consume.flagTime())
+                .i32(consume.qntdAnt())
+                .i32(consume.qntdDep())
+                .i32(consume.qntd())
+                .zero(PAPEL_AWARD_PAD);
+        writeWorkshopClubRow(w, srcTypeid, srcId, srcC, srcMastery, srcLevel, srcRank, srcRecovery);
+        writeWorkshopClubRow(w, dstTypeid, dstId, dstC, dstMastery, dstLevel, dstRank, dstRecovery);
+        return w.toBytes();
+    }
+
+    /** C# transfer success {@code 0x245} u32 0. */
+    public static byte[] workshopTransferOk() {
+        return new PacketWriter().opcode(SERVER_WORKSHOP_TRANSFER).u32(WORKSHOP_TRANSFER_OK).toBytes();
     }
 
     /** C# recovery success {@code 0x246} u32 0. */

@@ -4952,30 +4952,128 @@ public final class GameHandler {
     }
 
     /**
-     * C# {@code requestClubSetWorkShopTransferMasteryPts}: missing UCIM →
-     * {@code 0x245} {@code shopSys(0x5300104)}.
+     * C# {@code requestClubSetWorkShopTransferMasteryPts}: UCIM warehouse item +
+     * src/dst ClubSet by id, SQL {@code iff_clubset} stand-in for IFF
+     * {@code findClubSet} ({@code SlotStats} as zeros). Persist both
+     * {@code Mastery_Pts} before {@code 0x216}/{@code 0x245} (C# updates src
+     * async and dest in-memory only). Skips C# achievement {@code 0x6C4000A5}.
      */
     private void workshopTransfer(Session session, PacketReader reader) {
         if (!inChannel(session)) {
             return;
         }
-        if (reader.remaining() < 16) {
+        try {
+            if (reader.remaining() < 16) {
+                session.send(GamePackets.sysAck(
+                        GamePackets.SERVER_WORKSHOP_TRANSFER, GamePackets.WORKSHOP_TRANSFER_DEFAULT));
+                return;
+            }
+            int typeid = reader.u32();
+            int srcId = reader.i32();
+            int dstId = reader.i32();
+            int qntd = reader.u32();
+            long uid = session.player().uid;
+            GamePackets.WarehouseItem ucim = warehouseByTypeid(uid, typeid);
+            if (ucim == null) {
+                session.send(GamePackets.sysAck(
+                        GamePackets.SERVER_WORKSHOP_TRANSFER,
+                        GamePackets.shopSys(GamePackets.WORKSHOP_TRANSFER_ERR)));
+                return;
+            }
+            if ((ucim.c[0] & 0xffff) < qntd) {
+                session.send(GamePackets.sysAck(
+                        GamePackets.SERVER_WORKSHOP_TRANSFER,
+                        GamePackets.shopSys(GamePackets.WORKSHOP_TRANSFER_ERR_QNTD)));
+                return;
+            }
+            GamePackets.WarehouseItem src = warehouseById(uid, srcId);
+            GamePackets.WarehouseItem dst = warehouseById(uid, dstId);
+            if (src == null || dst == null) {
+                session.send(GamePackets.sysAck(
+                        GamePackets.SERVER_WORKSHOP_TRANSFER,
+                        GamePackets.shopSys(GamePackets.WORKSHOP_TRANSFER_ERR_CLUB)));
+                return;
+            }
+            OptionalInt srcTipo = inventory.clubSetWorkShopTipo(src.typeid);
+            OptionalInt dstTipo = inventory.clubSetWorkShopTipo(dst.typeid);
+            if (srcTipo.isEmpty() || dstTipo.isEmpty()) {
+                session.send(GamePackets.sysAck(
+                        GamePackets.SERVER_WORKSHOP_TRANSFER,
+                        GamePackets.shopSys(GamePackets.WORKSHOP_TRANSFER_ERR_IFF)));
+                return;
+            }
+            if (dstTipo.getAsInt() == GamePackets.WORKSHOP_TIPO_BLOCKED) {
+                session.send(GamePackets.sysAck(
+                        GamePackets.SERVER_WORKSHOP_TRANSFER,
+                        GamePackets.shopSys(GamePackets.WORKSHOP_TRANSFER_ERR_TIPO)));
+                return;
+            }
+            if (GamePackets.workshopCalcRank(dst.workshopC) == GamePackets.WORKSHOP_RANK_S) {
+                session.send(GamePackets.sysAck(
+                        GamePackets.SERVER_WORKSHOP_TRANSFER,
+                        GamePackets.shopSys(GamePackets.WORKSHOP_TRANSFER_ERR_RANK)));
+                return;
+            }
+            long qntdU = qntd & 0xffffffffL;
+            long masteryU = src.workshopMastery & 0xffffffffL;
+            long needed = masteryU % GamePackets.WORKSHOP_TRANSFER_PER_CHIP == 0
+                    ? masteryU / GamePackets.WORKSHOP_TRANSFER_PER_CHIP
+                    : masteryU / GamePackets.WORKSHOP_TRANSFER_PER_CHIP + 1;
+            if (qntdU * GamePackets.WORKSHOP_TRANSFER_PER_CHIP > masteryU && needed > qntdU) {
+                session.send(GamePackets.sysAck(
+                        GamePackets.SERVER_WORKSHOP_TRANSFER,
+                        GamePackets.shopSys(GamePackets.WORKSHOP_TRANSFER_ERR_CHIPS)));
+                return;
+            }
+            int take = (int) Math.min(qntdU * GamePackets.WORKSHOP_TRANSFER_PER_CHIP, masteryU);
+            int srcAfter = src.workshopMastery;
+            int dstAfter = dst.workshopMastery;
+            if (src.id != dst.id) {
+                srcAfter = src.workshopMastery - take;
+                dstAfter = dst.workshopMastery + take;
+            }
+            if (qntd > 0 && inventory.consumeWarehouseByTypeid(uid, typeid, qntd).isEmpty()) {
+                session.send(GamePackets.sysAck(
+                        GamePackets.SERVER_WORKSHOP_TRANSFER,
+                        GamePackets.shopSys(GamePackets.WORKSHOP_TRANSFER_ERR_CONSUME)));
+                return;
+            }
+            inventory.setClubSetMasteryPts(uid, src.id, srcAfter);
+            if (src.id != dst.id) {
+                inventory.setClubSetMasteryPts(uid, dst.id, dstAfter);
+            }
+            int ant = ucim.c[0] & 0xffff;
+            GamePackets.PapelAward consume = new GamePackets.PapelAward(
+                    GamePackets.PAPEL_AWARD_TYPE,
+                    typeid,
+                    ucim.id,
+                    0,
+                    ant,
+                    qntd > 0 ? ant - qntd : ant,
+                    qntd > 0 ? -qntd : 0);
+            session.send(GamePackets.workshopTransferUpdate(
+                    GamePackets.unixNow(),
+                    consume,
+                    src.typeid,
+                    src.id,
+                    src.workshopC,
+                    srcAfter,
+                    src.workshopLevel,
+                    src.workshopRank,
+                    src.workshopRecovery,
+                    dst.typeid,
+                    dst.id,
+                    dst.workshopC,
+                    dstAfter,
+                    dst.workshopLevel,
+                    dst.workshopRank,
+                    dst.workshopRecovery));
+            session.send(GamePackets.workshopTransferOk());
+        } catch (RuntimeException e) {
+            log.debug("workshop transfer failed: {}", e.toString());
             session.send(GamePackets.sysAck(
                     GamePackets.SERVER_WORKSHOP_TRANSFER, GamePackets.WORKSHOP_TRANSFER_DEFAULT));
-            return;
         }
-        int typeid = reader.u32();
-        reader.i32();
-        reader.i32();
-        reader.u32();
-        if (typeid == 0) {
-            session.send(GamePackets.sysAck(
-                    GamePackets.SERVER_WORKSHOP_TRANSFER,
-                    GamePackets.shopSys(GamePackets.WORKSHOP_TRANSFER_ERR)));
-            return;
-        }
-        session.send(GamePackets.sysAck(
-                GamePackets.SERVER_WORKSHOP_TRANSFER, GamePackets.shopSys(0x5300104)));
     }
 
     /**
