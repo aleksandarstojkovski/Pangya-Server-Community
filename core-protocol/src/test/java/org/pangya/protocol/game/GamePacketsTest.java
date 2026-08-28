@@ -1156,6 +1156,7 @@ class GamePacketsTest {
         assertEquals(0, cutinFail.u8());
         assertEquals(GamePackets.CUTIN_ERR, cutinFail.u16());
         PacketReader cutinGz = new PacketReader(GamePackets.cutinFail(GamePackets.CUTIN_GZ_DISABLED));
+        assertEquals(GamePackets.SERVER_CUTIN, cutinGz.opcode());
         assertEquals(0, cutinGz.u8());
         assertEquals(GamePackets.CUTIN_GZ_DISABLED, cutinGz.u16());
         PacketReader gzEnd = new PacketReader(GamePackets.gzEndGame());
