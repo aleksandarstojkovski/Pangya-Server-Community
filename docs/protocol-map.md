@@ -170,7 +170,7 @@ C#: `GameServer/PangyaEnums/PacketGame.cs` → Java `org.pangya.protocol.game.Ga
 | C | `CLIENT_REQ_POINT_SHOP_TP` | `0x127` | not blocked → `0x1E8` u32 0 + u32 tiki pts (seed 0) |
 | C | `CLIENT_REQ_POINT_SHOP_EXCHANGE_TP` | `0x128` | count 0 → `0x1E9` `shopSys(0x5200905)` |
 | C | `CLIENT_REQ_POINT_SHOP_EXCHANGE_ITEM` | `0x129` | count 0 → `0x1EA` `shopSys(0x5200905)`; opposite SERVER lucky-pouch |
-| C | `CLIENT_CLUBSETWORKSHOP_REQ_UP_RANK` | `0x167` | qntd>0 missing card → `0x240` `shopSys(0x5300351)` |
+| C | `CLIENT_CLUBSETWORKSHOP_REQ_UP_RANK` | `0x167` | qntd>0 missing card → `0x240` `shopSys(0x5300351)`; qntd insufficient `shopSys(0x5300532)`; missing club `0x5300353`; no `iff_clubset` `0x5300354`; tipo -1 `0x5300355`; no limit any `0x5300209`; no limit for calcRank+1 `0x5300211`; qntd>4 `0x5300356`; stat capped `0x5300358`; no rank-exp `0x5300359`; mastery `0x5300360`; truncated/else full `0x5300350`. Success persist `C[stat]++` + rank/level/mastery then `0x216` type `0xCC` then `0x240` u32 0 + stat + id. SQL `iff_clubset_rank_exp.rank0`–`rank5`. Mega typeid 0 qntd 1 resta `shopSys(0x5300351)`. `flag_transformar` 0 (no `0x241`) |
 | C | `CLIENT_USE_ITEM_BUFF` | `0xD8` | typeid 0 → `0x181` `shopSys(0x5500401)`; ITEM+SQL `iff_time_limit_item` success u32 2 + count 1 + typeid + ItemBuff; missing warehouse `shopSys(0x5500402)`; non-ITEM `shopSys(0x5500403)`; no TLI `shopSys(0x5500404)` |
 | C | `CLIENT_COMET_REFILL` | `0xEC` | ITEM+BALL SQL `pangya_comet_refill`; success `0x197` u8 1 + item + ball + u16 C0; else u8 0 + 10 zeros. Opposite locker-add `SERVER_SHOP_BUY` |
 | C | `CLIENT_OPEN_BOX_MAIL` | `0xEF` | typeid 0 → `0x19D` `shopSys(0x6300101)` |
@@ -243,7 +243,7 @@ C#: `GameServer/PangyaEnums/PacketGame.cs` → Java `org.pangya.protocol.game.Ga
 | S | `SERVER_TIKI_EXCHANGE_ITEM` | `0x1EA` | u32 error; OK is 0 + pts |
 | S | `SERVER_CLUBSETWORKSHOP_CONFIRM` | `0x23E` | u32 sys |
 | S | `SERVER_CLUBSETWORKSHOP_CANCEL` | `0x23F` | u32 sys |
-| S | `SERVER_CLUBSETWORKSHOP_RANK` | `0x240` | u32 sys |
+| S | `SERVER_CLUBSETWORKSHOP_RANK` | `0x240` | fail u32 sys; success u32 0 + u32 stat + i32 id |
 | S | `SERVER_ITEM_BUFF` | `0x181` | fail u32 sys; success u32 2 + u32 1 + typeid + ItemBuff 65; opposite CLIENT ring-ground |
 | S | `SERVER_COMET_REFILL` | `0x197` | fail u8 0 + 10 zeros; success u8 1 + u32 item + u32 ball + u16 C0. Opposite CLIENT ring-power |
 | S | `SERVER_BOX_MAIL` | `0x19D` | u32 sys |

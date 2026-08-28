@@ -1062,6 +1062,11 @@ class GamePacketsTest {
         assertEquals(0, cw.u32());
         assertEquals(1, cw.u16());
         assertEquals(7, cw.i32());
+        PacketReader cwRank = new PacketReader(GamePackets.clientClubWorkshopRank(0, 1, 7));
+        assertEquals(GamePackets.CLIENT_CLUB_WORKSHOP_RANK, cwRank.opcode());
+        assertEquals(0, cwRank.u32());
+        assertEquals(1, cwRank.u16());
+        assertEquals(7, cwRank.i32());
         PacketReader tikiPts = new PacketReader(GamePackets.tikiPoints(0, 0));
         assertEquals(GamePackets.SERVER_TIKI_POINTS, tikiPts.opcode());
         assertEquals(0, tikiPts.u32());
@@ -1413,6 +1418,15 @@ class GamePacketsTest {
         assertEquals(-1, GamePackets.workshopSCalcRank(new short[5]));
         assertEquals(0, GamePackets.workshopSCalcRank(new short[] {6, 6, 6, 6, 6}));
         assertEquals(0, GamePackets.workshopCalcRank(new short[5], new short[] {6, 6, 6, 6, 6}));
+        assertEquals(0, GamePackets.workshopCalcLevel(new short[5], new short[] {6, 6, 6, 6, 6}));
+        assertEquals(1, GamePackets.workshopCalcLevel(new short[] {0, 0, 1, 0, 0}, new short[] {6, 6, 6, 6, 6}));
+        assertEquals(Integer.MAX_VALUE, GamePackets.workshopCalcLevel(new short[5], new short[5]));
+        assertEquals(2, GamePackets.workshopRankStat(0));
+        assertEquals(4, GamePackets.workshopRankStat(1));
+        assertEquals(0, GamePackets.workshopRankStat(2));
+        assertEquals(3, GamePackets.workshopRankStat(3));
+        assertEquals(1, GamePackets.workshopRankStat(4));
+        assertEquals(2, GamePackets.workshopRankStat(5));
         assertEquals(
                 OptionalInt.of(0),
                 GamePackets.workshopDrawStat(
@@ -1437,6 +1451,11 @@ class GamePacketsTest {
         assertEquals(GamePackets.SERVER_CLUB_WORKSHOP_CANCEL, cancelOk.opcode());
         assertEquals(GamePackets.WORKSHOP_CANCEL_OK, cancelOk.u32());
         assertEquals(2, cancelOk.i32());
+        PacketReader rankOk = new PacketReader(GamePackets.clubWorkshopRankOk(2, 2));
+        assertEquals(GamePackets.SERVER_CLUB_WORKSHOP_RANK, rankOk.opcode());
+        assertEquals(GamePackets.WORKSHOP_RANK_OK, rankOk.u32());
+        assertEquals(2, rankOk.u32());
+        assertEquals(2, rankOk.i32());
         PacketReader ccUpd = new PacketReader(GamePackets.workshopCcUpdate(
                 1, GamePackets.TYPEID_AIR_KNIGHT, 2, new short[] {1, 0, 0, 0, 0}, 300, 0, 0, 1));
         assertEquals(GamePackets.SERVER_DAILY_QUEST_STAMP, ccUpd.opcode());
@@ -2345,6 +2364,9 @@ class GamePacketsTest {
         assertEquals(GamePackets.WORKSHOP_OK, 0);
         assertEquals(GamePackets.WORKSHOP_CONFIRM_OK, 0);
         assertEquals(GamePackets.WORKSHOP_CANCEL_OK, 0);
+        assertEquals(GamePackets.WORKSHOP_RANK_OK, 0);
+        assertEquals(2, GamePackets.workshopRankStat(0));
+        assertEquals(GamePackets.WORKSHOP_RANK_ERR_RANK_S, 0x5300362);
         assertEquals(GamePackets.WORKSHOP_ERR_MISSING, 0x5300202);
         assertEquals(GamePackets.SERVER_BUY_ACK, 0x68);
         assertEquals(GamePackets.CREATE_ROOM_FAILED, 0x07);

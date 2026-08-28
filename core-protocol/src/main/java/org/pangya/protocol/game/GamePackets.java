@@ -1682,6 +1682,30 @@ public final class GamePackets {
     public static final int WORKSHOP_RANK_ERR = 0x5300351;
     /** C# workshop rank catch else. */
     public static final int WORKSHOP_RANK_DEFAULT = 0x5300350;
+    /** C# workshop rank card qntd CHANNEL sys {@code 0x5300532} (C# literal). */
+    public static final int WORKSHOP_RANK_ERR_QNTD = 0x5300532;
+    /** C# workshop rank missing ClubSet CHANNEL sys {@code 0x5300353}. */
+    public static final int WORKSHOP_RANK_ERR_CLUB = 0x5300353;
+    /** C# workshop rank {@code findClubSet} miss CHANNEL sys {@code 0x5300354}. */
+    public static final int WORKSHOP_RANK_ERR_IFF = 0x5300354;
+    /** C# workshop rank {@code tipo == -1} CHANNEL sys {@code 0x5300355}. */
+    public static final int WORKSHOP_RANK_ERR_TIPO = 0x5300355;
+    /** C# workshop rank {@code qntd > 4} CHANNEL sys {@code 0x5300356}. */
+    public static final int WORKSHOP_RANK_ERR_QNTD_MAX = 0x5300356;
+    /** C# workshop rank consume fail CHANNEL sys {@code 0x5300357}. */
+    public static final int WORKSHOP_RANK_ERR_CONSUME = 0x5300357;
+    /** C# workshop rank stat already capped CHANNEL sys {@code 0x5300358}. */
+    public static final int WORKSHOP_RANK_ERR_STAT = 0x5300358;
+    /** C# workshop rank missing rank-exp CHANNEL sys {@code 0x5300359}. */
+    public static final int WORKSHOP_RANK_ERR_EXP = 0x5300359;
+    /** C# workshop rank mastery CHANNEL sys {@code 0x5300360}. */
+    public static final int WORKSHOP_RANK_ERR_MASTERY = 0x5300360;
+    /** C# workshop rank unknown calcRank CHANNEL sys {@code 0x5300361}. */
+    public static final int WORKSHOP_RANK_ERR_UNKNOWN = 0x5300361;
+    /** C# workshop rank Rank S {@code rank_s_stat > 4} CHANNEL sys {@code 0x5300362}. */
+    public static final int WORKSHOP_RANK_ERR_RANK_S = 0x5300362;
+    /** C# {@code 0x240} success u32 0. */
+    public static final int WORKSHOP_RANK_OK = 0;
     /** C# Dolfini make-pass empty CHANNEL sys 1. */
     public static final int LOCKER_MAKE_PASS_EMPTY = 1;
     /** C# Dolfini make-pass length&gt;4 CHANNEL sys. */
@@ -3542,6 +3566,38 @@ public final class GamePackets {
         return Integer.MAX_VALUE;
     }
 
+    /** C# {@code ClubsetWorkshop.calcLevel}: {@code (total-30)%5} else {@link Integer#MAX_VALUE}. */
+    public static int workshopCalcLevel(short[] workshopC, short[] slotStats) {
+        int total = 0;
+        for (int i = 0; i < 5; i++) {
+            if (workshopC != null && i < workshopC.length) {
+                total += workshopC[i] & 0xffff;
+            }
+            if (slotStats != null && i < slotStats.length) {
+                total += slotStats[i] & 0xffff;
+            }
+        }
+        if (total >= 30 && total < 60) {
+            return (total - 30) % 5;
+        }
+        return Integer.MAX_VALUE;
+    }
+
+    /**
+     * C# up-rank stat from card qntd: 0→ACC 2, 1→CURVE 4, 2→PWR 0, 3→SPIN 3,
+     * 4→CTRL 1, else ACC 2.
+     */
+    public static int workshopRankStat(int qntd) {
+        return switch (qntd) {
+            case 0 -> 2;
+            case 1 -> 4;
+            case 2 -> 0;
+            case 3 -> 3;
+            case 4 -> 1;
+            default -> 2;
+        };
+    }
+
     /**
      * C# lottery over stats where {@code limit.c[i] > workshop.c[i] + SlotStats[i]}.
      * Empty when no stat is eligible ({@code Lottery.fill_roleta} throws, catch
@@ -3960,6 +4016,16 @@ public final class GamePackets {
         return new PacketWriter()
                 .opcode(SERVER_CLUB_WORKSHOP_CANCEL)
                 .u32(WORKSHOP_CANCEL_OK)
+                .i32(clubsetId)
+                .toBytes();
+    }
+
+    /** C# up-rank success {@code 0x240} u32 0 + u32 stat + i32 id. */
+    public static byte[] clubWorkshopRankOk(int stat, int clubsetId) {
+        return new PacketWriter()
+                .opcode(SERVER_CLUB_WORKSHOP_RANK)
+                .u32(WORKSHOP_RANK_OK)
+                .u32(stat)
                 .i32(clubsetId)
                 .toBytes();
     }

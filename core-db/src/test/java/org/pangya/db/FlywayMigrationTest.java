@@ -137,6 +137,16 @@ class FlywayMigrationTest {
                             .mapTo(Integer.class)
                             .one());
             assertEquals(0, levelProb);
+            int rankExpCols = jdbi.withHandle(h ->
+                    h.createQuery("""
+                            select count(*) from information_schema.columns
+                             where table_schema = 'pangya'
+                               and table_name = 'iff_clubset_rank_exp'
+                               and column_name in ('rank0','rank1','rank2','rank3','rank4','rank5')
+                            """)
+                            .mapTo(Integer.class)
+                            .one());
+            assertEquals(6, rankExpCols);
             assertTrue(accounts >= 1);
         }
     }

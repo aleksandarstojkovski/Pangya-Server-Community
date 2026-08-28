@@ -265,7 +265,12 @@ public interface InventoryRepository {
     /** C# {@code sIff.findClubSetWorkShopRankExp}: SQL row exists. */
     boolean clubSetRankExp(int tipo);
 
+    /** C# {@code ClubSetWorkShopRankUpExp.rank[6]}. Empty when tipo is missing. */
+    Optional<int[]> clubSetRankExpRanks(int tipo);
+
     void upsertClubSetRankExp(int tipo);
+
+    void upsertClubSetRankExp(int tipo, int[] ranks);
 
     void deleteClubSetRankExp(int tipo);
 

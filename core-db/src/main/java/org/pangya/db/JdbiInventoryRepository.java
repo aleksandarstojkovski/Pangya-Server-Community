@@ -2760,13 +2760,48 @@ public final class JdbiInventoryRepository implements InventoryRepository {
     }
 
     @Override
-    public void upsertClubSetRankExp(int tipo) {
-        jdbi.useHandle(h -> h.createUpdate("""
-                        INSERT INTO pangya.iff_clubset_rank_exp (tipo)
-                        VALUES (:tipo)
-                        ON CONFLICT (tipo) DO NOTHING
+    public Optional<int[]> clubSetRankExpRanks(int tipo) {
+        return jdbi.withHandle(h -> h.createQuery("""
+                        SELECT rank0, rank1, rank2, rank3, rank4, rank5
+                          FROM pangya.iff_clubset_rank_exp
+                         WHERE tipo = :tipo
                         """)
                 .bind("tipo", tipo)
+                .map((rs, ctx) -> new int[] {
+                    rs.getInt("rank0"),
+                    rs.getInt("rank1"),
+                    rs.getInt("rank2"),
+                    rs.getInt("rank3"),
+                    rs.getInt("rank4"),
+                    rs.getInt("rank5")
+                })
+                .findOne());
+    }
+
+    @Override
+    public void upsertClubSetRankExp(int tipo) {
+        upsertClubSetRankExp(tipo, new int[6]);
+    }
+
+    @Override
+    public void upsertClubSetRankExp(int tipo, int[] ranks) {
+        int[] r = ranks == null ? new int[6] : ranks;
+        jdbi.useHandle(h -> h.createUpdate("""
+                        INSERT INTO pangya.iff_clubset_rank_exp (
+                            tipo, rank0, rank1, rank2, rank3, rank4, rank5)
+                        VALUES (:tipo, :r0, :r1, :r2, :r3, :r4, :r5)
+                        ON CONFLICT (tipo) DO UPDATE SET
+                            rank0 = EXCLUDED.rank0, rank1 = EXCLUDED.rank1,
+                            rank2 = EXCLUDED.rank2, rank3 = EXCLUDED.rank3,
+                            rank4 = EXCLUDED.rank4, rank5 = EXCLUDED.rank5
+                        """)
+                .bind("tipo", tipo)
+                .bind("r0", r.length > 0 ? r[0] : 0)
+                .bind("r1", r.length > 1 ? r[1] : 0)
+                .bind("r2", r.length > 2 ? r[2] : 0)
+                .bind("r3", r.length > 3 ? r[3] : 0)
+                .bind("r4", r.length > 4 ? r[4] : 0)
+                .bind("r5", r.length > 5 ? r[5] : 0)
                 .execute());
     }
 

@@ -3,6 +3,7 @@ package org.pangya.db;
 import org.junit.jupiter.api.Test;
 import org.pangya.protocol.game.GamePackets;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -373,6 +374,9 @@ class InventoryRepositoryTest {
                 assertEquals(0, repo.clubSetIff(GamePackets.TYPEID_AIR_KNIGHT).orElseThrow().tipoRankS());
                 assertEquals(0, repo.clubSetIff(GamePackets.TYPEID_AIR_KNIGHT).orElseThrow().totalRecovery());
                 assertTrue(repo.clubSetRankExp(0));
+                assertArrayEquals(new int[6], repo.clubSetRankExpRanks(0).orElseThrow());
+                repo.upsertClubSetRankExp(0, new int[] {0, 50, 0, 0, 0, 0});
+                assertEquals(50, repo.clubSetRankExpRanks(0).orElseThrow()[1]);
                 repo.setClubSetWorkshop(10001, clubId, new short[] {1, 0, 0, 0, 0}, 2, 1, 5);
                 repo.setWarehouseClubC(10001, clubId, new short[] {1, 0, 0, 0, 0});
                 repo.resetClubSetWorkshopAndC(10001, clubId);

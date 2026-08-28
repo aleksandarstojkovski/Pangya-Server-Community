@@ -4523,29 +4523,177 @@ public final class GameHandler {
     }
 
     /**
-     * C# {@code requestClubSetWorkShopUpRank}: qntd&gt;0 missing card →
-     * {@code 0x240} {@code shopSys(0x5300351)}.
+     * C# {@code requestClubSetWorkShopUpRank}. qntd&gt;0 missing card →
+     * {@code 0x240} {@code shopSys(0x5300351)}. Success persist workshop then
+     * {@code 0x216} type {@code 0xCC} (and type 2 if a card was consumed) then
+     * {@code 0x240} u32 0 + stat + id. Catch CHANNEL {@code shopSys}; else full
+     * {@code 0x5300350}. {@code flag_transformar} stays 0 (no {@code 0x241}).
      */
     private void clubWorkshopRank(Session session, PacketReader reader) {
         if (!inChannel(session)) {
             return;
         }
-        if (reader.remaining() < 10) {
+        try {
+            if (reader.remaining() < 10) {
+                session.send(GamePackets.clubWorkshopOpcodeFail(
+                        GamePackets.SERVER_CLUB_WORKSHOP_RANK, GamePackets.WORKSHOP_RANK_DEFAULT));
+                return;
+            }
+            int typeid = reader.u32();
+            int qntd = reader.u16();
+            int clubsetId = reader.i32();
+            long uid = session.player().uid;
+            GamePackets.CardInfo card = null;
+            if (qntd > 0) {
+                for (GamePackets.CardInfo c : inventory.cards(uid)) {
+                    if (c.typeid == typeid) {
+                        card = c;
+                        break;
+                    }
+                }
+                if (card == null) {
+                    session.send(GamePackets.clubWorkshopOpcodeFail(
+                            GamePackets.SERVER_CLUB_WORKSHOP_RANK,
+                            GamePackets.shopSys(GamePackets.WORKSHOP_RANK_ERR)));
+                    return;
+                }
+                if (card.qntd < qntd) {
+                    session.send(GamePackets.clubWorkshopOpcodeFail(
+                            GamePackets.SERVER_CLUB_WORKSHOP_RANK,
+                            GamePackets.shopSys(GamePackets.WORKSHOP_RANK_ERR_QNTD)));
+                    return;
+                }
+            }
+            GamePackets.WarehouseItem club = warehouseById(uid, clubsetId);
+            if (club == null) {
+                session.send(GamePackets.clubWorkshopOpcodeFail(
+                        GamePackets.SERVER_CLUB_WORKSHOP_RANK,
+                        GamePackets.shopSys(GamePackets.WORKSHOP_RANK_ERR_CLUB)));
+                return;
+            }
+            Optional<InventoryRepository.ClubSetIff> iff = inventory.clubSetIff(club.typeid);
+            if (iff.isEmpty()) {
+                session.send(GamePackets.clubWorkshopOpcodeFail(
+                        GamePackets.SERVER_CLUB_WORKSHOP_RANK,
+                        GamePackets.shopSys(GamePackets.WORKSHOP_RANK_ERR_IFF)));
+                return;
+            }
+            InventoryRepository.ClubSetIff clubset = iff.get();
+            if (clubset.tipo() == -1) {
+                session.send(GamePackets.clubWorkshopOpcodeFail(
+                        GamePackets.SERVER_CLUB_WORKSHOP_RANK,
+                        GamePackets.shopSys(GamePackets.WORKSHOP_RANK_ERR_TIPO)));
+                return;
+            }
+            if (!inventory.clubSetLevelUpAny(clubset.tipo())) {
+                session.send(GamePackets.clubWorkshopOpcodeFail(
+                        GamePackets.SERVER_CLUB_WORKSHOP_RANK,
+                        GamePackets.shopSys(GamePackets.WORKSHOP_ERR_LIMIT)));
+                return;
+            }
+            int rank = GamePackets.workshopCalcRank(club.workshopC, clubset.slots()) + 1;
+            Optional<short[]> limit = inventory.clubSetLevelUpLimit(clubset.tipo(), rank);
+            if (limit.isEmpty()) {
+                session.send(GamePackets.clubWorkshopOpcodeFail(
+                        GamePackets.SERVER_CLUB_WORKSHOP_RANK,
+                        GamePackets.shopSys(GamePackets.WORKSHOP_ERR_LIMIT_RANK)));
+                return;
+            }
+            if (qntd > 4) {
+                session.send(GamePackets.clubWorkshopOpcodeFail(
+                        GamePackets.SERVER_CLUB_WORKSHOP_RANK,
+                        GamePackets.shopSys(GamePackets.WORKSHOP_RANK_ERR_QNTD_MAX)));
+                return;
+            }
+            int stat = GamePackets.workshopRankStat(qntd);
+            short[] limitC = limit.get();
+            int have = (club.workshopC[stat] & 0xffff) + (clubset.slots()[stat] & 0xffff);
+            if ((limitC[stat] & 0xffff) <= have) {
+                session.send(GamePackets.clubWorkshopOpcodeFail(
+                        GamePackets.SERVER_CLUB_WORKSHOP_RANK,
+                        GamePackets.shopSys(GamePackets.WORKSHOP_RANK_ERR_STAT)));
+                return;
+            }
+            Optional<int[]> ranks = inventory.clubSetRankExpRanks(clubset.tipoRankS());
+            if (ranks.isEmpty()) {
+                session.send(GamePackets.clubWorkshopOpcodeFail(
+                        GamePackets.SERVER_CLUB_WORKSHOP_RANK,
+                        GamePackets.shopSys(GamePackets.WORKSHOP_RANK_ERR_EXP)));
+                return;
+            }
+            if (rank == -1) {
+                session.send(GamePackets.clubWorkshopOpcodeFail(
+                        GamePackets.SERVER_CLUB_WORKSHOP_RANK,
+                        GamePackets.shopSys(GamePackets.WORKSHOP_RANK_ERR_UNKNOWN)));
+                return;
+            }
+            int need = ranks.get()[rank];
+            if ((club.workshopMastery & 0xffffffffL) < (need & 0xffffffffL)) {
+                session.send(GamePackets.clubWorkshopOpcodeFail(
+                        GamePackets.SERVER_CLUB_WORKSHOP_RANK,
+                        GamePackets.shopSys(GamePackets.WORKSHOP_RANK_ERR_MASTERY)));
+                return;
+            }
+            int ant = 0;
+            int remaining = 0;
+            if (qntd > 0) {
+                OptionalInt left = inventory.consumeCardByTypeid(uid, typeid, qntd);
+                if (left.isEmpty()) {
+                    session.send(GamePackets.clubWorkshopOpcodeFail(
+                            GamePackets.SERVER_CLUB_WORKSHOP_RANK,
+                            GamePackets.shopSys(GamePackets.WORKSHOP_RANK_ERR_CONSUME)));
+                    return;
+                }
+                ant = card.qntd;
+                remaining = left.getAsInt();
+            }
+            short[] nextC = club.workshopC.clone();
+            if (rank == GamePackets.WORKSHOP_RANK_S) {
+                nextC[0]++;
+            }
+            nextC[stat]++;
+            int recovery = 0;
+            int level = GamePackets.workshopCalcLevel(nextC, clubset.slots());
+            int mastery = club.workshopMastery - need;
+            inventory.setClubSetWorkshop(uid, club.id, nextC, level, rank, recovery);
+            inventory.setClubSetMasteryPts(uid, club.id, mastery);
+            int unix = GamePackets.unixNow();
+            if (qntd > 0) {
+                GamePackets.PapelAward consume = new GamePackets.PapelAward(
+                        GamePackets.PAPEL_AWARD_TYPE,
+                        typeid,
+                        card.id,
+                        0,
+                        ant,
+                        remaining,
+                        -qntd);
+                session.send(GamePackets.workshopRecoveryUpdate(
+                        unix,
+                        consume,
+                        club.typeid,
+                        club.id,
+                        nextC,
+                        mastery,
+                        level,
+                        rank,
+                        recovery));
+            } else {
+                session.send(GamePackets.workshopCcUpdate(
+                        unix,
+                        club.typeid,
+                        club.id,
+                        nextC,
+                        mastery,
+                        level,
+                        rank,
+                        recovery));
+            }
+            session.send(GamePackets.clubWorkshopRankOk(stat, club.id));
+        } catch (RuntimeException e) {
+            log.debug("workshop up rank failed: {}", e.toString());
             session.send(GamePackets.clubWorkshopOpcodeFail(
                     GamePackets.SERVER_CLUB_WORKSHOP_RANK, GamePackets.WORKSHOP_RANK_DEFAULT));
-            return;
         }
-        reader.u32();
-        int qntd = reader.u16();
-        reader.i32();
-        if (qntd > 0) {
-            session.send(GamePackets.clubWorkshopOpcodeFail(
-                    GamePackets.SERVER_CLUB_WORKSHOP_RANK,
-                    GamePackets.shopSys(GamePackets.WORKSHOP_RANK_ERR)));
-            return;
-        }
-        session.send(GamePackets.clubWorkshopOpcodeFail(
-                GamePackets.SERVER_CLUB_WORKSHOP_RANK, GamePackets.WORKSHOP_RANK_DEFAULT));
     }
 
     /**

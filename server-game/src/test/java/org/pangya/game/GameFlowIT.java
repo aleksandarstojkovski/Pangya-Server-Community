@@ -2538,6 +2538,129 @@ class GameFlowIT {
     }
 
     @Test
+    void workshopUpRankPersistsCcThen240() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config);
+             PangyaFakeClient client = new PangyaFakeClient()) {
+            InventoryRepository inv = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
+            GamePackets.WarehouseItem club = inv.warehouse(10001).stream()
+                    .filter(w -> w.typeid == GamePackets.TYPEID_AIR_KNIGHT)
+                    .findFirst()
+                    .orElseThrow();
+            int clubId = club.id;
+            short[] origC = club.c.clone();
+            short[] origW = club.workshopC.clone();
+            int origLevel = club.workshopLevel;
+            int origRank = club.workshopRank;
+            int origRecovery = club.workshopRecovery;
+            int origMastery = club.workshopMastery;
+            inv.deleteClubSetIff(GamePackets.TYPEID_AIR_KNIGHT);
+            inv.deleteClubSetLevelUpLimit(0, 0);
+            inv.deleteClubSetLevelUpLimit(0, 1);
+            inv.deleteClubSetRankExp(0);
+            inv.setClubSetWorkshop(10001, clubId, new short[5], 0, 0, 0);
+            inv.setClubSetMasteryPts(10001, clubId, 300);
+            try {
+                LoginRepository repo = new JdbiLoginRepository(DatabaseSupport.jdbi(ds));
+                String loginKey = repo.generateAuthKeyLogin(10001);
+                String gameKey = repo.generateAuthKeyGame(10001, 20202);
+                keys.putLoginKey(10001, loginKey);
+                keys.putGameKey(10001, 20202, gameKey);
+                loginToChannel(client, runtime.port(), "testuser", 10001, loginKey, gameKey);
+
+                client.sendPlain(GamePackets.clientClubWorkshopRank(0, 0, 0));
+                PacketReader missingClub = awaitOpcode(client, GamePackets.SERVER_CLUB_WORKSHOP_RANK);
+                assertEquals(GamePackets.shopSys(GamePackets.WORKSHOP_RANK_ERR_CLUB), missingClub.u32());
+
+                client.sendPlain(GamePackets.clientClubWorkshopRank(0, 0, clubId));
+                PacketReader missingIff = awaitOpcode(client, GamePackets.SERVER_CLUB_WORKSHOP_RANK);
+                assertEquals(GamePackets.shopSys(GamePackets.WORKSHOP_RANK_ERR_IFF), missingIff.u32());
+
+                inv.upsertClubSetIff(
+                        GamePackets.TYPEID_AIR_KNIGHT,
+                        0,
+                        new short[5],
+                        new short[] {6, 6, 6, 6, 6},
+                        0,
+                        5);
+                client.sendPlain(GamePackets.clientClubWorkshopRank(0, 0, clubId));
+                PacketReader missingLimit = awaitOpcode(client, GamePackets.SERVER_CLUB_WORKSHOP_RANK);
+                assertEquals(GamePackets.shopSys(GamePackets.WORKSHOP_ERR_LIMIT), missingLimit.u32());
+
+                inv.upsertClubSetLevelUpLimit(0, 0, new short[] {7, 0, 0, 0, 0});
+                client.sendPlain(GamePackets.clientClubWorkshopRank(0, 0, clubId));
+                PacketReader wrongRank = awaitOpcode(client, GamePackets.SERVER_CLUB_WORKSHOP_RANK);
+                assertEquals(GamePackets.shopSys(GamePackets.WORKSHOP_ERR_LIMIT_RANK), wrongRank.u32());
+
+                inv.deleteClubSetLevelUpLimit(0, 0);
+                inv.upsertClubSetLevelUpLimit(0, 1, new short[] {0, 0, 7, 0, 0});
+                client.sendPlain(GamePackets.clientClubWorkshopRank(0, 0, clubId));
+                PacketReader missingExp = awaitOpcode(client, GamePackets.SERVER_CLUB_WORKSHOP_RANK);
+                assertEquals(GamePackets.shopSys(GamePackets.WORKSHOP_RANK_ERR_EXP), missingExp.u32());
+
+                inv.upsertClubSetRankExp(0, new int[] {0, 50, 0, 0, 0, 0});
+                int before = GamePackets.unixNow();
+                client.sendPlain(GamePackets.clientClubWorkshopRank(0, 0, clubId));
+                PacketReader upd = awaitOpcode(client, GamePackets.SERVER_DAILY_QUEST_STAMP);
+                int unix = upd.u32();
+                assertTrue(unix >= before - 1 && unix <= GamePackets.unixNow() + 1);
+                assertEquals(1, upd.u32());
+                assertEquals(GamePackets.WORKSHOP_AWARD_TYPE, upd.u8());
+                assertEquals(GamePackets.TYPEID_AIR_KNIGHT, upd.u32());
+                assertEquals(clubId, upd.i32());
+                assertEquals(0, upd.u32());
+                assertEquals(0, upd.i32());
+                assertEquals(0, upd.i32());
+                assertEquals(0, upd.i32());
+                upd.readBytes(GamePackets.PAPEL_AWARD_PAD);
+                assertEquals(0, upd.i16());
+                assertEquals(0, upd.i16());
+                assertEquals(1, upd.i16());
+                assertEquals(0, upd.i16());
+                assertEquals(0, upd.i16());
+                assertEquals(250, upd.u32());
+                assertEquals(1, upd.u8());
+                assertEquals(1, upd.u32());
+                assertEquals(0, upd.u32());
+                assertEquals(0, upd.remaining());
+                PacketReader rankOk = awaitOpcode(client, GamePackets.SERVER_CLUB_WORKSHOP_RANK);
+                assertEquals(GamePackets.WORKSHOP_RANK_OK, rankOk.u32());
+                assertEquals(2, rankOk.u32());
+                assertEquals(clubId, rankOk.i32());
+                GamePackets.WarehouseItem after = inv.warehouse(10001).stream()
+                        .filter(w -> w.id == clubId)
+                        .findFirst()
+                        .orElseThrow();
+                assertEquals(1, after.workshopC[2]);
+                assertEquals(1, after.workshopLevel);
+                assertEquals(1, after.workshopRank);
+                assertEquals(0, after.workshopRecovery);
+                assertEquals(250, after.workshopMastery);
+
+                client.sendPlain(GamePackets.clientClubWorkshopRank(0, 1, 0));
+                PacketReader mega = awaitOpcode(client, GamePackets.SERVER_CLUB_WORKSHOP_RANK);
+                assertEquals(GamePackets.shopSys(GamePackets.WORKSHOP_RANK_ERR), mega.u32());
+            } finally {
+                inv.setWarehouseClubC(10001, clubId, origC);
+                inv.setClubSetWorkshop(10001, clubId, origW, origLevel, origRank, origRecovery);
+                inv.setClubSetMasteryPts(10001, clubId, origMastery);
+                inv.deleteClubSetIff(GamePackets.TYPEID_AIR_KNIGHT);
+                inv.deleteClubSetLevelUpLimit(0, 0);
+                inv.deleteClubSetLevelUpLimit(0, 1);
+                inv.deleteClubSetRankExp(0);
+            }
+        }
+    }
+
+    @Test
     void makeTutorialRookieAcksFlagsAndMailsReward() throws Exception {
         String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
         String user = env("PANGYA_TEST_JDBC_USER", "pangya");
