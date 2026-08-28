@@ -831,6 +831,16 @@ class GamePacketsTest {
         assertEquals(GamePackets.SERVER_DAILY_QUEST_INFO, 0x225);
         assertEquals(GamePackets.SERVER_DELETE_ITEM, 0xC5);
         assertEquals(GamePackets.SERVER_ACHIEVEMENT_GUI, 0x22C);
+        PacketReader cadieFail = new PacketReader(GamePackets.cadieFail(GamePackets.shopSys(GamePackets.CADIE_ERR_COUNT)));
+        assertEquals(GamePackets.SERVER_CADIE, cadieFail.opcode());
+        assertEquals(GamePackets.shopSys(GamePackets.CADIE_ERR_COUNT), cadieFail.u32());
+        PacketReader loloFail = new PacketReader(GamePackets.loloFail(GamePackets.shopSys(GamePackets.LOLO_ERR_IFF)));
+        assertEquals(GamePackets.SERVER_LOLO, loloFail.opcode());
+        assertEquals(GamePackets.shopSys(GamePackets.LOLO_ERR_IFF), loloFail.u32());
+        assertEquals(GamePackets.CLIENT_CADIE, 0x158);
+        assertEquals(GamePackets.CLIENT_LOLO, 0x155);
+        assertEquals(GamePackets.SERVER_CADIE, 0x22F);
+        assertEquals(GamePackets.SERVER_LOLO, 0x22A);
         assertEquals(GamePackets.SERVER_BUY_ACK, 0x68);
         assertEquals(GamePackets.CREATE_ROOM_FAILED, 0x07);
     }

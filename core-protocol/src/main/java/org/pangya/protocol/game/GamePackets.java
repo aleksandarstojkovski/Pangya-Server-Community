@@ -159,6 +159,10 @@ public final class GamePackets {
     public static final int SERVER_DAILY_QUEST_LEAVE = 0x228;
     /** C# {@code pacote22C} achievement GUI result. */
     public static final int SERVER_ACHIEVEMENT_GUI = 0x22C;
+    /** C# Cadie Magic Box fail/success {@code 0x22F}. */
+    public static final int SERVER_CADIE = 0x22F;
+    /** C# Lolo Card Compose fail {@code 0x22A}. */
+    public static final int SERVER_LOLO = 0x22A;
     /**
      * C# {@code requestDeleteActiveItem} fail {@code 0xC5} sbyte -1.
      * Opposite direction from CLIENT mailbox-get {@code 0xC5} (JP uses {@code 0x146}).
@@ -317,8 +321,12 @@ public final class GamePackets {
     public static final int CLIENT_REWARD_DAILY_QUEST = 0x153;
     /** C# {@code packet154} {@code requestLeaveDailyQuest}. */
     public static final int CLIENT_LEAVE_DAILY_QUEST = 0x154;
+    /** C# {@code packet155} {@code requestLoloCardCompose}. */
+    public static final int CLIENT_LOLO = 0x155;
     /** C# {@code packet157} achievement GUI. */
     public static final int CLIENT_ACHIEVEMENT = 0x157;
+    /** C# {@code packet158} {@code requestCadieCauldronExchange}. */
+    public static final int CLIENT_CADIE = 0x158;
     public static final int CLIENT_UPDATE_MACRO = 0x69;
     public static final int CLIENT_REQUEST_SERVER_LIST = 0x43;
     public static final int CLIENT_REQUEST_RANK = 0x47;
@@ -625,6 +633,23 @@ public final class GamePackets {
     public static final int DAILY_QUEST_REWARD_FAIL = 500050;
     /** C# {@code pacote22C(1)} achievement GUI fail. */
     public static final int ACHIEVEMENT_GUI_FAIL = 1;
+    /**
+     * C# Cadie {@code count==0||count>4}: CHANNEL sys {@code 5200451}, catch writes
+     * {@code sys & 0xFFFF}.
+     */
+    public static final int CADIE_ERR_COUNT = 5200451;
+    /** C# Cadie catch else (non-CHANNEL). */
+    public static final int CADIE_ERR_DEFAULT = 5200450;
+    /**
+     * C# Cadie IFF/{@code findCadieMagicBox} miss: CHANNEL sys {@code 5200452}.
+     */
+    public static final int CADIE_ERR_IFF = 5200452;
+    /**
+     * C# Lolo {@code findCard} null: CHANNEL sys {@code 0x5400151}.
+     */
+    public static final int LOLO_ERR_IFF = 0x5400151;
+    /** C# Lolo catch else. */
+    public static final int LOLO_ERR_DEFAULT = 0x5400150;
     /** C# {@code IFF_GROUP.ITEM}. {@code (typeid & 0xFC000000) >> 26}. */
     public static final int IFF_GROUP_ITEM = 6;
     /** C# {@code WriteSByte(-1)} on delete-item fail. */
@@ -2154,6 +2179,16 @@ public final class GamePackets {
         return new PacketWriter().opcode(SERVER_DELETE_ITEM).u8(DELETE_ITEM_FAIL).toBytes();
     }
 
+    /** C# Cadie {@code 0x22F} u32 error. */
+    public static byte[] cadieFail(int code) {
+        return new PacketWriter().opcode(SERVER_CADIE).u32(code).toBytes();
+    }
+
+    /** C# Lolo {@code 0x22A} u32 error. */
+    public static byte[] loloFail(int code) {
+        return new PacketWriter().opcode(SERVER_LOLO).u32(code).toBytes();
+    }
+
     public static byte[] teamState(int oid, int team) {
         return new PacketWriter().opcode(SERVER_TEAM).i32(oid).u8(team).toBytes();
     }
@@ -2863,6 +2898,23 @@ public final class GamePackets {
     /** C# CLIENT {@code 0x157} truncated (ReadUInt32 throws → {@code pacote22C(1)}). */
     public static byte[] clientAchievementEmpty() {
         return new PacketWriter().opcode(CLIENT_ACHIEVEMENT).toBytes();
+    }
+
+    /**
+     * C# CLIENT {@code 0x158}: u16 seq + u32 requested + u8 count + count×(u32 typeid + u32 qntd).
+     */
+    public static byte[] clientCadie(int seq, int requested, int count) {
+        return new PacketWriter()
+                .opcode(CLIENT_CADIE)
+                .u16(seq)
+                .u32(requested)
+                .u8(count)
+                .toBytes();
+    }
+
+    /** C# CLIENT {@code 0x155}: u64 pang + 3×u32 typeid. */
+    public static byte[] clientLolo(long pang, int t0, int t1, int t2) {
+        return new PacketWriter().opcode(CLIENT_LOLO).u64(pang).u32(t0).u32(t1).u32(t2).toBytes();
     }
 
     /** C# CLIENT {@code 0x63}: type + remaining payload. */

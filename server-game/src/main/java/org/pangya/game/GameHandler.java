@@ -173,7 +173,9 @@ public final class GameHandler {
             case GamePackets.CLIENT_ACCEPT_DAILY_QUEST -> acceptDailyQuest(session, reader);
             case GamePackets.CLIENT_REWARD_DAILY_QUEST -> rewardDailyQuest(session, reader);
             case GamePackets.CLIENT_LEAVE_DAILY_QUEST -> leaveDailyQuest(session, reader);
+            case GamePackets.CLIENT_LOLO -> loloCardCompose(session, reader);
             case GamePackets.CLIENT_ACHIEVEMENT -> achievementGui(session, reader);
+            case GamePackets.CLIENT_CADIE -> cadieExchange(session, reader);
             case GamePackets.CLIENT_ENTER_LOBBY -> enterLobby(session);
             case GamePackets.CLIENT_LEAVE_LOBBY -> leaveLobby(session);
             case GamePackets.CLIENT_CHAT -> chat(session, reader);
@@ -2513,6 +2515,47 @@ public final class GameHandler {
         if (!inChannel(session)) {
             return;
         }
+    }
+
+    /**
+     * C# {@code requestCadieCauldronExchange}: count 0/&gt;4 sys {@code 5200451};
+     * IFF miss {@code 5200452}; both written as {@code sys & 0xFFFF}.
+     */
+    private void cadieExchange(Session session, PacketReader reader) {
+        if (!inChannel(session)) {
+            return;
+        }
+        if (reader.remaining() < 7) {
+            session.send(GamePackets.cadieFail(GamePackets.CADIE_ERR_DEFAULT));
+            return;
+        }
+        reader.u16();
+        reader.u32();
+        int count = reader.u8();
+        if (count == 0 || count > 4) {
+            session.send(GamePackets.cadieFail(GamePackets.shopSys(GamePackets.CADIE_ERR_COUNT)));
+            return;
+        }
+        session.send(GamePackets.cadieFail(GamePackets.shopSys(GamePackets.CADIE_ERR_IFF)));
+    }
+
+    /**
+     * C# {@code requestLoloCardCompose}: missing IFF card → {@code 0x22A} sys
+     * {@code 0x5400151} low 16 bits.
+     */
+    private void loloCardCompose(Session session, PacketReader reader) {
+        if (!inChannel(session)) {
+            return;
+        }
+        if (reader.remaining() < 20) {
+            session.send(GamePackets.loloFail(GamePackets.LOLO_ERR_DEFAULT));
+            return;
+        }
+        reader.u64();
+        reader.u32();
+        reader.u32();
+        reader.u32();
+        session.send(GamePackets.loloFail(GamePackets.shopSys(GamePackets.LOLO_ERR_IFF)));
     }
 
     private void changeTeam(Session session, PacketReader reader) {

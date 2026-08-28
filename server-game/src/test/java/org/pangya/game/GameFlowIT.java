@@ -1258,6 +1258,16 @@ class GameFlowIT {
             assertEquals(GamePackets.DAILY_QUEST_REWARD_FAIL, reward.i32());
             assertEquals(0, reward.i32());
 
+            host.sendPlain(GamePackets.clientCadie(0, 1, 0));
+            PacketReader cadie = awaitOpcode(host, GamePackets.SERVER_CADIE);
+            assertEquals(GamePackets.shopSys(GamePackets.CADIE_ERR_COUNT), cadie.u32());
+            host.sendPlain(GamePackets.clientCadie(0, 1, 1));
+            PacketReader cadieIff = awaitOpcode(host, GamePackets.SERVER_CADIE);
+            assertEquals(GamePackets.shopSys(GamePackets.CADIE_ERR_IFF), cadieIff.u32());
+            host.sendPlain(GamePackets.clientLolo(0, 0, 0, 0));
+            PacketReader lolo = awaitOpcode(host, GamePackets.SERVER_LOLO);
+            assertEquals(GamePackets.shopSys(GamePackets.LOLO_ERR_IFF), lolo.u32());
+
             host.sendPlain(GamePackets.clientDeleteItem(1, 1));
             PacketReader deleted = awaitOpcode(host, GamePackets.SERVER_DELETE_ITEM);
             assertEquals(GamePackets.DELETE_ITEM_FAIL, deleted.u8());
