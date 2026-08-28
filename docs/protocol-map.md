@@ -211,7 +211,7 @@ C#: `GameServer/PangyaEnums/PacketGame.cs` → Java `org.pangya.protocol.game.Ga
 | C | `CLIENT_UPDATE_INGAME_WEBPAGE` | `0xA1` | sbyte `place`; no reply |
 | C | `CLIENT_REQUEST_PANG_INFO` | `0xA2` | `0xC8` only if pang changed |
 | C | `CLIENT_JOIN_GALLERY` | `0x3E` | spy enter; locked room + matching password enters (`0x4A`/`0x49`/`0x48`); missing/unlocked/wrong password silent |
-| C | `CLIENT_GM_COMMAND` | `0x8F` | non-GM `0x40` red `Nao conseguiu executar o comando.`; `CCG_VISIBLE` (i16 3 + u16) lobby `0x46` option 3 + green `Executed Command.` |
+| C | `CLIENT_GM_COMMAND` | `0x8F` | non-GM `0x40` red `Nao conseguiu executar o comando.`; `CCG_VISIBLE` lobby `0x46` option 3 + green `Executed Command.`; `CCG_WHISPER`/`CCG_CHANNEL` (i16 4/5 + u16) green OK; `CCG_CHANGE_WEATHER` lounge `0x9E` u16+u8 1 then green OK; not-in-room weather red fail; `CCG_KICK` (u32 oid + u8) leave-room then green OK |
 | C | `CLIENT_ACTIVE_AUTO_COMMAND` | `0x156` | not-in-room silent |
 | C | `CLIENT_REQUEST_KICK` | `0x61` | log only |
 | S | `SERVER_MESSENGER_LIST` | `0xFC` | u8 count + 92-byte rows |

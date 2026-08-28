@@ -23,6 +23,8 @@ final class GameRoom {
     volatile boolean inGame;
     volatile long startMillis;
     volatile GameCourse course;
+    /** C# {@code m_weather_lounge} set by GM {@code CCG_CHANGE_WEATHER}. */
+    volatile int weatherLounge;
     /** C# Versus {@code m_count_pause}; max {@link GamePackets#VERSUS_PAUSE_MAX}. */
     volatile int pauseCount;
     /** C# Versus {@code finish_char_intro}; cleared when all players have sent {@code 0x34}. */

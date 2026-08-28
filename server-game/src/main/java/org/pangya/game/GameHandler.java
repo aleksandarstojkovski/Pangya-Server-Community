@@ -3205,44 +3205,54 @@ public final class GameHandler {
 
     /**
      * C# {@code requestCommonCmdGM}: non-GM / fail {@code 0x40} red notice;
-     * {@code CCG_VISIBLE} sets {@code GMInfo.visible} and broadcasts lobby
-     * {@code 0x46} option 3 then green {@code Executed Command.}.
+     * success ends with green {@code Executed Command.}. {@code CCG_VISIBLE}
+     * broadcasts lobby {@code 0x46} option 3; {@code CCG_WHISPER}/{@code CCG_CHANNEL}
+     * set GM flags; {@code CCG_CHANGE_WEATHER} lounge {@code 0x9E} type 1;
+     * {@code CCG_KICK} leaves the target's room.
      */
     private void commonCmdGm(Session session, PacketReader reader) {
         if (!session.authorized() || reader.remaining() < 2) {
             return;
         }
         int cmd = reader.i16();
-        String nick = session.player().nickname == null ? "" : session.player().nickname;
         if ((session.player().capability & GamePackets.CAPABILITY_GM) == 0) {
-            session.send(GamePackets.chat(
-                    GamePackets.CHAT_NOTICE,
-                    nick,
-                    GamePackets.chatColor(GamePackets.CHAT_RED_HEX, GamePackets.GM_CMD_FAIL)));
+            gmNotice(session, false);
             return;
         }
-        if (cmd != GamePackets.GM_CMD_VISIBLE) {
-            session.send(GamePackets.chat(
-                    GamePackets.CHAT_NOTICE,
-                    nick,
-                    GamePackets.chatColor(GamePackets.CHAT_RED_HEX, GamePackets.GM_CMD_FAIL)));
-            return;
+        try {
+            switch (cmd) {
+                case GamePackets.GM_CMD_VISIBLE -> gmVisible(session, reader);
+                case GamePackets.GM_CMD_WHISPER -> gmWhisperChannel(session, reader, true);
+                case GamePackets.GM_CMD_CHANNEL -> gmWhisperChannel(session, reader, false);
+                case GamePackets.GM_CMD_WEATHER -> gmWeather(session, reader);
+                case GamePackets.GM_CMD_KICK -> gmKick(session, reader);
+                default -> throw new IllegalStateException("gm cmd " + cmd);
+            }
+            gmNotice(session, true);
+        } catch (RuntimeException e) {
+            log.warn("gm cmd={} uid={} failed: {}", cmd, session.player().uid, e.toString());
+            gmNotice(session, false);
         }
+    }
+
+    private void gmNotice(Session session, boolean ok) {
+        String nick = session.player().nickname == null ? "" : session.player().nickname;
+        session.send(GamePackets.chat(
+                GamePackets.CHAT_NOTICE,
+                nick,
+                GamePackets.chatColor(
+                        ok ? GamePackets.CHAT_GREEN_HEX : GamePackets.CHAT_RED_HEX,
+                        ok ? GamePackets.GM_CMD_OK : GamePackets.GM_CMD_FAIL)));
+    }
+
+    private void gmVisible(Session session, PacketReader reader) {
         if (!inChannel(session) || reader.remaining() < 2) {
-            session.send(GamePackets.chat(
-                    GamePackets.CHAT_NOTICE,
-                    nick,
-                    GamePackets.chatColor(GamePackets.CHAT_RED_HEX, GamePackets.GM_CMD_FAIL)));
-            return;
+            throw new IllegalStateException("visible");
         }
         int visible = reader.u16() & 1;
         PlayerContext pi = session.player();
         if (pi.roomNumber >= 0 && rooms.get(pi.roomNumber) == null) {
-            session.send(GamePackets.chat(
-                    GamePackets.CHAT_NOTICE,
-                    nick,
-                    GamePackets.chatColor(GamePackets.CHAT_RED_HEX, GamePackets.GM_CMD_FAIL)));
-            return;
+            throw new IllegalStateException("visible room");
         }
         pi.gmVisible = visible;
         if (pi.channelId >= 0) {
@@ -3257,10 +3267,57 @@ public final class GameHandler {
                 room.broadcast(GamePackets.roomPlayers(base + 3, List.of(pri)));
             }
         }
-        session.send(GamePackets.chat(
-                GamePackets.CHAT_NOTICE,
-                nick,
-                GamePackets.chatColor(GamePackets.CHAT_GREEN_HEX, GamePackets.GM_CMD_OK)));
+    }
+
+    private void gmWhisperChannel(Session session, PacketReader reader, boolean whisper) {
+        if (reader.remaining() < 2) {
+            throw new IllegalStateException("whisper-channel");
+        }
+        int value = reader.u16();
+        PlayerContext pi = session.player();
+        if (whisper) {
+            pi.gmWhisper = value;
+            pi.gmChannel = value;
+        } else {
+            pi.gmChannel = value;
+            pi.gmWhisper = value;
+        }
+    }
+
+    private void gmWeather(Session session, PacketReader reader) {
+        if (!inChannel(session) || reader.remaining() < 1) {
+            throw new IllegalStateException("weather");
+        }
+        GameRoom room = rooms.get(session.player().roomNumber);
+        if (room == null) {
+            throw new IllegalStateException("weather room");
+        }
+        int weather = reader.u8() & 0xff;
+        if (room.tipo == GamePackets.TIPO_LOUNGE) {
+            room.weatherLounge = weather;
+            room.broadcast(GamePackets.weather(weather, GamePackets.WEATHER_GM));
+            return;
+        }
+        if (!room.inGame) {
+            throw new IllegalStateException("weather game");
+        }
+        room.broadcast(GamePackets.weather(weather, GamePackets.WEATHER_GM));
+    }
+
+    private void gmKick(Session session, PacketReader reader) {
+        if (!inChannel(session) || reader.remaining() < 5) {
+            throw new IllegalStateException("kick");
+        }
+        int oid = reader.u32();
+        reader.u8();
+        Session target = sessions.findByOid(oid);
+        if (target == null || !target.authorized()) {
+            throw new IllegalStateException("kick oid");
+        }
+        if (rooms.get(target.player().roomNumber) == null) {
+            throw new IllegalStateException("kick room");
+        }
+        leaveRoom(target);
     }
 
     /**

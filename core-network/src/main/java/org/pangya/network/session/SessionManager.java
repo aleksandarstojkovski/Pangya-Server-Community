@@ -67,6 +67,10 @@ public final class SessionManager {
         return null;
     }
 
+    public Session findByOid(int oid) {
+        return byOid.get(oid);
+    }
+
     public void disconnectOthersWithUid(long uid, Session keep) {
         if (uid <= 0) {
             return;

@@ -533,6 +533,39 @@ class GameFlowIT {
                 hidden.readBytes(22);
                 hidden.u8();
                 assertEquals(0, hidden.i32());
+                PacketReader hiddenChat = awaitOpcode(host, GamePackets.SERVER_CHAT);
+                assertEquals(GamePackets.CHAT_NOTICE, hiddenChat.u8());
+                hiddenChat.pstr();
+                assertEquals(
+                        GamePackets.chatColor(GamePackets.CHAT_GREEN_HEX, GamePackets.GM_CMD_OK),
+                        hiddenChat.pstr());
+
+                host.sendPlain(GamePackets.clientGmU16(GamePackets.GM_CMD_WHISPER, 1));
+                PacketReader whisper = awaitOpcode(host, GamePackets.SERVER_CHAT);
+                assertEquals(
+                        GamePackets.chatColor(GamePackets.CHAT_GREEN_HEX, GamePackets.GM_CMD_OK),
+                        skipChatNotice(whisper));
+                host.sendPlain(GamePackets.clientGmU16(GamePackets.GM_CMD_CHANNEL, 1));
+                PacketReader channel = awaitOpcode(host, GamePackets.SERVER_CHAT);
+                assertEquals(
+                        GamePackets.chatColor(GamePackets.CHAT_GREEN_HEX, GamePackets.GM_CMD_OK),
+                        skipChatNotice(channel));
+                host.sendPlain(GamePackets.clientGmWeather(1));
+                PacketReader weatherFail = awaitOpcode(host, GamePackets.SERVER_CHAT);
+                assertEquals(
+                        GamePackets.chatColor(GamePackets.CHAT_RED_HEX, GamePackets.GM_CMD_FAIL),
+                        skipChatNotice(weatherFail));
+                host.sendPlain(GamePackets.clientCreateRoom(GamePackets.TIPO_LOUNGE, "WX", ""));
+                PacketReader lounge = awaitOpcode(host, GamePackets.SERVER_ROOM_ENTER_RESULT);
+                assertEquals(0, lounge.i16());
+                host.sendPlain(GamePackets.clientGmWeather(1));
+                PacketReader weather = awaitOpcode(host, GamePackets.SERVER_WEATHER);
+                assertEquals(1, weather.u16());
+                assertEquals(GamePackets.WEATHER_GM, weather.u8());
+                PacketReader weatherOk = awaitOpcode(host, GamePackets.SERVER_CHAT);
+                assertEquals(
+                        GamePackets.chatColor(GamePackets.CHAT_GREEN_HEX, GamePackets.GM_CMD_OK),
+                        skipChatNotice(weatherOk));
             } finally {
                 repo.setCapability(10001, 0);
             }
@@ -2363,6 +2396,12 @@ class GameFlowIT {
         } catch (Exception e) {
             throw new IllegalStateException(e);
         }
+    }
+
+    private static String skipChatNotice(PacketReader chat) {
+        assertEquals(GamePackets.CHAT_NOTICE, chat.u8());
+        chat.pstr();
+        return chat.pstr();
     }
 
     private static String env(String name, String fallback) {

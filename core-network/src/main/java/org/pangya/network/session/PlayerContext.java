@@ -26,6 +26,10 @@ public final class PlayerContext {
     public volatile int place;
     /** C# {@code PlayerInfo.whisper}: 1 on (default), 0 blocks incoming PM. */
     public volatile int whisper = 1;
+    /** C# {@code GMInfo.whisper} / {@code state_flag.whisper}. */
+    public volatile int gmWhisper;
+    /** C# {@code GMInfo.channel} / {@code state_flag.channel}. */
+    public volatile int gmChannel;
     /** C# {@code PlayerInfo.location} lounge xz r. */
     public volatile float locX;
     public volatile float locZ;

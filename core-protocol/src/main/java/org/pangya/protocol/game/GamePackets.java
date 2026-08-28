@@ -983,6 +983,18 @@ public final class GamePackets {
     public static final int CAPABILITY_GM = 4;
     /** C# {@code COMMON_CMD_GM.CCG_VISIBLE}. */
     public static final int GM_CMD_VISIBLE = 3;
+    /** C# {@code COMMON_CMD_GM.CCG_WHISPER}. */
+    public static final int GM_CMD_WHISPER = 4;
+    /** C# {@code COMMON_CMD_GM.CCG_CHANNEL}. */
+    public static final int GM_CMD_CHANNEL = 5;
+    /** C# {@code COMMON_CMD_GM.CCG_KICK}. */
+    public static final int GM_CMD_KICK = 10;
+    /** C# {@code COMMON_CMD_GM.CCG_CHANGE_WEATHER}. */
+    public static final int GM_CMD_WEATHER = 15;
+    /** C# lounge/game weather {@code 0x9E} type 0 (course). */
+    public static final int WEATHER_NORMAL = 0;
+    /** C# GM weather {@code 0x9E} type 1. */
+    public static final int WEATHER_GM = 1;
     /** C# {@code UtilChat.ChatColor.Green} {@code ToHexString}. */
     public static final String CHAT_GREEN_HEX = "0xff00ff00";
     /** C# {@code UtilChat.ChatColor.Red} {@code ToHexString}. */
@@ -2400,7 +2412,12 @@ public final class GamePackets {
     }
 
     public static byte[] weather(int weather) {
-        return new PacketWriter().opcode(SERVER_WEATHER).u16(weather).u8(0).toBytes();
+        return weather(weather, WEATHER_NORMAL);
+    }
+
+    /** C# {@code 0x9E}: u16 weather + u8 type (0 course, 1 GM). */
+    public static byte[] weather(int weather, int type) {
+        return new PacketWriter().opcode(SERVER_WEATHER).u16(weather).u8(type).toBytes();
     }
 
     public static byte[] wind(int wind, int cardFlag, int degree, int reset) {
@@ -4455,11 +4472,22 @@ public final class GamePackets {
 
     /** C# CLIENT {@code 0x8F} {@code CCG_VISIBLE}: i16 3 + u16 visible. */
     public static byte[] clientGmVisible(int visible) {
-        return new PacketWriter()
-                .opcode(CLIENT_GM_COMMAND)
-                .i16(GM_CMD_VISIBLE)
-                .u16(visible)
-                .toBytes();
+        return clientGmU16(GM_CMD_VISIBLE, visible);
+    }
+
+    /** C# CLIENT {@code 0x8F} {@code CCG_WHISPER}/{@code CCG_CHANNEL}: i16 cmd + u16. */
+    public static byte[] clientGmU16(int cmd, int value) {
+        return new PacketWriter().opcode(CLIENT_GM_COMMAND).i16(cmd).u16(value).toBytes();
+    }
+
+    /** C# CLIENT {@code 0x8F} {@code CCG_CHANGE_WEATHER}: i16 15 + u8 weather. */
+    public static byte[] clientGmWeather(int weather) {
+        return new PacketWriter().opcode(CLIENT_GM_COMMAND).i16(GM_CMD_WEATHER).u8(weather).toBytes();
+    }
+
+    /** C# CLIENT {@code 0x8F} {@code CCG_KICK}: i16 10 + u32 oid + u8 force. */
+    public static byte[] clientGmKick(int oid, int force) {
+        return new PacketWriter().opcode(CLIENT_GM_COMMAND).i16(GM_CMD_KICK).u32(oid).u8(force).toBytes();
     }
 
     /** C# CLIENT {@code 0x156} empty. */
