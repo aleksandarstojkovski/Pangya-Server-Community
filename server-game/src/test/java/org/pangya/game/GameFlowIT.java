@@ -1674,6 +1674,7 @@ class GameFlowIT {
             try {
                 inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_SHOP_PANG_ITEM);
                 inv.upsertCometRefill(GamePackets.TYPEID_SHOP_PANG_ITEM, draw, draw);
+                runtime.gameHandler().authReloadGlobalSystem(3);
                 inv.addWarehouseItem(10001, GamePackets.TYPEID_SHOP_PANG_ITEM, 1);
                 GamePackets.WarehouseItem ball = inv.warehouse(10001).stream()
                         .filter(w -> w.typeid == GamePackets.TYPEID_DEFAULT_BALL)
@@ -1750,6 +1751,7 @@ class GameFlowIT {
                         GamePackets.TYPEID_SHOP_PANG_ITEM,
                         qntd,
                         GamePackets.ATTENDANCE_TIPO_NORMAL);
+                runtime.gameHandler().authReloadGlobalSystem(10);
                 LoginRepository repo = new JdbiLoginRepository(DatabaseSupport.jdbi(ds));
                 String loginKey = repo.generateAuthKeyLogin(10001);
                 String gameKey = repo.generateAuthKeyGame(10001, 20202);
@@ -1798,6 +1800,7 @@ class GameFlowIT {
 
                 inv.deleteAttendanceCatalog(GamePackets.TYPEID_SHOP_PANG_ITEM);
                 inv.deleteAttendanceReward(10001);
+                runtime.gameHandler().authReloadGlobalSystem(10);
                 client.sendPlain(GamePackets.clientEmpty(GamePackets.CLIENT_ATTENDANCE));
                 PacketReader emptyCheck = awaitOpcode(client, GamePackets.SERVER_ATTENDANCE);
                 assertEquals(GamePackets.ATTENDANCE_FAIL, emptyCheck.u32());
@@ -4136,6 +4139,7 @@ class GameFlowIT {
                         3,
                         GamePackets.TYPEID_BOX_MAIL_OPENED_TEST,
                         "Box reward");
+                runtime.gameHandler().authReloadGlobalSystem(5);
                 LoginRepository repo = new JdbiLoginRepository(DatabaseSupport.jdbi(ds));
                 String loginKey = repo.generateAuthKeyLogin(10001);
                 String gameKey = repo.generateAuthKeyGame(10001, 20202);
@@ -4240,6 +4244,7 @@ class GameFlowIT {
                         3,
                         0,
                         "Lucky");
+                runtime.gameHandler().authReloadGlobalSystem(5);
                 LoginRepository repo = new JdbiLoginRepository(DatabaseSupport.jdbi(ds));
                 String loginKey = repo.generateAuthKeyLogin(10001);
                 String gameKey = repo.generateAuthKeyGame(10001, 20202);
@@ -4382,6 +4387,7 @@ class GameFlowIT {
                         GamePackets.TYPEID_CARD_PACK_TEST, 1, GamePackets.TYPEID_CARD_PACK_REWARD_2);
                 inv.upsertCardPackReward(
                         GamePackets.TYPEID_CARD_PACK_TEST, 2, GamePackets.TYPEID_CARD_PACK_REWARD_3);
+                runtime.gameHandler().authReloadGlobalSystem(2);
                 LoginRepository repo = new JdbiLoginRepository(DatabaseSupport.jdbi(ds));
                 String loginKey = repo.generateAuthKeyLogin(10001);
                 String gameKey = repo.generateAuthKeyGame(10001, 20202);
@@ -4453,6 +4459,7 @@ class GameFlowIT {
                         2,
                         GamePackets.TYPEID_MEMORIAL_REWARD_TEST,
                         3);
+                runtime.gameHandler().authReloadGlobalSystem(6);
                 LoginRepository repo = new JdbiLoginRepository(DatabaseSupport.jdbi(ds));
                 String loginKey = repo.generateAuthKeyLogin(10001);
                 String gameKey = repo.generateAuthKeyGame(10001, 20202);
@@ -6337,6 +6344,38 @@ class GameFlowIT {
                     AuthS2s.AUTH_SHUTDOWN,
                     new PacketReader(new PacketWriter().i32(90).toBytes()));
             assertEquals(90, requested.get());
+        }
+    }
+
+    @Test
+    void authReloadCometRefillRefreshesCatalog() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             GameRuntime runtime = new GameRuntime(config)) {
+            InventoryRepository inv = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
+            try {
+                inv.deleteCometRefill(GamePackets.TYPEID_SHOP_PANG_ITEM);
+                runtime.gameHandler().authReloadGlobalSystem(3);
+                assertTrue(runtime.catalogs().cometRefill(GamePackets.TYPEID_SHOP_PANG_ITEM).isEmpty());
+
+                inv.upsertCometRefill(GamePackets.TYPEID_SHOP_PANG_ITEM, 2, 2);
+                runtime.authHandler().onAuthPacket(
+                        AuthS2s.AUTH_RELOAD_SYSTEM,
+                        new PacketReader(new PacketWriter().u32(3).toBytes()));
+                assertEquals(2, runtime.catalogs()
+                        .cometRefill(GamePackets.TYPEID_SHOP_PANG_ITEM)
+                        .orElseThrow()
+                        .min());
+            } finally {
+                inv.deleteCometRefill(GamePackets.TYPEID_SHOP_PANG_ITEM);
+                runtime.gameHandler().authReloadGlobalSystem(3);
+            }
         }
     }
 

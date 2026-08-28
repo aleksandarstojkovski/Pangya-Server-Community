@@ -13,9 +13,9 @@ Conteggio Channel: **197** handler `packet_func_sv` registrati in `GameService.i
 
 ## Questo turno
 
-Fatto: `reload_files` → broadcast `0xF9`; auth reload/rate su Messenger; auth shutdown su tutti i child; auth rate `0xF9` su Game; SQL `initComboDef` (V36 Nuri parts + `CharacterComboDef` su insert character).
-Prossimo: IFF pin/cube live; capture JP S9; S4 loader depth per `reloadGlobalSystem`.
-Blocco: file IFF assenti (pin/cube live); nessuna capture client JP Season 9.
+Fatto: `reload_files` → broadcast `0xF9`; auth reload/rate su Messenger; auth shutdown su tutti i child; auth rate `0xF9` su Game; SQL `initComboDef` (V36 Nuri parts + `CharacterComboDef` su insert character); `GlobalCatalogs` SQL reload per `reloadGlobalSystem`/`reload_files`.
+Prossimo: IFF pin/cube live in-game; capture JP S9; cube coin shot drops.
+Blocco: file IFF assenti (map/pin binary); nessuna capture client JP Season 9.
 
 Percentuale epic: **scheletro 85%** / **parità client reale 43%**.
 

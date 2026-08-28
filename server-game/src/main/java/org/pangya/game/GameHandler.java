@@ -1,5 +1,6 @@
 package org.pangya.game;
 
+import org.pangya.game.catalog.GlobalCatalogs;
 import org.pangya.db.InventoryRepository;
 import org.pangya.db.LoginRepository;
 import org.pangya.network.AppConfig;
@@ -45,6 +46,7 @@ public final class GameHandler {
     private final AppConfig config;
     private final LoginRepository repo;
     private final InventoryRepository inventory;
+    private final GlobalCatalogs catalogs;
     private final SessionKeyStore redis;
     private final SessionManager sessions;
     private final List<GamePackets.ChannelInfo> channels;
@@ -84,6 +86,7 @@ public final class GameHandler {
         this.config = config;
         this.repo = repo;
         this.inventory = inventory;
+        this.catalogs = new GlobalCatalogs(inventory);
         this.redis = redis;
         this.sessions = sessions;
         this.channels = List.copyOf(channels);
@@ -827,7 +830,7 @@ public final class GameHandler {
         if (typeid == 0) {
             return;
         }
-        if (inventory.shopItem(typeid).isEmpty()) {
+        if (catalogs.shopItem(typeid).isEmpty()) {
             return;
         }
         if (GamePackets.itemGroupIdentify(typeid) != GamePackets.IFF_GROUP_ITEM) {
@@ -1424,7 +1427,7 @@ public final class GameHandler {
         if (GamePackets.itemGroupIdentify(item.typeid) != GamePackets.IFF_GROUP_ITEM) {
             return false;
         }
-        if (inventory.shopItem(item.typeid).isEmpty()) {
+        if (catalogs.shopItem(item.typeid).isEmpty()) {
             return false;
         }
         if (item.pang < GamePackets.SHOP_ITEM_MIN_PRICE
@@ -1475,7 +1478,7 @@ public final class GameHandler {
                 || buy.qntd <= 0
                 || buy.qntd > GamePackets.SHOP_BUY_QNTD_MAX
                 || buy.qntd > listed.qntd
-                || inventory.shopItem(listed.typeid).isEmpty()) {
+                || catalogs.shopItem(listed.typeid).isEmpty()) {
             session.send(GamePackets.shopBuyFail(GamePackets.SHOP_ERR_BUY_DEFAULT));
             return;
         }
@@ -4167,7 +4170,7 @@ public final class GameHandler {
         if (Integer.compareUnsigned(qntd, GamePackets.GM_GIVEITEM_MAX) > 0) {
             throw new IllegalStateException("gift qntd");
         }
-        if (inventory.shopItem(typeid).isEmpty()) {
+        if (catalogs.shopItem(typeid).isEmpty()) {
             throw new IllegalStateException("gift iff");
         }
     }
@@ -4564,7 +4567,7 @@ public final class GameHandler {
             int typeid = reader.u32();
             long uid = session.player().uid;
             GamePackets.WarehouseItem box = warehouseByTypeid(uid, typeid);
-            Optional<InventoryRepository.BoxMailReward> draw = inventory.boxMailReward(typeid);
+            Optional<InventoryRepository.BoxMailReward> draw = catalogs.boxMailReward(typeid);
             if (typeid == 0
                     || box == null
                     || (box.c[0] & 0xffff) < 1
@@ -5251,7 +5254,7 @@ public final class GameHandler {
             session.send(GamePackets.cometRefillFail());
             return;
         }
-        Optional<InventoryRepository.CometRefill> ctx = inventory.cometRefill(itemTypeid);
+        Optional<InventoryRepository.CometRefill> ctx = catalogs.cometRefill(itemTypeid);
         if (ctx.isEmpty() || ctx.get().min() <= 0 || ctx.get().max() < ctx.get().min()) {
             session.send(GamePackets.cometRefillFail());
             return;
@@ -5315,7 +5318,7 @@ public final class GameHandler {
                         GamePackets.shopSys(GamePackets.BOX_MAIL_ERR_IFF)));
                 return;
             }
-            Optional<InventoryRepository.BoxMailReward> draw = inventory.boxMailReward(typeid);
+            Optional<InventoryRepository.BoxMailReward> draw = catalogs.boxMailReward(typeid);
             if (draw.isEmpty()) {
                 session.send(GamePackets.boxMailFail(
                         GamePackets.shopSys(GamePackets.BOX_MAIL_ERR_SYSTEM)));
@@ -5841,7 +5844,7 @@ public final class GameHandler {
                         GamePackets.SERVER_OPEN_CARD_PACK, GamePackets.CARD_PACK_ERR));
                 return;
             }
-            List<InventoryRepository.CardPackReward> draw = inventory.cardPackRewards(typeid);
+            List<InventoryRepository.CardPackReward> draw = catalogs.cardPackRewards(typeid);
             if (draw.isEmpty()) {
                 session.send(GamePackets.sysAck(
                         GamePackets.SERVER_OPEN_CARD_PACK, GamePackets.CARD_PACK_ERR));
@@ -6590,9 +6593,9 @@ public final class GameHandler {
      * else all catalog rows. Empty catalog is C# {@code isLoad()==false}.
      */
     private Optional<InventoryRepository.AttendanceCatalogItem> drawAttendance(int tipo) {
-        List<InventoryRepository.AttendanceCatalogItem> items = inventory.attendanceCatalog(tipo);
+        List<InventoryRepository.AttendanceCatalogItem> items = catalogs.attendanceCatalog(tipo);
         if (items.isEmpty()) {
-            items = inventory.attendanceCatalogAll();
+            items = catalogs.attendanceCatalogAll();
         }
         if (items.isEmpty()) {
             return Optional.empty();
@@ -7244,7 +7247,7 @@ public final class GameHandler {
                         GamePackets.shopSys(GamePackets.MEMORIAL_ERR_IFF)));
                 return;
             }
-            List<InventoryRepository.MemorialReward> draw = inventory.memorialRewards(coinTypeid);
+            List<InventoryRepository.MemorialReward> draw = catalogs.memorialRewards(coinTypeid);
             if (draw.isEmpty()) {
                 session.send(GamePackets.sysAck(
                         GamePackets.SERVER_MEMORIAL,
@@ -8239,46 +8242,22 @@ public final class GameHandler {
         broadcastServerInfoUpdate();
     }
 
-    /** C# {@code GameService.reloadGlobalSystem} — log-only until IFF/event loaders exist. */
+    /** C# {@code GameService.reloadGlobalSystem}. */
     void authReloadGlobalSystem(int tipo) {
-        try {
-            switch (tipo) {
-                case 0 -> log.info("auth reload all global systems (stub)");
-                case 1 -> log.info("auth reload IFF (stub)");
-                case 2 -> log.info("auth reload card system (stub)");
-                case 3 -> log.info("auth reload comet refill (stub)");
-                case 4 -> log.info("auth reload papel shop (stub)");
-                case 5 -> log.info("auth reload box system (stub)");
-                case 6 -> log.info("auth reload memorial shop (stub)");
-                case 7 -> log.info("auth reload cube coin (stub)");
-                case 8 -> log.info("auth reload treasure hunter (stub)");
-                case 9 -> log.info("auth reload drop system (stub)");
-                case 10 -> log.info("auth reload attendance reward (stub)");
-                case 11 -> log.info("auth reload map course data (stub)");
-                case 12 -> log.info("auth reload approach mission (stub)");
-                case 13 -> log.info("auth reload grand zodiac event (stub)");
-                case 14 -> log.info("auth reload coin cube location (stub)");
-                case 15 -> log.info("auth reload golden time (stub)");
-                case 16 -> log.info("auth reload login reward (stub)");
-                case 17 -> log.info("auth reload bot gm event (stub)");
-                case 18 -> log.info("auth reload smart calculator (stub)");
-                default -> {
-                    log.warn("auth reload global system unknown tipo={}", tipo);
-                    return;
-                }
-            }
-            log.info("auth reload global system tipo={} ok", tipo);
-        } catch (RuntimeException e) {
-            log.warn("auth reload global system tipo={} failed: {}", tipo, e.toString());
-        }
+        catalogs.reload(tipo);
+    }
+
+    GlobalCatalogs catalogsForTests() {
+        return catalogs;
     }
 
     /**
      * C# {@code GameService.reload_files}: {@code config_init} + {@code reload_systems}
-     * then channel broadcast {@code 0xF9}. System loaders remain stubs until IFF exists.
+     * then channel broadcast {@code 0xF9}.
      */
     void reloadFiles() {
-        log.info("reload files (config/system reload stub)");
+        log.info("reload files (config/system SQL catalog reload)");
+        catalogs.reload(0);
         broadcastServerInfoUpdate();
     }
 

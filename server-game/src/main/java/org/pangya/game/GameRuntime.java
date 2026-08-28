@@ -1,6 +1,7 @@
 package org.pangya.game;
 
 import com.zaxxer.hikari.HikariDataSource;
+import org.pangya.game.catalog.GlobalCatalogs;
 import org.pangya.db.DatabaseSupport;
 import org.pangya.db.InventoryRepository;
 import org.pangya.db.JdbiInventoryRepository;
@@ -114,9 +115,14 @@ public final class GameRuntime implements AutoCloseable {
         return authHandler;
     }
 
-    /** Package tests reach {@link GameHandler} helpers (e.g. {@code reloadFiles}). */
+    /** Package tests reach channel helpers (e.g. {@code reloadFiles}). */
     GameHandler gameHandler() {
         return authHandler.game();
+    }
+
+    /** Integration tests inspect catalog reload snapshots. */
+    GlobalCatalogs catalogs() {
+        return authHandler.game().catalogsForTests();
     }
 
     private void heartbeatLoop(LoginRepository repo) {

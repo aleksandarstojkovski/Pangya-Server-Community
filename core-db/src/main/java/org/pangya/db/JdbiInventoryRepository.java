@@ -583,6 +583,25 @@ public final class JdbiInventoryRepository implements InventoryRepository {
     }
 
     @Override
+    public java.util.Map<Integer, ShopItem> shopCatalogIndex() {
+        return jdbi.withHandle(h -> {
+            java.util.Map<Integer, ShopItem> out = new java.util.HashMap<>();
+            h.createQuery("""
+                            SELECT typeid, pang_price, cookie_price, can_overlap
+                              FROM pangya.shop_catalog
+                            """)
+                    .map((rs, ctx) -> new ShopItem(
+                            rs.getInt("typeid"),
+                            rs.getInt("pang_price"),
+                            rs.getInt("cookie_price"),
+                            rs.getInt("can_overlap") != 0))
+                    .list()
+                    .forEach(item -> out.put(item.typeid(), item));
+            return out;
+        });
+    }
+
+    @Override
     public ShopBuyResult buyShopItem(long uid, int typeid, int qntd, int clientPang, int clientCookie) {
         return jdbi.inTransaction(h -> chargeShopItem(h, uid, typeid, qntd, clientPang, clientCookie, true));
     }
@@ -2464,6 +2483,23 @@ public final class JdbiInventoryRepository implements InventoryRepository {
     }
 
     @Override
+    public java.util.Map<Integer, CometRefill> cometRefillIndex() {
+        return jdbi.withHandle(h -> {
+            java.util.Map<Integer, CometRefill> out = new java.util.HashMap<>();
+            h.createQuery("""
+                            SELECT typeid, "min", "max" FROM pangya.pangya_comet_refill
+                            """)
+                    .map((rs, ctx) -> new CometRefill(
+                            rs.getInt("typeid"),
+                            rs.getInt("min") & 0xffff,
+                            rs.getInt("max") & 0xffff))
+                    .list()
+                    .forEach(row -> out.put(row.typeid(), row));
+            return out;
+        });
+    }
+
+    @Override
     public Optional<AttendanceReward> attendanceReward(long uid) {
         return jdbi.withHandle(h -> h.createQuery("""
                         SELECT counter, item_typeid_now, item_qntd_now,
@@ -2575,6 +2611,11 @@ public final class JdbiInventoryRepository implements InventoryRepository {
                         "DELETE FROM pangya.pangya_attendance_table_item_reward WHERE typeid = :typeid")
                 .bind("typeid", typeid)
                 .execute());
+    }
+
+    @Override
+    public List<AttendanceCatalogItem> attendanceCatalogIndex() {
+        return attendanceCatalogAll();
     }
 
     @Override
@@ -2931,6 +2972,26 @@ public final class JdbiInventoryRepository implements InventoryRepository {
     }
 
     @Override
+    public java.util.Map<Integer, BoxMailReward> boxMailIndex() {
+        return jdbi.withHandle(h -> {
+            java.util.Map<Integer, BoxMailReward> out = new java.util.HashMap<>();
+            h.createQuery("""
+                            SELECT box_typeid, reward_typeid, reward_qntd, opened_typeid, message
+                              FROM pangya.box_mail_catalog
+                            """)
+                    .map((rs, ctx) -> new BoxMailReward(
+                            rs.getInt("box_typeid"),
+                            rs.getInt("reward_typeid"),
+                            rs.getInt("reward_qntd"),
+                            rs.getInt("opened_typeid"),
+                            rs.getString("message")))
+                    .list()
+                    .forEach(row -> out.put(row.boxTypeid(), row));
+            return out;
+        });
+    }
+
+    @Override
     public boolean itemIff(int typeid) {
         return jdbi.withHandle(h -> h.createQuery("""
                         SELECT 1 FROM pangya.iff_item WHERE typeid = :typeid
@@ -3052,6 +3113,29 @@ public final class JdbiInventoryRepository implements InventoryRepository {
     }
 
     @Override
+    public java.util.Map<Integer, List<CardPackReward>> cardPackIndex() {
+        return jdbi.withHandle(h -> {
+            java.util.Map<Integer, List<CardPackReward>> out = new java.util.HashMap<>();
+            h.createQuery("""
+                            SELECT pack_typeid, seq, card_typeid
+                              FROM pangya.card_pack_catalog
+                             ORDER BY pack_typeid, seq
+                            """)
+                    .map((rs, ctx) -> new Object[] {
+                            rs.getInt("pack_typeid"),
+                            new CardPackReward(rs.getInt("seq"), rs.getInt("card_typeid"))
+                    })
+                    .list()
+                    .forEach(row -> {
+                        int pack = (Integer) row[0];
+                        CardPackReward reward = (CardPackReward) row[1];
+                        out.computeIfAbsent(pack, k -> new java.util.ArrayList<>()).add(reward);
+                    });
+            return out;
+        });
+    }
+
+    @Override
     public List<MemorialReward> memorialRewards(int coinTypeid) {
         return jdbi.withHandle(h -> h.createQuery("""
                         SELECT seq, rarity, reward_typeid, qntd
@@ -3094,6 +3178,69 @@ public final class JdbiInventoryRepository implements InventoryRepository {
                         "DELETE FROM pangya.memorial_reward_catalog WHERE coin_typeid = :coin")
                 .bind("coin", coinTypeid)
                 .execute());
+    }
+
+    @Override
+    public java.util.Map<Integer, List<MemorialReward>> memorialIndex() {
+        return jdbi.withHandle(h -> {
+            java.util.Map<Integer, List<MemorialReward>> out = new java.util.HashMap<>();
+            h.createQuery("""
+                            SELECT coin_typeid, seq, rarity, reward_typeid, qntd
+                              FROM pangya.memorial_reward_catalog
+                             ORDER BY coin_typeid, seq
+                            """)
+                    .map((rs, ctx) -> new Object[] {
+                            rs.getInt("coin_typeid"),
+                            new MemorialReward(
+                                    rs.getInt("seq"),
+                                    rs.getInt("rarity"),
+                                    rs.getInt("reward_typeid"),
+                                    rs.getInt("qntd"))
+                    })
+                    .list()
+                    .forEach(row -> {
+                        int coin = (Integer) row[0];
+                        MemorialReward reward = (MemorialReward) row[1];
+                        out.computeIfAbsent(coin, k -> new java.util.ArrayList<>()).add(reward);
+                    });
+            return out;
+        });
+    }
+
+    @Override
+    public java.util.Map<Short, Boolean> coinCubeCourseActive() {
+        return jdbi.withHandle(h -> {
+            java.util.Map<Short, Boolean> out = new java.util.HashMap<>();
+            h.createQuery("""
+                            SELECT course_id, active FROM pangya.pangya_coin_cube_info
+                            """)
+                    .map((rs, ctx) -> new Object[] {
+                            rs.getShort("course_id"),
+                            rs.getShort("active") == 1
+                    })
+                    .list()
+                    .forEach(row -> out.put((Short) row[0], (Boolean) row[1]));
+            return out;
+        });
+    }
+
+    @Override
+    public List<CoinCubeLocation> coinCubeLocations() {
+        return jdbi.withHandle(h -> h.createQuery("""
+                        SELECT course, hole, tipo, tipo_location, rate, x, y, z
+                          FROM pangya.pangya_coin_cube_location
+                         ORDER BY course, hole, "index"
+                        """)
+                .map((rs, ctx) -> new CoinCubeLocation(
+                        rs.getShort("course"),
+                        rs.getShort("hole"),
+                        rs.getShort("tipo"),
+                        rs.getShort("tipo_location"),
+                        rs.getLong("rate"),
+                        rs.getDouble("x"),
+                        rs.getDouble("y"),
+                        rs.getDouble("z")))
+                .list());
     }
 
     @Override

@@ -55,6 +55,9 @@ public interface InventoryRepository {
 
     Optional<ShopItem> shopItem(int typeid);
 
+    /** All {@code shop_catalog} rows for C# {@code reload_systems}. */
+    java.util.Map<Integer, ShopItem> shopCatalogIndex();
+
     ShopBuyResult buyShopItem(long uid, int typeid, int qntd, int clientPang, int clientCookie);
 
     /**
@@ -181,6 +184,9 @@ public interface InventoryRepository {
 
     void deleteCometRefill(int typeid);
 
+    /** All {@code pangya_comet_refill} rows keyed by typeid. */
+    java.util.Map<Integer, CometRefill> cometRefillIndex();
+
     /**
      * C# {@code CmdAttendanceRewardInfo} / {@code ProcGetAttendanceReward}.
      * Empty when the player has no row (zeros + null {@code last_login}).
@@ -204,6 +210,9 @@ public interface InventoryRepository {
     void upsertAttendanceCatalog(int typeid, int qntd, int tipo);
 
     void deleteAttendanceCatalog(int typeid);
+
+    /** All {@code pangya_attendance_table_item_reward} rows. */
+    List<AttendanceCatalogItem> attendanceCatalogIndex();
 
     /**
      * C# {@code sIff.findTimeLimitItem}: SQL {@code iff_time_limit_item} stand-in.
@@ -272,6 +281,9 @@ public interface InventoryRepository {
 
     void deleteBoxMailReward(int boxTypeid);
 
+    /** All {@code box_mail_catalog} rows keyed by box typeid. */
+    java.util.Map<Integer, BoxMailReward> boxMailIndex();
+
     /** C# {@code sIff.findItem}: SQL {@code iff_item} row exists. */
     boolean itemIff(int typeid);
 
@@ -296,12 +308,24 @@ public interface InventoryRepository {
 
     void deleteCardPackRewards(int packTypeid);
 
+    /** All {@code card_pack_catalog} rows grouped by pack typeid. */
+    java.util.Map<Integer, List<CardPackReward>> cardPackIndex();
+
     /** C# {@code MemorialSystem.findCoin/drawCoin}: ordered deterministic SQL draw. */
     List<MemorialReward> memorialRewards(int coinTypeid);
 
     void upsertMemorialReward(int coinTypeid, int seq, int rarity, int rewardTypeid, int qntd);
 
     void deleteMemorialRewards(int coinTypeid);
+
+    /** All {@code memorial_reward_catalog} rows grouped by coin typeid. */
+    java.util.Map<Integer, List<MemorialReward>> memorialIndex();
+
+    /** C# {@code CmdCoinCubeInfo}: course_id → active flag. */
+    java.util.Map<Short, Boolean> coinCubeCourseActive();
+
+    /** C# {@code CmdCoinCubeLocationInfo}: live coin/cube coordinates per course. */
+    List<CoinCubeLocation> coinCubeLocations();
 
     /** C# {@code CmdTicketReportDadosInfo}: report date; players are added in later parity work. */
     Optional<Instant> ticketReportDate(int ticketId);
@@ -579,6 +603,17 @@ public interface InventoryRepository {
 
     /** C# {@code ctx_comet_refill}: typeid + {@code QntdRange} min/max. */
     record CometRefill(int typeid, int min, int max) {}
+
+    /** C# {@code pangya_coin_cube_location} row for {@code CubeCoinSystem}. */
+    record CoinCubeLocation(
+            short course,
+            short hole,
+            short tipo,
+            short tipoLocation,
+            long rate,
+            double x,
+            double y,
+            double z) {}
 
     /**
      * C# {@code AttendanceRewardInfoEx} without {@code login} (runtime-only).
