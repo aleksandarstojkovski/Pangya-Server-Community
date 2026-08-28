@@ -786,18 +786,18 @@ class GamePacketsTest {
         assertEquals(1_700_000_000, stamp.i32());
         assertEquals(0, stamp.i32());
         assertEquals(0, stamp.remaining());
-        PacketReader info = new PacketReader(GamePackets.dailyQuestInfo(
+        PacketReader dqInfo = new PacketReader(GamePackets.dailyQuestInfo(
                 0, 1_700_000_000, 0, 0, new int[GamePackets.DAILY_QUEST_TYPEID_COUNT], null));
-        assertEquals(GamePackets.SERVER_DAILY_QUEST_INFO, info.opcode());
-        assertEquals(0, info.i32());
-        assertEquals(1_700_000_000, info.u32());
-        assertEquals(0, info.u32());
-        assertEquals(0, info.u32());
-        assertEquals(0, info.u32());
-        assertEquals(0, info.u32());
-        assertEquals(0, info.u32());
-        assertEquals(0, info.i32());
-        assertEquals(0, info.remaining());
+        assertEquals(GamePackets.SERVER_DAILY_QUEST_INFO, dqInfo.opcode());
+        assertEquals(0, dqInfo.i32());
+        assertEquals(1_700_000_000, dqInfo.u32());
+        assertEquals(0, dqInfo.u32());
+        assertEquals(0, dqInfo.u32());
+        assertEquals(0, dqInfo.u32());
+        assertEquals(0, dqInfo.u32());
+        assertEquals(0, dqInfo.u32());
+        assertEquals(0, dqInfo.i32());
+        assertEquals(0, dqInfo.remaining());
         PacketReader acceptFail = new PacketReader(GamePackets.dailyQuestAcceptFail());
         assertEquals(GamePackets.SERVER_DAILY_QUEST_ACCEPT, acceptFail.opcode());
         assertEquals(GamePackets.DAILY_QUEST_ACCEPT_FAIL, acceptFail.i32());
