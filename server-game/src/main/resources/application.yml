@@ -7,6 +7,7 @@ server:
   ip: 127.0.0.1
   maxUser: 2001
   property: 2048
+  rateGrandPrixEvent: 1
   version: Release.JP.983.00
   clientVersion: "JP.R7.983.00"
   packetVersion: 2017110200

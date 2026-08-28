@@ -181,6 +181,26 @@ public final class GamePackets {
     public static final int SERVER_CLUBSET_RESET = 0x247;
     /** C# memorial catch {@code 0x264}. */
     public static final int SERVER_MEMORIAL = 0x264;
+    /**
+     * C# UCC catch {@code 0x12E} sbyte -1. Same numeric as
+     * {@link #CLIENT_MARKER}, opposite direction.
+     */
+    public static final int SERVER_UCC = 0x12E;
+    /**
+     * C# UCC web-key {@code 0x153}. Same numeric as
+     * {@link #CLIENT_REWARD_DAILY_QUEST}, opposite direction.
+     */
+    public static final int SERVER_UCC_WEB_KEY = 0x153;
+    /** C# club workshop event {@code pacote24E} {@code 0x24E}. */
+    public static final int SERVER_WORKSHOP_EVENT = 0x24E;
+    /** C# attendance check catch {@code 0x248} u32 {@code ~0}. */
+    public static final int SERVER_ATTENDANCE = 0x248;
+    /** C# attendance login-count catch {@code 0x249} u32 {@code ~0}. */
+    public static final int SERVER_ATTENDANCE_LOGIN = 0x249;
+    /** C# Grand Prix lobby {@code 0x250}. */
+    public static final int SERVER_GP_LOBBY = 0x250;
+    /** C# Grand Prix leave lobby {@code 0x251} u32 0. */
+    public static final int SERVER_GP_LEAVE = 0x251;
     /** C# {@code pacote0AA} / {@code SERVER_NEW_ITEM}. */
     public static final int SERVER_NEW_ITEM = 0xAA;
     /** C# pang spent after shop buy ({@code 0xC8} + remaining + spent). */
@@ -545,6 +565,83 @@ public final class GamePackets {
     public static final int CLIENT_DELETE_RENTAL = 0xE7;
     /** C# {@code packet0FE} UCC load. No reply. */
     public static final int CLIENT_UCC_LOAD = 0xFE;
+    /**
+     * C# {@code packet0B9} {@code HandleUCC}. Unknown opt → {@code 0x12E}
+     * sbyte -1. No channel.
+     */
+    public static final int CLIENT_UCC = 0xB9;
+    /**
+     * C# {@code packet0C9} UCC web-key. Same numeric as
+     * {@link #SERVER_ONELINE_MSG}, opposite direction. uid 0 → {@code 0x153}.
+     */
+    public static final int CLIENT_UCC_WEB_KEY = 0xC9;
+    /**
+     * C# {@code packet16E} attendance check. Same numeric as
+     * {@link #SERVER_LOCKER_ADD}, opposite direction. Empty catalog →
+     * {@code 0x248} u32 {@code ~0}.
+     */
+    public static final int CLIENT_ATTENDANCE = 0x16E;
+    /**
+     * C# {@code packet16F} attendance login-count. Same numeric as
+     * {@link #SERVER_LOCKER_REMOVE}, opposite direction.
+     */
+    public static final int CLIENT_ATTENDANCE_LOGIN = 0x16F;
+    /**
+     * C# {@code packet172} club workshop event. Same numeric as
+     * {@link #SERVER_LOCKER_PANG}, opposite direction. Always {@code 0x24E}.
+     */
+    public static final int CLIENT_WORKSHOP_EVENT = 0x172;
+    /**
+     * C# {@code packet176} GP lobby. Same numeric as
+     * {@link #SERVER_LOCKER_MAKE_PASS}, opposite direction.
+     */
+    public static final int CLIENT_GP_LOBBY = 0x176;
+    /** C# {@code packet177} leave GP lobby → {@code 0x251} u32 0. */
+    public static final int CLIENT_GP_LEAVE = 0x177;
+    /**
+     * C# {@code packet179} enter GP room. IFF miss typeid 0 → {@code 0x253}
+     * {@code shopSys(0x6700001)}. Same SERVER opcode as
+     * {@link #SERVER_START_GAME_FAIL}.
+     */
+    public static final int CLIENT_GP_ENTER = 0x179;
+    /** C# {@code packet17A} exit GP room. Not-in-room CHANNEL catch silent. */
+    public static final int CLIENT_GP_EXIT_ROOM = 0x17A;
+    /** C# {@code packet12D} GZ initial value. Not-in-room silent. */
+    public static final int CLIENT_GZ_INITIAL = 0x12D;
+    /**
+     * C# {@code packet12E} marker-on-course. Same numeric as
+     * {@link #SERVER_UCC}, opposite direction. Not-in-room silent.
+     */
+    public static final int CLIENT_MARKER = 0x12E;
+    /**
+     * C# {@code packet12F} shot-end. Same numeric as
+     * {@link #SERVER_INVITE_REPLY}, opposite direction. Not-in-room silent.
+     */
+    public static final int CLIENT_SHOT_END = 0x12F;
+    /** C# {@code packet131} leave chip-in. Not-in-room silent. */
+    public static final int CLIENT_LEAVE_CHIP_IN = 0x131;
+    /** C# {@code packet137} GZ first hole. Not-in-room silent. */
+    public static final int CLIENT_GZ_FIRST_HOLE = 0x137;
+    /** C# {@code packet138} wing. Not-in-room silent. */
+    public static final int CLIENT_WING = 0x138;
+    /**
+     * C# {@code packet171} earcuff. Same numeric as
+     * {@link #SERVER_LOCKER_UPDATE_PANG}, opposite direction. Not-in-room silent.
+     */
+    public static final int CLIENT_EARCUFF = 0x171;
+    /** C# {@code packet180} glove. Not-in-room silent. */
+    public static final int CLIENT_GLOVE = 0x180;
+    /**
+     * C# {@code packet181} ring-ground. Same numeric as
+     * {@link #SERVER_ITEM_BUFF}, opposite direction. Not-in-room silent.
+     */
+    public static final int CLIENT_RING_GROUND = 0x181;
+    /** C# {@code packet184} toggle assist. Not-in-room silent. */
+    public static final int CLIENT_TOGGLE_ASSIST = 0x184;
+    /** C# {@code packet185} assist green. Not-in-room silent. */
+    public static final int CLIENT_ASSIST_GREEN = 0x185;
+    /** C# {@code packet192} Event Arin 2014 log only. */
+    public static final int CLIENT_EVENT_ARIN = 0x192;
     /** C# {@code packet041} GM identity. Non-GM CHANNEL catch is silent. */
     public static final int CLIENT_IDENTITY = 0x41;
     /** C# {@code packet0CD} Dolfini locker item page. */
@@ -1031,6 +1128,33 @@ public final class GamePackets {
     public static final int MEMORIAL_ERR_COIN = 0x6300301;
     /** C# memorial catch else. */
     public static final int MEMORIAL_ERR_DEFAULT = 0x6300300;
+    /** C# UCC catch {@code WriteSByte(-1)}. */
+    public static final int UCC_FAIL = 0xff;
+    /** C# UCC web-key uid==0 GAME_SERVER sys {@code 0x5100101}. */
+    public static final int UCC_WEB_KEY_ERR_UID = 0x5100101;
+    /** C# UCC web-key catch else. */
+    public static final int UCC_WEB_KEY_ERR_DEFAULT = 0x5100100;
+    /**
+     * C# attendance catch writes {@code ~0u} because {@code DECODE_TYPE} is
+     * sys&amp;0xFFFF (0) and never equals {@code ATTENDANCE_REWARD_SYSTEM}.
+     */
+    public static final int ATTENDANCE_FAIL = 0xffff_ffff;
+    /** C# {@code uProperty.grand_prix} bit 11. */
+    public static final int PROPERTY_GRAND_PRIX = 1 << 11;
+    /** C# GP lobby disabled CHANNEL sys {@code 0x750001}. */
+    public static final int GP_LOBBY_ERR_DISABLED = 0x750001;
+    /** C# GP lobby catch else. */
+    public static final int GP_LOBBY_ERR_DEFAULT = 0x750000;
+    /** C# GP room IFF miss CHANNEL sys {@code 0x6700001}. */
+    public static final int GP_ENTER_ERR_IFF = 0x6700001;
+    /** C# GP room catch else (full, not shopSys). */
+    public static final int GP_ENTER_ERR_DEFAULT = 0x6700000;
+    /** C# {@code pacote24E} holes-per-phase literal. */
+    public static final int WORKSHOP_EVENT_HOLES = 3000;
+    /** C# {@code 3000/30} barra max. */
+    public static final int WORKSHOP_EVENT_BARRA_MAX = 100;
+    /** C# {@code barraMax} / last-byte literals. */
+    public static final int WORKSHOP_EVENT_BARRA = 10;
     /** C# My Room deny option. */
     public static final int MY_ROOM_DENY = 0;
     /** C# {@code IFF_GROUP.ITEM}. {@code (typeid & 0xFC000000) >> 26}. */
@@ -2335,6 +2459,63 @@ public final class GamePackets {
     /** C# rental catch {@code 0x18F}/{@code 0x190} u8 1. */
     public static byte[] rentalFail(int opcode) {
         return new PacketWriter().opcode(opcode).u8(RENTAL_FAIL).toBytes();
+    }
+
+    /** C# UCC catch {@code 0x12E} sbyte -1. */
+    public static byte[] uccFail() {
+        return new PacketWriter().opcode(SERVER_UCC).u8(UCC_FAIL).toBytes();
+    }
+
+    /**
+     * C# UCC web-key catch {@code 0x153}: u8 1 + u8 1 + u32
+     * ({@code DECODE_TYPE} if GAME_SERVER else {@code 0x5100100}).
+     */
+    public static byte[] uccWebKeyFail(int code) {
+        return new PacketWriter()
+                .opcode(SERVER_UCC_WEB_KEY)
+                .u8(1)
+                .u8(1)
+                .u32(code)
+                .toBytes();
+    }
+
+    /**
+     * C# {@code pacote24E}: i32 0, i32 3000, i32 0, u8 100, u8 0, u8 10, u8 10.
+     */
+    public static byte[] workshopEvent() {
+        return new PacketWriter()
+                .opcode(SERVER_WORKSHOP_EVENT)
+                .i32(0)
+                .i32(WORKSHOP_EVENT_HOLES)
+                .i32(0)
+                .u8(WORKSHOP_EVENT_BARRA_MAX)
+                .u8(0)
+                .u8(WORKSHOP_EVENT_BARRA)
+                .u8(WORKSHOP_EVENT_BARRA)
+                .toBytes();
+    }
+
+    /**
+     * C# GP lobby OK {@code 0x250}: u32 0 + countBit + typeids ({@code i+1})
+     * + v_gpc count 0 + f32 avg score.
+     */
+    public static byte[] gpLobbyOk(int grandPrixEvent, float avgScore) {
+        PacketWriter w = new PacketWriter().opcode(SERVER_GP_LOBBY).u32(0);
+        int count = 0;
+        for (int i = 0; i < 16; i++) {
+            if (((grandPrixEvent >> i) & 1) == 1) {
+                count++;
+            }
+        }
+        w.u32(count);
+        for (int i = 0; i < 16; i++) {
+            if (((grandPrixEvent >> i) & 1) == 1) {
+                w.u32(i + 1);
+            }
+        }
+        w.u32(0);
+        w.f32(avgScore);
+        return w.toBytes();
     }
 
     /** C# {@code 0x20E}: two int32 zeros. */
@@ -3773,6 +3954,29 @@ public final class GamePackets {
     /** C# CLIENT {@code 0x17F}: u32 coin typeid. */
     public static byte[] clientMemorial(int coinTypeid) {
         return new PacketWriter().opcode(CLIENT_MEMORIAL).u32(coinTypeid).toBytes();
+    }
+
+    /** C# CLIENT {@code 0xB9}: u8 opt. */
+    public static byte[] clientUccOpt(int opt) {
+        return new PacketWriter().opcode(CLIENT_UCC).u8(opt).toBytes();
+    }
+
+    /**
+     * C# CLIENT {@code 0xC9}: u8 opt + u32 uid + u8 seq + i32 item_id.
+     */
+    public static byte[] clientUccWebKey(int opt, int uid, int seq, int itemId) {
+        return new PacketWriter()
+                .opcode(CLIENT_UCC_WEB_KEY)
+                .u8(opt)
+                .u32(uid)
+                .u8(seq)
+                .i32(itemId)
+                .toBytes();
+    }
+
+    /** C# CLIENT {@code 0x179}: u32 GP typeid. */
+    public static byte[] clientGpEnter(int typeid) {
+        return new PacketWriter().opcode(CLIENT_GP_ENTER).u32(typeid).toBytes();
     }
 
     /** C# CLIENT {@code 0xE5}/{@code 0xFE} empty. */

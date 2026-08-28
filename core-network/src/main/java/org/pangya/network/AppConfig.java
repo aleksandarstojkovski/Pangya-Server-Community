@@ -111,6 +111,14 @@ public final class AppConfig {
         return nestedInt("server", "rateExp", 100);
     }
 
+    /**
+     * C# {@code ServerInfo.rate.grand_prix_event} / INI {@code GP_EVENT}.
+     * JP {@code server.ini} default is 1.
+     */
+    public int rateGrandPrixEvent() {
+        return nestedInt("server", "rateGrandPrixEvent", 1);
+    }
+
     public int tipo() {
         return nestedInt("server", "tipo", 0);
     }

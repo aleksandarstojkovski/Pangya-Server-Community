@@ -213,6 +213,27 @@ public final class GameHandler {
             case GamePackets.CLIENT_DELETE_RENTAL -> deleteRental(session, reader);
             case GamePackets.CLIENT_CUTIN -> { }
             case GamePackets.CLIENT_UCC_LOAD -> { }
+            case GamePackets.CLIENT_UCC -> handleUcc(session, reader);
+            case GamePackets.CLIENT_UCC_WEB_KEY -> uccWebKey(session, reader);
+            case GamePackets.CLIENT_ATTENDANCE -> checkAttendance(session);
+            case GamePackets.CLIENT_ATTENDANCE_LOGIN -> attendanceLoginCount(session);
+            case GamePackets.CLIENT_WORKSHOP_EVENT -> openClubWorkshopEvent(session);
+            case GamePackets.CLIENT_GP_LOBBY -> enterLobbyGrandPrix(session);
+            case GamePackets.CLIENT_GP_LEAVE -> leaveLobbyGrandPrix(session);
+            case GamePackets.CLIENT_GP_ENTER -> enterRoomGrandPrix(session, reader);
+            case GamePackets.CLIENT_GP_EXIT_ROOM -> { }
+            case GamePackets.CLIENT_GZ_INITIAL -> { }
+            case GamePackets.CLIENT_MARKER -> { }
+            case GamePackets.CLIENT_SHOT_END -> { }
+            case GamePackets.CLIENT_LEAVE_CHIP_IN -> { }
+            case GamePackets.CLIENT_GZ_FIRST_HOLE -> { }
+            case GamePackets.CLIENT_WING -> { }
+            case GamePackets.CLIENT_EARCUFF -> { }
+            case GamePackets.CLIENT_GLOVE -> { }
+            case GamePackets.CLIENT_RING_GROUND -> { }
+            case GamePackets.CLIENT_TOGGLE_ASSIST -> { }
+            case GamePackets.CLIENT_ASSIST_GREEN -> { }
+            case GamePackets.CLIENT_EVENT_ARIN -> { }
             case GamePackets.CLIENT_WORKSHOP_TRANSFORM_CONFIRM -> workshopTransformConfirm(session);
             case GamePackets.CLIENT_WORKSHOP_TRANSFORM_CANCEL -> workshopTransformCancel(session);
             case GamePackets.CLIENT_WORKSHOP_RECOVERY -> workshopRecovery(session, reader);
@@ -3491,6 +3512,141 @@ public final class GameHandler {
         }
         session.send(GamePackets.sysAck(
                 GamePackets.SERVER_CLUBSET_RESET, GamePackets.shopSys(0x5300501)));
+    }
+
+    /**
+     * C# {@code HandleUCC}: unknown opt / IFF miss always catch
+     * {@code 0x12E} sbyte -1. No channel.
+     */
+    private void handleUcc(Session session, PacketReader reader) {
+        if (!session.authorized()) {
+            return;
+        }
+        if (reader.remaining() >= 1) {
+            reader.u8();
+        }
+        session.send(GamePackets.uccFail());
+    }
+
+    /**
+     * C# {@code requestUCCWebKey}: uid 0 → {@code 0x153} u8 1 + u8 1 +
+     * {@code shopSys(0x5100101)}. No channel.
+     */
+    private void uccWebKey(Session session, PacketReader reader) {
+        if (!session.authorized()) {
+            return;
+        }
+        if (reader.remaining() < 10) {
+            session.send(GamePackets.uccWebKeyFail(GamePackets.UCC_WEB_KEY_ERR_DEFAULT));
+            return;
+        }
+        reader.u8();
+        int uid = reader.u32();
+        reader.u8();
+        reader.i32();
+        if (uid == 0) {
+            session.send(GamePackets.uccWebKeyFail(
+                    GamePackets.shopSys(GamePackets.UCC_WEB_KEY_ERR_UID)));
+            return;
+        }
+        session.send(GamePackets.uccWebKeyFail(
+                GamePackets.shopSys(0x5100103)));
+    }
+
+    /**
+     * C# {@code requestCheckAttendance}: empty catalog {@code drawReward}
+     * throws then catch writes {@code 0x248} u32 {@code ~0}.
+     */
+    private void checkAttendance(Session session) {
+        if (!inChannel(session)) {
+            return;
+        }
+        session.send(GamePackets.sysAck(
+                GamePackets.SERVER_ATTENDANCE, GamePackets.ATTENDANCE_FAIL));
+    }
+
+    /**
+     * C# {@code requestUpdateCountLogin}: empty catalog → {@code 0x249}
+     * u32 {@code ~0}.
+     */
+    private void attendanceLoginCount(Session session) {
+        if (!inChannel(session)) {
+            return;
+        }
+        session.send(GamePackets.sysAck(
+                GamePackets.SERVER_ATTENDANCE_LOGIN, GamePackets.ATTENDANCE_FAIL));
+    }
+
+    /**
+     * C# {@code requestOpenClubWorkShopEvent}: always {@code pacote24E}.
+     */
+    private void openClubWorkshopEvent(Session session) {
+        if (!inChannel(session)) {
+            return;
+        }
+        session.send(GamePackets.workshopEvent());
+    }
+
+    /**
+     * C# {@code enterLobbyGrandPrix}: {@code uProperty.grand_prix} (bit 11)
+     * required; already-in-lobby CHANNEL sys 0 → {@code 0x250} u32 0;
+     * else {@code enterLobby} without {@code 0xF5} then OK body.
+     */
+    private void enterLobbyGrandPrix(Session session) {
+        if (!inChannel(session)) {
+            return;
+        }
+        if ((config.property() & GamePackets.PROPERTY_GRAND_PRIX) == 0) {
+            session.send(GamePackets.sysAck(
+                    GamePackets.SERVER_GP_LOBBY,
+                    GamePackets.shopSys(GamePackets.GP_LOBBY_ERR_DISABLED)));
+            return;
+        }
+        if (session.player().inLobby) {
+            session.send(GamePackets.sysAck(GamePackets.SERVER_GP_LOBBY, 0));
+            return;
+        }
+        sendLobbyEnter(session, false);
+        session.send(GamePackets.gpLobbyOk(config.rateGrandPrixEvent(), 0f));
+    }
+
+    /**
+     * C# {@code leaveLobbyGrandPrix}: {@code leaveLobby} (no {@code 0xF6})
+     * then {@code 0x251} u32 0. Catch silent.
+     */
+    private void leaveLobbyGrandPrix(Session session) {
+        if (!inChannel(session)) {
+            return;
+        }
+        PlayerContext pi = session.player();
+        if (pi.roomNumber >= 0) {
+            leaveRoom(session);
+        }
+        GamePackets.PlayerLobbyInfo info = makeLobbyInfo(session);
+        pi.inLobby = false;
+        if (pi.channelId >= 0) {
+            broadcastChannel(pi.channelId, GamePackets.lobbyUsers(GamePackets.LOBBY_USER_LEAVE, List.of(info)));
+        }
+        session.send(GamePackets.sysAck(GamePackets.SERVER_GP_LEAVE, 0));
+    }
+
+    /**
+     * C# {@code requestEnterRoomGrandPrix}: IFF miss typeid 0 → {@code 0x253}
+     * {@code shopSys(0x6700001)}.
+     */
+    private void enterRoomGrandPrix(Session session, PacketReader reader) {
+        if (!inChannel(session)) {
+            return;
+        }
+        if (reader.remaining() < 4) {
+            session.send(GamePackets.sysAck(
+                    GamePackets.SERVER_START_GAME_FAIL, GamePackets.GP_ENTER_ERR_DEFAULT));
+            return;
+        }
+        reader.u32();
+        session.send(GamePackets.sysAck(
+                GamePackets.SERVER_START_GAME_FAIL,
+                GamePackets.shopSys(GamePackets.GP_ENTER_ERR_IFF)));
     }
 
     /**
