@@ -377,7 +377,8 @@ class GameFlowIT {
             awaitOpcode(host, GamePackets.SERVER_UPDATE_TREASURE_GIFT_LIST);
             awaitOpcode(host, GamePackets.SERVER_PANG_SPENT);
             PacketReader wait = awaitOpcode(guest, GamePackets.SERVER_ROOM_UPDATE);
-            assertEquals(GamePackets.ROOM_INFO_BYTES, wait.remaining());
+            assertEquals(-1, wait.i16());
+            assertEquals(GamePackets.TIPO_STROKE, wait.u8());
         }
     }
 
