@@ -1018,6 +1018,138 @@ class GameFlowIT {
     }
 
     @Test
+    void versusRingGloveEarcuffAndJpRings() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+        final int partTypeid = (GamePackets.IFF_GROUP_PART << 26) | 0x99;
+        final int aux0 = (GamePackets.IFF_GROUP_AUX_PART << 26) | 1;
+        final int aux1 = (GamePackets.IFF_GROUP_AUX_PART << 26) | 2;
+
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config);
+             PangyaFakeClient host = new PangyaFakeClient();
+             PangyaFakeClient guest = new PangyaFakeClient()) {
+            InventoryRepository inv = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
+            var nuri = inv.characters(10001).getFirst();
+            int[] savedParts = nuri.partsTypeid.clone();
+            int[] savedAux = nuri.auxparts.clone();
+            try {
+                loginTwoPlayers(ds, keys, host, guest, runtime.port());
+                inv.addWarehouseItem(10001, partTypeid, 1);
+                inv.addWarehouseItem(10001, aux0, 1);
+                inv.addWarehouseItem(10001, aux1, 1);
+                nuri.partsTypeid[0] = partTypeid;
+                nuri.auxparts[0] = aux0;
+                nuri.auxparts[1] = aux1;
+                inv.updateCharacterParts(10001, nuri);
+
+                host.sendPlain(GamePackets.clientCreateRoom(GamePackets.TIPO_STROKE, "RG", ""));
+                PacketReader created = awaitOpcode(host, GamePackets.SERVER_ROOM_ENTER_RESULT);
+                assertEquals(0, created.i16());
+                int numero = roomNumberFromInfo(created.readBytes(GamePackets.ROOM_INFO_BYTES));
+                guest.sendPlain(GamePackets.clientJoinRoom(numero, ""));
+                assertEquals(0, awaitOpcode(guest, GamePackets.SERVER_ROOM_ENTER_RESULT).i16());
+                host.sendPlain(GamePackets.clientStartGame());
+                awaitOpcode(host, GamePackets.SERVER_START_GAME_FLAG);
+                awaitOpcode(host, GamePackets.SERVER_START_GAME_FLAG2);
+                awaitOpcode(host, GamePackets.SERVER_PANG_RATE);
+                awaitOpcode(host, GamePackets.SERVER_GAME_INIT);
+                awaitOpcode(host, GamePackets.SERVER_COURSE);
+                awaitOpcode(host, GamePackets.SERVER_MASCOT_SEED);
+                awaitOpcode(guest, GamePackets.SERVER_GAME_INIT);
+                host.sendPlain(GamePackets.clientInitHole(1, 0, 0, 4, 1.5f, 2.5f, 10f, 20f));
+                guest.sendPlain(GamePackets.clientInitHole(1, 0, 0, 4, 1.5f, 2.5f, 10f, 20f));
+                host.sendPlain(GamePackets.clientLoadOk());
+                guest.sendPlain(GamePackets.clientLoadOk());
+                awaitOpcode(host, GamePackets.SERVER_WEATHER);
+                awaitOpcode(host, GamePackets.SERVER_WIND);
+                awaitOpcode(host, GamePackets.SERVER_HOLE_TURN);
+
+                host.sendPlain(GamePackets.clientActiveRing(aux0, 7, 2));
+                PacketReader ring = awaitOpcode(host, GamePackets.SERVER_ACTIVE_RING);
+                assertEquals(0, ring.u32());
+                assertEquals(10001, ring.u32());
+                assertEquals(aux0, ring.u32());
+                assertEquals(2, ring.u8());
+                PacketReader guestRing = awaitOpcode(guest, GamePackets.SERVER_ACTIVE_RING);
+                assertEquals(0, guestRing.u32());
+                host.sendPlain(GamePackets.clientActiveRing(0, 0, 0));
+                PacketReader ringZero = awaitOpcode(host, GamePackets.SERVER_ACTIVE_RING);
+                assertEquals(GamePackets.RING_ERR_TYPEID, ringZero.u32());
+                host.sendPlain(GamePackets.clientEmpty(GamePackets.CLIENT_ACTIVE_RING));
+                PacketReader ringTrunc = awaitOpcode(host, GamePackets.SERVER_ACTIVE_RING);
+                assertEquals(GamePackets.RING_ERR_DEFAULT, ringTrunc.u32());
+
+                host.sendPlain(GamePackets.clientU32(GamePackets.CLIENT_GLOVE, partTypeid));
+                PacketReader glove = awaitOpcode(host, GamePackets.SERVER_ACTIVE_GLOVE);
+                assertEquals(0, glove.u32());
+                assertEquals(partTypeid, glove.u32());
+                assertEquals(10001, glove.u32());
+                PacketReader guestGlove = awaitOpcode(guest, GamePackets.SERVER_ACTIVE_GLOVE);
+                assertEquals(0, guestGlove.u32());
+
+                host.sendPlain(GamePackets.clientEarcuff(partTypeid, 1, 1.25f));
+                PacketReader earcuff = awaitOpcode(host, GamePackets.SERVER_ACTIVE_EARCUFF);
+                assertEquals(0, earcuff.u32());
+                assertEquals(partTypeid, earcuff.u32());
+                assertEquals(10001, earcuff.u32());
+                assertEquals(1, earcuff.u8());
+                assertEquals(1.25f, earcuff.f32());
+                PacketReader guestEarcuff = awaitOpcode(guest, GamePackets.SERVER_ACTIVE_EARCUFF);
+                assertEquals(0, guestEarcuff.u32());
+
+                host.sendPlain(GamePackets.clientEmpty(GamePackets.CLIENT_RING_PAWS_RAINBOW));
+                PacketReader rainbow = awaitOpcode(host, GamePackets.SERVER_RING_PAWS_RAINBOW);
+                assertEquals(10001, rainbow.u32());
+                PacketReader guestRainbow = awaitOpcode(guest, GamePackets.SERVER_RING_PAWS_RAINBOW);
+                assertEquals(10001, guestRainbow.u32());
+                host.sendPlain(GamePackets.clientEmpty(GamePackets.CLIENT_RING_PAWS_SET));
+                PacketReader pawsSet = awaitOpcode(host, GamePackets.SERVER_RING_PAWS_SET);
+                assertEquals(10001, pawsSet.u32());
+                PacketReader guestSet = awaitOpcode(guest, GamePackets.SERVER_RING_PAWS_SET);
+                assertEquals(10001, guestSet.u32());
+
+                host.sendPlain(GamePackets.clientU32(GamePackets.CLIENT_RING_MIRACLE, aux0));
+                PacketReader miracle = awaitOpcode(host, GamePackets.SERVER_RING_MIRACLE);
+                assertEquals(0, miracle.u32());
+                assertEquals(aux0, miracle.u32());
+                assertEquals(10001, miracle.u32());
+                PacketReader guestMiracle = awaitOpcode(guest, GamePackets.SERVER_RING_MIRACLE);
+                assertEquals(0, guestMiracle.u32());
+
+                host.sendPlain(GamePackets.clientRingPair(
+                        GamePackets.CLIENT_RING_POWER, 1, aux0, aux1, 0));
+                PacketReader power = awaitOpcode(host, GamePackets.SERVER_RING_POWER);
+                assertEquals(10001, power.u32());
+                PacketReader guestPower = awaitOpcode(guest, GamePackets.SERVER_RING_POWER);
+                assertEquals(10001, guestPower.u32());
+
+                host.sendPlain(GamePackets.clientRingPair(
+                        GamePackets.CLIENT_RING_GROUND, 8, aux0, aux1, 1));
+                PacketReader ground = awaitOpcode(host, GamePackets.SERVER_ACTIVE_RING_GROUND);
+                assertEquals(0, ground.u32());
+                assertEquals(8, ground.u32());
+                assertEquals(aux0, ground.u32());
+                assertEquals(aux1, ground.u32());
+                assertEquals(1, ground.u32());
+                assertEquals(10001, ground.u32());
+            } finally {
+                System.arraycopy(savedParts, 0, nuri.partsTypeid, 0, savedParts.length);
+                System.arraycopy(savedAux, 0, nuri.auxparts, 0, savedAux.length);
+                inv.updateCharacterParts(10001, nuri);
+                inv.deleteWarehouseByTypeid(10001, partTypeid);
+                inv.deleteWarehouseByTypeid(10001, aux0);
+                inv.deleteWarehouseByTypeid(10001, aux1);
+            }
+        }
+    }
+
+    @Test
     void gpExitRoomSendsPacote254() throws Exception {
         String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
         String user = env("PANGYA_TEST_JDBC_USER", "pangya");

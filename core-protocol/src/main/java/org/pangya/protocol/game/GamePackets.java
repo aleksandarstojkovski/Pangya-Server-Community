@@ -229,6 +229,36 @@ public final class GamePackets {
      * or u32 error. GAME errors write the full code.
      */
     public static final int SERVER_ASSIST_GREEN = 0x26B;
+    /**
+     * C# {@code requestActiveRing} {@code 0x237}: u32 0 + uid + typeid + u8
+     * efeito, or u32 error.
+     */
+    public static final int SERVER_ACTIVE_RING = 0x237;
+    /**
+     * C# {@code requestActiveGlove} {@code 0x265}: u32 0 + typeid + uid, or
+     * u32 error.
+     */
+    public static final int SERVER_ACTIVE_GLOVE = 0x265;
+    /**
+     * C# {@code requestActiveEarcuff} {@code 0x24C}: u32 0 + typeid + uid +
+     * u8 angle + f32, or u32 error.
+     */
+    public static final int SERVER_ACTIVE_EARCUFF = 0x24C;
+    /**
+     * C# {@code requestActiveRingGround} {@code 0x266}: u32 0 +
+     * {@code stRingGround} + uid, or u32 error. Versus session-sends.
+     */
+    public static final int SERVER_ACTIVE_RING_GROUND = 0x266;
+    /** C# rainbow paws {@code 0x27E} u32 uid. */
+    public static final int SERVER_RING_PAWS_RAINBOW = 0x27E;
+    /** C# power-gauge ring {@code 0x27F} u32 uid. Fail is silent. */
+    public static final int SERVER_RING_POWER = 0x27F;
+    /**
+     * C# miracle-sign {@code 0x280}: u32 0 + typeid + uid, or u32 error.
+     */
+    public static final int SERVER_RING_MIRACLE = 0x280;
+    /** C# paws ring-set {@code 0x281} u32 uid. */
+    public static final int SERVER_RING_PAWS_SET = 0x281;
     /** C# {@code leaveRoomGrandPrix} {@code 0x254}: u32 0 + i16 -1. */
     public static final int SERVER_GP_EXIT_ROOM = 0x254;
     /** C# attendance check catch {@code 0x248} u32 {@code ~0}. */
@@ -590,7 +620,11 @@ public final class GamePackets {
     public static final int CLIENT_ACHIEVEMENT = 0x157;
     /** C# {@code CLIENT_ACTIVE_PAWS_EFFECT} / {@code packet15C}. Not-in-room silent. */
     public static final int CLIENT_ACTIVE_PAWS = 0x15C;
-    /** C# {@code CLIENT_ACTIVE_RING_EFFECT} / {@code packet15D}. Not-in-room silent. */
+    /**
+     * C# {@code CLIENT_ACTIVE_RING_EFFECT} / {@code packet15D}: u32 typeid +
+     * u32 effect_value + u8 efeito. Not-in-room / not-in-game silent.
+     * Versus broadcasts {@link #SERVER_ACTIVE_RING}.
+     */
     public static final int CLIENT_ACTIVE_RING = 0x15D;
     /** C# {@code CLIENT_CLUBSETWORKSHOP_REQ_UP_LEVEL} / {@code packet164}. */
     public static final int CLIENT_CLUB_WORKSHOP_LEVEL = 0x164;
@@ -719,15 +753,21 @@ public final class GamePackets {
      */
     public static final int CLIENT_WING = 0x138;
     /**
-     * C# {@code packet171} earcuff. Same numeric as
-     * {@link #SERVER_LOCKER_UPDATE_PANG}, opposite direction. Not-in-room silent.
+     * C# {@code packet171} {@code requestActiveEarcuff}. Not-in-room /
+     * not-in-game CHANNEL catch is silent. PART uses warehouse + parts;
+     * MASCOT uses mascot list. Versus broadcasts {@link #SERVER_ACTIVE_EARCUFF}.
      */
     public static final int CLIENT_EARCUFF = 0x171;
-    /** C# {@code packet180} glove. Not-in-room silent. */
+    /**
+     * C# {@code packet180} {@code requestActiveGlove}. Not-in-room /
+     * not-in-game CHANNEL catch is silent. PART checks parts; AUX_PART
+     * checks auxparts. Versus broadcasts {@link #SERVER_ACTIVE_GLOVE}.
+     */
     public static final int CLIENT_GLOVE = 0x180;
     /**
-     * C# {@code packet181} ring-ground. Same numeric as
-     * {@link #SERVER_ITEM_BUFF}, opposite direction. Not-in-room silent.
+     * C# {@code packet181} {@code requestActiveRingGround}. Not-in-room /
+     * not-in-game CHANNEL catch is silent. Versus session-sends
+     * {@link #SERVER_ACTIVE_RING_GROUND}.
      */
     public static final int CLIENT_RING_GROUND = 0x181;
     /**
@@ -778,18 +818,24 @@ public final class GamePackets {
      */
     public static final int CLIENT_TIKI_SHOP_EXCHANGE = 0x18D;
     /**
-     * C# {@code packet196} ring paws rainbow. Same numeric as
-     * {@link #SERVER_LOUNGE_STATE}, opposite direction. Not-in-room silent.
+     * C# {@code packet196} rainbow paws. Versus broadcasts
+     * {@link #SERVER_RING_PAWS_RAINBOW}; Tourney session-send. Fail silent.
      */
     public static final int CLIENT_RING_PAWS_RAINBOW = 0x196;
     /**
-     * C# {@code packet197} ring power gauge. Same numeric as
-     * {@link #SERVER_COMET_REFILL}, opposite direction. Not-in-room silent.
+     * C# {@code packet197} power-gauge ring. Versus broadcasts
+     * {@link #SERVER_RING_POWER}; fail is silent.
      */
     public static final int CLIENT_RING_POWER = 0x197;
-    /** C# {@code packet198} ring miracle sign. Not-in-room silent. */
+    /**
+     * C# {@code packet198} miracle-sign. Versus broadcasts
+     * {@link #SERVER_RING_MIRACLE}.
+     */
     public static final int CLIENT_RING_MIRACLE = 0x198;
-    /** C# {@code packet199} ring paws set. Not-in-room silent. */
+    /**
+     * C# {@code packet199} paws ring-set. Versus broadcasts
+     * {@link #SERVER_RING_PAWS_SET}; fail silent.
+     */
     public static final int CLIENT_RING_PAWS_SET = 0x199;
     /** C# {@code packet041} GM identity. Non-GM CHANNEL catch is silent. */
     public static final int CLIENT_IDENTITY = 0x41;
@@ -1716,6 +1762,49 @@ public final class GamePackets {
     public static final int IFF_GROUP_CARD = 31;
     /** C# {@code IFF_GROUP.CHARACTER}: {@code typeid >>> 26}. */
     public static final int IFF_GROUP_CHARACTER = 1;
+    /** C# {@code IFF_GROUP.PART} {@code 2}. */
+    public static final int IFF_GROUP_PART = 2;
+    /** C# {@code IFF_GROUP.MASCOT} {@code 16}. */
+    public static final int IFF_GROUP_MASCOT = 16;
+    /** C# {@code IFF_GROUP.AUX_PART} {@code 28}. */
+    public static final int IFF_GROUP_AUX_PART = 28;
+    /** C# ring catch else {@code 0x330000}. */
+    public static final int RING_ERR_DEFAULT = 0x330000;
+    /** C# ring typeid 0 {@code 0x330001}. */
+    public static final int RING_ERR_TYPEID = 0x330001;
+    /** C# ring missing warehouse {@code 0x330002}. */
+    public static final int RING_ERR_ITEM = 0x330002;
+    /** C# ring no character {@code 0x330003}. */
+    public static final int RING_ERR_CHAR = 0x330003;
+    /** C# ring not in auxparts {@code 0x330004}. */
+    public static final int RING_ERR_EQUIP = 0x330004;
+    /** C# glove catch else {@code 0x370000}. */
+    public static final int GLOVE_ERR_DEFAULT = 0x370000;
+    public static final int GLOVE_ERR_TYPEID = 0x370001;
+    public static final int GLOVE_ERR_ITEM = 0x370002;
+    public static final int GLOVE_ERR_CHAR = 0x370003;
+    public static final int GLOVE_ERR_PART = 0x370004;
+    public static final int GLOVE_ERR_AUX = 0x370005;
+    /** C# earcuff catch else {@code 0x380000}. */
+    public static final int EARCUFF_ERR_DEFAULT = 0x380000;
+    public static final int EARCUFF_ERR_TYPEID = 0x380001;
+    public static final int EARCUFF_ERR_CHAR = 0x380002;
+    public static final int EARCUFF_ERR_ITEM = 0x380003;
+    public static final int EARCUFF_ERR_PART = 0x380004;
+    public static final int EARCUFF_ERR_MASCOT = 0x380005;
+    public static final int EARCUFF_ERR_EQUIP = 0x380006;
+    /** C# ring-ground catch else {@code 0x340000}. */
+    public static final int RING_GROUND_ERR_DEFAULT = 0x340000;
+    public static final int RING_GROUND_ERR_TYPEID = 0x340001;
+    public static final int RING_GROUND_ERR_ITEM = 0x340002;
+    public static final int RING_GROUND_ERR_EQUIP = 0x340003;
+    /** C# miracle catch else {@code 0x350000}. */
+    public static final int MIRACLE_ERR_DEFAULT = 0x350000;
+    public static final int MIRACLE_ERR_TYPEID = 0x350001;
+    public static final int MIRACLE_ERR_ITEM = 0x350002;
+    public static final int MIRACLE_ERR_CHAR = 0x350003;
+    public static final int MIRACLE_ERR_AUX = 0x350004;
+    public static final int MIRACLE_ERR_PART = 0x350005;
 
     /**
      * C# {@code LoginManager} case 32 {@code pacote210} before
@@ -3314,6 +3403,119 @@ public final class GamePackets {
         return new PacketWriter().opcode(SERVER_ASSIST_GREEN).u32(code).toBytes();
     }
 
+    /**
+     * C# ring {@code 0x237}: u32 0 + uid + typeid + u8 efeito. Versus
+     * broadcasts; Tourney session-send.
+     */
+    public static byte[] activeRingOk(int uid, int typeid, int efeito) {
+        return new PacketWriter()
+                .opcode(SERVER_ACTIVE_RING)
+                .u32(0)
+                .u32(uid)
+                .u32(typeid)
+                .u8(efeito)
+                .toBytes();
+    }
+
+    /** C# ring catch {@code 0x237} u32 error. */
+    public static byte[] activeRingFail(int code) {
+        return new PacketWriter().opcode(SERVER_ACTIVE_RING).u32(code).toBytes();
+    }
+
+    /**
+     * C# glove {@code 0x265}: u32 0 + typeid + uid. Versus broadcasts;
+     * Tourney session-send.
+     */
+    public static byte[] activeGloveOk(int typeid, int uid) {
+        return new PacketWriter()
+                .opcode(SERVER_ACTIVE_GLOVE)
+                .u32(0)
+                .u32(typeid)
+                .u32(uid)
+                .toBytes();
+    }
+
+    /** C# glove catch {@code 0x265} u32 error. */
+    public static byte[] activeGloveFail(int code) {
+        return new PacketWriter().opcode(SERVER_ACTIVE_GLOVE).u32(code).toBytes();
+    }
+
+    /**
+     * C# earcuff {@code 0x24C}: u32 0 + typeid + uid + u8 angle + f32.
+     */
+    public static byte[] activeEarcuffOk(int typeid, int uid, int angle, float xPoint) {
+        return new PacketWriter()
+                .opcode(SERVER_ACTIVE_EARCUFF)
+                .u32(0)
+                .u32(typeid)
+                .u32(uid)
+                .u8(angle)
+                .f32(xPoint)
+                .toBytes();
+    }
+
+    /** C# earcuff catch {@code 0x24C} u32 error. */
+    public static byte[] activeEarcuffFail(int code) {
+        return new PacketWriter().opcode(SERVER_ACTIVE_EARCUFF).u32(code).toBytes();
+    }
+
+    /**
+     * C# ring-ground {@code 0x266}: u32 0 + efeito + 2× ring + option + uid.
+     * Versus and Tourney session-send.
+     */
+    public static byte[] activeRingGroundOk(int efeito, int ring0, int ring1, int option, int uid) {
+        return new PacketWriter()
+                .opcode(SERVER_ACTIVE_RING_GROUND)
+                .u32(0)
+                .u32(efeito)
+                .u32(ring0)
+                .u32(ring1)
+                .u32(option)
+                .u32(uid)
+                .toBytes();
+    }
+
+    /** C# ring-ground catch {@code 0x266} u32 error. */
+    public static byte[] activeRingGroundFail(int code) {
+        return new PacketWriter().opcode(SERVER_ACTIVE_RING_GROUND).u32(code).toBytes();
+    }
+
+    /** C# rainbow paws {@code 0x27E} / power {@code 0x27F} / set {@code 0x281}: u32 uid. */
+    public static byte[] ringUidAck(int opcode, int uid) {
+        return new PacketWriter().opcode(opcode).u32(uid).toBytes();
+    }
+
+    /**
+     * C# miracle {@code 0x280}: u32 0 + typeid + uid. Versus broadcasts;
+     * Tourney session-send.
+     */
+    public static byte[] ringMiracleOk(int typeid, int uid) {
+        return new PacketWriter()
+                .opcode(SERVER_RING_MIRACLE)
+                .u32(0)
+                .u32(typeid)
+                .u32(uid)
+                .toBytes();
+    }
+
+    /** C# miracle catch {@code 0x280} u32 error. */
+    public static byte[] ringMiracleFail(int code) {
+        return new PacketWriter().opcode(SERVER_RING_MIRACLE).u32(code).toBytes();
+    }
+
+    /** True when {@code ids} contains {@code typeid}. */
+    public static boolean hasTypeid(int[] ids, int typeid) {
+        if (ids == null) {
+            return false;
+        }
+        for (int id : ids) {
+            if (id == typeid) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** C# {@code leaveRoomGrandPrix} {@code 0x254}: u32 0 + i16 -1. */
     public static byte[] gpExitRoomAck() {
         return new PacketWriter().opcode(SERVER_GP_EXIT_ROOM).u32(0).i16(-1).toBytes();
@@ -4843,9 +5045,40 @@ public final class GamePackets {
         return new PacketWriter().opcode(CLIENT_ACTIVE_PAWS).toBytes();
     }
 
-    /** C# CLIENT {@code 0x15D} empty. */
+    /** C# CLIENT {@code 0x15D} empty. Lobby fail-path. */
     public static byte[] clientActiveRing() {
         return new PacketWriter().opcode(CLIENT_ACTIVE_RING).toBytes();
+    }
+
+    /** C# CLIENT {@code 0x15D}: u32 typeid + u32 effect_value + u8 efeito. */
+    public static byte[] clientActiveRing(int typeid, int effectValue, int efeito) {
+        return new PacketWriter()
+                .opcode(CLIENT_ACTIVE_RING)
+                .u32(typeid)
+                .u32(effectValue)
+                .u8(efeito)
+                .toBytes();
+    }
+
+    /** C# CLIENT {@code 0x171}: u32 typeid + u8 angle + f32 x. */
+    public static byte[] clientEarcuff(int typeid, int angle, float xPoint) {
+        return new PacketWriter()
+                .opcode(CLIENT_EARCUFF)
+                .u32(typeid)
+                .u8(angle)
+                .f32(xPoint)
+                .toBytes();
+    }
+
+    /** C# CLIENT {@code 0x181}/{@code 0x197}: 4× u32. */
+    public static byte[] clientRingPair(int opcode, int efeito, int ring0, int ring1, int option) {
+        return new PacketWriter()
+                .opcode(opcode)
+                .u32(efeito)
+                .u32(ring0)
+                .u32(ring1)
+                .u32(option)
+                .toBytes();
     }
 
     /** C# CLIENT {@code 0x127} empty. */

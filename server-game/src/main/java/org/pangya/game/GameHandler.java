@@ -229,9 +229,9 @@ public final class GameHandler {
             case GamePackets.CLIENT_LEAVE_CHIP_IN -> { }
             case GamePackets.CLIENT_GZ_FIRST_HOLE -> { }
             case GamePackets.CLIENT_WING -> activeWing(session, reader);
-            case GamePackets.CLIENT_EARCUFF -> { }
-            case GamePackets.CLIENT_GLOVE -> { }
-            case GamePackets.CLIENT_RING_GROUND -> { }
+            case GamePackets.CLIENT_EARCUFF -> activeEarcuff(session, reader);
+            case GamePackets.CLIENT_GLOVE -> activeGlove(session, reader);
+            case GamePackets.CLIENT_RING_GROUND -> activeRingGround(session, reader);
             case GamePackets.CLIENT_TOGGLE_ASSIST -> toggleAssist(session);
             case GamePackets.CLIENT_ASSIST_GREEN -> assistGreen(session, reader);
             case GamePackets.CLIENT_EVENT_ARIN -> { }
@@ -246,10 +246,10 @@ public final class GameHandler {
             case GamePackets.CLIENT_CHAR_CARD_PATCHER -> characterCardPatcher(session, reader);
             case GamePackets.CLIENT_CHAR_CARD_REMOVE -> characterRemoveCard(session, reader);
             case GamePackets.CLIENT_TIKI_SHOP_EXCHANGE -> tikiShopExchange(session, reader);
-            case GamePackets.CLIENT_RING_PAWS_RAINBOW -> { }
-            case GamePackets.CLIENT_RING_POWER -> { }
-            case GamePackets.CLIENT_RING_MIRACLE -> { }
-            case GamePackets.CLIENT_RING_PAWS_SET -> { }
+            case GamePackets.CLIENT_RING_PAWS_RAINBOW -> activeRingPawsRainbow(session);
+            case GamePackets.CLIENT_RING_POWER -> activeRingPower(session, reader);
+            case GamePackets.CLIENT_RING_MIRACLE -> activeRingMiracle(session, reader);
+            case GamePackets.CLIENT_RING_PAWS_SET -> activeRingPawsSet(session);
             case GamePackets.CLIENT_WORKSHOP_TRANSFORM_CONFIRM -> workshopTransformConfirm(session);
             case GamePackets.CLIENT_WORKSHOP_TRANSFORM_CANCEL -> workshopTransformCancel(session);
             case GamePackets.CLIENT_WORKSHOP_RECOVERY -> workshopRecovery(session, reader);
@@ -259,7 +259,7 @@ public final class GameHandler {
             case GamePackets.CLIENT_HEARTBEAT -> { }
             case GamePackets.CLIENT_WEB_AUTH_KEY -> webAuthKey(session);
             case GamePackets.CLIENT_ACTIVE_PAWS -> activePaws(session);
-            case GamePackets.CLIENT_ACTIVE_RING -> activeRing(session);
+            case GamePackets.CLIENT_ACTIVE_RING -> activeRing(session, reader);
             case GamePackets.CLIENT_CLUB_WORKSHOP_LEVEL -> clubWorkshopLevel(session, reader);
             case GamePackets.CLIENT_CLUB_WORKSHOP_CONFIRM -> clubWorkshopConfirm(session);
             case GamePackets.CLIENT_CLUB_WORKSHOP_CANCEL -> clubWorkshopCancel(session);
@@ -4955,11 +4955,351 @@ public final class GameHandler {
             return;
         }
         byte[] packet = GamePackets.activeWing((int) uid, typeid);
+        sendVersusOrSelf(session, room, packet);
+    }
+
+    /**
+     * C# {@code requestActiveRing}: not-in-room / not-in-game CHANNEL catch
+     * is silent. Warehouse + auxparts. Versus broadcasts {@code 0x237}.
+     * {@code checkEffectItemAndSet} is skipped (no IFF).
+     */
+    private void activeRing(Session session, PacketReader reader) {
+        GameRoom room = inGameChannelRoom(session);
+        if (room == null) {
+            return;
+        }
+        if (reader.remaining() < 9) {
+            session.send(GamePackets.activeRingFail(GamePackets.RING_ERR_DEFAULT));
+            return;
+        }
+        int typeid = reader.u32();
+        reader.u32();
+        int efeito = reader.u8();
+        long uid = session.player().uid;
+        if (typeid == 0) {
+            session.send(GamePackets.activeRingFail(GamePackets.RING_ERR_TYPEID));
+            return;
+        }
+        if (warehouseByTypeid(uid, typeid) == null) {
+            session.send(GamePackets.activeRingFail(GamePackets.RING_ERR_ITEM));
+            return;
+        }
+        GamePackets.CharacterInfo character = equippedCharacter(uid);
+        if (character == null) {
+            session.send(GamePackets.activeRingFail(GamePackets.RING_ERR_CHAR));
+            return;
+        }
+        if (!GamePackets.hasTypeid(character.auxparts, typeid)) {
+            session.send(GamePackets.activeRingFail(GamePackets.RING_ERR_EQUIP));
+            return;
+        }
+        sendVersusOrSelf(session, room, GamePackets.activeRingOk((int) uid, typeid, efeito));
+    }
+
+    /**
+     * C# {@code requestActiveGlove}: PART checks {@code parts_typeid}; AUX_PART
+     * checks auxparts. Other groups skip the equip check. Versus broadcasts
+     * {@code 0x265}.
+     */
+    private void activeGlove(Session session, PacketReader reader) {
+        GameRoom room = inGameChannelRoom(session);
+        if (room == null) {
+            return;
+        }
+        if (reader.remaining() < 4) {
+            session.send(GamePackets.activeGloveFail(GamePackets.GLOVE_ERR_DEFAULT));
+            return;
+        }
+        int typeid = reader.u32();
+        long uid = session.player().uid;
+        if (typeid == 0) {
+            session.send(GamePackets.activeGloveFail(GamePackets.GLOVE_ERR_TYPEID));
+            return;
+        }
+        if (warehouseByTypeid(uid, typeid) == null) {
+            session.send(GamePackets.activeGloveFail(GamePackets.GLOVE_ERR_ITEM));
+            return;
+        }
+        GamePackets.CharacterInfo character = equippedCharacter(uid);
+        if (character == null) {
+            session.send(GamePackets.activeGloveFail(GamePackets.GLOVE_ERR_CHAR));
+            return;
+        }
+        int group = GamePackets.itemGroupIdentify(typeid);
+        if (group == GamePackets.IFF_GROUP_PART
+                && !GamePackets.hasTypeid(character.partsTypeid, typeid)) {
+            session.send(GamePackets.activeGloveFail(GamePackets.GLOVE_ERR_PART));
+            return;
+        }
+        if (group == GamePackets.IFF_GROUP_AUX_PART
+                && !GamePackets.hasTypeid(character.auxparts, typeid)) {
+            session.send(GamePackets.activeGloveFail(GamePackets.GLOVE_ERR_AUX));
+            return;
+        }
+        sendVersusOrSelf(session, room, GamePackets.activeGloveOk(typeid, (int) uid));
+    }
+
+    /**
+     * C# {@code requestActiveEarcuff}: PART warehouse + parts; MASCOT owned +
+     * any mascot equipped. Versus broadcasts {@code 0x24C}.
+     */
+    private void activeEarcuff(Session session, PacketReader reader) {
+        GameRoom room = inGameChannelRoom(session);
+        if (room == null) {
+            return;
+        }
+        if (reader.remaining() < 9) {
+            session.send(GamePackets.activeEarcuffFail(GamePackets.EARCUFF_ERR_DEFAULT));
+            return;
+        }
+        int typeid = reader.u32();
+        int angle = reader.u8();
+        float xPoint = reader.f32();
+        long uid = session.player().uid;
+        if (typeid == 0) {
+            session.send(GamePackets.activeEarcuffFail(GamePackets.EARCUFF_ERR_TYPEID));
+            return;
+        }
+        int group = GamePackets.itemGroupIdentify(typeid);
+        if (group == GamePackets.IFF_GROUP_PART) {
+            GamePackets.CharacterInfo character = equippedCharacter(uid);
+            if (character == null) {
+                session.send(GamePackets.activeEarcuffFail(GamePackets.EARCUFF_ERR_CHAR));
+                return;
+            }
+            if (warehouseByTypeid(uid, typeid) == null) {
+                session.send(GamePackets.activeEarcuffFail(GamePackets.EARCUFF_ERR_ITEM));
+                return;
+            }
+            if (!GamePackets.hasTypeid(character.partsTypeid, typeid)) {
+                session.send(GamePackets.activeEarcuffFail(GamePackets.EARCUFF_ERR_PART));
+                return;
+            }
+        } else if (group == GamePackets.IFF_GROUP_MASCOT) {
+            if (mascotByTypeid(uid, typeid) == null) {
+                session.send(GamePackets.activeEarcuffFail(GamePackets.EARCUFF_ERR_MASCOT));
+                return;
+            }
+            if (inventory.userEquip(uid).mascotId == 0) {
+                session.send(GamePackets.activeEarcuffFail(GamePackets.EARCUFF_ERR_EQUIP));
+                return;
+            }
+        }
+        sendVersusOrSelf(session, room, GamePackets.activeEarcuffOk(typeid, (int) uid, angle, xPoint));
+    }
+
+    /**
+     * C# {@code requestActiveRingGround}: AUX_PART / PART / MASCOT branches.
+     * Versus session-sends {@code 0x266} (not broadcast). PART second ring
+     * checks auxparts (C#).
+     */
+    private void activeRingGround(Session session, PacketReader reader) {
+        GameRoom room = inGameChannelRoom(session);
+        if (room == null) {
+            return;
+        }
+        if (reader.remaining() < 16) {
+            session.send(GamePackets.activeRingGroundFail(GamePackets.RING_GROUND_ERR_DEFAULT));
+            return;
+        }
+        int efeito = reader.u32();
+        int ring0 = reader.u32();
+        int ring1 = reader.u32();
+        int option = reader.u32();
+        long uid = session.player().uid;
+        if (ring0 == 0 || ring1 == 0) {
+            session.send(GamePackets.activeRingGroundFail(GamePackets.RING_GROUND_ERR_TYPEID));
+            return;
+        }
+        GamePackets.CharacterInfo character = equippedCharacter(uid);
+        if (character == null) {
+            session.send(GamePackets.activeRingGroundFail(GamePackets.RING_GROUND_ERR_ITEM));
+            return;
+        }
+        int group = GamePackets.itemGroupIdentify(ring0);
+        if (group == GamePackets.IFF_GROUP_AUX_PART) {
+            if (warehouseByTypeid(uid, ring0) == null
+                    || !GamePackets.hasTypeid(character.auxparts, ring0)) {
+                session.send(GamePackets.activeRingGroundFail(
+                        warehouseByTypeid(uid, ring0) == null
+                                ? GamePackets.RING_GROUND_ERR_ITEM
+                                : GamePackets.RING_GROUND_ERR_EQUIP));
+                return;
+            }
+            if (ring0 != ring1) {
+                if (warehouseByTypeid(uid, ring1) == null
+                        || !GamePackets.hasTypeid(character.auxparts, ring1)) {
+                    session.send(GamePackets.activeRingGroundFail(
+                            warehouseByTypeid(uid, ring1) == null
+                                    ? GamePackets.RING_GROUND_ERR_ITEM
+                                    : GamePackets.RING_GROUND_ERR_EQUIP));
+                    return;
+                }
+            }
+        } else if (group == GamePackets.IFF_GROUP_PART) {
+            if (warehouseByTypeid(uid, ring0) == null
+                    || !GamePackets.hasTypeid(character.partsTypeid, ring0)) {
+                session.send(GamePackets.activeRingGroundFail(
+                        warehouseByTypeid(uid, ring0) == null
+                                ? GamePackets.RING_GROUND_ERR_ITEM
+                                : GamePackets.RING_GROUND_ERR_EQUIP));
+                return;
+            }
+            if (ring0 != ring1) {
+                if (warehouseByTypeid(uid, ring1) == null
+                        || !GamePackets.hasTypeid(character.auxparts, ring1)) {
+                    session.send(GamePackets.activeRingGroundFail(
+                            warehouseByTypeid(uid, ring1) == null
+                                    ? GamePackets.RING_GROUND_ERR_ITEM
+                                    : GamePackets.RING_GROUND_ERR_EQUIP));
+                    return;
+                }
+            }
+        } else if (group == GamePackets.IFF_GROUP_MASCOT) {
+            if (mascotByTypeid(uid, ring0) == null) {
+                session.send(GamePackets.activeRingGroundFail(GamePackets.RING_GROUND_ERR_ITEM));
+                return;
+            }
+            if (ring0 != ring1) {
+                if (warehouseByTypeid(uid, ring1) == null
+                        || !GamePackets.hasTypeid(character.partsTypeid, ring1)) {
+                    session.send(GamePackets.activeRingGroundFail(
+                            warehouseByTypeid(uid, ring1) == null
+                                    ? GamePackets.RING_GROUND_ERR_ITEM
+                                    : GamePackets.RING_GROUND_ERR_EQUIP));
+                    return;
+                }
+            }
+        }
+        session.send(GamePackets.activeRingGroundOk(efeito, ring0, ring1, option, (int) uid));
+    }
+
+    /**
+     * C# rainbow paws {@code 0x27E} u32 uid. No body. Fail silent.
+     */
+    private void activeRingPawsRainbow(Session session) {
+        GameRoom room = inGameChannelRoom(session);
+        if (room == null) {
+            return;
+        }
+        sendVersusOrSelf(session, room, GamePackets.ringUidAck(
+                GamePackets.SERVER_RING_PAWS_RAINBOW, (int) session.player().uid));
+    }
+
+    /**
+     * C# paws ring-set {@code 0x281} u32 uid. No body. Fail silent.
+     */
+    private void activeRingPawsSet(Session session) {
+        GameRoom room = inGameChannelRoom(session);
+        if (room == null) {
+            return;
+        }
+        sendVersusOrSelf(session, room, GamePackets.ringUidAck(
+                GamePackets.SERVER_RING_PAWS_SET, (int) session.player().uid));
+    }
+
+    /**
+     * C# power-gauge JP: warehouse + auxparts for both rings. Fail silent.
+     * Versus broadcasts {@code 0x27F} uid.
+     */
+    private void activeRingPower(Session session, PacketReader reader) {
+        GameRoom room = inGameChannelRoom(session);
+        if (room == null || reader.remaining() < 16) {
+            return;
+        }
+        reader.u32();
+        int ring0 = reader.u32();
+        int ring1 = reader.u32();
+        reader.u32();
+        if (ring0 == 0 || ring1 == 0) {
+            return;
+        }
+        long uid = session.player().uid;
+        GamePackets.CharacterInfo character = equippedCharacter(uid);
+        if (character == null) {
+            return;
+        }
+        if (warehouseByTypeid(uid, ring0) == null
+                || !GamePackets.hasTypeid(character.auxparts, ring0)) {
+            return;
+        }
+        if (ring0 != ring1
+                && (warehouseByTypeid(uid, ring1) == null
+                || !GamePackets.hasTypeid(character.auxparts, ring1))) {
+            return;
+        }
+        sendVersusOrSelf(session, room, GamePackets.ringUidAck(
+                GamePackets.SERVER_RING_POWER, (int) uid));
+    }
+
+    /**
+     * C# miracle-sign JP: warehouse + AUX_PART auxparts or PART parts.
+     * Versus broadcasts {@code 0x280}.
+     */
+    private void activeRingMiracle(Session session, PacketReader reader) {
+        GameRoom room = inGameChannelRoom(session);
+        if (room == null) {
+            return;
+        }
+        if (reader.remaining() < 4) {
+            session.send(GamePackets.ringMiracleFail(GamePackets.MIRACLE_ERR_DEFAULT));
+            return;
+        }
+        int typeid = reader.u32();
+        long uid = session.player().uid;
+        if (typeid == 0) {
+            session.send(GamePackets.ringMiracleFail(GamePackets.MIRACLE_ERR_TYPEID));
+            return;
+        }
+        if (warehouseByTypeid(uid, typeid) == null) {
+            session.send(GamePackets.ringMiracleFail(GamePackets.MIRACLE_ERR_ITEM));
+            return;
+        }
+        GamePackets.CharacterInfo character = equippedCharacter(uid);
+        if (character == null) {
+            session.send(GamePackets.ringMiracleFail(GamePackets.MIRACLE_ERR_CHAR));
+            return;
+        }
+        int group = GamePackets.itemGroupIdentify(typeid);
+        if (group == GamePackets.IFF_GROUP_AUX_PART
+                && !GamePackets.hasTypeid(character.auxparts, typeid)) {
+            session.send(GamePackets.ringMiracleFail(GamePackets.MIRACLE_ERR_AUX));
+            return;
+        }
+        if (group == GamePackets.IFF_GROUP_PART
+                && !GamePackets.hasTypeid(character.partsTypeid, typeid)) {
+            session.send(GamePackets.ringMiracleFail(GamePackets.MIRACLE_ERR_PART));
+            return;
+        }
+        sendVersusOrSelf(session, room, GamePackets.ringMiracleOk(typeid, (int) uid));
+    }
+
+    private GameRoom inGameChannelRoom(Session session) {
+        if (!inChannel(session)) {
+            return null;
+        }
+        GameRoom room = rooms.get(session.player().roomNumber);
+        if (room == null || !room.inGame) {
+            return null;
+        }
+        return room;
+    }
+
+    private void sendVersusOrSelf(Session session, GameRoom room, byte[] packet) {
         if (GamePackets.usesVersusInitialData(room.tipo)) {
             room.broadcast(packet);
         } else {
             session.send(packet);
         }
+    }
+
+    private GamePackets.MascotInfo mascotByTypeid(long uid, int typeid) {
+        for (GamePackets.MascotInfo mascot : inventory.mascots(uid)) {
+            if (mascot.typeid == typeid) {
+                return mascot;
+            }
+        }
+        return null;
     }
 
     private GamePackets.WarehouseItem warehouseByTypeid(long uid, int typeid) {
@@ -4997,15 +5337,6 @@ public final class GameHandler {
             return;
         }
         room.broadcast(GamePackets.markerOnCourse(session.oid(), x, y, z));
-    }
-
-    /**
-     * C# {@code requestActiveRing}: not-in-room CHANNEL catch is silent.
-     */
-    private void activeRing(Session session) {
-        if (!inChannel(session)) {
-            return;
-        }
     }
 
     private void changeTeam(Session session, PacketReader reader) {
