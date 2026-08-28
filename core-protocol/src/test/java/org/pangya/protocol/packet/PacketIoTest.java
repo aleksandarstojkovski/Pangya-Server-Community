@@ -1,0 +1,32 @@
+package org.pangya.protocol.packet;
+
+import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+class PacketIoTest {
+
+    @Test
+    void loginHelloMatchesCsharpHardcodedFrame() {
+        byte[] hello = PacketIo.loginHello(7);
+        assertEquals(14, hello.length);
+        assertEquals(0x00, hello[0] & 0xff);
+        assertEquals(0x0B, hello[1] & 0xff);
+        assertEquals(0x00, hello[2] & 0xff);
+        assertEquals(7, hello[6] & 0xff);
+        assertEquals(0x75, hello[10] & 0xff);
+        assertEquals(0x27, hello[11] & 0xff);
+    }
+
+    @Test
+    void gameHelloIsRaw0x3FWithKey() {
+        byte[] hello = PacketIo.gameHello(3, "127.0.0.1");
+        assertEquals(0, hello[0] & 0xff);
+        assertEquals(0, hello[3] & 0xff);
+        assertEquals(0x3F, hello[4] & 0xff);
+        assertEquals(0x00, hello[5] & 0xff);
+        assertEquals(1, hello[6] & 0xff);
+        assertEquals(1, hello[7] & 0xff);
+        assertEquals(3, hello[8] & 0xff);
+    }
+}

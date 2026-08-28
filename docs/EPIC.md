@@ -8,8 +8,8 @@ Questo repo è **solo** la riscrittura Java.
 
 | Campo | Valore |
 |-------|--------|
-| Slice completata | **S0** verdi (Gradle test + Compose postgres/redis healthy + 175 tabelle) |
-| Prossima | **S1** core-network + core-protocol (Netty framing + Cipher MiniLZO) |
+| Slice completata | **S0 + S1** verdi |
+| Prossima | **S2** Auth + Login + Redis session key + fake client login |
 | Blocked | nessuno |
 | VM | Java 21.0.10, Docker 29.7.2, Compose v5.5.0, 4 CPU / 15 GiB |
 
@@ -17,7 +17,7 @@ Questo repo è **solo** la riscrittura Java.
 
 | C# (GB) | Java |
 |---------|------|
-| `PangyaAPI.Network.Cryptor.Cipher` | `org.pangya.protocol.crypto.Cipher` (S1) |
+| `PangyaAPI.Network.Cryptor.Cipher` | `org.pangya.protocol.crypto.Cipher` (S1 done) |
 | `PangyaAPI.Network.Cryptor.CryptoOracle` | `org.pangya.protocol.crypto.CryptoOracle` — tabelle 4096 byte embeddate da C# |
 | `PangyaAPI.Network.Cryptor.MiniLzo` | `org.pangya.protocol.crypto.MiniLzo` (S1, port letterale) |
 | `PangyaAPI.Network.PangyaPacket.PacketBuffer` | `org.pangya.protocol.frame.PacketBuffer` (S1) |
@@ -104,6 +104,20 @@ docker compose exec -T postgres psql -U pangya -d pangya \
 ```
 
 Nota VM: Docker nested overlayfs fallisce (`invalid argument`); daemon.json `storage-driver: vfs` fa partire i container. Non è parte del repo.
+
+## S1 evidenza (2026-08-28)
+
+```
+./gradlew --no-daemon :core-protocol:test :core-network:test
+# CipherTest miniLzoRoundtrip / serverEncryptDecrypt / clientEncryptDecrypt PASSED
+# PacketIoTest loginHello + gameHello PASSED
+# HandshakeNettyTest loginClientReceivesHardcodedKeyFrame PASSED
+# BUILD SUCCESSFUL
+```
+
+Cipher + MiniLZO portati da `Cipher.cs` / `MiniLzo.cs`. Roundtrip Java encrypt↔decrypt verde. Handshake Login 14-byte (key al byte 6) verificato con client Netty. Dispatch dominio su virtual thread; eccezione handler non abbatte il process (`SessionIsolationTest`).
+
+Golden bytes da capture client reale: ancora assenti (gap documentato).
 
 ## Inventario Practice (S3)
 

@@ -25,6 +25,8 @@ C# handlers are inline in `AuthServer/AuthServerTcp/AuthServer.cs` and `unit_aut
 
 C#: `LoginServer/PangyaEnums/PacketLogin.cs` → Java `org.pangya.protocol.login.LoginPackets` (S2)
 
+Framing + cipher Java: `org.pangya.protocol.crypto.Cipher`, `MiniLzo`, `CryptoOracle`; Netty `org.pangya.network.netty.PangyaNettyServer`.
+
 | Dir | C# | Opcode |
 |-----|----|--------|
 | C | `CLIENT_CONNECT` | `0x01` |
