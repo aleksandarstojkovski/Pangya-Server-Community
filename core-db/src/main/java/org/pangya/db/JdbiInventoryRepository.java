@@ -473,27 +473,7 @@ public final class JdbiInventoryRepository implements InventoryRepository {
         }
         int itemId = 0;
         if (addWarehouse) {
-            itemId = h.createQuery("""
-                            INSERT INTO pangya.pangya_item_warehouse (
-                                "UID", typeid, valid, "Gift_flag", flag,
-                                "C0", "C1", "C2", "C3", "C4", "Purchase", "ItemType",
-                                "ClubSet_WorkShop_Flag", "ClubSet_WorkShop_C0", "ClubSet_WorkShop_C1",
-                                "ClubSet_WorkShop_C2", "ClubSet_WorkShop_C3", "ClubSet_WorkShop_C4",
-                                "Mastery_Pts", "Recovery_Pts", "Level", "Up",
-                                "Total_Mastery_Pts", "Mastery_Gasto"
-                            ) VALUES (
-                                :uid, :typeid, 1, 0, 0,
-                                :qntd, 0, 0, 0, 0, 1, 2,
-                                0, 0, 0, 0, 0, 0,
-                                0, 0, 0, 0, 0, 0
-                            )
-                            RETURNING item_id
-                            """)
-                    .bind("uid", uid)
-                    .bind("typeid", typeid)
-                    .bind("qntd", qntd)
-                    .mapTo(Integer.class)
-                    .one();
+            itemId = insertWarehouse(h, uid, typeid, qntd);
         }
         long pangAfter = pang - pangSpent;
         long cookieAfter = cookie - cookieSpent;
@@ -685,6 +665,59 @@ public final class JdbiInventoryRepository implements InventoryRepository {
                 .bind("uid", uid)
                 .bind("typeid", typeid)
                 .execute());
+    }
+
+    @Override
+    public int addWarehouseItem(long uid, int typeid, int qntd) {
+        return jdbi.inTransaction(h -> {
+            Integer existing = h.createQuery("""
+                            SELECT item_id FROM pangya.pangya_item_warehouse
+                             WHERE "UID" = :uid AND typeid = :typeid AND valid = 1
+                             ORDER BY item_id
+                             LIMIT 1
+                            """)
+                    .bind("uid", uid)
+                    .bind("typeid", typeid)
+                    .mapTo(Integer.class)
+                    .findOne()
+                    .orElse(null);
+            if (existing != null) {
+                h.createUpdate("""
+                                UPDATE pangya.pangya_item_warehouse
+                                   SET "C0" = "C0" + :qntd
+                                 WHERE item_id = :id
+                                """)
+                        .bind("qntd", qntd)
+                        .bind("id", existing)
+                        .execute();
+                return existing;
+            }
+            return insertWarehouse(h, uid, typeid, qntd);
+        });
+    }
+
+    private static int insertWarehouse(Handle h, long uid, int typeid, int qntd) {
+        return h.createQuery("""
+                        INSERT INTO pangya.pangya_item_warehouse (
+                            "UID", typeid, valid, "Gift_flag", flag,
+                            "C0", "C1", "C2", "C3", "C4", "Purchase", "ItemType",
+                            "ClubSet_WorkShop_Flag", "ClubSet_WorkShop_C0", "ClubSet_WorkShop_C1",
+                            "ClubSet_WorkShop_C2", "ClubSet_WorkShop_C3", "ClubSet_WorkShop_C4",
+                            "Mastery_Pts", "Recovery_Pts", "Level", "Up",
+                            "Total_Mastery_Pts", "Mastery_Gasto"
+                        ) VALUES (
+                            :uid, :typeid, 1, 0, 0,
+                            :qntd, 0, 0, 0, 0, 1, 2,
+                            0, 0, 0, 0, 0, 0,
+                            0, 0, 0, 0, 0, 0
+                        )
+                        RETURNING item_id
+                        """)
+                .bind("uid", uid)
+                .bind("typeid", typeid)
+                .bind("qntd", qntd)
+                .mapTo(Integer.class)
+                .one();
     }
 
     @Override
@@ -1671,6 +1704,125 @@ public final class JdbiInventoryRepository implements InventoryRepository {
                     .bind("tipo", tipo)
                     .execute();
             List<GamePackets.PapelAward> awards = new ArrayList<>();
+            awards.add(new GamePackets.PapelAward(
+                    GamePackets.PAPEL_AWARD_TYPE, cardTypeid, cardId, 0, ant, dep, -1));
+            awards.add(new GamePackets.PapelAward(
+                    GamePackets.CHAR_CARD_AWARD_TYPE, charTypeid, charId, 0, 0, 0, 0, cardTypeid, slot));
+            return new CharCardResult(0, awards, cardTypeid);
+        });
+    }
+
+    @Override
+    public CharCardResult characterCardEquipWithPatcher(
+            long uid, int charTypeid, int charId, int cardTypeid, int cardId, int slot) {
+        return jdbi.inTransaction(h -> {
+            int[] patcher = h.createQuery("""
+                            SELECT item_id, "C0" FROM pangya.pangya_item_warehouse
+                             WHERE "UID" = :uid AND typeid = :typeid AND valid = 1
+                             ORDER BY item_id
+                             LIMIT 1
+                            """)
+                    .bind("uid", uid)
+                    .bind("typeid", GamePackets.TYPEID_CLUB_PATCHER)
+                    .map((rs, ctx) -> new int[] {rs.getInt("item_id"), rs.getInt("C0") & 0xffff})
+                    .findOne()
+                    .orElse(null);
+            if (patcher == null) {
+                return CharCardResult.fail(GamePackets.CHAR_CARD_PATCHER_ERR);
+            }
+            if (patcher[1] < 1) {
+                return CharCardResult.fail(GamePackets.CHAR_CARD_PATCHER_ERR_QNTD);
+            }
+            int[] iff = h.createQuery("""
+                            SELECT efeito, efeito_qntd FROM pangya.iff_card WHERE typeid = :typeid
+                            """)
+                    .bind("typeid", cardTypeid)
+                    .map((rs, ctx) -> new int[] {rs.getInt("efeito"), rs.getInt("efeito_qntd")})
+                    .findOne()
+                    .orElse(null);
+            if (iff == null) {
+                return CharCardResult.fail(GamePackets.CHAR_CARD_PATCHER_ERR_IFF);
+            }
+            GamePackets.CharacterInfo pCi = loadCharacter(h, uid, charId, charTypeid);
+            if (pCi == null) {
+                return CharCardResult.fail(GamePackets.CHAR_CARD_PATCHER_ERR_CHAR);
+            }
+            int[] owned = h.createQuery("""
+                            SELECT card_itemid, COALESCE("QNTD", 0) FROM pangya.pangya_card
+                             WHERE "UID" = :uid AND card_itemid = :id AND card_typeid = :typeid
+                            """)
+                    .bind("uid", uid)
+                    .bind("id", cardId)
+                    .bind("typeid", cardTypeid)
+                    .map((rs, ctx) -> new int[] {rs.getInt(1), rs.getInt(2)})
+                    .findOne()
+                    .orElse(null);
+            if (owned == null || owned[1] < 1) {
+                return CharCardResult.fail(GamePackets.CHAR_CARD_PATCHER_ERR_OWN);
+            }
+            if (slot != 4 && slot != 8) {
+                return CharCardResult.fail(GamePackets.CHAR_CARD_PATCHER_ERR_SLOT);
+            }
+            int needSub = slot == 4 ? GamePackets.CARD_SUB_CHARACTER : GamePackets.CARD_SUB_CADDIE;
+            if (GamePackets.itemSubGroupIdentify22(cardTypeid) != needSub) {
+                return CharCardResult.fail(GamePackets.CHAR_CARD_PATCHER_ERR_SUB);
+            }
+            boolean occupied = h.createQuery("""
+                            SELECT 1 FROM pangya.pangya_card_equip
+                             WHERE "UID" = :uid AND parts_id = :id AND "Slot" = :slot AND "USE_YN" = 1
+                            """)
+                    .bind("uid", uid)
+                    .bind("id", charId)
+                    .bind("slot", slot)
+                    .mapTo(Integer.class)
+                    .findOne()
+                    .isPresent();
+            if (occupied) {
+                return CharCardResult.fail(GamePackets.CHAR_CARD_PATCHER_ERR_OCCUPIED);
+            }
+            int patchAnt = patcher[1];
+            int patchDep = patchAnt - 1;
+            h.createUpdate("""
+                            UPDATE pangya.pangya_item_warehouse
+                               SET "C0" = :c0
+                             WHERE item_id = :id
+                            """)
+                    .bind("c0", patchDep)
+                    .bind("id", patcher[0])
+                    .execute();
+            int ant = owned[1];
+            int dep = ant - 1;
+            h.createUpdate("""
+                            UPDATE pangya.pangya_card
+                               SET "QNTD" = :qntd
+                             WHERE card_itemid = :id
+                            """)
+                    .bind("qntd", dep)
+                    .bind("id", cardId)
+                    .execute();
+            int tipo = GamePackets.itemSubGroupIdentify22(cardTypeid);
+            h.createUpdate("""
+                            INSERT INTO pangya.pangya_card_equip (
+                                "UID", parts_id, parts_typeid, card_typeid,
+                                "Efeito", "Efeito_Qntd", "Slot", "Tipo", "USE_YN", date
+                            ) VALUES (
+                                :uid, :partsId, :partsTypeid, :cardTypeid,
+                                :efeito, :efeitoQntd, :slot, :tipo, 1, NOW()
+                            )
+                            """)
+                    .bind("uid", uid)
+                    .bind("partsId", charId)
+                    .bind("partsTypeid", charTypeid)
+                    .bind("cardTypeid", cardTypeid)
+                    .bind("efeito", iff[0])
+                    .bind("efeitoQntd", iff[1])
+                    .bind("slot", slot)
+                    .bind("tipo", tipo)
+                    .execute();
+            List<GamePackets.PapelAward> awards = new ArrayList<>();
+            awards.add(new GamePackets.PapelAward(
+                    GamePackets.PAPEL_AWARD_TYPE, GamePackets.TYPEID_CLUB_PATCHER, patcher[0], 0,
+                    patchAnt, patchDep, -1));
             awards.add(new GamePackets.PapelAward(
                     GamePackets.PAPEL_AWARD_TYPE, cardTypeid, cardId, 0, ant, dep, -1));
             awards.add(new GamePackets.PapelAward(

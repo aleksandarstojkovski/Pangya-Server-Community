@@ -89,6 +89,9 @@ public interface InventoryRepository {
 
     void deleteCardByTypeid(long uid, int typeid);
 
+    /** Insert or increment a warehouse consumable (C# {@code C0}). */
+    int addWarehouseItem(long uid, int typeid, int qntd);
+
     /**
      * C# {@code requestLoloCardCompose}: SQL {@code iff_card} stand-in for
      * IFF Card + {@code CardSystem.drawsLoloCardCompose}.
@@ -118,6 +121,13 @@ public interface InventoryRepository {
      * {@code pangya_card_equip}. {@code slot} is {@code char_card_slot}.
      */
     CharCardResult characterCardEquip(long uid, int charTypeid, int charId, int cardTypeid, int cardId, int slot);
+
+    /**
+     * C# {@code requestCharacterCardEquipWithPatcher}: consume Club Patcher
+     * {@code 0x1A00018F} and equip slot 4 (character) or 8 (caddie).
+     */
+    CharCardResult characterCardEquipWithPatcher(
+            long uid, int charTypeid, int charId, int cardTypeid, int cardId, int slot);
 
     /**
      * C# {@code requestCharacterRemoveCard}: consume warehouse removedor,

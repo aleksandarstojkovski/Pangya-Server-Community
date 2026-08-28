@@ -4233,8 +4233,9 @@ public final class GameHandler {
     }
 
     /**
-     * C# {@code requestCharacterCardEquipWithPatcher}: missing Club Patcher
-     * → {@code 0x272} {@code shopSys(0x5200810)}.
+     * C# {@code requestCharacterCardEquipWithPatcher}: truncated ToRead → full
+     * {@code 0x5200800}; missing Club Patcher → {@code shopSys(0x5200810)};
+     * success {@code 0x216} then {@code 0x272} u32 0 + card typeid.
      */
     private void characterCardPatcher(Session session, PacketReader reader) {
         if (!inChannel(session)) {
@@ -4245,10 +4246,28 @@ public final class GameHandler {
                     GamePackets.SERVER_CHAR_CARD_PATCHER, GamePackets.CHAR_CARD_PATCHER_DEFAULT));
             return;
         }
-        reader.readBytes(GamePackets.CARD_EQUIP_BYTES);
-        session.send(GamePackets.sysAck(
-                GamePackets.SERVER_CHAR_CARD_PATCHER,
-                GamePackets.shopSys(GamePackets.CHAR_CARD_PATCHER_ERR)));
+        int charTypeid = reader.u32();
+        int charId = reader.i32();
+        int cardTypeid = reader.u32();
+        int cardId = reader.i32();
+        int slot = reader.u32();
+        InventoryRepository.CharCardResult result;
+        try {
+            result = inventory.characterCardEquipWithPatcher(
+                    session.player().uid, charTypeid, charId, cardTypeid, cardId, slot);
+        } catch (RuntimeException e) {
+            log.warn("char card patcher uid={} failed: {}", session.player().uid, e.toString());
+            session.send(GamePackets.sysAck(
+                    GamePackets.SERVER_CHAR_CARD_PATCHER, GamePackets.CHAR_CARD_PATCHER_DEFAULT));
+            return;
+        }
+        if (result.code() != 0) {
+            session.send(GamePackets.sysAck(
+                    GamePackets.SERVER_CHAR_CARD_PATCHER, GamePackets.shopSys(result.code())));
+            return;
+        }
+        session.send(GamePackets.charCardAwards(GamePackets.unixNow(), result.awards()));
+        session.send(GamePackets.charCardOk(GamePackets.SERVER_CHAR_CARD_PATCHER, result.cardTypeid()));
     }
 
     /**

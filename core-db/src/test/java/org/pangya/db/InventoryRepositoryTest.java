@@ -209,16 +209,39 @@ class InventoryRepositoryTest {
             var occupied = repo.characterCardEquip(
                     10001, nuri.typeid, nuri.id, GamePackets.TYPEID_CARD_NORMAL, extraCard, GamePackets.CHAR_CARD_SLOT);
             assertEquals(GamePackets.CHAR_CARD_ERR_OCCUPIED, occupied.code());
+            repo.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_CLUB_PATCHER);
+            var patcherMiss = repo.characterCardEquipWithPatcher(
+                    10001, nuri.typeid, nuri.id, GamePackets.TYPEID_CARD_NORMAL, extraCard,
+                    GamePackets.CHAR_CARD_PATCHER_SLOT);
+            assertEquals(GamePackets.CHAR_CARD_PATCHER_ERR, patcherMiss.code());
+            repo.addWarehouseItem(10001, GamePackets.TYPEID_CLUB_PATCHER, 1);
+            var patcherSlot = repo.characterCardEquipWithPatcher(
+                    10001, nuri.typeid, nuri.id, GamePackets.TYPEID_CARD_NORMAL, extraCard, 1);
+            assertEquals(GamePackets.CHAR_CARD_PATCHER_ERR_SLOT, patcherSlot.code());
+            var patcherSub = repo.characterCardEquipWithPatcher(
+                    10001, nuri.typeid, nuri.id, GamePackets.TYPEID_CARD_NORMAL, extraCard, 8);
+            assertEquals(GamePackets.CHAR_CARD_PATCHER_ERR_SUB, patcherSub.code());
+            var patcherOk = repo.characterCardEquipWithPatcher(
+                    10001, nuri.typeid, nuri.id, GamePackets.TYPEID_CARD_NORMAL, extraCard,
+                    GamePackets.CHAR_CARD_PATCHER_SLOT);
+            assertEquals(0, patcherOk.code());
+            assertEquals(3, patcherOk.awards().size());
+            assertEquals(GamePackets.TYPEID_CLUB_PATCHER, patcherOk.awards().getFirst().typeid());
             var remover = repo.buyShopItem(
-                    10001, GamePackets.TYPEID_SHOP_PANG_ITEM, 1, GamePackets.SHOP_PANG_PRICE, 0);
+                    10001, GamePackets.TYPEID_SHOP_PANG_ITEM, 2, GamePackets.SHOP_PANG_PRICE * 2, 0);
             assertEquals(0, remover.code());
             var cardRm = repo.characterRemoveCard(
                     10001, nuri.typeid, nuri.id, GamePackets.TYPEID_SHOP_PANG_ITEM, remover.itemId(),
                     GamePackets.CHAR_CARD_SLOT);
             assertEquals(0, cardRm.code());
             assertEquals(GamePackets.TYPEID_CARD_NORMAL, cardRm.cardTypeid());
+            var patcherRm = repo.characterRemoveCard(
+                    10001, nuri.typeid, nuri.id, GamePackets.TYPEID_SHOP_PANG_ITEM, remover.itemId(),
+                    GamePackets.CHAR_CARD_PATCHER_SLOT);
+            assertEquals(0, patcherRm.code());
             repo.deleteCardByTypeid(10001, GamePackets.TYPEID_CARD_NORMAL);
             repo.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_SHOP_PANG_ITEM);
+            repo.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_CLUB_PATCHER);
             repo.setPangCookie(10001, 100000, 0);
         }
     }

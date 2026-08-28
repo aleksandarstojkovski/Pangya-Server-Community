@@ -1475,6 +1475,26 @@ public final class GamePackets {
     public static final int CHAR_CARD_PATCHER_ERR = 0x5200810;
     /** C# card-equip patcher catch else. */
     public static final int CHAR_CARD_PATCHER_DEFAULT = 0x5200800;
+    /** C# card-equip patcher qntd CHANNEL sys {@code 0x5200811}. */
+    public static final int CHAR_CARD_PATCHER_ERR_QNTD = 0x5200811;
+    /** C# card-equip patcher IFF miss CHANNEL sys {@code 0x5200807}. */
+    public static final int CHAR_CARD_PATCHER_ERR_IFF = 0x5200807;
+    /** C# card-equip patcher missing character CHANNEL sys {@code 0x5200801}. */
+    public static final int CHAR_CARD_PATCHER_ERR_CHAR = 0x5200801;
+    /** C# card-equip patcher missing card CHANNEL sys {@code 0x5200802}. */
+    public static final int CHAR_CARD_PATCHER_ERR_OWN = 0x5200802;
+    /** C# card-equip patcher slot not 4/8 CHANNEL sys {@code 0x5200803}. */
+    public static final int CHAR_CARD_PATCHER_ERR_SLOT = 0x5200803;
+    /** C# card-equip patcher NPC slot CHANNEL sys {@code 0x5200804}. */
+    public static final int CHAR_CARD_PATCHER_ERR_NPC = 0x5200804;
+    /** C# card-equip patcher unknown slot CHANNEL sys {@code 0x5200805}. */
+    public static final int CHAR_CARD_PATCHER_ERR_UNKNOWN = 0x5200805;
+    /** C# card-equip patcher subgroup CHANNEL sys {@code 0x5200806}. */
+    public static final int CHAR_CARD_PATCHER_ERR_SUB = 0x5200806;
+    /** C# card-equip patcher occupied CHANNEL sys {@code 0x5200812}. */
+    public static final int CHAR_CARD_PATCHER_ERR_OCCUPIED = 0x5200812;
+    /** C# Club Patcher character slot 4. */
+    public static final int CHAR_CARD_PATCHER_SLOT = 4;
     /** C# remove-card missing character CHANNEL sys. */
     public static final int CHAR_CARD_REMOVE_ERR_CHAR = 0x5200851;
     /** C# remove-card catch else. */
@@ -1557,6 +1577,8 @@ public final class GamePackets {
      * IFF ITEM {@code 0x1A000006} (436207622). SQL shop catalog stand-in for C# {@code IsBuyItem}.
      */
     public static final int TYPEID_SHOP_PANG_ITEM = 0x1A000006;
+    /** C# {@code CLUB_PATCHER_TYPEID} {@code 0x1A00018F}. */
+    public static final int TYPEID_CLUB_PATCHER = 0x1A00018F;
     /** C# gacha ticket typeid {@code 436207744}. */
     public static final int TYPEID_GACHA_TICKET = 0x1A000080;
     /** C# gacha sub-ticket typeid {@code 436207747}. */

@@ -1323,6 +1323,10 @@ class GamePacketsTest {
         assertEquals(GamePackets.CHAR_CARD_ERR_DEFAULT, 0x5200750);
         assertEquals(GamePackets.CHAR_CARD_PATCHER_ERR, 0x5200810);
         assertEquals(GamePackets.CHAR_CARD_PATCHER_DEFAULT, 0x5200800);
+        assertEquals(GamePackets.CHAR_CARD_PATCHER_ERR_SLOT, 0x5200803);
+        assertEquals(GamePackets.CHAR_CARD_PATCHER_ERR_SUB, 0x5200806);
+        assertEquals(GamePackets.TYPEID_CLUB_PATCHER, 0x1A00018F);
+        assertEquals(GamePackets.CHAR_CARD_PATCHER_SLOT, 4);
         assertEquals(GamePackets.CHAR_CARD_REMOVE_ERR_CHAR, 0x5200851);
         assertEquals(GamePackets.CHAR_CARD_REMOVE_DEFAULT, 0x5200850);
         assertEquals(GamePackets.TIKI_SHOP_EXCHANGE_ERR_COUNT, 5200451);

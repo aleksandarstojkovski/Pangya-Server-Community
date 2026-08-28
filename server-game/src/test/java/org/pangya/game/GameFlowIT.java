@@ -2117,6 +2117,17 @@ class GameFlowIT {
             host.sendPlain(GamePackets.clientEmpty(GamePackets.CLIENT_CHAR_CARD_PATCHER));
             PacketReader patcherTrunc = awaitOpcode(host, GamePackets.SERVER_CHAR_CARD_PATCHER);
             assertEquals(GamePackets.CHAR_CARD_PATCHER_DEFAULT, patcherTrunc.u32());
+            inv.addWarehouseItem(10001, GamePackets.TYPEID_CLUB_PATCHER, 1);
+            int patcherCardId = inv.addCard(10001, GamePackets.TYPEID_CARD_NORMAL, 1);
+            host.sendPlain(GamePackets.clientCardEquip(
+                    GamePackets.CLIENT_CHAR_CARD_PATCHER, cardNuri.typeid, cardNuri.id,
+                    GamePackets.TYPEID_CARD_NORMAL, patcherCardId, GamePackets.CHAR_CARD_PATCHER_SLOT));
+            PacketReader patcherAwards = awaitOpcode(host, GamePackets.SERVER_DAILY_QUEST_STAMP);
+            assertTrue(patcherAwards.u32() > 0);
+            assertEquals(3, patcherAwards.u32());
+            PacketReader patcherOk = awaitOpcode(host, GamePackets.SERVER_CHAR_CARD_PATCHER);
+            assertEquals(0, patcherOk.u32());
+            assertEquals(GamePackets.TYPEID_CARD_NORMAL, patcherOk.u32());
 
             host.sendPlain(GamePackets.clientCardEquip(GamePackets.CLIENT_CHAR_CARD_REMOVE));
             PacketReader cardRemove = awaitOpcode(host, GamePackets.SERVER_CHAR_CARD_REMOVE);
@@ -2126,7 +2137,7 @@ class GameFlowIT {
             assertEquals(GamePackets.CHAR_CARD_REMOVE_DEFAULT, cardRemoveTrunc.u32());
             inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_SHOP_PANG_ITEM);
             var cardRemover = inv.buyShopItem(
-                    10001, GamePackets.TYPEID_SHOP_PANG_ITEM, 1, GamePackets.SHOP_PANG_PRICE, 0);
+                    10001, GamePackets.TYPEID_SHOP_PANG_ITEM, 2, GamePackets.SHOP_PANG_PRICE * 2, 0);
             assertEquals(0, cardRemover.code());
             host.sendPlain(GamePackets.clientCardEquip(
                     GamePackets.CLIENT_CHAR_CARD_REMOVE, cardNuri.typeid, cardNuri.id,
@@ -2137,8 +2148,18 @@ class GameFlowIT {
             PacketReader cardRmOk = awaitOpcode(host, GamePackets.SERVER_CHAR_CARD_REMOVE);
             assertEquals(0, cardRmOk.u32());
             assertEquals(GamePackets.TYPEID_CARD_NORMAL, cardRmOk.u32());
+            host.sendPlain(GamePackets.clientCardEquip(
+                    GamePackets.CLIENT_CHAR_CARD_REMOVE, cardNuri.typeid, cardNuri.id,
+                    GamePackets.TYPEID_SHOP_PANG_ITEM, cardRemover.itemId(), GamePackets.CHAR_CARD_PATCHER_SLOT));
+            PacketReader patcherRmAwards = awaitOpcode(host, GamePackets.SERVER_DAILY_QUEST_STAMP);
+            assertTrue(patcherRmAwards.u32() > 0);
+            assertEquals(3, patcherRmAwards.u32());
+            PacketReader patcherRmOk = awaitOpcode(host, GamePackets.SERVER_CHAR_CARD_REMOVE);
+            assertEquals(0, patcherRmOk.u32());
+            assertEquals(GamePackets.TYPEID_CARD_NORMAL, patcherRmOk.u32());
             inv.deleteCardByTypeid(10001, GamePackets.TYPEID_CARD_NORMAL);
             inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_SHOP_PANG_ITEM);
+            inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_CLUB_PATCHER);
             inv.setPangCookie(10001, pang, cookie);
 
             host.sendPlain(GamePackets.clientTikiShopCount(0));
