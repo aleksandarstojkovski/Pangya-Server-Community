@@ -17,9 +17,20 @@ public final class GamePackets {
     public static final int SERVER_LOGIN_ACK = 0x44;
     public static final int SERVER_CHANNEL_LIST = 0x4D;
     public static final int SERVER_CHANNEL_ENTER_ACK = 0x4E;
+    public static final int SERVER_ROOM_PLAYERS = 0x48;
     public static final int SERVER_ROOM_ENTER_RESULT = 0x49;
     public static final int SERVER_ROOM_UPDATE = 0x4A;
     public static final int SERVER_PANG_RATE = 0x77;
+    public static final int SERVER_COURSE = 0x52;
+    public static final int SERVER_WIND = 0x5B;
+    public static final int SERVER_GAME_INIT = 0x76;
+    public static final int SERVER_EQUIP_ACK = 0x6B;
+    public static final int SERVER_SYNC_SHOT = 0x6E;
+    public static final int SERVER_REMAIN_TIME = 0x8D;
+    public static final int SERVER_WEATHER = 0x9E;
+    public static final int SERVER_END_SHOT = 0xCC;
+    public static final int SERVER_BUY_ACK = 0x68;
+    public static final int SERVER_MASCOT_SEED = 0x16A;
     public static final int SERVER_START_GAME_FLAG = 0x230;
     public static final int SERVER_START_GAME_FLAG2 = 0x231;
     public static final int SERVER_START_GAME_FAIL = 0x253;
@@ -27,8 +38,16 @@ public final class GamePackets {
     public static final int CLIENT_REQUEST_LOGIN = 0x02;
     public static final int CLIENT_ENTER_CHANNEL = 0x04;
     public static final int CLIENT_REQUEST_CREATE_ROOM = 0x08;
+    public static final int CLIENT_REQUEST_JOIN_ROOM = 0x09;
     public static final int CLIENT_REQUEST_START_GAME = 0x0E;
     public static final int CLIENT_EXIT_ROOM = 0x0F;
+    public static final int CLIENT_LOAD_OK = 0x11;
+    public static final int CLIENT_SHOT = 0x12;
+    public static final int CLIENT_HOLE_INFO = 0x1A;
+    public static final int CLIENT_SHOT_RESULT = 0x1B;
+    public static final int CLIENT_SHOT_ACK = 0x1C;
+    public static final int CLIENT_REQUEST_BUY_ITEM = 0x1D;
+    public static final int CLIENT_REQUEST_EQUIP_ITEM = 0x20;
     public static final int CLIENT_LEAVE_PRACTICE = 0x130;
 
     public static final int ACK_LOGIN_OK = 0;
@@ -78,9 +97,26 @@ public final class GamePackets {
     public static final int MASCOT_INFO_BYTES = 62;
     /** C# {@code CardInfo.ToArray}. */
     public static final int CARD_INFO_BYTES = 58;
+    /** C# {@code PlayerRoomInfo.ToArray} (SIZE_STRUCT comment 348 is padded; wire is 341). */
+    public static final int PLAYER_ROOM_INFO_BYTES = 341;
+    /** C# {@code PlayerRoomInfoEx.SIZE_STRUCT_EX} = ToArray + CharacterInfo. */
+    public static final int PLAYER_ROOM_INFO_EX_BYTES = 854;
+    /** C# {@code ClubSetInfo.ToArray}. */
+    public static final int CLUBSET_INFO_BYTES = 28;
+    /** C# {@code RoomInfo.eMODO.M_REPEAT}. */
+    public static final int MODO_REPEAT = 4;
 
     /** C# start-game fail when the room is not ready ({@code 0x5900202}). */
     public static final int START_GAME_NOT_READY = 0x5900202;
+
+    /** C# {@code CourseManager} always materializes 18 {@code HoleManager} entries. */
+    public static final int COURSE_HOLE_COUNT = 18;
+    /** C# {@code ShotSyncData.ToArray} / {@code DecryptShot} buffer. */
+    public static final int SHOT_SYNC_BYTES = 54;
+    /** C# {@code pacote06B} success err_code. */
+    public static final int EQUIP_OK = 4;
+    /** C# {@code requestBuyItemShop} catch: {@code 0x68} uint32 10. */
+    public static final int BUY_FAIL_GENERIC = 10;
 
     /** C# {@code AIR_KNIGHT_SET} / IFF CLUBSET << 26. */
     public static final int TYPEID_AIR_KNIGHT = 0x10000000;
@@ -220,6 +256,17 @@ public final class GamePackets {
     }
 
     public static List<byte[]> loginDumpTail(int uid, long pang, long cookie, int level, List<CardInfo> cardList) {
+        return loginDumpTail(uid, pang, cookie, level, cardList, List.of(), List.of());
+    }
+
+    public static List<byte[]> loginDumpTail(
+            int uid,
+            long pang,
+            long cookie,
+            int level,
+            List<CardInfo> cardList,
+            List<CounterItem> counterList,
+            List<AchievementInfo> achievementList) {
         List<byte[]> out = new ArrayList<>();
         out.add(new PacketWriter().opcode(0x102).i32(0).i32(0).u64(pang).u64(cookie).toBytes());
         PacketWriter th = new PacketWriter().opcode(0x131).u8(1).u8(MS_NUM_MAPS);
@@ -227,8 +274,8 @@ public final class GamePackets {
             th.u8(i).i32(1000);
         }
         out.add(th.toBytes());
-        out.add(new PacketWriter().opcode(0x21D).u32(0).u32(0).u32(0).toBytes());
-        out.add(new PacketWriter().opcode(0x21E).u32(0).u32(0).u32(0).toBytes());
+        out.add(counters(counterList == null ? List.of() : counterList));
+        out.add(achievements(achievementList == null ? List.of() : achievementList));
         out.add(new PacketWriter().opcode(0x144).u8(0).toBytes());
         out.add(cards(cardList));
         out.add(new PacketWriter().opcode(0x136).toBytes());
@@ -371,6 +418,47 @@ public final class GamePackets {
             }
             return body;
         }
+
+        /** C# {@code CharacterInfo.ToRead}. */
+        public static CharacterInfo read(PacketReader r) {
+            CharacterInfo c = new CharacterInfo();
+            c.typeid = r.u32();
+            c.id = r.i32();
+            c.defaultHair = r.u8();
+            c.defaultShirts = r.u8();
+            c.giftFlag = r.u8();
+            c.purchase = r.u8();
+            for (int i = 0; i < 24; i++) {
+                c.partsTypeid[i] = r.u32();
+            }
+            for (int i = 0; i < 24; i++) {
+                c.partsId[i] = r.u32();
+            }
+            if (r.remaining() >= 216) {
+                r.readBytes(216);
+            }
+            for (int i = 0; i < 5; i++) {
+                c.auxparts[i] = r.remaining() >= 4 ? r.u32() : 0;
+            }
+            for (int i = 0; i < 4; i++) {
+                c.cutIn[i] = r.remaining() >= 4 ? r.u32() : 0;
+            }
+            if (r.remaining() >= 5) {
+                byte[] pcl = r.readBytes(5);
+                System.arraycopy(pcl, 0, c.pcl, 0, 5);
+            }
+            c.mastery = r.remaining() >= 4 ? r.u32() : 0;
+            for (int i = 0; i < 4; i++) {
+                c.cardCharacter[i] = r.remaining() >= 4 ? r.u32() : 0;
+            }
+            for (int i = 0; i < 4; i++) {
+                c.cardCaddie[i] = r.remaining() >= 4 ? r.u32() : 0;
+            }
+            for (int i = 0; i < 4; i++) {
+                c.cardNpc[i] = r.remaining() >= 4 ? r.u32() : 0;
+            }
+            return c;
+        }
     }
 
     public static final class CaddieInfo {
@@ -444,6 +532,10 @@ public final class GamePackets {
     }
 
     static byte[] memberInfoEx(int oid, String id, String nick, int capability) {
+        return memberInfoExPublic(oid, id, nick, capability);
+    }
+
+    public static byte[] memberInfoExPublic(int oid, String id, String nick, int capability) {
         PacketWriter w = new PacketWriter();
         w.u16(0xffff); // sala_numero DEFAULT_ROOM_ID
         w.fixedStr(id, 22);
@@ -472,6 +564,10 @@ public final class GamePackets {
     }
 
     static byte[] userInfo(int level) {
+        return userInfoPublic(level);
+    }
+
+    public static byte[] userInfoPublic(int level) {
         PacketWriter w = new PacketWriter();
         w.zero(16); // tacada, putt, tempo, tempo_tacada
         w.zero(4); // best_drive float
@@ -534,6 +630,88 @@ public final class GamePackets {
                 .toBytes();
     }
 
+    /**
+     * C# {@code pacote04A}: int16 option (always -1 from {@code Room.SendUpdate}) +
+     * {@code RoomInfoEx.ToArrayEx()} lobby summary.
+     */
+    public static byte[] roomUpdate(RoomInfo room) {
+        PacketWriter w = new PacketWriter().opcode(SERVER_ROOM_UPDATE).i16(-1);
+        w.u8(room.tipoShow);
+        w.u8(room.course & 0x7f);
+        w.u8(room.holes);
+        w.u8(room.modo);
+        if (room.holeRepeat > 0 || room.modo == MODO_REPEAT) {
+            w.u8(room.holeRepeat);
+            w.u32(room.fixedHole);
+        }
+        w.u32(room.natural);
+        w.u8(room.maxPlayer);
+        w.u8(room.thirtyS);
+        w.u8(room.stateFlag);
+        w.u32(room.timeVs);
+        w.u32(room.time30s);
+        w.u32(room.trophy);
+        w.u8(room.senhaFlag);
+        w.pstr(room.name == null ? "" : room.name);
+        return w.toBytes();
+    }
+
+    /**
+     * C# {@code pacote048}. {@code option & 0x100} selects compact {@code PlayerRoomInfo};
+     * the wire option byte is {@code option & 0xFF} (so Practice 0x100 writes 0).
+     */
+    public static byte[] roomPlayers(int option, List<PlayerRoomInfo> players) {
+        boolean compact = (option & 0x100) != 0;
+        int kind = option & 0xff;
+        PacketWriter w = new PacketWriter().opcode(SERVER_ROOM_PLAYERS).u8(kind).i16(-1);
+        if (kind == 0 || kind == 5) {
+            w.u8(players.size());
+        } else if (kind == 3) {
+            int oid = players.isEmpty() ? 0 : players.getFirst().oid;
+            w.i32(oid);
+        }
+        for (PlayerRoomInfo player : players) {
+            w.bytes(compact ? player.toArray() : player.toArrayEx());
+        }
+        w.u8(0);
+        return w.toBytes();
+    }
+
+    public static byte[] counters(List<CounterItem> items) {
+        PacketWriter w = new PacketWriter().opcode(0x21D).u32(0).u32(items.size()).u32(items.size());
+        for (CounterItem c : items) {
+            w.u8(c.active());
+            w.u32(c.typeid());
+            w.i32(c.id());
+            w.u32(c.value());
+        }
+        return w.toBytes();
+    }
+
+    public static byte[] achievements(List<AchievementInfo> items) {
+        PacketWriter w = new PacketWriter().opcode(0x21E).u32(0).u32(items.size()).u32(items.size());
+        for (AchievementInfo a : items) {
+            w.u8(a.active());
+            w.u32(a.typeid());
+            w.i32(a.id());
+            w.u32(a.status());
+            w.u32(a.quests().size());
+            for (QuestStuff q : a.quests()) {
+                w.u32(q.typeid());
+                w.u32(q.counterTypeid());
+                w.i32(q.counterId());
+                w.u32(q.clearDateUnix());
+            }
+        }
+        return w.toBytes();
+    }
+
+    public record CounterItem(int id, int typeid, int active, int value) {}
+
+    public record QuestStuff(int typeid, int counterTypeid, int counterId, int clearDateUnix) {}
+
+    public record AchievementInfo(int id, int typeid, int active, int status, List<QuestStuff> quests) {}
+
     /** C# {@code Room::setTipo}: tipo_show for the lobby list. */
     public static int tipoShow(int tipo) {
         if (tipo > TIPO_GRAND_ZODIAC_PRACTICE) {
@@ -576,6 +754,172 @@ public final class GamePackets {
         return new PacketWriter().opcode(SERVER_START_GAME_FAIL).u32(code).toBytes();
     }
 
+    /**
+     * C# {@code TourneyBase.sendInitialData} {@code 0x76}: tipo_show, uint32 1, SYSTEMTIME start.
+     * Versus writes a full player dump instead — {@link #gameInitVersus}.
+     */
+    public static byte[] gameInitTourney(int tipoShow) {
+        return new PacketWriter()
+                .opcode(SERVER_GAME_INIT)
+                .u8(tipoShow)
+                .u32(1)
+                .systemTimeNow()
+                .toBytes();
+    }
+
+    /**
+     * C# {@code VersusBase.sendInitialData} {@code 0x76}: tipo_show, player count,
+     * then per player MemberInfoEx + uid + UserInfo + trophy + UserEquip + map stats
+     * + CharacterInfo + Caddie + ClubSet + Mascot + SYSTEMTIME + card count.
+     * Map stats are zeros when {@code pangya_mapstat} rows are absent (same as login principal).
+     */
+    public static byte[] gameInitVersus(int tipoShow, List<VersusPlayer> players) {
+        PacketWriter w = new PacketWriter().opcode(SERVER_GAME_INIT).u8(tipoShow).u8(players.size());
+        for (VersusPlayer player : players) {
+            w.bytes(player.memberInfoEx());
+            w.u32(player.uid());
+            w.bytes(player.userInfo());
+            w.zero(TROPHY_BYTES);
+            w.bytes(player.userEquip());
+            w.zero(MAP_STAT_BYTES);
+            w.bytes(player.character());
+            w.bytes(player.caddie());
+            w.bytes(player.clubset());
+            w.bytes(player.mascot());
+            w.systemTimeNow();
+            w.u8(player.cards() == null ? 0 : player.cards().size());
+            if (player.cards() != null) {
+                for (CardInfo card : player.cards()) {
+                    w.bytes(card.toArray());
+                }
+            }
+        }
+        return w.toBytes();
+    }
+
+    public record VersusPlayer(
+            byte[] memberInfoEx,
+            int uid,
+            byte[] userInfo,
+            byte[] userEquip,
+            byte[] character,
+            byte[] caddie,
+            byte[] clubset,
+            byte[] mascot,
+            List<CardInfo> cards) {}
+
+    /** C# {@code 0x16A} mascot-effect seed after Versus {@code 0x52}. */
+    public static byte[] mascotSeed(int seed) {
+        return new PacketWriter().opcode(SERVER_MASCOT_SEED).u32(seed).toBytes();
+    }
+
+    /**
+     * C# {@code GameBase.sendInitialData} {@code 0x52} + {@code CourseManager.makePacketHoleInfo}
+     * option 0. Cube count 0 is valid when IFF/cube files are absent.
+     */
+    public static byte[] course(RoomInfo room, List<HoleInfo> holes, int seed) {
+        PacketWriter w = new PacketWriter().opcode(SERVER_COURSE);
+        w.u8(room.course & 0x7f);
+        w.u8(room.tipoShow);
+        w.u8(room.modo);
+        w.u8(room.holes);
+        w.u32(room.trophy);
+        w.u32(room.timeVs);
+        w.u32(room.time30s);
+        for (HoleInfo hole : holes) {
+            w.u32(hole.id());
+            w.u8(hole.pin());
+            w.u8(hole.course());
+            w.u8(hole.numero());
+        }
+        w.u32(seed);
+        for (int i = 0; i < holes.size(); i++) {
+            w.u8(0);
+        }
+        return w.toBytes();
+    }
+
+    public static byte[] weather(int weather) {
+        return new PacketWriter().opcode(SERVER_WEATHER).u16(weather).u8(0).toBytes();
+    }
+
+    public static byte[] wind(int wind, int cardFlag, int degree, int reset) {
+        return new PacketWriter()
+                .opcode(SERVER_WIND)
+                .u8(wind)
+                .u8(cardFlag)
+                .u16(degree)
+                .u8(reset)
+                .toBytes();
+    }
+
+    public static byte[] remainTime(int millis) {
+        return new PacketWriter().opcode(SERVER_REMAIN_TIME).u32(millis).toBytes();
+    }
+
+    /** C# {@code TourneyBase.sendSyncShot} {@code 0x6E}. */
+    public static byte[] syncShot(int oid, int hole, float x, float z, int shotState, int tempo) {
+        return new PacketWriter()
+                .opcode(SERVER_SYNC_SHOT)
+                .i32(oid)
+                .u8(hole)
+                .f32(x)
+                .f32(z)
+                .u32(shotState)
+                .u16(tempo)
+                .toBytes();
+    }
+
+    /** C# {@code sendEndShot} with empty drop list: oid + count 0. */
+    public static byte[] endShot(int oid) {
+        return new PacketWriter().opcode(SERVER_END_SHOT).i32(oid).u8(0).toBytes();
+    }
+
+    /**
+     * C# {@code pacote06B}: err 4 = success. Extra body is type-specific and omitted on error.
+     */
+    public static byte[] equipAck(int err, int type, byte[] extra) {
+        PacketWriter w = new PacketWriter().opcode(SERVER_EQUIP_ACK).u8(err).u8(type);
+        if (err == EQUIP_OK && extra != null) {
+            w.bytes(extra);
+        }
+        return w.toBytes();
+    }
+
+    /** C# {@code requestBuyItemShop} catch path. Shop catalog (IFF) is not in this env. */
+    public static byte[] buyFailed(int code) {
+        return new PacketWriter().opcode(SERVER_BUY_ACK).u32(code).toBytes();
+    }
+
+    public static boolean usesTourneyInitialData(int tipo) {
+        return tipo == TIPO_PRACTICE
+                || tipo == TIPO_TOURNEY
+                || tipo == TIPO_TOURNEY_TEAM
+                || tipo == TIPO_GRAND_PRIX
+                || tipo == TIPO_GRAND_ZODIAC_INT
+                || tipo == TIPO_GRAND_ZODIAC_ADV
+                || tipo == TIPO_GRAND_ZODIAC_PRACTICE
+                || tipo == TIPO_SPECIAL_SHUFFLE_COURSE
+                || tipo == TIPO_APPROACH
+                || tipo == TIPO_GUILD_BATTLE;
+    }
+
+    /** C# modes that extend {@code VersusBase} (Stroke / Match / Pang Battle). */
+    public static boolean usesVersusInitialData(int tipo) {
+        return tipo == TIPO_STROKE || tipo == TIPO_MATCH || tipo == TIPO_PANG_BATTLE;
+    }
+
+    /**
+     * C# {@code room.sendCharacter}: compact {@code PlayerRoomInfo} unless the room is
+     * Stroke/Match/Lounge/Pang Battle (those send {@code PlayerRoomInfoEx}).
+     */
+    public static boolean usesCompactPlayerRoomInfo(int tipo) {
+        return tipo != TIPO_STROKE
+                && tipo != TIPO_MATCH
+                && tipo != TIPO_LOUNGE
+                && tipo != TIPO_PANG_BATTLE;
+    }
+
     public static byte[] clientStartGame() {
         return new PacketWriter().opcode(CLIENT_REQUEST_START_GAME).toBytes();
     }
@@ -583,6 +927,156 @@ public final class GamePackets {
     public static byte[] clientExitRoom() {
         return new PacketWriter().opcode(CLIENT_EXIT_ROOM).toBytes();
     }
+
+    public static byte[] clientJoinRoom(int numero, String password) {
+        return new PacketWriter()
+                .opcode(CLIENT_REQUEST_JOIN_ROOM)
+                .i16(numero)
+                .pstr(password == null ? "" : password)
+                .toBytes();
+    }
+
+    public static byte[] clientInitHole(int numero, int option, int unknown, int par,
+            float teeX, float teeZ, float pinX, float pinZ) {
+        return new PacketWriter()
+                .opcode(CLIENT_HOLE_INFO)
+                .u8(numero)
+                .u32(option)
+                .u32(unknown)
+                .u8(par)
+                .f32(teeX)
+                .f32(teeZ)
+                .f32(pinX)
+                .f32(pinZ)
+                .toBytes();
+    }
+
+    public static byte[] clientLoadOk() {
+        return new PacketWriter().opcode(CLIENT_LOAD_OK).toBytes();
+    }
+
+    public static byte[] clientShot() {
+        return new PacketWriter().opcode(CLIENT_SHOT).u16(0).toBytes();
+    }
+
+    public static byte[] clientShotAck() {
+        return new PacketWriter().opcode(CLIENT_SHOT_ACK).toBytes();
+    }
+
+    /**
+     * C# {@code DecryptShot}: XOR the 54-byte {@code ShotSyncData} with {@code RoomInfo.key[i%16]}.
+     */
+    public static byte[] xorRoomKey(byte[] src, byte[] key) {
+        byte[] out = src.clone();
+        for (int i = 0; i < out.length; i++) {
+            out[i] ^= key[i % 16];
+        }
+        return out;
+    }
+
+    public static byte[] shotSyncPlain(
+            int oid, float x, float y, float z, int state, int bunker, int unknown,
+            int pang, int bonusPang, int displayState, int shotState, int tempo, int gpPenalty) {
+        PacketWriter w = new PacketWriter();
+        w.i32(oid);
+        w.f32(x).f32(y).f32(z);
+        w.u8(state).u8(bunker).u8(unknown);
+        w.u32(pang).u32(bonusPang);
+        w.u32(displayState).u32(shotState);
+        w.i16(tempo);
+        w.u8(gpPenalty);
+        w.zero(16);
+        byte[] body = w.toBytes();
+        if (body.length != SHOT_SYNC_BYTES) {
+            throw new IllegalStateException("ShotSyncData size " + body.length);
+        }
+        return body;
+    }
+
+    public static byte[] clientShotResult(byte[] encrypted54) {
+        return new PacketWriter().opcode(CLIENT_SHOT_RESULT).bytes(encrypted54).toBytes();
+    }
+
+    public static byte[] clientEquipCharacter(int characterId) {
+        return new PacketWriter().opcode(CLIENT_REQUEST_EQUIP_ITEM).u8(5).i32(characterId).toBytes();
+    }
+
+    public static byte[] clientEquipParts(CharacterInfo character) {
+        return new PacketWriter()
+                .opcode(CLIENT_REQUEST_EQUIP_ITEM)
+                .u8(0)
+                .bytes(character.toArray())
+                .toBytes();
+    }
+
+    public static byte[] clientEquipCaddie(int caddieId) {
+        return new PacketWriter().opcode(CLIENT_REQUEST_EQUIP_ITEM).u8(1).i32(caddieId).toBytes();
+    }
+
+    public static byte[] clientEquipBallAndClub(int ballTypeid, int clubId) {
+        return new PacketWriter()
+                .opcode(CLIENT_REQUEST_EQUIP_ITEM)
+                .u8(3)
+                .i32(ballTypeid)
+                .i32(clubId)
+                .toBytes();
+    }
+
+    public static byte[] clientEquipMascot(int mascotId) {
+        return new PacketWriter().opcode(CLIENT_REQUEST_EQUIP_ITEM).u8(8).i32(mascotId).toBytes();
+    }
+
+    public static byte[] clientBuyItem() {
+        return new PacketWriter().opcode(CLIENT_REQUEST_BUY_ITEM).u16(0).toBytes();
+    }
+
+    public static InitHole readInitHole(PacketReader reader) {
+        int numero = reader.u8();
+        int option = reader.remaining() >= 4 ? reader.u32() : 0;
+        int unknown = reader.remaining() >= 4 ? reader.u32() : 0;
+        int par = reader.remaining() >= 1 ? reader.u8() : 0;
+        float teeX = reader.remaining() >= 4 ? reader.f32() : 0;
+        float teeZ = reader.remaining() >= 4 ? reader.f32() : 0;
+        float pinX = reader.remaining() >= 4 ? reader.f32() : 0;
+        float pinZ = reader.remaining() >= 4 ? reader.f32() : 0;
+        return new InitHole(numero, option, unknown, par, teeX, teeZ, pinX, pinZ);
+    }
+
+    public static JoinRoom readJoinRoom(PacketReader reader) {
+        int numero = reader.i16();
+        String password = reader.remaining() >= 2 ? reader.pstr() : "";
+        return new JoinRoom(numero, password);
+    }
+
+    public static ShotSync readShotSync(byte[] plain54) {
+        PacketReader r = new PacketReader(plain54);
+        int oid = r.i32();
+        float x = r.f32();
+        float y = r.f32();
+        float z = r.f32();
+        int state = r.u8();
+        int bunker = r.u8();
+        int unknown = r.u8();
+        int pang = r.u32();
+        int bonus = r.u32();
+        int display = r.u32();
+        int shot = r.u32();
+        int tempo = r.i16();
+        int gp = r.remaining() >= 1 ? r.u8() : 0;
+        return new ShotSync(oid, x, y, z, state, bunker, unknown, pang, bonus, display, shot, tempo, gp);
+    }
+
+    public record HoleInfo(int id, int pin, int course, int numero, int weather, int wind, int degree) {}
+
+    public record InitHole(
+            int numero, int option, int unknown, int par,
+            float teeX, float teeZ, float pinX, float pinZ) {}
+
+    public record JoinRoom(int numero, String password) {}
+
+    public record ShotSync(
+            int oid, float x, float y, float z, int state, int bunker, int unknown,
+            int pang, int bonusPang, int displayState, int shotState, int tempo, int gpPenalty) {}
 
     /** C# {@code pacote049} error path: single option byte (not int16). */
     public static byte[] roomCreateFailed(int option) {
@@ -788,6 +1282,8 @@ public final class GamePackets {
         public int tipoEx = 255;
         public int artefato;
         public int natural;
+        public int holeRepeat;
+        public int fixedHole;
         public int gpDadosTypeid;
         public int gpRankTypeid;
         public int gpTempo;
@@ -834,6 +1330,133 @@ public final class GamePackets {
                 throw new IllegalStateException("RoomInfo size " + body.length);
             }
             return body;
+        }
+    }
+
+    /**
+     * C# {@code PlayerRoomInfo.ToArray} / {@code PlayerRoomInfoEx.ToArrayEx}.
+     * Master sets bits 3 and 9; team is {@code (position-1)%2} on bit 0; place is 0x0A.
+     */
+    public static final class PlayerRoomInfo {
+        public int oid;
+        public String nickname = "";
+        public String guildName = "";
+        public int position;
+        public int capability;
+        public int title;
+        public int charTypeid;
+        public int[] skin = new int[6];
+        public int stateFlag;
+        public int level;
+        public int iconAngel;
+        public int place = 10;
+        public int guildUid;
+        public String guildMark = "";
+        public int guildMarkIndex;
+        public int uid;
+        public int stateLounge;
+        public int unknownFlg;
+        public int state;
+        public float x;
+        public float z;
+        public float r;
+        public int shopActive;
+        public String shopName = "";
+        public int mascotTypeid;
+        public int itemBoost;
+        public int unknownFlg2;
+        public String displayId = "";
+        public int convidado;
+        public float avgScore;
+        public CharacterInfo character;
+
+        public byte[] toArray() {
+            PacketWriter w = new PacketWriter();
+            w.i32(oid);
+            w.fixedStr(nickname, 22);
+            w.fixedStr(guildName, 17);
+            w.u8(position);
+            w.i32(capability);
+            w.u32(title);
+            w.u32(charTypeid);
+            for (int v : skin) {
+                w.u32(v);
+            }
+            w.u16(stateFlag);
+            w.u8(level);
+            w.u8(iconAngel);
+            w.u8(place);
+            w.i32(guildUid);
+            w.fixedStr(guildMark, 9);
+            w.u32(guildMarkIndex);
+            w.u32(uid);
+            w.u32(stateLounge);
+            w.i16(unknownFlg);
+            w.u32(state);
+            w.f32(x);
+            w.f32(z);
+            w.f32(r);
+            w.u32(shopActive);
+            w.fixedStr(shopName, 64);
+            w.u32(mascotTypeid);
+            w.u16(itemBoost);
+            w.u32(unknownFlg2);
+            w.fixedStr(displayId, 128);
+            w.u8(convidado);
+            w.f32(avgScore);
+            w.zero(2);
+            byte[] body = w.toBytes();
+            if (body.length != PLAYER_ROOM_INFO_BYTES) {
+                throw new IllegalStateException("PlayerRoomInfo size " + body.length);
+            }
+            return body;
+        }
+
+        public byte[] toArrayEx() {
+            PacketWriter w = new PacketWriter();
+            w.bytes(toArray());
+            w.bytes(character == null ? new byte[CHARACTER_INFO_BYTES] : character.toArray());
+            byte[] body = w.toBytes();
+            if (body.length != PLAYER_ROOM_INFO_EX_BYTES) {
+                throw new IllegalStateException("PlayerRoomInfoEx size " + body.length);
+            }
+            return body;
+        }
+    }
+
+    public static final class ClubSetInfo {
+        public int id;
+        public int typeid;
+        public short[] slotC = new short[5];
+        public short[] enchantC = new short[5];
+
+        public byte[] toArray() {
+            PacketWriter w = new PacketWriter();
+            w.i32(id);
+            w.u32(typeid);
+            for (short v : slotC) {
+                w.i16(v);
+            }
+            for (short v : enchantC) {
+                w.i16(v);
+            }
+            byte[] body = w.toBytes();
+            if (body.length != CLUBSET_INFO_BYTES) {
+                throw new IllegalStateException("ClubSetInfo size " + body.length);
+            }
+            return body;
+        }
+
+        public static ClubSetInfo fromWarehouse(WarehouseItem item) {
+            ClubSetInfo c = new ClubSetInfo();
+            if (item == null) {
+                return c;
+            }
+            c.id = item.id;
+            c.typeid = item.typeid;
+            System.arraycopy(item.c, 0, c.slotC, 0, Math.min(5, item.c.length));
+            System.arraycopy(item.workshopC, 0, c.enchantC, 0, Math.min(5, item.workshopC.length));
+            return c;
         }
     }
 

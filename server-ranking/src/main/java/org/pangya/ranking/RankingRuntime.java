@@ -3,7 +3,9 @@ package org.pangya.ranking;
 import com.zaxxer.hikari.HikariDataSource;
 import org.pangya.db.DatabaseSupport;
 import org.pangya.db.JdbiLoginRepository;
+import org.pangya.db.JdbiRankRepository;
 import org.pangya.db.LoginRepository;
+import org.pangya.db.RankRepository;
 import org.pangya.network.AppConfig;
 import org.pangya.network.HealthHttp;
 import org.pangya.network.PangyaMetrics;
@@ -29,8 +31,9 @@ public final class RankingRuntime implements AutoCloseable {
     public RankingRuntime(AppConfig config) {
         this.dataSource = DatabaseSupport.dataSource(config.jdbcUrl(), config.dbUser(), config.dbPassword());
         LoginRepository repo = new JdbiLoginRepository(DatabaseSupport.jdbi(dataSource));
+        RankRepository ranks = new JdbiRankRepository(DatabaseSupport.jdbi(dataSource));
         SessionManager sessions = new SessionManager(new IpDdosFilter());
-        RankingHandler handler = new RankingHandler(repo, sessions);
+        RankingHandler handler = new RankingHandler(repo, ranks, sessions);
         this.netty = new PangyaNettyServer(ServerKind.RANKING, sessions, handler::onPacket);
         this.netty.bind(config.port());
         PangyaMetrics metrics = new PangyaMetrics(config.serverName(), sessions::size);

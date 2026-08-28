@@ -48,6 +48,15 @@ public final class PacketReader {
         return v;
     }
 
+    public int i32() {
+        return u32();
+    }
+
+    /** C# {@code ReadSingle}: IEEE-754 little-endian. */
+    public float f32() {
+        return Float.intBitsToFloat(u32());
+    }
+
     public long u32Unsigned() {
         return u32() & 0xffff_ffffL;
     }

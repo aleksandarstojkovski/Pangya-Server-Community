@@ -54,6 +54,69 @@ class MessengerFlowIT {
     }
 
     @Test
+    void addAgreeBlockRemoveFriend() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password)) {
+            var friends = new org.pangya.db.JdbiFriendRepository(DatabaseSupport.jdbi(ds));
+            friends.delete(10001, 10002);
+            friends.delete(10002, 10001);
+        }
+
+        try (MessengerRuntime runtime = new MessengerRuntime(new AppConfig(testYaml(jdbc, user, password)));
+             PangyaFakeClient a = new PangyaFakeClient();
+             PangyaFakeClient b = new PangyaFakeClient()) {
+            a.connect("127.0.0.1", runtime.port(), PangyaFakeClient.HelloKind.MESSENGER);
+            a.awaitHello(5, TimeUnit.SECONDS);
+            a.sendPlain(MessengerPackets.clientLogin(10001, "TestNick"));
+            PacketReader loginA = new PacketReader(a.awaitPlain(5, TimeUnit.SECONDS));
+            assertEquals(MessengerPackets.SERVER_LOGIN_ACK, loginA.opcode());
+            assertEquals(0, loginA.u8());
+
+            a.sendPlain(MessengerPackets.clientAddFriend(10002, "TestNick2"));
+            PacketReader added = new PacketReader(a.awaitPlain(5, TimeUnit.SECONDS));
+            assertEquals(MessengerPackets.SERVER_FRIEND_AND_GUILD_LIST, added.opcode());
+            assertEquals(MessengerPackets.SUB_REGISTER_FRIEND, added.u16());
+            assertEquals(0, added.u32());
+
+            b.connect("127.0.0.1", runtime.port(), PangyaFakeClient.HelloKind.MESSENGER);
+            b.awaitHello(5, TimeUnit.SECONDS);
+            b.sendPlain(MessengerPackets.clientLogin(10002, "TestNick2"));
+            PacketReader loginB = new PacketReader(b.awaitPlain(5, TimeUnit.SECONDS));
+            assertEquals(MessengerPackets.SERVER_LOGIN_ACK, loginB.opcode());
+            assertEquals(0, loginB.u8());
+
+            b.sendPlain(MessengerPackets.clientAgreeFriend(10001));
+            PacketReader agreed = new PacketReader(b.awaitPlain(5, TimeUnit.SECONDS));
+            assertEquals(MessengerPackets.SERVER_FRIEND_AND_GUILD_LIST, agreed.opcode());
+            assertEquals(MessengerPackets.SUB_FRIEND_AGREE, agreed.u16());
+            assertEquals(0, agreed.u32());
+            assertEquals(10001, agreed.u32());
+
+            PacketReader accepted = new PacketReader(a.awaitPlain(5, TimeUnit.SECONDS));
+            assertEquals(MessengerPackets.SERVER_FRIEND_AND_GUILD_LIST, accepted.opcode());
+            assertEquals(MessengerPackets.SUB_FRIEND_ACCEPTED, accepted.u16());
+
+            a.sendPlain(MessengerPackets.clientBlockFriend(10002));
+            PacketReader blocked = new PacketReader(a.awaitPlain(5, TimeUnit.SECONDS));
+            assertEquals(MessengerPackets.SERVER_FRIEND_AND_GUILD_LIST, blocked.opcode());
+            assertEquals(MessengerPackets.SUB_FRIEND_BLOCK, blocked.u16());
+            assertEquals(0, blocked.u32());
+            assertEquals(10002, blocked.u32());
+
+            a.sendPlain(MessengerPackets.clientRemoveFriend(10002, "TestNick2"));
+            PacketReader removed = new PacketReader(a.awaitPlain(5, TimeUnit.SECONDS));
+            assertEquals(MessengerPackets.SERVER_FRIEND_AND_GUILD_LIST, removed.opcode());
+            assertEquals(MessengerPackets.SUB_FRIEND_REMOVE, removed.u16());
+            assertEquals(0, removed.u32());
+            assertEquals(10002, removed.u32());
+        }
+    }
+
+    @Test
     void nickMismatchSendsLoginFail() throws Exception {
         String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
         String user = env("PANGYA_TEST_JDBC_USER", "pangya");

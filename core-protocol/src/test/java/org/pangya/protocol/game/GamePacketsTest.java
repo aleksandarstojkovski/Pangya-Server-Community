@@ -97,4 +97,72 @@ class GamePacketsTest {
         assertEquals(0x102, new PacketReader(tail.get(0)).opcode());
         assertEquals(0x1B1, new PacketReader(tail.getLast()).opcode());
     }
+
+    @Test
+    void coursePacketIs18HolesAndZeroCubes() {
+        GamePackets.RoomInfo room = new GamePackets.RoomInfo();
+        room.course = 0;
+        room.tipoShow = GamePackets.TIPO_TOURNEY;
+        room.holes = 18;
+        java.util.ArrayList<GamePackets.HoleInfo> holes = new java.util.ArrayList<>();
+        for (int n = 1; n <= 18; n++) {
+            holes.add(new GamePackets.HoleInfo(n, (n - 1) % 3, 0, n, 0, 0, 0));
+        }
+        PacketReader r = new PacketReader(GamePackets.course(room, holes, 1));
+        assertEquals(GamePackets.SERVER_COURSE, r.opcode());
+        assertEquals(0, r.u8());
+        assertEquals(GamePackets.TIPO_TOURNEY, r.u8());
+        r.u8();
+        assertEquals(18, r.u8());
+        r.u32();
+        r.u32();
+        r.u32();
+        assertEquals(18 * 7 + 4 + 18, r.remaining());
+        byte[] shot = GamePackets.shotSyncPlain(1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        assertEquals(GamePackets.SHOT_SYNC_BYTES, shot.length);
+        byte[] key = new byte[16];
+        key[0] = 7;
+        byte[] enc = GamePackets.xorRoomKey(shot, key);
+        byte[] dec = GamePackets.xorRoomKey(enc, key);
+        assertEquals(shot[0], dec[0]);
+        PacketReader eq = new PacketReader(GamePackets.equipAck(4, 5, new byte[] {1, 0, 0, 0}));
+        assertEquals(GamePackets.SERVER_EQUIP_ACK, eq.opcode());
+        assertEquals(GamePackets.EQUIP_OK, eq.u8());
+        assertEquals(5, eq.u8());
+        GamePackets.PlayerRoomInfo pri = new GamePackets.PlayerRoomInfo();
+        pri.oid = 1;
+        pri.nickname = "TestNick";
+        pri.uid = 10001;
+        pri.position = 1;
+        pri.stateFlag = (1 << 3) | (1 << 9);
+        pri.character = new GamePackets.CharacterInfo();
+        assertEquals(GamePackets.PLAYER_ROOM_INFO_BYTES, pri.toArray().length);
+        assertEquals(GamePackets.PLAYER_ROOM_INFO_EX_BYTES, pri.toArrayEx().length);
+        PacketReader list = new PacketReader(GamePackets.roomPlayers(0x100, List.of(pri)));
+        assertEquals(GamePackets.SERVER_ROOM_PLAYERS, list.opcode());
+        assertEquals(0, list.u8());
+        assertEquals(-1, list.i16());
+        assertEquals(1, list.u8());
+        assertEquals(GamePackets.PLAYER_ROOM_INFO_BYTES, list.remaining() - 1);
+        assertEquals(GamePackets.CLUBSET_INFO_BYTES, new GamePackets.ClubSetInfo().toArray().length);
+        GamePackets.VersusPlayer vp = new GamePackets.VersusPlayer(
+                GamePackets.memberInfoExPublic(1, "a", "b", 0),
+                10001,
+                GamePackets.userInfoPublic(1),
+                new GamePackets.UserEquip().toArray(),
+                new GamePackets.CharacterInfo().toArray(),
+                new GamePackets.CaddieInfo().toArray(),
+                new GamePackets.ClubSetInfo().toArray(),
+                new GamePackets.MascotInfo().toArray(),
+                List.of());
+        PacketReader vs = new PacketReader(GamePackets.gameInitVersus(GamePackets.TIPO_STROKE, List.of(vp)));
+        assertEquals(GamePackets.SERVER_GAME_INIT, vs.opcode());
+        assertEquals(GamePackets.TIPO_STROKE, vs.u8());
+        assertEquals(1, vs.u8());
+        PacketReader counters = new PacketReader(GamePackets.counters(List.of()));
+        assertEquals(0x21D, counters.opcode());
+        assertEquals(0, counters.u32());
+        assertEquals(0, counters.u32());
+        assertEquals(0, counters.u32());
+    }
 }

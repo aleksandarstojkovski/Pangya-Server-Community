@@ -32,5 +32,17 @@ class RankingPacketsTest {
         r.readBytes(10);
         assertEquals(RankingPackets.PPRT_NOT_TOP_RANK, r.u8());
         assertEquals(0, r.remaining());
+        RankingPackets.RegistryRow row = new RankingPackets.RegistryRow(10001, 1, 0, 42);
+        PacketReader page = new PacketReader(RankingPackets.firstPage(7, 3, 0, 0, java.util.List.of(row), 1, 1));
+        assertEquals(RankingPackets.SERVER_SEND_FIRST_PAGE, page.opcode());
+        page.u8();
+        page.u8();
+        page.u8();
+        page.u8();
+        page.u8();
+        assertEquals(1, page.u32());
+        assertEquals(1, page.u32());
+        assertEquals(1, page.u16());
+        assertEquals(10001, page.u32());
     }
 }

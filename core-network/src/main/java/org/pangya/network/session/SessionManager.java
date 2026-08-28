@@ -43,6 +43,18 @@ public final class SessionManager {
         return List.copyOf(byOid.values());
     }
 
+    public Session findByUid(long uid) {
+        if (uid <= 0) {
+            return null;
+        }
+        for (Session session : snapshot()) {
+            if (session.authorized() && session.player().uid == uid) {
+                return session;
+            }
+        }
+        return null;
+    }
+
     public void disconnectOthersWithUid(long uid, Session keep) {
         if (uid <= 0) {
             return;

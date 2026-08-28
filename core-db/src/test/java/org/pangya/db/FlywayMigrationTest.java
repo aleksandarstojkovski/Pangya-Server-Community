@@ -41,6 +41,11 @@ class FlywayMigrationTest {
                             .mapTo(Integer.class)
                             .one());
             assertEquals(1, accounts);
+            int accounts2 = jdbi.withHandle(h ->
+                    h.createQuery("select count(*) from pangya.account where \"ID\" = 'testuser2'")
+                            .mapTo(Integer.class)
+                            .one());
+            assertEquals(1, accounts2);
             assertTrue(accounts >= 1);
         }
     }

@@ -29,6 +29,24 @@ class InventoryRepositoryTest {
             assertEquals(warehouse.getFirst().id, equip.clubsetId);
             assertTrue(repo.mascots(10001).isEmpty());
             assertTrue(repo.cards(10001).isEmpty());
+            repo.equipCharacter(10001, 1);
+            repo.equipCaddie(10001, 0);
+            repo.equipBallAndClub(10001, GamePackets.TYPEID_DEFAULT_BALL, 2);
+            repo.equipMascot(10001, 0);
+            GamePackets.UserEquip after = repo.userEquip(10001);
+            assertEquals(1, after.characterId);
+            assertEquals(0, after.caddieId);
+            assertEquals(2, after.clubsetId);
+            assertEquals(GamePackets.TYPEID_DEFAULT_BALL, after.ballTypeid);
+            GamePackets.CharacterInfo parts = chars.getFirst();
+            parts.defaultHair = 3;
+            repo.updateCharacterParts(10001, parts);
+            assertEquals(3, repo.characters(10001).getFirst().defaultHair);
+            parts.defaultHair = 0;
+            repo.updateCharacterParts(10001, parts);
+            assertTrue(repo.counters(10001).isEmpty());
+            assertTrue(repo.achievements(10001).isEmpty());
+            assertEquals(1, repo.characters(10002).size());
         }
     }
 

@@ -28,5 +28,6 @@ class MessengerPacketsTest {
         assertEquals(MessengerPackets.STATE_ONLINE, r.u32());
         assertEquals(1, r.u8());
         assertEquals(75, r.remaining());
+        assertEquals(MessengerPackets.FRIEND_INFO_BYTES, MessengerPackets.friendInfo("TestNick2", "Friend", 10002).length);
     }
 }

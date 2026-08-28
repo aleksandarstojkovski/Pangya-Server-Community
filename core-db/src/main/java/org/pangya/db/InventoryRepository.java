@@ -22,4 +22,18 @@ public interface InventoryRepository {
     long pang(long uid);
 
     long cookie(long uid);
+
+    void equipCharacter(long uid, int characterId);
+
+    void equipCaddie(long uid, int caddieId);
+
+    void equipBallAndClub(long uid, int ballTypeid, int clubsetId);
+
+    void equipMascot(long uid, int mascotId);
+
+    void updateCharacterParts(long uid, GamePackets.CharacterInfo character);
+
+    List<GamePackets.CounterItem> counters(long uid);
+
+    List<GamePackets.AchievementInfo> achievements(long uid);
 }

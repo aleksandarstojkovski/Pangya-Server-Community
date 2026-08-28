@@ -2,6 +2,8 @@ package org.pangya.messenger;
 
 import com.zaxxer.hikari.HikariDataSource;
 import org.pangya.db.DatabaseSupport;
+import org.pangya.db.FriendRepository;
+import org.pangya.db.JdbiFriendRepository;
 import org.pangya.db.JdbiLoginRepository;
 import org.pangya.db.LoginRepository;
 import org.pangya.network.AppConfig;
@@ -29,8 +31,9 @@ public final class MessengerRuntime implements AutoCloseable {
     public MessengerRuntime(AppConfig config) {
         this.dataSource = DatabaseSupport.dataSource(config.jdbcUrl(), config.dbUser(), config.dbPassword());
         LoginRepository repo = new JdbiLoginRepository(DatabaseSupport.jdbi(dataSource));
+        FriendRepository friends = new JdbiFriendRepository(DatabaseSupport.jdbi(dataSource));
         SessionManager sessions = new SessionManager(new IpDdosFilter());
-        MessengerHandler handler = new MessengerHandler(repo, sessions);
+        MessengerHandler handler = new MessengerHandler(repo, friends, sessions);
         this.netty = new PangyaNettyServer(ServerKind.MESSENGER, sessions, handler::onPacket);
         this.netty.bind(config.port());
         PangyaMetrics metrics = new PangyaMetrics(config.serverName(), sessions::size);

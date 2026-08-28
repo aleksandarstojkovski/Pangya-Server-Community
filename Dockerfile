@@ -13,10 +13,17 @@ COPY server-login server-login
 COPY server-game server-game
 COPY server-ranking server-ranking
 COPY server-messenger server-messenger
-ARG MODULE=server-auth
-RUN chmod +x gradlew && ./gradlew --no-daemon :${MODULE}:installDist
+RUN chmod +x gradlew && ./gradlew --no-daemon \
+    :server-auth:installDist \
+    :server-login:installDist \
+    :server-game:installDist \
+    :server-ranking:installDist \
+    :server-messenger:installDist
 
 FROM eclipse-temurin:21-jre-jammy
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
 ARG MODULE=server-auth
 ENV MODULE=${MODULE}
 WORKDIR /app

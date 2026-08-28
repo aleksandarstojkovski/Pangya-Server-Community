@@ -210,4 +210,168 @@ public final class JdbiInventoryRepository implements InventoryRepository {
                 .findOne()
                 .orElse(0L));
     }
+
+    @Override
+    public void equipCharacter(long uid, int characterId) {
+        jdbi.useHandle(h -> h.createUpdate(
+                        "UPDATE pangya.pangya_user_equip SET character_id = :id WHERE \"UID\" = :uid")
+                .bind("id", characterId)
+                .bind("uid", uid)
+                .execute());
+    }
+
+    @Override
+    public void equipCaddie(long uid, int caddieId) {
+        jdbi.useHandle(h -> h.createUpdate(
+                        "UPDATE pangya.pangya_user_equip SET caddie_id = :id WHERE \"UID\" = :uid")
+                .bind("id", caddieId)
+                .bind("uid", uid)
+                .execute());
+    }
+
+    @Override
+    public void equipBallAndClub(long uid, int ballTypeid, int clubsetId) {
+        jdbi.useHandle(h -> h.createUpdate(
+                        "UPDATE pangya.pangya_user_equip SET ball_type = :ball, club_id = :club WHERE \"UID\" = :uid")
+                .bind("ball", ballTypeid)
+                .bind("club", clubsetId)
+                .bind("uid", uid)
+                .execute());
+    }
+
+    @Override
+    public void equipMascot(long uid, int mascotId) {
+        jdbi.useHandle(h -> h.createUpdate(
+                        "UPDATE pangya.pangya_user_equip SET mascot_id = :id WHERE \"UID\" = :uid")
+                .bind("id", mascotId)
+                .bind("uid", uid)
+                .execute());
+    }
+
+    @Override
+    public void updateCharacterParts(long uid, GamePackets.CharacterInfo c) {
+        jdbi.useHandle(h -> h.createUpdate("""
+                        UPDATE pangya.pangya_character_information SET
+                               default_hair = :hair, default_shirts = :shirts,
+                               gift_flag = :gift, "Purchase" = :purchase,
+                               parts_1 = :p1, parts_2 = :p2, parts_3 = :p3, parts_4 = :p4,
+                               parts_5 = :p5, parts_6 = :p6, parts_7 = :p7, parts_8 = :p8,
+                               parts_9 = :p9, parts_10 = :p10, parts_11 = :p11, parts_12 = :p12,
+                               parts_13 = :p13, parts_14 = :p14, parts_15 = :p15, parts_16 = :p16,
+                               parts_17 = :p17, parts_18 = :p18, parts_19 = :p19, parts_20 = :p20,
+                               parts_21 = :p21, parts_22 = :p22, parts_23 = :p23, parts_24 = :p24,
+                               auxparts_1 = :a1, auxparts_2 = :a2, auxparts_3 = :a3,
+                               auxparts_4 = :a4, auxparts_5 = :a5,
+                               "CutIn_1" = :c1, "CutIn_2" = :c2, "CutIn_3" = :c3, "CutIn_4" = :c4,
+                               "PCL0" = :pcl0, "PCL1" = :pcl1, "PCL2" = :pcl2, "PCL3" = :pcl3, "PCL4" = :pcl4,
+                               "Mastery" = :mastery
+                         WHERE "UID" = :uid AND item_id = :id
+                        """)
+                .bind("hair", c.defaultHair)
+                .bind("shirts", c.defaultShirts)
+                .bind("gift", c.giftFlag)
+                .bind("purchase", c.purchase)
+                .bind("p1", c.partsTypeid[0]).bind("p2", c.partsTypeid[1])
+                .bind("p3", c.partsTypeid[2]).bind("p4", c.partsTypeid[3])
+                .bind("p5", c.partsTypeid[4]).bind("p6", c.partsTypeid[5])
+                .bind("p7", c.partsTypeid[6]).bind("p8", c.partsTypeid[7])
+                .bind("p9", c.partsTypeid[8]).bind("p10", c.partsTypeid[9])
+                .bind("p11", c.partsTypeid[10]).bind("p12", c.partsTypeid[11])
+                .bind("p13", c.partsTypeid[12]).bind("p14", c.partsTypeid[13])
+                .bind("p15", c.partsTypeid[14]).bind("p16", c.partsTypeid[15])
+                .bind("p17", c.partsTypeid[16]).bind("p18", c.partsTypeid[17])
+                .bind("p19", c.partsTypeid[18]).bind("p20", c.partsTypeid[19])
+                .bind("p21", c.partsTypeid[20]).bind("p22", c.partsTypeid[21])
+                .bind("p23", c.partsTypeid[22]).bind("p24", c.partsTypeid[23])
+                .bind("a1", c.auxparts[0]).bind("a2", c.auxparts[1]).bind("a3", c.auxparts[2])
+                .bind("a4", c.auxparts[3]).bind("a5", c.auxparts[4])
+                .bind("c1", c.cutIn[0]).bind("c2", c.cutIn[1]).bind("c3", c.cutIn[2]).bind("c4", c.cutIn[3])
+                .bind("pcl0", c.pcl[0] & 0xff).bind("pcl1", c.pcl[1] & 0xff)
+                .bind("pcl2", c.pcl[2] & 0xff).bind("pcl3", c.pcl[3] & 0xff).bind("pcl4", c.pcl[4] & 0xff)
+                .bind("mastery", c.mastery)
+                .bind("uid", uid)
+                .bind("id", c.id)
+                .execute());
+    }
+
+    @Override
+    public List<GamePackets.CounterItem> counters(long uid) {
+        return jdbi.withHandle(h -> h.createQuery("""
+                        SELECT "Count_ID", "TypeID", active, "Count_Num_Item"
+                          FROM pangya.pangya_counter_item
+                         WHERE "UID" = :uid
+                         ORDER BY "Count_ID"
+                        """)
+                .bind("uid", uid)
+                .map((rs, ctx) -> new GamePackets.CounterItem(
+                        rs.getInt("Count_ID"),
+                        rs.getInt("TypeID"),
+                        rs.getInt("active"),
+                        rs.getInt("Count_Num_Item")))
+                .list());
+    }
+
+    @Override
+    public List<GamePackets.AchievementInfo> achievements(long uid) {
+        return jdbi.withHandle(h -> {
+            List<GamePackets.CounterItem> counters = h.createQuery("""
+                            SELECT "Count_ID", "TypeID", active, "Count_Num_Item"
+                              FROM pangya.pangya_counter_item
+                             WHERE "UID" = :uid
+                            """)
+                    .bind("uid", uid)
+                    .map((rs, ctx) -> new GamePackets.CounterItem(
+                            rs.getInt("Count_ID"),
+                            rs.getInt("TypeID"),
+                            rs.getInt("active"),
+                            rs.getInt("Count_Num_Item")))
+                    .list();
+            record QuestRow(int achievementId, int typeid, int counterId, int clearUnix) {}
+            List<QuestRow> quests = h.createQuery("""
+                            SELECT achievement_id, typeid, counter_item_id,
+                                   COALESCE(EXTRACT(EPOCH FROM "Date")::int, 0) AS clear_unix
+                              FROM pangya.pangya_quest
+                             WHERE uid = :uid
+                             ORDER BY id
+                            """)
+                    .bind("uid", uid)
+                    .map((rs, ctx) -> new QuestRow(
+                            rs.getInt("achievement_id"),
+                            rs.getInt("typeid"),
+                            rs.getInt("counter_item_id"),
+                            rs.getInt("clear_unix")))
+                    .list();
+            return h.createQuery("""
+                            SELECT "ID_ACHIEVEMENT", "TypeID", active, status
+                              FROM pangya.pangya_achievement
+                             WHERE "UID" = :uid
+                             ORDER BY "ID_ACHIEVEMENT"
+                            """)
+                    .bind("uid", uid)
+                    .map((rs, ctx) -> {
+                        int id = rs.getInt("ID_ACHIEVEMENT");
+                        List<GamePackets.QuestStuff> qsi = new java.util.ArrayList<>();
+                        for (QuestRow q : quests) {
+                            if (q.achievementId() != id) {
+                                continue;
+                            }
+                            int counterType = 0;
+                            for (GamePackets.CounterItem c : counters) {
+                                if (c.id() == q.counterId()) {
+                                    counterType = c.typeid();
+                                    break;
+                                }
+                            }
+                            qsi.add(new GamePackets.QuestStuff(q.typeid(), counterType, q.counterId(), q.clearUnix()));
+                        }
+                        return new GamePackets.AchievementInfo(
+                                id,
+                                rs.getInt("TypeID"),
+                                rs.getInt("active"),
+                                rs.getInt("status"),
+                                qsi);
+                    })
+                    .list();
+        });
+    }
 }

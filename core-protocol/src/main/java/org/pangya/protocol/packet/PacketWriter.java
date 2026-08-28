@@ -43,6 +43,11 @@ public final class PacketWriter {
         return u32(value);
     }
 
+    /** C# {@code Write(float)} / {@code WriteFloat}: IEEE-754 little-endian. */
+    public PacketWriter f32(float value) {
+        return u32(Float.floatToIntBits(value));
+    }
+
     public PacketWriter u64(long value) {
         for (int i = 0; i < 8; i++) {
             out.write((int) ((value >>> (8 * i)) & 0xff));

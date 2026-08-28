@@ -8,9 +8,9 @@ Questo repo è **solo** la riscrittura Java.
 
 | Campo | Valore |
 |-------|--------|
-| Slice completata | **S0 + S1 + S2 + S3** verdi; **S4** `Room.getInfo()` + start-game; **S5** Ranking/Messenger login |
-| Prossima | **S4** hole/shot Versus/Tourney + card/achievement managers + **S6** compose 5-server health |
-| Blocked | nessuno |
+| Slice completata | **S0–S3** verdi; **S4** Practice hole/shot + Versus `0x76` dump + `pacote048` + parts equip; **S5** rank SQL + friend CRUD + live `0x138A` char |
+| Prossima | **S6** compose 5-server health; IFF shop/cubes |
+| Blocked | IFF files absent (shop buy success, real pin/cube coords) |
 | VM | Java 21.0.10, Docker 29.7.2, Compose v5.5.0, 4 CPU / 15 GiB |
 
 ## Mappa C# → Java
@@ -173,7 +173,7 @@ C# `LoginTask.sendCompleteData` invia `pacote044` option 0 con `principal()` (12
 # BUILD SUCCESSFUL
 ```
 
-Hole/shot IFF (Versus/Tourney play), manager shop/equip, registry ranking da SQL, e `docker compose up --build` health dei 5 processi Java restano aperti.
+Hole/shot IFF cubes (live pin/cube coords from client IFF), IFF shop catalog (`0xAA`/`0x68` success), e `docker compose up --build` health dei 5 processi Java restano aperti fino a verifica S6. Practice `0x76`/`0x52`/`0x1A`/`0x1B`/`0x1C`, Versus 2p `0x76` dump, `pacote048`/`0x4A`, equip `0x20` type 0/1/3/5/8, ranking SQL + live CharacterInfo, e friend CRUD sono nel fake-client.
 
 ## Note GC / Netty (S6)
 

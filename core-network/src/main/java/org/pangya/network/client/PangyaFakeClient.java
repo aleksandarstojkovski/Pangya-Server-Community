@@ -36,7 +36,7 @@ public final class PangyaFakeClient implements AutoCloseable {
 
     private final EventLoopGroup group = new NioEventLoopGroup(1);
     private final BlockingQueue<byte[]> hellos = new ArrayBlockingQueue<>(4);
-    private final BlockingQueue<byte[]> plains = new ArrayBlockingQueue<>(64);
+    private final BlockingQueue<byte[]> plains = new ArrayBlockingQueue<>(128);
     private volatile Channel channel;
     private volatile int key = -1;
     private volatile HelloKind kind = HelloKind.LOGIN;

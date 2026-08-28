@@ -45,11 +45,11 @@ services:
       - "7777:7777"
       - "9077:9077"
     healthcheck:
-      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/9077"]
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9077/health"]
       interval: 10s
       timeout: 5s
-      retries: 12
-      start_period: 20s
+      retries: 18
+      start_period: 45s
 
   login:
     build:
@@ -68,11 +68,11 @@ services:
       - "10203:10203"
       - "9103:9103"
     healthcheck:
-      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/9103"]
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9103/health"]
       interval: 10s
       timeout: 5s
-      retries: 12
-      start_period: 20s
+      retries: 18
+      start_period: 45s
 
   game:
     build:
@@ -91,11 +91,11 @@ services:
       - "20202:20202"
       - "9202:9202"
     healthcheck:
-      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/9202"]
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9202/health"]
       interval: 10s
       timeout: 5s
-      retries: 12
-      start_period: 20s
+      retries: 18
+      start_period: 45s
 
   ranking:
     build:
@@ -114,11 +114,11 @@ services:
       - "4774:4774"
       - "9474:9474"
     healthcheck:
-      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/9474"]
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9474/health"]
       interval: 10s
       timeout: 5s
-      retries: 12
-      start_period: 20s
+      retries: 18
+      start_period: 45s
 
   messenger:
     build:
@@ -137,11 +137,11 @@ services:
       - "30201:30201"
       - "9302:9302"
     healthcheck:
-      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/9302"]
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9302/health"]
       interval: 10s
       timeout: 5s
-      retries: 12
-      start_period: 20s
+      retries: 18
+      start_period: 45s
 
 volumes:
   pangya-pg:
