@@ -13,9 +13,9 @@ Conteggio Channel: **197** handler `packet_func_sv` registrati in `GameService.i
 
 ## Questo turno
 
-Fatto: … **`Lottery` + rate-weighted cube pick**; **V41 `iff_course` + `MapCatalog` (C# MapSystem SQL stand-in)**; auth reload tipo **1** refreshes map/cube SQL; tipo **11** reloads course par + map metadata; **clear-bonus on Practice/Tourney finish** (`0x199` + `calculeClear30s` credit via `0xC8`); **Versus Stroke** `calculeClearVS` on `changeTurn`; **Match** team clear bonus + `requestUpdateTeamPang` merge at finish.
-Prossimo: IFF map/pin binary; capture JP S9.
-Blocco: file IFF assenti (map/pin binary); nessuna capture client JP Season 9.
+Fatto: … **Match** team clear bonus + `requestUpdateTeamPang` merge at finish; **`Course.iff` binary loader** from `pangya_jp.iff` overlays map/par/star on auth reload tipo **1** (`PANGYA_IFF_PATH`).
+Prossimo: Part/pin IFF depth; capture JP S9.
+Blocco: pin `.gbin` binaries absent; nessuna capture client JP Season 9.
 
 Percentuale epic: **scheletro 85%** / **parità client reale 43%**.
 

@@ -88,7 +88,10 @@ public final class GameHandler {
         this.config = config;
         this.repo = repo;
         this.inventory = inventory;
-        this.catalogs = new GlobalCatalogs(inventory);
+        java.nio.file.Path iffPath = config.pangyaIffPath().isBlank()
+                ? null
+                : java.nio.file.Path.of(config.pangyaIffPath());
+        this.catalogs = new GlobalCatalogs(inventory, iffPath);
         this.redis = redis;
         this.sessions = sessions;
         this.channels = List.copyOf(channels);

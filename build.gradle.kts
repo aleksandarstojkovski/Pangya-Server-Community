@@ -22,6 +22,7 @@ subprojects {
 
     tasks.withType<Test>().configureEach {
         useJUnitPlatform()
+        workingDir = rootProject.projectDir
         testLogging {
             events("passed", "skipped", "failed")
             exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL

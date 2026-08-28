@@ -119,6 +119,14 @@ public final class AppConfig {
         return nestedInt("server", "rateGrandPrixEvent", 1);
     }
 
+    /**
+     * C# {@code data/pangya_jp.iff} archive path. Empty disables binary IFF overlay;
+     * SQL catalogs remain authoritative when unset.
+     */
+    public String pangyaIffPath() {
+        return envOr("PANGYA_IFF_PATH", nested("game", "iffPath", ""));
+    }
+
     public int tipo() {
         return nestedInt("server", "tipo", 0);
     }

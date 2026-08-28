@@ -4,6 +4,8 @@ import org.pangya.db.InventoryRepository;
 
 import java.util.Arrays;
 
+import org.pangya.protocol.iff.IffCourseRecord;
+
 /** C# {@code MapSystem} / {@code Map} using SQL {@code iff_course} + {@code iff_course_hole}. */
 public final class MapCatalog {
 
@@ -22,6 +24,12 @@ public final class MapCatalog {
         }
         float star = 1f + row.starTenths() / 10f;
         return new CourseCtx(row.name(), row.clearBonus(), star, par);
+    }
+
+    /** C# {@code Map.initialize} from {@code Course.iff} + clear_bonus switch. */
+    public static CourseCtx fromIff(IffCourseRecord row) {
+        int[] par = Arrays.copyOf(row.parByHole(), 18);
+        return new CourseCtx(row.name(), row.clearBonus(), row.starFactor(), par);
     }
 
     /** C# {@code calculeClearVS}. */
