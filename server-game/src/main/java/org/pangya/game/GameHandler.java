@@ -3702,8 +3702,9 @@ public final class GameHandler {
     }
 
     /**
-     * C# {@code requestEnterGameAfterStarted}: missing room CHANNEL sys 1 →
-     * {@code 0x113} u8 6 + u8 1.
+     * C# {@code requestEnterGameAfterStarted}. Option 0 validates an unlocked,
+     * in-progress, non-full Tourney and sends option 3 with elapsed time and
+     * RoomInfo. Invalid requests retain u8 6 + u8 error.
      */
     private void enterGameAfterStarted(Session session, PacketReader reader) {
         if (!inChannel(session)) {
@@ -3720,8 +3721,18 @@ public final class GameHandler {
                 return;
             }
             int numero = reader.u16();
-            if (rooms.get(numero) == null) {
+            GameRoom room = rooms.get(numero);
+            if (room == null
+                    || room.tipo != GamePackets.TIPO_TOURNEY
+                    || room.info.senhaFlag == 0
+                    || !room.inGame
+                    || room.players.size() >= room.info.maxPlayer) {
                 session.send(GamePackets.intrusionFail(GamePackets.INTRUSION_SYS));
+                return;
+            }
+            if (option == 0) {
+                long elapsed = Math.max(0, System.currentTimeMillis() - room.startMillis);
+                session.send(GamePackets.intrusionTime(room.info, elapsed));
             }
         }
     }

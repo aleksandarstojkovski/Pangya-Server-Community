@@ -8,7 +8,7 @@ Questo repo è **solo** la riscrittura Java.
 
 S0 [x] S1 [x] S2 [x] S3 [x] S4 [~] S5 [~] S6 [x]
 
-S4 profondità: **168** opcode success 1:1 / **4** opcode solo fail-stub / **5** stimati rimanenti dal C# Channel
+S4 profondità: **169** opcode success 1:1 / **3** opcode solo fail-stub / **4** stimati rimanenti dal C# Channel
 
 (Channel C# = 197 `packet_func_sv`. Dettaglio in `docs/STATUS.md`. **S4 non è done.**)
 
@@ -16,8 +16,8 @@ S4 profondità: **168** opcode success 1:1 / **4** opcode solo fail-stub / **5**
 
 | Campo | Valore |
 |-------|--------|
-| Fatto | achievement GUI `0x157`: SQL achievements/counters → compact `0x22D`, then `0x22C` success |
-| Prossimo opcode/file C# | UCC `0xB9`/`0xC9`, lucky-pouch, intrusion, o GZ `packet137` |
+| Fatto | intrusion `0x9D` option 0: running public Tourney → `0x113` elapsed/time30s/RoomInfo |
+| Prossimo opcode/file C# | UCC `0xB9`/`0xC9`, lucky-pouch, o GZ `packet137` |
 | Blocco | IFF assenti (pin/cube, `initComboDef`); nessuna capture JP S9 |
 | Percentuale epic | scheletro **85%** / parità client reale **35%** |
 | VM | Java 21.0.10, Docker 29.7.2, Compose v5.5.0, 4 CPU / 15 GiB |
@@ -56,7 +56,7 @@ Nel dump JP Auth INI usa `5577`; Login/Game Java restano su **7777** (stesso bin
 | **S1** | Netty + framing LE + Cipher bit-compat + session + no Sleep-poll | `./gradlew :core-protocol:test :core-network:test` + handshake fake client |
 | **S2** | Auth + Login + Redis session key + fake client login | compose Auth+Login+db+redis |
 | **S3** | Game core + Practice | integrazione Practice; kill sessione non crasha |
-| **S4** | Tutte le modalità C# + manager char/card/caddie/achievement | **non done** — Channel 197; ~168 success 1:1 / 4 fail-stub; IFF cubes/combo aperti |
+| **S4** | Tutte le modalità C# + manager char/card/caddie/achievement | **non done** — Channel 197; ~169 success 1:1 / 3 fail-stub; IFF cubes/combo aperti |
 | **S5** | Ranking + Messenger | compose 5 server |
 | **S6** | Metriche, carico ≥3000 o max VM, `scripts/verify.sh` completo | gradle test + compose health |
 

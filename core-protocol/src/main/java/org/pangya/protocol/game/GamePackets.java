@@ -4081,6 +4081,22 @@ public final class GamePackets {
     }
 
     /**
+     * C# Tourney {@code requestSendTimeGame}: option 3, room, elapsed ms,
+     * 30-second setting, and full RoomInfo.
+     */
+    public static byte[] intrusionTime(RoomInfo room, long elapsedMillis) {
+        return new PacketWriter()
+                .opcode(SERVER_INTRUSION)
+                .u8(3)
+                .u8(0)
+                .u16(room.numero)
+                .u32((int) elapsedMillis)
+                .u32(room.time30s)
+                .bytes(room.toArray())
+                .toBytes();
+    }
+
+    /**
      * C# {@code pacote0FC}: u8 count + {@code ServerInfo.ToArray()} 92-byte rows.
      */
     public static byte[] messengerList(List<byte[]> servers) {

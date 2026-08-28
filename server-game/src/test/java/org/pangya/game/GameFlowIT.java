@@ -5155,6 +5155,45 @@ class GameFlowIT {
     }
 
     @Test
+    void intrusionOptionZeroReturnsRunningTourneyTime() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config);
+             PangyaFakeClient host = new PangyaFakeClient();
+             PangyaFakeClient guest = new PangyaFakeClient()) {
+            loginTwoPlayers(ds, keys, host, guest, runtime.port());
+            host.sendPlain(GamePackets.clientCreateRoom(GamePackets.TIPO_TOURNEY, "Running", ""));
+            PacketReader created = awaitOpcode(host, GamePackets.SERVER_ROOM_ENTER_RESULT);
+            assertEquals(0, created.i16());
+            int roomNumber = roomNumberFromInfo(created.readBytes(GamePackets.ROOM_INFO_BYTES));
+            host.sendPlain(GamePackets.clientStartGame());
+            awaitOpcode(host, GamePackets.SERVER_START_GAME_FLAG);
+            awaitOpcode(host, GamePackets.SERVER_START_GAME_FLAG2);
+            awaitOpcode(host, GamePackets.SERVER_PANG_RATE);
+            awaitOpcode(host, GamePackets.SERVER_GAME_INIT);
+            awaitOpcode(host, GamePackets.SERVER_COURSE);
+
+            guest.sendPlain(GamePackets.clientIntrusion(0, roomNumber));
+            PacketReader time = awaitOpcode(guest, GamePackets.SERVER_INTRUSION);
+            assertEquals(3, time.u8());
+            assertEquals(0, time.u8());
+            assertEquals(roomNumber, time.u16());
+            assertTrue(time.u32Unsigned() < 30_000);
+            assertEquals(0, time.u32());
+            assertEquals(GamePackets.ROOM_INFO_BYTES, time.remaining());
+            time.readBytes(GamePackets.ROOM_INFO_BYTES);
+            assertEquals(0, time.remaining());
+        }
+    }
+
+    @Test
     void dailyQuestDeleteItemOtherChannelMatchCsharp() throws Exception {
         String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
         String user = env("PANGYA_TEST_JDBC_USER", "pangya");

@@ -1041,6 +1041,18 @@ class GamePacketsTest {
         assertEquals(GamePackets.SERVER_INTRUSION, intrusion.opcode());
         assertEquals(GamePackets.INTRUSION_ERR, intrusion.u8());
         assertEquals(GamePackets.INTRUSION_SYS, intrusion.u8());
+        GamePackets.RoomInfo intrusionRoom = new GamePackets.RoomInfo();
+        intrusionRoom.numero = 7;
+        intrusionRoom.time30s = 30;
+        intrusionRoom.maxPlayer = 30;
+        PacketReader intrusionTime = new PacketReader(GamePackets.intrusionTime(intrusionRoom, 1234));
+        assertEquals(GamePackets.SERVER_INTRUSION, intrusionTime.opcode());
+        assertEquals(3, intrusionTime.u8());
+        assertEquals(0, intrusionTime.u8());
+        assertEquals(7, intrusionTime.u16());
+        assertEquals(1234, intrusionTime.u32());
+        assertEquals(30, intrusionTime.u32());
+        assertEquals(GamePackets.ROOM_INFO_BYTES, intrusionTime.remaining());
         PacketReader papelPlay = new PacketReader(GamePackets.papelPlayFail(
                 GamePackets.shopSys(GamePackets.PAPEL_PLAY_ERR_BALLS)));
         assertEquals(GamePackets.SERVER_PAPEL_PLAY, papelPlay.opcode());
