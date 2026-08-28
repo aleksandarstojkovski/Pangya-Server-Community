@@ -6,7 +6,7 @@ CREATE TABLE pangya.grand_prix_event (
     holes SMALLINT NOT NULL,
     course SMALLINT NOT NULL,
     modo SMALLINT NOT NULL,
-    natural SMALLINT NOT NULL DEFAULT 0,
+    natural_mode SMALLINT NOT NULL DEFAULT 0,
     rule INTEGER NOT NULL DEFAULT 0,
     min_level INTEGER NOT NULL DEFAULT 0,
     max_level INTEGER NOT NULL DEFAULT 0

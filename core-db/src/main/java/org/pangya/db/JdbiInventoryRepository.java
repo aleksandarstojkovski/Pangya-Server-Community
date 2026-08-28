@@ -2965,7 +2965,7 @@ public final class JdbiInventoryRepository implements InventoryRepository {
     @Override
     public Optional<GrandPrixEvent> grandPrixEvent(int typeid) {
         return jdbi.withHandle(h -> h.createQuery("""
-                        SELECT typeid, name, holes, course, modo, natural, rule, min_level, max_level
+                        SELECT typeid, name, holes, course, modo, natural_mode, rule, min_level, max_level
                           FROM pangya.grand_prix_event
                          WHERE typeid = :typeid AND active = 1
                         """)
@@ -2976,7 +2976,7 @@ public final class JdbiInventoryRepository implements InventoryRepository {
                         rs.getInt("holes"),
                         rs.getInt("course"),
                         rs.getInt("modo"),
-                        rs.getInt("natural"),
+                        rs.getInt("natural_mode"),
                         rs.getInt("rule"),
                         rs.getInt("min_level"),
                         rs.getInt("max_level")))
@@ -2996,14 +2996,14 @@ public final class JdbiInventoryRepository implements InventoryRepository {
             int maxLevel) {
         jdbi.useHandle(h -> h.createUpdate("""
                         INSERT INTO pangya.grand_prix_event (
-                            typeid, active, name, holes, course, modo, natural, rule,
+                            typeid, active, name, holes, course, modo, natural_mode, rule,
                             min_level, max_level)
                         VALUES (:typeid, 1, :name, :holes, :course, :modo, :natural, :rule,
                                 :min, :max)
                         ON CONFLICT (typeid) DO UPDATE SET
                             active = 1, name = EXCLUDED.name, holes = EXCLUDED.holes,
                             course = EXCLUDED.course, modo = EXCLUDED.modo,
-                            natural = EXCLUDED.natural, rule = EXCLUDED.rule,
+                            natural_mode = EXCLUDED.natural_mode, rule = EXCLUDED.rule,
                             min_level = EXCLUDED.min_level, max_level = EXCLUDED.max_level
                         """)
                 .bind("typeid", typeid)
