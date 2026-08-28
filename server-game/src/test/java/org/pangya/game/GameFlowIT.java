@@ -638,10 +638,14 @@ class GameFlowIT {
             assertEquals("hi guest", to.pstr());
 
             guest.sendPlain(GamePackets.clientAllowWhisper(0));
+            guest.sendPlain(GamePackets.clientRequestCash());
+            awaitOpcode(guest, GamePackets.SERVER_COOKIE);
             host.sendPlain(GamePackets.clientWhisper("TestNick2", "blocked"));
             PacketReader blocked = awaitOpcode(host, GamePackets.SERVER_CHAT);
             assertEquals(GamePackets.CHAT_OFFLINE, blocked.u8());
             guest.sendPlain(GamePackets.clientAllowWhisper(1));
+            guest.sendPlain(GamePackets.clientRequestCash());
+            awaitOpcode(guest, GamePackets.SERVER_COOKIE);
 
             host.sendPlain(GamePackets.clientKeepalive());
             host.sendPlain(GamePackets.clientEnterLobby());
