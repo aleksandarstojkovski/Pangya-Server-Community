@@ -739,6 +739,39 @@ public final class JdbiInventoryRepository implements InventoryRepository {
     }
 
     @Override
+    public TutorialFlags tutorial(long uid) {
+        return jdbi.withHandle(h -> h.createQuery("""
+                        SELECT "Rookie", "Beginner", "Advancer"
+                          FROM pangya.tutorial
+                         WHERE "UID" = :uid
+                        """)
+                .bind("uid", uid)
+                .map((rs, ctx) -> new TutorialFlags(
+                        rs.getInt("Rookie"),
+                        rs.getInt("Beginner"),
+                        rs.getInt("Advancer")))
+                .findOne()
+                .orElse(new TutorialFlags(0, 0, 0)));
+    }
+
+    @Override
+    public void updateTutorial(long uid, int rookie, int beginner, int advancer) {
+        jdbi.useHandle(h -> h.createUpdate("""
+                        INSERT INTO pangya.tutorial ("UID", "Rookie", "Beginner", "Advancer")
+                        VALUES (:uid, :rookie, :beginner, :advancer)
+                        ON CONFLICT ("UID") DO UPDATE SET
+                            "Rookie" = :rookie,
+                            "Beginner" = :beginner,
+                            "Advancer" = :advancer
+                        """)
+                .bind("uid", uid)
+                .bind("rookie", rookie)
+                .bind("beginner", beginner)
+                .bind("advancer", advancer)
+                .execute());
+    }
+
+    @Override
     public void deleteWarehouseByTypeid(long uid, int typeid) {
         jdbi.useHandle(h -> h.createUpdate("""
                         DELETE FROM pangya.pangya_item_warehouse

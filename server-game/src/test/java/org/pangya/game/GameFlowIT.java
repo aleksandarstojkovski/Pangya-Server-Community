@@ -1441,6 +1441,69 @@ class GameFlowIT {
     }
 
     @Test
+    void makeTutorialRookieAcksFlagsAndMailsReward() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config);
+             PangyaFakeClient client = new PangyaFakeClient()) {
+            InventoryRepository inv = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
+            try {
+                inv.updateTutorial(10001, 0, 0, 0);
+                LoginRepository repo = new JdbiLoginRepository(DatabaseSupport.jdbi(ds));
+                String loginKey = repo.generateAuthKeyLogin(10001);
+                String gameKey = repo.generateAuthKeyGame(10001, 20202);
+                keys.putLoginKey(10001, loginKey);
+                keys.putGameKey(10001, 20202, gameKey);
+                loginToChannel(client, runtime.port(), "testuser", 10001, loginKey, gameKey);
+
+                client.sendPlain(GamePackets.clientCompleteQuest(
+                        GamePackets.TUTORIAL_TIPO_ROOKIE, 4));
+                PacketReader order = awaitOpcode(client, GamePackets.SERVER_LOGIN_ACK);
+                assertEquals(GamePackets.GACHA_ERR_MARKER, order.u8());
+                assertEquals(GamePackets.shopSys(GamePackets.TUTORIAL_ERR_ORDER), order.u32());
+
+                client.sendPlain(GamePackets.clientCompleteQuest(
+                        GamePackets.TUTORIAL_TIPO_ROOKIE, 1));
+                PacketReader ok = awaitOpcode(client, GamePackets.SERVER_MAKE_TUTORIAL);
+                assertEquals(GamePackets.TUTORIAL_TIPO_ROOKIE, ok.u8());
+                assertEquals(GamePackets.TUTORIAL_OK, ok.u8());
+                assertEquals(1, ok.u32());
+                assertEquals(1, inv.tutorial(10001).rookie());
+
+                client.sendPlain(GamePackets.clientCompleteQuest(
+                        GamePackets.TUTORIAL_TIPO_ROOKIE, 1));
+                PacketReader done = awaitOpcode(client, GamePackets.SERVER_LOGIN_ACK);
+                assertEquals(GamePackets.GACHA_ERR_MARKER, done.u8());
+                assertEquals(GamePackets.shopSys(GamePackets.TUTORIAL_ERR_DONE), done.u32());
+
+                client.sendPlain(GamePackets.clientOpenMailBox(1));
+                PacketReader page = awaitOpcode(client, GamePackets.SERVER_MAILBOX);
+                assertEquals(0, page.i32());
+                assertEquals(1, page.i32());
+                assertEquals(1, page.i32());
+                assertEquals(1, page.i32());
+                assertTrue(page.i32() > 0);
+                assertEquals(GamePackets.MAIL_FROM_ADM, page.fixedStr(GamePackets.MAIL_FROM_BYTES));
+                assertEquals(GamePackets.TUTORIAL_ROOKIE_MSG,
+                        page.fixedStr(GamePackets.MAIL_MSG_PREVIEW_BYTES));
+                page.readBytes(GamePackets.MAIL_UNKNOWN2_BYTES);
+                assertEquals(0, page.u32());
+                assertEquals(0, page.u8());
+                assertEquals(1, page.u32());
+            } finally {
+                inv.updateTutorial(10001, 0, 0, 0);
+            }
+        }
+    }
+
+    @Test
     void versusAutoCommandAcksFailAndCountsUses() throws Exception {
         String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
         String user = env("PANGYA_TEST_JDBC_USER", "pangya");

@@ -78,6 +78,16 @@ public interface InventoryRepository {
      */
     LockerPangMoveResult updateDolfiniLockerPang(long uid, int opt, long pang);
 
+    /**
+     * C# {@code CmdTutorialInfo} / {@code pangya.tutorial}. Missing row is zeros.
+     */
+    TutorialFlags tutorial(long uid);
+
+    /**
+     * C# {@code CmdUpdateTutorial}. Upsert stand-in for character-create insert.
+     */
+    void updateTutorial(long uid, int rookie, int beginner, int advancer);
+
     void setLevel(long uid, int level);
 
     void deleteWarehouseByTypeid(long uid, int typeid);
@@ -276,4 +286,6 @@ public interface InventoryRepository {
             return new LockerPangMoveResult(code, 0, 0, 0);
         }
     }
+
+    record TutorialFlags(int rookie, int beginner, int advancer) {}
 }

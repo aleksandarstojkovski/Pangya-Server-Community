@@ -158,7 +158,7 @@ C#: `GameServer/PangyaEnums/PacketGame.cs` → Java `org.pangya.protocol.game.Ga
 | C | `CLIENT_ITEMSTORAGE_REQ_STATE` | `0xD3` | no channel; `0x170` u32 0 + u32 2 (no pass) |
 | C | `CLIENT_CLUBSETWORKSHOP_REQ_UP_LEVEL` | `0x164` | 10 bytes; group ≠ ITEM → `0x23D` `shopSys(0x5300201)` |
 | C | `CLIENT_OPEN_LUCKY_POUCH` | `0xB2` | catch `0x129` u8 1 + 12 zeros |
-| C | `CLIENT_COMPLETE_QUEST` | `0xAE` | tipo not 0/1/2 → `0x44` u8 `0xE2` + `shopSys(0x5300552)` |
+| C | `CLIENT_COMPLETE_QUEST` | `0xAE` | tipo 0/1/2 success `0x11F` u8 tipo + u8 1 + u32 flags + mail `@ADM`; già fatto `shopSys(0x5300551)`; ordine `shopSys(0x5300554)`; tipo ignoto `0x44` u8 `0xE2` + `shopSys(0x5300552)`. Opposite messenger Friend_List `0x11F`. |
 | C | `CLIENT_HEARTBEAT` | `0xF4` | no reply |
 | C | `CLIENT_REQUEST_UPDATE_USER_PLACE` | `0xC1` | sbyte place; no reply |
 | C | `CLIENT_USE_TICKET_REPORT` | `0xAA` | Tourney FINISH + level≥6 + typeid `0x1A000041`: `pacote0AA` remaining C0, `0x12A` u32 0, `0x4C` -1, leave 10 (`0x61`+`0x11B` oid). Versus/not-FINISH/no item silent. Opposite `SERVER_NEW_ITEM` |

@@ -7,20 +7,20 @@ Questo repo è solo la riscrittura Java. **S4 non è done.**
 
 S0 [x] S1 [x] S2 [x] S3 [x] S4 [~] S5 [~] S6 [x]
 
-S4 profondità: **133** opcode success 1:1 / **39** opcode solo fail-stub / **40** stimati rimanenti dal C# Channel
+S4 profondità: **134** opcode success 1:1 / **38** opcode solo fail-stub / **39** stimati rimanenti dal C# Channel
 
 Conteggio Channel: **197** handler `packet_func_sv` registrati in `GameService.init_Packets`. Java ha uno `switch` per **195** di quelli (mancano `0x174`/`0x175`, no-op anche in C#). Success 1:1 = happy-path wire C# raggiungibile (SQL stand-in ammesso). Fail-stub = Java manda solo il catch C#; il success C# vuole IFF/`ItemManager`. Rimanenti ≈ fail-stub + GZ first-hole pulse `0x137`.
 
 ## Questo turno
 
-Fatto: Dolfini locker pang `CLIENT_LOCKER_UPDATE_PANG` `0xD4` → `0x171` u32 0 + `0xC8` wallet/moved + `0x172` locker pang. Opt 1 deposit / opt 0 withdraw su `pangya_dolfini_locker` (upsert stand-in del insert create-char). Fail: pang&gt;wallet `shopSys(5100352)`, pang&gt;locker `shopSys(5100353)`, opt ignoto `shopSys(5100351)`, pang≤0/`consomePang` `5100350`. Query `0xD5` legge SQL.
-Prossimo opcode/file C#: GZ first-hole `packet137` pulse; oppure un fail-stub IFF-free (locker add/remove PART, take-mail attachment, tutorial `0xAE`, daily `0x152`–`0x154`).
+Fatto: Tutorial `CLIENT_COMPLETE_QUEST` `0xAE` (`requestMakeTutorial`) → `0x11F` u8 tipo + u8 1 + u32 flags. Rookie bit 1 mail `@ADM` `"NICE TUTORIAL ROOKIE CLEAR"` itemNum 1; già fatto `shopSys(0x5300551)`; ordine `shopSys(0x5300554)`; tipo ignoto `shopSys(0x5300552)`. SQL `pangya.tutorial` upsert. C# login `pacote11F` tipo 3 non iniettato (rompe il dump Java).
+Prossimo opcode/file C#: GZ first-hole `packet137` pulse; oppure fail-stub IFF-free (locker add/remove PART, take-mail attachment, daily `0x152`–`0x154`).
 Blocco: file IFF assenti (pin/cube live, `initComboDef`, cutin success `0xE5` `findCutinInfomation`); nessuna capture client JP Season 9.
 
 Percentuale epic: **scheletro 85%** / **parità client reale 35%**.
 
 - Scheletro: S0–S3 e S6 chiusi (Gradle, Cipher, Auth/Login, Practice, Ranking/Messenger core, metriche 3000, compose `/health`). S4/S5 aperti.
-- Parità client reale: ~133/197 Channel con happy-path; SQL al posto IFF; fail-stub su workshop/card/UCC/cutin/memorial; zero capture JP S9.
+- Parità client reale: ~134/197 Channel con happy-path; SQL al posto IFF; fail-stub su workshop/card/UCC/cutin/memorial; zero capture JP S9.
 
 ## Slice (non dichiarare S4 done)
 

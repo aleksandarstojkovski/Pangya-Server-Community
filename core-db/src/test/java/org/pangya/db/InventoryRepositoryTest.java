@@ -267,6 +267,11 @@ class InventoryRepositoryTest {
             assertEquals(GamePackets.LOCKER_PANG_WITHDRAW_ERR,
                     repo.updateDolfiniLockerPang(10001, GamePackets.LOCKER_PANG_WITHDRAW, 1).code());
             repo.setPangCookie(10001, 100000, 0);
+            repo.updateTutorial(10001, 0, 0, 0);
+            assertEquals(0, repo.tutorial(10001).rookie());
+            repo.updateTutorial(10001, 1, 0, 0);
+            assertEquals(1, repo.tutorial(10001).rookie());
+            repo.updateTutorial(10001, 0, 0, 0);
         }
     }
 

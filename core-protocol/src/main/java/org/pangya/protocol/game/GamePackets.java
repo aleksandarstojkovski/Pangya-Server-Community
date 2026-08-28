@@ -137,6 +137,11 @@ public final class GamePackets {
      */
     public static final int SERVER_TICKET_REPORT_LEAVE = 0x11B;
     /**
+     * C# {@code requestMakeTutorial} success {@code 0x11F}: u8 tipo + u8 1 + u32
+     * flags. Same numeric as messenger {@link #MSN_FRIEND_LIST}.
+     */
+    public static final int SERVER_MAKE_TUTORIAL = 0x11F;
+    /**
      * C# Tourney {@code finish_game(1)} {@code 0x12A}
      * ({@code SERVER_NOTICE_TO_CLIENT}): u32 0.
      */
@@ -1508,8 +1513,33 @@ public final class GamePackets {
      * C# tutorial catch else {@code 0x5300550} on {@code 0x44} u8 {@code 0xE2}.
      */
     public static final int TUTORIAL_ERR_DEFAULT = 0x5300550;
+    /** C# tutorial already completed CHANNEL sys {@code 0x5300551}. */
+    public static final int TUTORIAL_ERR_DONE = 0x5300551;
     /** C# tutorial unknown tipo CHANNEL sys {@code 0x5300552}. */
     public static final int TUTORIAL_ERR_TIPO = 0x5300552;
+    /** C# tutorial missing prior bits CHANNEL sys {@code 0x5300554}. */
+    public static final int TUTORIAL_ERR_ORDER = 0x5300554;
+    /** C# tutorial unknown value CHANNEL sys {@code 0x5300556}. */
+    public static final int TUTORIAL_ERR_VALUE = 0x5300556;
+    public static final int TUTORIAL_TIPO_ROOKIE = 0;
+    public static final int TUTORIAL_TIPO_BEGINNER = 1;
+    public static final int TUTORIAL_TIPO_ADVANCER = 2;
+    /** C# success {@code 0x11F} second byte. */
+    public static final int TUTORIAL_OK = 1;
+    public static final String TUTORIAL_ROOKIE_MSG = "NICE TUTORIAL ROOKIE CLEAR";
+    public static final String TUTORIAL_ROOKIE_ALL_MSG = "NICE ALL TUTORIAL ROOKIE CLEAR";
+    public static final String TUTORIAL_BEGINNER_MSG = "NICE TUTORIAL BEGINNER CLEAR";
+    public static final String TUTORIAL_BEGINNER_ALL_MSG = "NICE ALL TUTORIAL BEGINNER CLEAR";
+    public static final String TUTORIAL_ADVANCER_MSG = "NICE TUTORIAL ADVANCER CLEAR";
+    public static final String TUTORIAL_ADVANCER_ALL_MSG = "NICE ALL TUTORIAL ADVANCER CLEAR";
+    /** C# tutorial Pang Mastery. */
+    public static final int TYPEID_PANG_MASTERY = 0x1A000002;
+    /** C# {@code PANG_POUCH_TYPEID}. */
+    public static final int TYPEID_PANG_POUCH = 0x1A000010;
+    /** C# tutorial Papel caddie {@code 0x1C000000}. */
+    public static final int TYPEID_TUTORIAL_PAPEL = 0x1C000000;
+    /** C# Air Knight Lucky Set. */
+    public static final int TYPEID_AIR_KNIGHT_LUCKY = 0x10000014;
     /** C# workshop unknown item group CHANNEL sys {@code 0x5300201}. */
     public static final int WORKSHOP_ERR_GROUP = 0x5300201;
     /** C# workshop catch else. */
@@ -3427,6 +3457,19 @@ public final class GamePackets {
      */
     public static byte[] tutorialFail(int code) {
         return new PacketWriter().opcode(SERVER_LOGIN_ACK).u8(GACHA_ERR_MARKER).u32(code).toBytes();
+    }
+
+    /**
+     * C# {@code requestMakeTutorial} success {@code 0x11F}: u8 tipo + u8 1 + u32
+     * Rookie/Beginner/Advancer flags.
+     */
+    public static byte[] tutorialOk(int tipo, int flags) {
+        return new PacketWriter()
+                .opcode(SERVER_MAKE_TUTORIAL)
+                .u8(tipo)
+                .u8(TUTORIAL_OK)
+                .u32(flags)
+                .toBytes();
     }
 
     /** C# Tiki points {@code 0x1E8}: u32 option + u32 pts. */
@@ -5450,10 +5493,19 @@ public final class GamePackets {
     }
 
     /**
-     * C# CLIENT {@code 0xAE}: u16 tipo union + u32 value. Byte1 is {@code tipo}.
+     * C# CLIENT {@code 0xAE}: u8 finish + u8 tipo + u32 value.
      */
     public static byte[] clientCompleteQuest(int tipo, int value) {
-        return new PacketWriter().opcode(CLIENT_COMPLETE_QUEST).u8(0).u8(tipo).u32(value).toBytes();
+        return clientCompleteQuest(0, tipo, value);
+    }
+
+    public static byte[] clientCompleteQuest(int finish, int tipo, int value) {
+        return new PacketWriter()
+                .opcode(CLIENT_COMPLETE_QUEST)
+                .u8(finish)
+                .u8(tipo)
+                .u32(value)
+                .toBytes();
     }
 
     /** C# CLIENT {@code 0xF4} empty. */

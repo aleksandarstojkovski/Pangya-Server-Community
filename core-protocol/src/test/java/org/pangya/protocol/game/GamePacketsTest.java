@@ -998,6 +998,11 @@ class GamePacketsTest {
         assertEquals(GamePackets.SERVER_LOGIN_ACK, tuto.opcode());
         assertEquals(GamePackets.GACHA_ERR_MARKER, tuto.u8());
         assertEquals(0x0552, tuto.u32());
+        PacketReader tutoOk = new PacketReader(GamePackets.tutorialOk(0, 1));
+        assertEquals(GamePackets.SERVER_MAKE_TUTORIAL, tutoOk.opcode());
+        assertEquals(0, tutoOk.u8());
+        assertEquals(GamePackets.TUTORIAL_OK, tutoOk.u8());
+        assertEquals(1, tutoOk.u32());
         PacketReader webClient = new PacketReader(GamePackets.clientWebAuthKey());
         assertEquals(GamePackets.CLIENT_WEB_AUTH_KEY, webClient.opcode());
         assertEquals(0, webClient.remaining());
@@ -1951,6 +1956,10 @@ class GamePacketsTest {
         assertEquals(GamePackets.LOCKER_PANG_WITHDRAW, 0);
         assertEquals(GamePackets.LOCKER_PANG_DEPOSIT_ERR, 5100352);
         assertEquals(GamePackets.LOCKER_PANG_OPT_ERR, 5100351);
+        assertEquals(GamePackets.SERVER_MAKE_TUTORIAL, 0x11F);
+        assertEquals(GamePackets.TUTORIAL_ERR_DONE, 0x5300551);
+        assertEquals(GamePackets.TUTORIAL_ERR_ORDER, 0x5300554);
+        assertEquals(GamePackets.CLIENT_COMPLETE_QUEST, 0xAE);
         assertEquals(GamePackets.SERVER_BUY_ACK, 0x68);
         assertEquals(GamePackets.CREATE_ROOM_FAILED, 0x07);
         assertEquals(GamePackets.SERVER_LAST5, 0x10E);

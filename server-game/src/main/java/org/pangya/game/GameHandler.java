@@ -428,6 +428,10 @@ public final class GameHandler {
                     break;
                 }
             }
+            InventoryRepository.TutorialFlags tuto = inventory.tutorial(pi.uid);
+            pi.tutoRookie = tuto.rookie();
+            pi.tutoBeginner = tuto.beginner();
+            pi.tutoAdvancer = tuto.advancer();
             for (byte[] extra : GamePackets.loginDumpTail(
                     (int) pi.uid,
                     inventory.pang(pi.uid),
@@ -3908,8 +3912,9 @@ public final class GameHandler {
     }
 
     /**
-     * C# {@code requestMakeTutorial}: unknown tipo → {@code 0x44} u8 {@code 0xE2}
-     * + {@code shopSys(0x5300552)}.
+     * C# {@code requestMakeTutorial}: success {@code 0x11F} u8 tipo + u8 1 + u32
+     * flags. Mail rewards are hardcoded typeids (no IFF). Unknown tipo
+     * {@code 0x44} u8 {@code 0xE2} + {@code shopSys(0x5300552)}.
      */
     private void makeTutorial(Session session, PacketReader reader) {
         if (!inChannel(session)) {
@@ -3919,12 +3924,122 @@ public final class GameHandler {
             session.send(GamePackets.tutorialFail(GamePackets.TUTORIAL_ERR_DEFAULT));
             return;
         }
-        reader.u8();
+        int finish = reader.u8();
         int tipo = reader.u8();
-        reader.u32();
-        if (tipo != 0 && tipo != 1 && tipo != 2) {
-            session.send(GamePackets.tutorialFail(GamePackets.shopSys(GamePackets.TUTORIAL_ERR_TIPO)));
+        int value = reader.u32();
+        int rookieByte = value & 0xff;
+        int beginnerByte = (value >>> 8) & 0xff;
+        int advancerByte = (value >>> 16) & 0xff;
+        PlayerContext pi = session.player();
+        try {
+            int flags;
+            if (tipo == GamePackets.TUTORIAL_TIPO_ROOKIE) {
+                if ((pi.tutoRookie & rookieByte) != 0) {
+                    session.send(GamePackets.tutorialFail(GamePackets.shopSys(GamePackets.TUTORIAL_ERR_DONE)));
+                    return;
+                }
+                if ((tutorialBit(rookieByte, 2) || tutorialBit(rookieByte, 3)) && pi.tutoRookie < 3) {
+                    session.send(GamePackets.tutorialFail(GamePackets.shopSys(GamePackets.TUTORIAL_ERR_ORDER)));
+                    return;
+                } else if (tutorialBit(rookieByte, 4) && (pi.tutoRookie & 7) <= 3) {
+                    session.send(GamePackets.tutorialFail(GamePackets.shopSys(GamePackets.TUTORIAL_ERR_ORDER)));
+                    return;
+                } else if (tutorialBit(rookieByte, 6) && (pi.tutoRookie & 11) <= 3) {
+                    session.send(GamePackets.tutorialFail(GamePackets.shopSys(GamePackets.TUTORIAL_ERR_ORDER)));
+                    return;
+                } else if (tutorialBit(rookieByte, 5) && (pi.tutoRookie & 15) <= 3) {
+                    session.send(GamePackets.tutorialFail(GamePackets.shopSys(GamePackets.TUTORIAL_ERR_ORDER)));
+                    return;
+                } else if (!tutorialBit(rookieByte, 2) && !tutorialBit(rookieByte, 3)
+                        && !tutorialBit(rookieByte, 4) && !tutorialBit(rookieByte, 6)
+                        && !tutorialBit(rookieByte, 5)
+                        && ((rookieByte - 1) & pi.tutoRookie) != (rookieByte - 1)) {
+                    session.send(GamePackets.tutorialFail(GamePackets.shopSys(GamePackets.TUTORIAL_ERR_ORDER)));
+                    return;
+                }
+                int which = tutorialWhatBit(rookieByte);
+                if (which < 1 || which > 8) {
+                    session.send(GamePackets.tutorialFail(GamePackets.shopSys(GamePackets.TUTORIAL_ERR_VALUE)));
+                    return;
+                }
+                pi.tutoRookie |= value;
+                sendTutorialMail(session, GamePackets.TUTORIAL_ROOKIE_MSG, 1);
+                if ((pi.tutoRookie & 0xff) != 0 && finish != 0) {
+                    sendTutorialMail(session, GamePackets.TUTORIAL_ROOKIE_ALL_MSG, 2);
+                }
+                flags = pi.tutoRookie;
+            } else if (tipo == GamePackets.TUTORIAL_TIPO_BEGINNER) {
+                if ((pi.tutoBeginner & beginnerByte) != 0) {
+                    session.send(GamePackets.tutorialFail(GamePackets.shopSys(GamePackets.TUTORIAL_ERR_DONE)));
+                    return;
+                }
+                int storedBeginner = (pi.tutoBeginner >>> 8) & 0xff;
+                if ((tutorialBit(beginnerByte, 1) || tutorialBit(beginnerByte, 2)) && storedBeginner < 1) {
+                    session.send(GamePackets.tutorialFail(GamePackets.shopSys(GamePackets.TUTORIAL_ERR_ORDER)));
+                    return;
+                } else if ((tutorialBit(beginnerByte, 4) || tutorialBit(beginnerByte, 5))
+                        && storedBeginner < 15) {
+                    session.send(GamePackets.tutorialFail(GamePackets.shopSys(GamePackets.TUTORIAL_ERR_ORDER)));
+                    return;
+                } else if (!tutorialBit(beginnerByte, 1) && !tutorialBit(beginnerByte, 2)
+                        && !tutorialBit(beginnerByte, 4) && !tutorialBit(beginnerByte, 5)
+                        && ((beginnerByte - 1) & storedBeginner) != (beginnerByte - 1)) {
+                    session.send(GamePackets.tutorialFail(GamePackets.shopSys(GamePackets.TUTORIAL_ERR_ORDER)));
+                    return;
+                }
+                int beginnerWhich = tutorialWhatBit(beginnerByte);
+                if (beginnerWhich < 1 || beginnerWhich > 6) {
+                    session.send(GamePackets.tutorialFail(GamePackets.shopSys(GamePackets.TUTORIAL_ERR_VALUE)));
+                    return;
+                }
+                pi.tutoBeginner |= value;
+                sendTutorialMail(session, GamePackets.TUTORIAL_BEGINNER_MSG, 1);
+                if (pi.tutoBeginner == (0x3f << 8)) {
+                    sendTutorialMail(session, GamePackets.TUTORIAL_BEGINNER_ALL_MSG, 2);
+                }
+                flags = pi.tutoBeginner;
+            } else if (tipo == GamePackets.TUTORIAL_TIPO_ADVANCER) {
+                if ((pi.tutoAdvancer & advancerByte) != 0) {
+                    session.send(GamePackets.tutorialFail(GamePackets.shopSys(GamePackets.TUTORIAL_ERR_DONE)));
+                    return;
+                }
+                int storedAdvancer = (pi.tutoAdvancer >>> 16) & 0xff;
+                if (((advancerByte - 1) & storedAdvancer) != (advancerByte - 1)) {
+                    session.send(GamePackets.tutorialFail(GamePackets.shopSys(GamePackets.TUTORIAL_ERR_ORDER)));
+                    return;
+                }
+                pi.tutoAdvancer |= value;
+                flags = pi.tutoAdvancer;
+                if (pi.tutoAdvancer == (0x7 << 16) && finish != 0) {
+                    sendTutorialMail(session, GamePackets.TUTORIAL_ADVANCER_ALL_MSG, 2);
+                }
+            } else {
+                session.send(GamePackets.tutorialFail(GamePackets.shopSys(GamePackets.TUTORIAL_ERR_TIPO)));
+                return;
+            }
+            inventory.updateTutorial(pi.uid, pi.tutoRookie, pi.tutoBeginner, pi.tutoAdvancer);
+            session.send(GamePackets.tutorialOk(tipo, flags));
+        } catch (RuntimeException e) {
+            log.warn("tutorial uid={} failed: {}", session.player().uid, e.toString());
+            session.send(GamePackets.tutorialFail(GamePackets.TUTORIAL_ERR_DEFAULT));
         }
+    }
+
+    private void sendTutorialMail(Session session, String msg, int itemNum) {
+        mailboxes.add(session.player().uid, GamePackets.MAIL_FROM_ADM, msg, itemNum);
+    }
+
+    private static boolean tutorialBit(int bits, int bit) {
+        return (bits & (1 << bit)) != 0;
+    }
+
+    private static int tutorialWhatBit(int bits) {
+        for (int i = 0; i < 8; i++) {
+            if ((bits & (1 << i)) != 0) {
+                return i + 1;
+            }
+        }
+        return 0;
     }
 
     /**
