@@ -185,7 +185,7 @@ curl -fsS http://127.0.0.1:9474/health   # ok ranking
 curl -fsS http://127.0.0.1:9302/health   # ok messenger
 ```
 
-Hole/shot IFF cubes (live pin/cube coords from client IFF) e IFF shop catalog (`0xAA`/`0x68` success) restano aperti. Practice `0x76`/`0x52`/`0x1A`/`0x1B`/`0x1C`, Versus 2p `0x76` dump, `pacote048`/`0x4A`, equip `0x20` type 0/1/3/5/8, ranking SQL + live CharacterInfo, friend CRUD, Login first-set `0x06`/`0x07`/`0x08` sono nel fake-client.
+Hole/shot IFF cubes (live pin/cube coords from client IFF) e IFF shop catalog (`0xAA`/`0x68` success) restano aperti. Practice `0x76`/`0x52`/`0x1A`/`0x1B`/`0x1C`, Versus 2p `0x76` dump, **Match** 2p versus dump, **Tourney** 2p `0x76`+`0x52`, **Grand Prix** solo `0x76`+`0x52`, `pacote048`/`0x4A`, equip `0x20` type 0/1/3/5/8, ranking SQL + live CharacterInfo, friend CRUD, Login first-set `0x06`/`0x07`/`0x08` sono nel fake-client. Lounge/GZ/SSC restano parziali (stesso path Tourney/Versus, senza IFF event).
 
 ## Note GC / Netty (S6)
 
