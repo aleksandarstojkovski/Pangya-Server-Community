@@ -108,6 +108,7 @@ public final class GameHandler {
             case GamePackets.CLIENT_LOADING_INFO -> loadPercent(session, reader);
             case GamePackets.CLIENT_TEAMCHAT -> teamChat(session, reader);
             case GamePackets.CLIENT_ALLOW_WHISPER -> allowWhisper(session, reader);
+            case GamePackets.CLIENT_REQUEST_SERVER_TIME -> requestServerTime(session);
             case GamePackets.CLIENT_SHOT_RESULT -> syncShot(session, reader);
             case GamePackets.CLIENT_SHOT_ACK -> finishShot(session);
             case GamePackets.CLIENT_REQUEST_EQUIP_ITEM -> equipItem(session, reader);
@@ -541,6 +542,13 @@ public final class GameHandler {
             return;
         }
         session.player().whisper = whisper;
+    }
+
+    private void requestServerTime(Session session) {
+        if (!session.authorized()) {
+            return;
+        }
+        session.send(GamePackets.serverTime());
     }
 
     private void syncShot(Session session, PacketReader reader) {

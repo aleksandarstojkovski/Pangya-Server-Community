@@ -6,6 +6,7 @@ import org.pangya.protocol.packet.PacketReader;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class GamePacketsTest {
 
@@ -426,5 +427,9 @@ class GamePacketsTest {
         assertEquals(GamePackets.USERINFO_OFFLINE_FOUND, offlineFound.u8());
         assertEquals(10002, offlineFound.u32());
         assertEquals(GamePackets.MEMBER_INFO_EX_BYTES, offlineFound.remaining());
+        PacketReader clock = new PacketReader(GamePackets.serverTime());
+        assertEquals(GamePackets.SERVER_RESPONSE_SERVER_TIME, clock.opcode());
+        assertEquals(16, clock.remaining());
+        assertTrue(clock.u16() >= 2026);
     }
 }

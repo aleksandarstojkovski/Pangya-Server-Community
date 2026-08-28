@@ -48,6 +48,8 @@ public final class GamePackets {
     public static final int SERVER_LEAVE_LOBBY = 0xF6;
     public static final int SERVER_WHISPER = 0x84;
     public static final int SERVER_INVITE = 0x83;
+    /** C# {@code SERVER_RESPONSE_SERVER_TIME} / {@code WriteTime()} SYSTEMTIME. */
+    public static final int SERVER_RESPONSE_SERVER_TIME = 0xBA;
     public static final int SERVER_ROOM_DETAIL = 0x86;
     public static final int SERVER_PLAYER_INFO = 0x89;
     public static final int SERVER_INVITE_REPLY = 0x12F;
@@ -116,6 +118,8 @@ public final class GamePackets {
     public static final int CLIENT_LOADING_INFO = 0x48;
     public static final int CLIENT_TEAMCHAT = 0x54;
     public static final int CLIENT_ALLOW_WHISPER = 0x55;
+    /** C# {@code CLIENT_REQUEST_SERVER_TIME} / {@code packet05C}. */
+    public static final int CLIENT_REQUEST_SERVER_TIME = 0x5C;
     public static final int CLIENT_INVITE = 0xBA;
 
     public static final int ACK_LOGIN_OK = 0;
@@ -1340,6 +1344,14 @@ public final class GamePackets {
 
     public static byte[] clientBanish(int uid) {
         return new PacketWriter().opcode(CLIENT_REQUEST_BANISH).u32(uid).toBytes();
+    }
+
+    public static byte[] clientRequestServerTime() {
+        return new PacketWriter().opcode(CLIENT_REQUEST_SERVER_TIME).toBytes();
+    }
+
+    public static byte[] serverTime() {
+        return new PacketWriter().opcode(SERVER_RESPONSE_SERVER_TIME).systemTimeNow().toBytes();
     }
 
     /**

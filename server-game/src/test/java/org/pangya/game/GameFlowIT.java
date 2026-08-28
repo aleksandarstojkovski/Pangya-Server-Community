@@ -617,6 +617,11 @@ class GameFlowIT {
             PacketReader cash = awaitOpcode(host, GamePackets.SERVER_COOKIE);
             assertTrue(cash.u64() >= 0);
 
+            host.sendPlain(GamePackets.clientRequestServerTime());
+            PacketReader serverTime = awaitOpcode(host, GamePackets.SERVER_RESPONSE_SERVER_TIME);
+            assertEquals(16, serverTime.remaining());
+            assertTrue(serverTime.u16() >= 2026);
+
             host.sendPlain(GamePackets.clientWhisper("nobody", "are you there"));
             PacketReader offline = awaitOpcode(host, GamePackets.SERVER_CHAT);
             assertEquals(GamePackets.CHAT_OFFLINE, offline.u8());
