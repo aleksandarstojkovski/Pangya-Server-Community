@@ -20,6 +20,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.regex.Pattern;
 
 /**
  * JP {@code GameServer.requestLogin} + channel enter + {@code Channel.requestMakeRoom}
@@ -28,6 +29,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 public final class GameHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GameHandler.class);
+    /** C# {@code requestCheckNick} forbidden-character class. */
+    private static final Pattern NICK_BAD = Pattern.compile(".*[\\^$&,\\\\?`´~|\"@#¨'%*!].*");
 
     private final AppConfig config;
     private final LoginRepository repo;
@@ -88,10 +91,23 @@ public final class GameHandler {
             case GamePackets.CLIENT_REQUEST_JOIN_ROOM -> joinRoom(session, reader);
             case GamePackets.CLIENT_REQUEST_START_GAME -> startGame(session);
             case GamePackets.CLIENT_EXIT_ROOM -> leaveRoom(session);
+            case GamePackets.CLIENT_REQUEST_BANISH -> banish(session, reader);
+            case GamePackets.CLIENT_REQUEST_USERINFO_OFFLINE -> requestUserInfoOffline(session, reader);
             case GamePackets.CLIENT_LEAVE_PRACTICE -> leavePractice(session);
             case GamePackets.CLIENT_LOAD_OK -> finishLoadHole(session);
             case GamePackets.CLIENT_HOLE_INFO -> initHole(session, reader);
             case GamePackets.CLIENT_SHOT -> initShot(session);
+            case GamePackets.CLIENT_CAMERA -> changeMira(session, reader);
+            case GamePackets.CLIENT_CLICK -> changeBarSpace(session, reader);
+            case GamePackets.CLIENT_POWER_SHOT -> activePowerShot(session, reader);
+            case GamePackets.CLIENT_CLUB -> changeClub(session, reader);
+            case GamePackets.CLIENT_USE_ITEM -> { }
+            case GamePackets.CLIENT_EMOTICON -> changeTyping(session, reader);
+            case GamePackets.CLIENT_DROP -> moveBall(session, reader);
+            case GamePackets.CLIENT_TIMECHECK -> { }
+            case GamePackets.CLIENT_LOADING_INFO -> loadPercent(session, reader);
+            case GamePackets.CLIENT_TEAMCHAT -> teamChat(session, reader);
+            case GamePackets.CLIENT_ALLOW_WHISPER -> allowWhisper(session, reader);
             case GamePackets.CLIENT_SHOT_RESULT -> syncShot(session, reader);
             case GamePackets.CLIENT_SHOT_ACK -> finishShot(session);
             case GamePackets.CLIENT_REQUEST_EQUIP_ITEM -> equipItem(session, reader);
@@ -422,6 +438,111 @@ public final class GameHandler {
         inGameRoom(session);
     }
 
+    /**
+     * VersusBase {@code game_broadcast}; TourneyBase {@code session_send} to the actor.
+     */
+    private void replyInGame(GameRoom room, Session session, byte[] pkt) {
+        if (GamePackets.usesVersusInitialData(room.tipo)) {
+            room.broadcast(pkt);
+        } else {
+            session.send(pkt);
+        }
+    }
+
+    private void changeMira(Session session, PacketReader reader) {
+        GameRoom room = inGameRoom(session);
+        if (room == null || reader.remaining() < 4) {
+            return;
+        }
+        replyInGame(room, session, GamePackets.camera(session.oid(), reader.f32()));
+    }
+
+    private void changeBarSpace(Session session, PacketReader reader) {
+        // C# Versus/Tourney store bar state; timeout {@code 0x5C} is not sent until 3 misses.
+        if (inGameRoom(session) != null && reader.remaining() >= 5) {
+            reader.u8();
+            reader.f32();
+        }
+    }
+
+    private void activePowerShot(Session session, PacketReader reader) {
+        GameRoom room = inGameRoom(session);
+        if (room == null || reader.remaining() < 1) {
+            return;
+        }
+        replyInGame(room, session, GamePackets.powerShot(session.oid(), reader.u8()));
+    }
+
+    private void changeClub(Session session, PacketReader reader) {
+        GameRoom room = inGameRoom(session);
+        if (room == null || reader.remaining() < 1) {
+            return;
+        }
+        replyInGame(room, session, GamePackets.club(session.oid(), reader.u8()));
+    }
+
+    private void changeTyping(Session session, PacketReader reader) {
+        GameRoom room = inGameRoom(session);
+        if (room == null || reader.remaining() < 2) {
+            return;
+        }
+        replyInGame(room, session, GamePackets.typing(session.oid(), reader.i16()));
+    }
+
+    private void moveBall(Session session, PacketReader reader) {
+        GameRoom room = inGameRoom(session);
+        if (room == null || reader.remaining() < 12) {
+            return;
+        }
+        replyInGame(room, session, GamePackets.moveBall(reader.f32(), reader.f32(), reader.f32()));
+    }
+
+    private void loadPercent(Session session, PacketReader reader) {
+        GameRoom room = inGameRoom(session);
+        if (room == null || reader.remaining() < 1 || !GamePackets.usesVersusInitialData(room.tipo)) {
+            return;
+        }
+        room.broadcast(GamePackets.loadPercent(session.oid(), reader.u8()));
+    }
+
+    private void teamChat(Session session, PacketReader reader) {
+        if (!session.authorized() || reader.remaining() < 2) {
+            return;
+        }
+        String msg = reader.pstr();
+        if (msg == null || msg.isEmpty()) {
+            return;
+        }
+        GameRoom room = rooms.get(session.player().roomNumber);
+        if (room == null || (room.tipo != GamePackets.TIPO_MATCH && room.tipo != GamePackets.TIPO_GUILD_BATTLE)) {
+            return;
+        }
+        GamePackets.PlayerRoomInfo self = room.playerInfo(session);
+        if (self == null) {
+            return;
+        }
+        int team = self.stateFlag & GamePackets.PLAYER_TEAM_BIT;
+        String nick = session.player().nickname == null ? "" : session.player().nickname;
+        byte[] pkt = GamePackets.teamChat(nick, msg);
+        for (Session member : room.snapshot()) {
+            GamePackets.PlayerRoomInfo info = room.playerInfo(member);
+            if (info != null && (info.stateFlag & GamePackets.PLAYER_TEAM_BIT) == team) {
+                member.send(pkt);
+            }
+        }
+    }
+
+    private void allowWhisper(Session session, PacketReader reader) {
+        if (!session.authorized() || reader.remaining() < 1) {
+            return;
+        }
+        int whisper = reader.u8();
+        if (whisper > 1) {
+            return;
+        }
+        session.player().whisper = whisper;
+    }
+
     private void syncShot(Session session, PacketReader reader) {
         GameRoom room = inGameRoom(session);
         if (room == null || reader.remaining() != GamePackets.SHOT_SYNC_BYTES) {
@@ -598,10 +719,16 @@ public final class GameHandler {
         GameRoom leftover = null;
         GamePackets.PlayerRoomInfo leaver = room == null ? null : room.playerInfo(session);
         if (room != null) {
+            boolean wasMaster = room.info.master == (int) pi.uid;
             room.removePlayer(session);
-            if (room.info.numPlayer <= 0 || room.info.master == (int) pi.uid) {
+            if (room.info.numPlayer <= 0) {
                 rooms.remove(pi.roomNumber);
                 destroyed = true;
+            } else if (wasMaster && !room.inGame) {
+                Session next = room.electMaster();
+                if (next != null) {
+                    room.broadcast(GamePackets.decisionRoomMaster(next.oid(), 0));
+                }
             }
             leftover = room;
         } else {
@@ -625,6 +752,63 @@ public final class GameHandler {
         }
         sendLobbyPlayerInfo(session, GamePackets.LOBBY_USER_UPDATE);
         session.send(GamePackets.exitRoomAck(-1));
+    }
+
+    /**
+     * C# {@code Channel.requestKickPlayerOfRoom}: master kicks uid via
+     * {@code leaveRoomMultiPlayer(kick, 3)} → {@code 0x4C} -1.
+     */
+    private void banish(Session session, PacketReader reader) {
+        if (!session.authorized() || reader.remaining() < 4) {
+            return;
+        }
+        long uid = reader.u32() & 0xffff_ffffL;
+        PlayerContext pi = session.player();
+        GameRoom room = rooms.get(pi.roomNumber);
+        if (room == null || room.info.master != (int) pi.uid) {
+            return;
+        }
+        if (room.inGame && (pi.capability & 4) == 0) {
+            return;
+        }
+        Session kick = room.findByUid(uid);
+        if (kick == null) {
+            return;
+        }
+        leaveRoom(kick);
+    }
+
+    /**
+     * C# {@code Channel.requestCheckNick} → {@code pacote0A1}. Found nick is
+     * error 0 + uid + MemberInfoEx; anything else is error 2.
+     */
+    private void requestUserInfoOffline(Session session, PacketReader reader) {
+        if (!session.authorized() || reader.remaining() < 1) {
+            return;
+        }
+        reader.u8();
+        String nick = reader.remaining() >= 2 ? reader.pstr() : "";
+        if (nick.isEmpty()
+                || nick.length() < 4
+                || nick.indexOf(' ') >= 0
+                || NICK_BAD.matcher(nick).matches()) {
+            session.send(GamePackets.userInfoOfflineMissing());
+            return;
+        }
+        var info = repo.playerInfoByNick(nick).orElse(null);
+        if (info == null || info.uid() == 0) {
+            session.send(GamePackets.userInfoOfflineMissing());
+            return;
+        }
+        Session online = sessions.findByUid(info.uid());
+        int oid = online == null ? 0 : online.oid();
+        int sala = 0xffff;
+        if (online != null && online.player().roomNumber >= 0) {
+            sala = online.player().roomNumber & 0xffff;
+        }
+        session.send(GamePackets.userInfoOffline(
+                (int) info.uid(),
+                GamePackets.memberInfoExPublic(oid, info.id(), info.nickname(), info.capability(), sala)));
     }
 
     private void leavePractice(Session session) {
@@ -657,7 +841,7 @@ public final class GameHandler {
         pri.level = pi.level;
         pri.place = 10;
         if (room.info.master == (int) pi.uid) {
-            pri.stateFlag |= (1 << 3) | (1 << 9);
+            pri.stateFlag |= GamePackets.PLAYER_MASTER_BIT | GamePackets.PLAYER_READY_BIT;
         }
         if (pri.position > 0) {
             pri.stateFlag |= (pri.position - 1) % 2;
@@ -899,7 +1083,7 @@ public final class GameHandler {
             return;
         }
         Session target = sessions.findByNickname(nick);
-        if (target == null) {
+        if (target == null || target.player().whisper != 1) {
             session.send(GamePackets.chatOffline(nick));
             return;
         }

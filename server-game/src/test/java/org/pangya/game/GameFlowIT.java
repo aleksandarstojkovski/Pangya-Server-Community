@@ -150,6 +150,30 @@ class GameFlowIT {
                 PacketReader remain = new PacketReader(client.awaitPlain(5, TimeUnit.SECONDS));
                 assertEquals(GamePackets.SERVER_REMAIN_TIME, remain.opcode());
 
+                client.sendPlain(GamePackets.clientCamera(1.25f));
+                PacketReader mira = awaitOpcode(client, GamePackets.SERVER_CAMERA);
+                assertTrue(mira.i32() > 0);
+                assertEquals(1.25f, mira.f32());
+                client.sendPlain(GamePackets.clientClub(3));
+                PacketReader club = awaitOpcode(client, GamePackets.SERVER_CLUB);
+                assertTrue(club.i32() > 0);
+                assertEquals(3, club.u8());
+                client.sendPlain(GamePackets.clientPowerShot(1));
+                PacketReader ps = awaitOpcode(client, GamePackets.SERVER_POWER_SHOT);
+                assertTrue(ps.i32() > 0);
+                assertEquals(1, ps.u8());
+                client.sendPlain(GamePackets.clientEmoticon(1));
+                PacketReader typing = awaitOpcode(client, GamePackets.SERVER_TYPING);
+                typing.i32();
+                assertEquals(1, typing.i16());
+                client.sendPlain(GamePackets.clientDrop(1f, 2f, 3f));
+                PacketReader drop = awaitOpcode(client, GamePackets.SERVER_MOVE_BALL);
+                assertEquals(1f, drop.f32());
+                assertEquals(2f, drop.f32());
+                assertEquals(3f, drop.f32());
+                client.sendPlain(GamePackets.clientClick(1, 0.5f));
+                client.sendPlain(GamePackets.clientTimeCheck());
+
                 client.sendPlain(GamePackets.clientLoadOk());
                 client.sendPlain(GamePackets.clientShot());
                 byte[] shotPlain = GamePackets.shotSyncPlain(
@@ -283,6 +307,18 @@ class GameFlowIT {
             PacketReader guestInit = awaitOpcode(guest, GamePackets.SERVER_GAME_INIT);
             assertEquals(GamePackets.TIPO_STROKE, guestInit.u8());
             assertEquals(2, guestInit.u8());
+
+            host.sendPlain(GamePackets.clientLoadPercent(50));
+            PacketReader load = awaitOpcode(host, GamePackets.SERVER_LOAD_PERCENT);
+            assertTrue(load.i32() > 0);
+            assertEquals(50, load.u8());
+            PacketReader guestLoad = awaitOpcode(guest, GamePackets.SERVER_LOAD_PERCENT);
+            assertTrue(guestLoad.i32() > 0);
+            assertEquals(50, guestLoad.u8());
+            host.sendPlain(GamePackets.clientCamera(0.5f));
+            PacketReader mira = awaitOpcode(guest, GamePackets.SERVER_CAMERA);
+            mira.i32();
+            assertEquals(0.5f, mira.f32());
         }
     }
 
@@ -536,6 +572,12 @@ class GameFlowIT {
             int numero = roomNumberFromInfo(created.readBytes(GamePackets.ROOM_INFO_BYTES));
             guest.sendPlain(GamePackets.clientJoinRoom(numero, ""));
             assertEquals(0, awaitOpcode(guest, GamePackets.SERVER_ROOM_ENTER_RESULT).i16());
+            if (tipo == GamePackets.TIPO_MATCH) {
+                host.sendPlain(GamePackets.clientTeamChat("go red"));
+                PacketReader teamChat = awaitOpcode(host, GamePackets.SERVER_TEAM_CHAT);
+                assertEquals("TestNick", teamChat.pstr());
+                assertEquals("go red", teamChat.pstr());
+            }
             host.sendPlain(GamePackets.clientStartGame());
             awaitOpcode(host, GamePackets.SERVER_START_GAME_FLAG);
             awaitOpcode(host, GamePackets.SERVER_START_GAME_FLAG2);
@@ -548,6 +590,10 @@ class GameFlowIT {
             PacketReader guestInit = awaitOpcode(guest, GamePackets.SERVER_GAME_INIT);
             assertEquals(tipo, guestInit.u8());
             assertEquals(2, guestInit.u8());
+            host.sendPlain(GamePackets.clientLoadPercent(40));
+            PacketReader load = awaitOpcode(host, GamePackets.SERVER_LOAD_PERCENT);
+            assertTrue(load.i32() > 0);
+            assertEquals(40, load.u8());
         }
     }
 
@@ -585,6 +631,12 @@ class GameFlowIT {
             assertEquals(GamePackets.WHISPER_TO, to.u8());
             assertEquals("TestNick", to.pstr());
             assertEquals("hi guest", to.pstr());
+
+            guest.sendPlain(GamePackets.clientAllowWhisper(0));
+            host.sendPlain(GamePackets.clientWhisper("TestNick2", "blocked"));
+            PacketReader blocked = awaitOpcode(host, GamePackets.SERVER_CHAT);
+            assertEquals(GamePackets.CHAT_OFFLINE, blocked.u8());
+            guest.sendPlain(GamePackets.clientAllowWhisper(1));
 
             host.sendPlain(GamePackets.clientKeepalive());
             host.sendPlain(GamePackets.clientEnterLobby());
@@ -680,6 +732,24 @@ class GameFlowIT {
             assertTrue(left.i32() > 0);
             PacketReader exit = awaitOpcode(guest, GamePackets.SERVER_EXIT_ROOM);
             assertEquals(-1, exit.i16());
+
+            guest.sendPlain(GamePackets.clientJoinRoom(numero, ""));
+            assertEquals(0, awaitOpcode(guest, GamePackets.SERVER_ROOM_ENTER_RESULT).i16());
+            host.sendPlain(GamePackets.clientExitRoom());
+            PacketReader master = awaitOpcode(guest, GamePackets.SERVER_DECISION_ROOM_MASTER);
+            assertTrue(master.i32() > 0);
+            assertEquals(0, master.i16());
+            PacketReader hostExit = awaitOpcode(host, GamePackets.SERVER_EXIT_ROOM);
+            assertEquals(-1, hostExit.i16());
+            host.sendPlain(GamePackets.clientJoinRoom(numero, ""));
+            assertEquals(0, awaitOpcode(host, GamePackets.SERVER_ROOM_ENTER_RESULT).i16());
+            guest.sendPlain(GamePackets.clientBanish(10001));
+            PacketReader kicked = awaitOpcode(host, GamePackets.SERVER_EXIT_ROOM);
+            assertEquals(-1, kicked.i16());
+            PacketReader kickedList = awaitOpcode(guest, GamePackets.SERVER_ROOM_PLAYERS);
+            assertEquals(2, kickedList.u8());
+            assertEquals(-1, kickedList.i16());
+            assertTrue(kickedList.i32() > 0);
         }
     }
 
@@ -727,6 +797,16 @@ class GameFlowIT {
             assertEquals(GamePackets.PLAYER_INFO_OK, missing.u32());
             assertEquals(0, missing.u8());
             assertEquals(0, missing.u32());
+
+            host.sendPlain(GamePackets.clientUserInfoOffline(0, "TestNick2"));
+            PacketReader offline = awaitOpcode(host, GamePackets.SERVER_USERINFO_OFFLINE);
+            assertEquals(GamePackets.USERINFO_OFFLINE_FOUND, offline.u8());
+            assertEquals(10002, offline.u32());
+            assertEquals(GamePackets.MEMBER_INFO_EX_BYTES, offline.remaining());
+            host.sendPlain(GamePackets.clientUserInfoOffline(0, "NobodyNick"));
+            PacketReader offlineMiss = awaitOpcode(host, GamePackets.SERVER_USERINFO_OFFLINE);
+            assertEquals(GamePackets.USERINFO_OFFLINE_MISSING, offlineMiss.u8());
+            assertEquals(0, offlineMiss.remaining());
 
             host.sendPlain(GamePackets.clientUpdateMacros(new String[] {
                     "Nice!", "Good!", "OK", "Thanks", "Sorry", "Go", "Nice shot!", "Wow", "GG"}));

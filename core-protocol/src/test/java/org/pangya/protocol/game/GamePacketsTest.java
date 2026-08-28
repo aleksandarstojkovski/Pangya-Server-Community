@@ -396,5 +396,35 @@ class GamePacketsTest {
         assertEquals(1, detail.i32());
         assertEquals(1, detail.u8());
         assertEquals(0, detail.u8());
+        PacketReader cam = new PacketReader(GamePackets.camera(7, 1.5f));
+        assertEquals(GamePackets.SERVER_CAMERA, cam.opcode());
+        assertEquals(7, cam.i32());
+        assertEquals(1.5f, cam.f32());
+        PacketReader club = new PacketReader(GamePackets.club(7, 3));
+        assertEquals(GamePackets.SERVER_CLUB, club.opcode());
+        assertEquals(7, club.i32());
+        assertEquals(3, club.u8());
+        PacketReader load = new PacketReader(GamePackets.loadPercent(7, 50));
+        assertEquals(GamePackets.SERVER_LOAD_PERCENT, load.opcode());
+        assertEquals(7, load.i32());
+        assertEquals(50, load.u8());
+        PacketReader teamChat = new PacketReader(GamePackets.teamChat("TestNick", "go"));
+        assertEquals(GamePackets.SERVER_TEAM_CHAT, teamChat.opcode());
+        assertEquals("TestNick", teamChat.pstr());
+        assertEquals("go", teamChat.pstr());
+        PacketReader master = new PacketReader(GamePackets.decisionRoomMaster(7, 0));
+        assertEquals(GamePackets.SERVER_DECISION_ROOM_MASTER, master.opcode());
+        assertEquals(7, master.i32());
+        assertEquals(0, master.i16());
+        PacketReader missing = new PacketReader(GamePackets.userInfoOfflineMissing());
+        assertEquals(GamePackets.SERVER_USERINFO_OFFLINE, missing.opcode());
+        assertEquals(GamePackets.USERINFO_OFFLINE_MISSING, missing.u8());
+        assertEquals(0, missing.remaining());
+        PacketReader found = new PacketReader(GamePackets.userInfoOffline(
+                10002, GamePackets.memberInfoExPublic(0, "testuser2", "TestNick2", 0)));
+        assertEquals(GamePackets.SERVER_USERINFO_OFFLINE, found.opcode());
+        assertEquals(GamePackets.USERINFO_OFFLINE_FOUND, found.u8());
+        assertEquals(10002, found.u32());
+        assertEquals(GamePackets.MEMBER_INFO_EX_BYTES, found.remaining());
     }
 }

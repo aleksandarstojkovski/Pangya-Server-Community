@@ -8,8 +8,8 @@ Questo repo è **solo** la riscrittura Java.
 
 | Campo | Valore |
 |-------|--------|
-| Slice completata | **S0–S6** packet paths: shop, messenger pages, lounge, GZ/SSC, lobby `0x81`/`0x46`/`0x47`/`0xF5`, chat `0x40`, whisper `0x84`, cookie `0x96`, ready `0x78`, change-room `0x0A`→`0x4A`, player info `0x2F` dump+`0x89`, macros `0x69`, GS list `0x9F`, rank `0xA2`, team `0x7D`, room detail `0x86`, invite `0xBA`→`0x12F`/`0x83`, leave `0x4C`/`0x48` option 2 |
-| Prossima | IFF cubes/pins/`initComboDef`; full lounge walk/zoom; real JP client captures |
+| Slice completata | **S0–S6** packet paths: shop, messenger, lounge, GZ/SSC, lobby, chat, whisper, cookie, ready, change-room, player info `0x2F`, macros, GS list, rank, team, room detail, invite, leave+master `0x7C`, kick `0x26`, nick lookup `0xA1`, in-game camera/club/power/typing/drop, Versus load `0xA3`, whisper `0x55`, Match team chat `0xB0` |
+| Prossima | IFF cubes/pins/`initComboDef`; full lounge walk/zoom; remaining C# `init_Packets` (finish-game `0x06`, gift, pause, mail/UCC/achievement…); real JP client captures |
 | Blocked | IFF files absent (live pin/cube coords, IFF shop prices beyond SQL catalog, `initComboDef` parts) |
 | VM | Java 21.0.10, Docker 29.7.2, Compose v5.5.0, 4 CPU / 15 GiB |
 
@@ -185,7 +185,7 @@ curl -fsS http://127.0.0.1:9474/health   # ok ranking
 curl -fsS http://127.0.0.1:9302/health   # ok messenger
 ```
 
-Hole/shot IFF cubes (live pin/cube coords from client IFF) e IFF `initComboDef` restano aperti. Shop buy usa SQL `shop_catalog` al posto dei binari IFF: CLIENT `0x1D` → `0xC8`/`pacote0AA`/`0x68` option 0 per typeid `0x1A000006`. Practice `0x76`/`0x52`/`0x1A`/`0x1B`/`0x1C`, Versus 2p `0x76` dump, **Match** 2p versus dump, **Tourney** 2p `0x76`+`0x52`, **Grand Prix** solo `0x76`+`0x52`, **GZ INT** solo `0x76` tipo_show 11, **SSC** 2p Tourney path, lounge CLIENT `0xEB` → `0x196`, lobby CLIENT `0x81` → `0x46`/`0x47`/`0xF5`, chat `0x03`→`0x40`, ready `0x0D`→`0x78`, change-room `0x0A`→`0x4A`, player info CLIENT `0x2F` dump+`0x89`, macros `0x69`, GS list `0x9F`, rank `0xA2`, team `0x7D`, room detail `0x2D`→`0x86`, messenger `0x30`/`0x102` pages, `pacote048`/`0x4A`, equip `0x20` type 0/1/3/5/8, ranking SQL + live CharacterInfo, friend CRUD, Login first-set `0x06`/`0x07`/`0x08` sono nel fake-client.
+Hole/shot IFF cubes (live pin/cube coords from client IFF) e IFF `initComboDef` restano aperti. Shop buy usa SQL `shop_catalog` al posto dei binari IFF: CLIENT `0x1D` → `0xC8`/`pacote0AA`/`0x68` option 0 per typeid `0x1A000006`. Practice `0x76`/`0x52`/`0x1A`/`0x1B`/`0x1C`, Versus 2p `0x76` dump, **Match** 2p versus dump, **Tourney** 2p `0x76`+`0x52`, **Grand Prix** solo `0x76`+`0x52`, **GZ INT** solo `0x76` tipo_show 11, **SSC** 2p Tourney path, lounge CLIENT `0xEB` → `0x196`, lobby CLIENT `0x81` → `0x46`/`0x47`/`0xF5`, chat `0x03`→`0x40`, ready `0x0D`→`0x78`, change-room `0x0A`→`0x4A`, player info CLIENT `0x2F` dump+`0x89`, macros `0x69`, GS list `0x9F`, rank `0xA2`, team `0x7D`, room detail `0x2D`→`0x86`, leave master `0x7C`, kick `0x26`, nick `0x07`→`0xA1`, messenger `0x30`/`0x102` pages, `pacote048`/`0x4A`, equip `0x20` type 0/1/3/5/8, ranking SQL + live CharacterInfo, friend CRUD, Login first-set `0x06`/`0x07`/`0x08` sono nel fake-client.
 
 ## Note GC / Netty (S6)
 

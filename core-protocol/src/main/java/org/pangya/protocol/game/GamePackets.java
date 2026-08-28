@@ -24,6 +24,15 @@ public final class GamePackets {
     public static final int SERVER_PANG_RATE = 0x77;
     public static final int SERVER_COURSE = 0x52;
     public static final int SERVER_WIND = 0x5B;
+    public static final int SERVER_CAMERA = 0x56;
+    public static final int SERVER_POWER_SHOT = 0x58;
+    public static final int SERVER_CLUB = 0x59;
+    public static final int SERVER_ACTIVE_ITEM = 0x5A;
+    public static final int SERVER_TIMEOUT = 0x5C;
+    public static final int SERVER_TYPING = 0x5D;
+    public static final int SERVER_MOVE_BALL = 0x60;
+    public static final int SERVER_LOAD_PERCENT = 0xA3;
+    public static final int SERVER_TEAM_CHAT = 0xB0;
     public static final int SERVER_GAME_INIT = 0x76;
     public static final int SERVER_EQUIP_ACK = 0x6B;
     public static final int SERVER_SYNC_SHOT = 0x6E;
@@ -43,7 +52,11 @@ public final class GamePackets {
     public static final int SERVER_PLAYER_INFO = 0x89;
     public static final int SERVER_INVITE_REPLY = 0x12F;
     public static final int SERVER_TEAM = 0x7D;
+    /** C# {@code SERVER_DECISION_ROOM_MASTER} / {@code pacote07C}. */
+    public static final int SERVER_DECISION_ROOM_MASTER = 0x7C;
     public static final int SERVER_SERVER_LIST = 0x9F;
+    /** C# {@code SERVER_RESPONSE_USERINFO_OFFLINE}. */
+    public static final int SERVER_USERINFO_OFFLINE = 0xA1;
     public static final int SERVER_RANK_ADDRESS = 0xA2;
     /** C# {@code pacote0AA} / {@code SERVER_NEW_ITEM}. */
     public static final int SERVER_NEW_ITEM = 0xAA;
@@ -60,6 +73,8 @@ public final class GamePackets {
     public static final int CLIENT_REQUEST_LOGIN = 0x02;
     public static final int CLIENT_CHAT = 0x03;
     public static final int CLIENT_ENTER_CHANNEL = 0x04;
+    /** C# {@code CLIENT_REQUEST_USERINFO_OFFLINE} / {@code packet007} {@code requestCheckNick}. */
+    public static final int CLIENT_REQUEST_USERINFO_OFFLINE = 0x07;
     public static final int CLIENT_REQUEST_CREATE_ROOM = 0x08;
     public static final int CLIENT_REQUEST_JOIN_ROOM = 0x09;
     public static final int CLIENT_CHANGE_ROOM_INFO = 0x0A;
@@ -68,9 +83,19 @@ public final class GamePackets {
     public static final int CLIENT_EXIT_ROOM = 0x0F;
     public static final int CLIENT_LOAD_OK = 0x11;
     public static final int CLIENT_SHOT = 0x12;
+    public static final int CLIENT_CAMERA = 0x13;
+    public static final int CLIENT_CLICK = 0x14;
+    public static final int CLIENT_POWER_SHOT = 0x15;
+    public static final int CLIENT_CLUB = 0x16;
+    public static final int CLIENT_USE_ITEM = 0x17;
+    public static final int CLIENT_EMOTICON = 0x18;
+    public static final int CLIENT_DROP = 0x19;
     public static final int CLIENT_HOLE_INFO = 0x1A;
     public static final int CLIENT_SHOT_RESULT = 0x1B;
     public static final int CLIENT_SHOT_ACK = 0x1C;
+    public static final int CLIENT_TIMECHECK = 0x22;
+    /** C# {@code CLIENT_REQUEST_BANISH} / {@code packet026} {@code requestKickPlayerOfRoom}. */
+    public static final int CLIENT_REQUEST_BANISH = 0x26;
     public static final int CLIENT_REQUEST_BUY_ITEM = 0x1D;
     /** C# {@code CLIENT_REQ_CHARACTER_STAT_IN_CHATROOM} → {@code pacote196}. */
     public static final int CLIENT_LOUNGE_STATE = 0xEB;
@@ -88,6 +113,9 @@ public final class GamePackets {
     public static final int CLIENT_REQUEST_SERVER_LIST = 0x43;
     public static final int CLIENT_REQUEST_RANK = 0x47;
     public static final int CLIENT_CHANGE_TEAM = 0x10;
+    public static final int CLIENT_LOADING_INFO = 0x48;
+    public static final int CLIENT_TEAMCHAT = 0x54;
+    public static final int CLIENT_ALLOW_WHISPER = 0x55;
     public static final int CLIENT_INVITE = 0xBA;
 
     public static final int ACK_LOGIN_OK = 0;
@@ -122,6 +150,14 @@ public final class GamePackets {
     public static final int MACRO_BYTES = 64;
     public static final int PLAYER_INFO_DUMP_COUNT = 12;
     public static final int PLAYER_TEAM_BIT = 1;
+    /** C# {@code PlayerRoomInfo.state_flag.master}. */
+    public static final int PLAYER_MASTER_BIT = 1 << 3;
+    /** C# {@code RoomInfo.state_flag} when the master is GM. */
+    public static final int ROOM_MASTER_GM_FLAG = 0x100;
+    /** C# {@code pacote0A1} error 0 + uid + MemberInfoEx. */
+    public static final int USERINFO_OFFLINE_FOUND = 0;
+    /** C# {@code pacote0A1} default error when the nick is missing or invalid. */
+    public static final int USERINFO_OFFLINE_MISSING = 2;
     public static final int CHANNEL_INFO_BYTES = 77;
     public static final int SERVER_INFO_BYTES = 92;
     public static final int INVITE_PLACE = 70;
@@ -1276,6 +1312,36 @@ public final class GamePackets {
         return new PacketWriter().opcode(SERVER_TEAM).i32(oid).u8(team).toBytes();
     }
 
+    /** C# {@code 0x7C}: i32 oid + i16 0 after {@code updateMaster}. */
+    public static byte[] decisionRoomMaster(int oid, int option) {
+        return new PacketWriter().opcode(SERVER_DECISION_ROOM_MASTER).i32(oid).i16(option).toBytes();
+    }
+
+    public static byte[] userInfoOfflineMissing() {
+        return new PacketWriter().opcode(SERVER_USERINFO_OFFLINE).u8(USERINFO_OFFLINE_MISSING).toBytes();
+    }
+
+    public static byte[] userInfoOffline(int uid, byte[] memberInfoEx) {
+        return new PacketWriter()
+                .opcode(SERVER_USERINFO_OFFLINE)
+                .u8(USERINFO_OFFLINE_FOUND)
+                .u32(uid)
+                .bytes(memberInfoEx)
+                .toBytes();
+    }
+
+    public static byte[] clientUserInfoOffline(int opt, String nick) {
+        return new PacketWriter()
+                .opcode(CLIENT_REQUEST_USERINFO_OFFLINE)
+                .u8(opt)
+                .pstr(nick == null ? "" : nick)
+                .toBytes();
+    }
+
+    public static byte[] clientBanish(int uid) {
+        return new PacketWriter().opcode(CLIENT_REQUEST_BANISH).u32(uid).toBytes();
+    }
+
     /**
      * C# {@code requestShowInfoRoom} / {@code pacote086}: room summary then per-player
      * oid/level/place/capability/title/ladder.
@@ -1506,6 +1572,78 @@ public final class GamePackets {
 
     public static byte[] clientShot() {
         return new PacketWriter().opcode(CLIENT_SHOT).u16(0).toBytes();
+    }
+
+    public static byte[] clientCamera(float mira) {
+        return new PacketWriter().opcode(CLIENT_CAMERA).f32(mira).toBytes();
+    }
+
+    public static byte[] clientClick(int state, float point) {
+        return new PacketWriter().opcode(CLIENT_CLICK).u8(state).f32(point).toBytes();
+    }
+
+    public static byte[] clientPowerShot(int power) {
+        return new PacketWriter().opcode(CLIENT_POWER_SHOT).u8(power).toBytes();
+    }
+
+    public static byte[] clientClub(int club) {
+        return new PacketWriter().opcode(CLIENT_CLUB).u8(club).toBytes();
+    }
+
+    public static byte[] clientEmoticon(int typing) {
+        return new PacketWriter().opcode(CLIENT_EMOTICON).i16(typing).toBytes();
+    }
+
+    public static byte[] clientDrop(float x, float y, float z) {
+        return new PacketWriter().opcode(CLIENT_DROP).f32(x).f32(y).f32(z).toBytes();
+    }
+
+    public static byte[] clientTimeCheck() {
+        return new PacketWriter().opcode(CLIENT_TIMECHECK).toBytes();
+    }
+
+    public static byte[] clientLoadPercent(int percent) {
+        return new PacketWriter().opcode(CLIENT_LOADING_INFO).u8(percent).toBytes();
+    }
+
+    public static byte[] clientTeamChat(String msg) {
+        return new PacketWriter().opcode(CLIENT_TEAMCHAT).pstr(msg == null ? "" : msg).toBytes();
+    }
+
+    public static byte[] clientAllowWhisper(int on) {
+        return new PacketWriter().opcode(CLIENT_ALLOW_WHISPER).u8(on).toBytes();
+    }
+
+    public static byte[] camera(int oid, float mira) {
+        return new PacketWriter().opcode(SERVER_CAMERA).i32(oid).f32(mira).toBytes();
+    }
+
+    public static byte[] powerShot(int oid, int power) {
+        return new PacketWriter().opcode(SERVER_POWER_SHOT).i32(oid).u8(power).toBytes();
+    }
+
+    public static byte[] club(int oid, int club) {
+        return new PacketWriter().opcode(SERVER_CLUB).i32(oid).u8(club).toBytes();
+    }
+
+    public static byte[] typing(int oid, int typing) {
+        return new PacketWriter().opcode(SERVER_TYPING).i32(oid).i16(typing).toBytes();
+    }
+
+    public static byte[] moveBall(float x, float y, float z) {
+        return new PacketWriter().opcode(SERVER_MOVE_BALL).f32(x).f32(y).f32(z).toBytes();
+    }
+
+    public static byte[] loadPercent(int oid, int percent) {
+        return new PacketWriter().opcode(SERVER_LOAD_PERCENT).i32(oid).u8(percent).toBytes();
+    }
+
+    public static byte[] teamChat(String nick, String msg) {
+        return new PacketWriter()
+                .opcode(SERVER_TEAM_CHAT)
+                .pstr(nick == null ? "" : nick)
+                .pstr(msg == null ? "" : msg)
+                .toBytes();
     }
 
     public static byte[] clientShotAck() {

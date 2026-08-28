@@ -184,6 +184,45 @@ final class GameRoom {
         playerInfos.remove(session.oid());
     }
 
+    /**
+     * C# {@code room.updateMaster(null)} after the previous master left and
+     * {@code m_pGame == null}. Prefers a GM ({@code capability & 4}).
+     */
+    synchronized Session electMaster() {
+        if (players.isEmpty()) {
+            return null;
+        }
+        Session master = null;
+        for (Session session : players) {
+            if ((session.player().capability & 4) != 0) {
+                master = session;
+                break;
+            }
+        }
+        if (master == null) {
+            master = players.getFirst();
+        }
+        info.master = (int) master.player().uid;
+        info.stateFlag = (master.player().capability & 4) != 0
+                ? GamePackets.ROOM_MASTER_GM_FLAG
+                : 0;
+        GamePackets.PlayerRoomInfo pri = playerInfos.get(master.oid());
+        if (pri != null) {
+            pri.stateFlag |= GamePackets.PLAYER_MASTER_BIT | GamePackets.PLAYER_READY_BIT;
+            playerInfos.put(master.oid(), pri);
+        }
+        return master;
+    }
+
+    synchronized Session findByUid(long uid) {
+        for (Session session : players) {
+            if (session.player().uid == uid) {
+                return session;
+            }
+        }
+        return null;
+    }
+
     synchronized List<Session> snapshot() {
         return List.copyOf(players);
     }

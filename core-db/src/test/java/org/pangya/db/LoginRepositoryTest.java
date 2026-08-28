@@ -43,6 +43,8 @@ class LoginRepositoryTest {
 
             assertTrue(repo.nickInUse("TestNick"));
             assertFalse(repo.nickInUse("UnusedNickZZ"));
+            assertEquals(10001L, repo.playerInfoByNick("TestNick").orElseThrow().uid());
+            assertTrue(repo.playerInfoByNick("UnusedNickZZ").isEmpty());
 
             LoginRepository.ServerListRow game = new LoginRepository.ServerListRow(
                     "PAPEL", 20202, "127.0.0.1", 20202, 2001, 0, 1,

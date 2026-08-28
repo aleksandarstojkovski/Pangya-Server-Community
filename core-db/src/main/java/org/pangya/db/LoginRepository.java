@@ -12,6 +12,9 @@ public interface LoginRepository {
 
     Optional<PlayerLoginInfo> playerInfo(long uid);
 
+    /** C# {@code CmdVerifyNick} + {@code CmdMemberInfo} lookup by nickname. */
+    Optional<PlayerLoginInfo> playerInfoByNick(String nick);
+
     boolean isBannedIp(String ip);
 
     boolean isBannedMac(String mac);

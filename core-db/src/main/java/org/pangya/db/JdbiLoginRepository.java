@@ -12,6 +12,18 @@ public final class JdbiLoginRepository implements LoginRepository {
 
     private static final char[] KEY_ALPHABET = "0123456789ABCDEF".toCharArray();
     private static final SecureRandom RNG = new SecureRandom();
+    private static final String PLAYER_INFO_SELECT = """
+            SELECT a."UID", a."ID", a."NICK", a."PASSWORD", a.capability,
+                   COALESCE(b."level", 0) AS level, a."IDState",
+                   CASE
+                     WHEN a."BlockRegDate" IS NULL THEN -1
+                     ELSE FLOOR(EXTRACT(EPOCH FROM (
+                       a."BlockRegDate" + (a."BlockTime" * INTERVAL '1 minute') - NOW()
+                     )))::int
+                   END AS block_time
+            FROM pangya.account a
+            LEFT JOIN pangya.user_info b ON a."UID" = b."UID"
+            """;
 
     private final Jdbi jdbi;
 
@@ -41,20 +53,20 @@ public final class JdbiLoginRepository implements LoginRepository {
 
     @Override
     public Optional<PlayerLoginInfo> playerInfo(long uid) {
-        return jdbi.withHandle(h -> h.createQuery("""
-                        SELECT a."UID", a."ID", a."NICK", a."PASSWORD", a.capability,
-                               COALESCE(b."level", 0) AS level, a."IDState",
-                               CASE
-                                 WHEN a."BlockRegDate" IS NULL THEN -1
-                                 ELSE FLOOR(EXTRACT(EPOCH FROM (
-                                   a."BlockRegDate" + (a."BlockTime" * INTERVAL '1 minute') - NOW()
-                                 )))::int
-                               END AS block_time
-                        FROM pangya.account a
-                        LEFT JOIN pangya.user_info b ON a."UID" = b."UID"
-                        WHERE a."UID" = :uid
-                        """)
-                .bind("uid", uid)
+        return loadPlayerInfo(PLAYER_INFO_SELECT + " WHERE a.\"UID\" = :key", uid);
+    }
+
+    @Override
+    public Optional<PlayerLoginInfo> playerInfoByNick(String nick) {
+        if (nick == null || nick.isBlank()) {
+            return Optional.empty();
+        }
+        return loadPlayerInfo(PLAYER_INFO_SELECT + " WHERE a.\"NICK\" = :key", nick);
+    }
+
+    private Optional<PlayerLoginInfo> loadPlayerInfo(String sql, Object key) {
+        return jdbi.withHandle(h -> h.createQuery(sql)
+                .bind("key", key)
                 .map((rs, ctx) -> new PlayerLoginInfo(
                         rs.getLong("UID"),
                         rs.getString("ID"),

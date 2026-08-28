@@ -19,4 +19,6 @@ public final class PlayerContext {
     public volatile boolean inLobby;
     /** C# {@code PlayerInfo.place}: 0 idle, 70 invited. */
     public volatile int place;
+    /** C# {@code PlayerInfo.whisper}: 1 on (default), 0 blocks incoming PM. */
+    public volatile int whisper = 1;
 }
