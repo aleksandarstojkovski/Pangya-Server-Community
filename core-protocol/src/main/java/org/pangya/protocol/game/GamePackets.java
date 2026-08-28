@@ -102,6 +102,8 @@ public final class GamePackets {
     public static final int SERVER_GACHA_COUPON = 0x102;
     /** C# {@code pacote113} intrusion (enter tourney after start). */
     public static final int SERVER_INTRUSION = 0x113;
+    /** C# {@code pacote10E} last-5 players. */
+    public static final int SERVER_LAST5 = 0x10E;
     /** C# {@code SERVER_OPEN_TIKI_REPORT} fail {@code 0x11A}. */
     public static final int SERVER_TICKET_REPORT = 0x11A;
     /** C# lucky-pouch fail {@code 0x129}. Opposite direction from CLIENT tiki {@code 0x129}. */

@@ -964,6 +964,7 @@ class GamePacketsTest {
         assertEquals(GamePackets.SERVER_CLUB_STATS, 0xA5);
         assertEquals(GamePackets.SERVER_INTRUSION, 0x113);
         assertEquals(GamePackets.SERVER_PAPEL_PLAY, 0x21B);
+        assertEquals(GamePackets.SERVER_LAST5, 0x10E);
         assertEquals(GamePackets.TYPEID_GACHA_TICKET, 436207744);
         assertEquals(GamePackets.TYPEID_GACHA_SUB, 436207747);
         assertEquals(GamePackets.SERVER_BUY_ACK, 0x68);
