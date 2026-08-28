@@ -13,8 +13,8 @@ Conteggio Channel: **197** handler `packet_func_sv` registrati in `GameService.i
 
 ## Questo turno
 
-Fatto: Game auth admin/broadcast (`0x02`–`0x0A`: notice, ticker, cube, mail, rate); auth inbound completo su tutti i child server.
-Prossimo: IFF pin/cube/`initComboDef`; capture JP S9; S4 event reload depth (`0xF9`).
+Fatto: Auth rate change broadcast `0xF9` (`ServerInfo` 92-byte wire); Game auth admin/broadcast (`0x02`–`0x0A`); auth inbound completo su tutti i child server.
+Prossimo: IFF pin/cube/`initComboDef`; capture JP S9; S4 `reload_files`/`0xF9` dopo reload globale.
 Blocco: file IFF assenti (pin/cube live, `initComboDef`); nessuna capture client JP Season 9.
 
 Percentuale epic: **scheletro 85%** / **parità client reale 43%**.

@@ -1,5 +1,6 @@
 package org.pangya.protocol.login;
 
+import org.pangya.protocol.packet.PacketReader;
 import org.pangya.protocol.packet.PacketWriter;
 
 /**
@@ -40,5 +41,24 @@ public final class ServerInfo {
                 .i16(scratchRate)
                 .i16(imgNo)
                 .toBytes();
+    }
+
+    /** Inverse of {@link #toArray()} for integration tests. */
+    public static ServerInfo fromReader(PacketReader reader) {
+        ServerInfo info = new ServerInfo();
+        info.name = reader.fixedStr(40);
+        info.uid = reader.i32();
+        info.maxUser = reader.i32();
+        info.currUser = reader.i32();
+        info.ip = reader.fixedStr(18);
+        info.port = reader.i32();
+        info.property = reader.u32();
+        info.angelicWings = reader.i32();
+        info.eventFlag = reader.u16();
+        info.eventMap = (short) reader.i16();
+        info.appRate = (short) reader.i16();
+        info.scratchRate = (short) reader.i16();
+        info.imgNo = (short) reader.i16();
+        return info;
     }
 }

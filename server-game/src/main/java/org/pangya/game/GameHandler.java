@@ -8,6 +8,7 @@ import org.pangya.network.session.PlayerContext;
 import org.pangya.network.session.Session;
 import org.pangya.network.session.SessionManager;
 import org.pangya.protocol.game.GamePackets;
+import org.pangya.protocol.login.ServerEventFlag;
 import org.pangya.protocol.login.ServerInfo;
 import org.pangya.protocol.packet.PacketIo;
 import org.pangya.protocol.packet.PacketReader;
@@ -53,7 +54,13 @@ public final class GameHandler {
     /** Live rates updated by Auth {@code 0x09}; new rooms inherit these. */
     private volatile int liveRatePang;
     private volatile int liveRateExp;
+    private volatile int liveRateClubMastery;
+    private volatile int liveAngelEvent;
     private volatile int liveGrandPrixEvent;
+    /** C# {@code m_si.event_flag}; recomputed when Auth changes rates. */
+    private final ServerEventFlag liveEventFlag = new ServerEventFlag(0);
+    /** Bound TCP port ({@code 0} until {@link #setBindPort}). */
+    private volatile int bindPort;
     /** C# {@code PlayerMailBox} / {@code MailBoxManager.sendMessage} in-memory store. */
     private final MailBoxStore mailboxes = new MailBoxStore();
     /** C# {@code Tools.Sanitize} SQL-keyword blacklist (OrdinalIgnoreCase). */
@@ -79,7 +86,16 @@ public final class GameHandler {
         this.channels = List.copyOf(channels);
         this.liveRatePang = config.ratePang();
         this.liveRateExp = config.rateExp();
+        this.liveRateClubMastery = 100;
         this.liveGrandPrixEvent = config.rateGrandPrixEvent();
+        this.liveEventFlag.setRatePang(liveRatePang);
+        this.liveEventFlag.setRateExp(liveRateExp);
+        this.liveEventFlag.setRateClubMastery(liveRateClubMastery);
+    }
+
+    /** Called by {@link GameRuntime} after Netty bind so {@code 0xF9} carries the wire port. */
+    void setBindPort(int port) {
+        this.bindPort = port;
     }
 
     public static List<GamePackets.ChannelInfo> loadChannels(AppConfig config) {
@@ -3093,6 +3109,37 @@ public final class GameHandler {
                 other.send(packet);
             }
         }
+    }
+
+    /** C# {@code packet_func.channel_broadcast} over all channels. */
+    private void broadcastAllChannels(byte[] packet) {
+        for (GamePackets.ChannelInfo ch : channels) {
+            broadcastChannel(Byte.toUnsignedInt(ch.id), packet);
+        }
+    }
+
+    /** C# {@code m_si.ToArray()} for this game server instance. */
+    private byte[] buildLocalServerInfoWire() {
+        ServerInfo info = new ServerInfo();
+        info.name = config.serverName();
+        info.uid = config.uid();
+        info.maxUser = config.maxUser();
+        info.currUser = sessions.size();
+        info.ip = config.advertisedIp();
+        info.port = bindPort > 0 ? bindPort : config.port();
+        info.property = config.property();
+        info.angelicWings = 0;
+        info.eventFlag = liveEventFlag.value();
+        info.eventMap = 0;
+        info.appRate = 100;
+        info.scratchRate = 0;
+        info.imgNo = 0;
+        return info.toArray();
+    }
+
+    /** C# {@code updateRateAndEvent} / {@code reload_files} {@code 0xF9} broadcast. */
+    private void broadcastServerInfoUpdate() {
+        broadcastAllChannels(GamePackets.serverUpdateServerInfo(buildLocalServerInfoWire()));
     }
 
     private void whisper(Session session, PacketReader reader) {
@@ -8155,8 +8202,22 @@ public final class GameHandler {
             return;
         }
         switch (tipo) {
-            case 0 -> liveRatePang = (int) qntd;
-            case 1 -> liveRateExp = (int) qntd;
+            case 0 -> {
+                liveRatePang = (int) qntd;
+                liveEventFlag.setRatePang(liveRatePang);
+            }
+            case 1 -> {
+                liveRateExp = (int) qntd;
+                liveEventFlag.setRateExp(liveRateExp);
+            }
+            case 2 -> {
+                liveRateClubMastery = (int) qntd;
+                liveEventFlag.setRateClubMastery(liveRateClubMastery);
+            }
+            case 10 -> {
+                liveAngelEvent = (int) qntd;
+                liveEventFlag.setAngelEvent(liveAngelEvent);
+            }
             case 11 -> liveGrandPrixEvent = (int) qntd;
             default -> log.debug("auth new rate tipo={} qntd={} (no local handler)", tipo, qntd);
         }
@@ -8168,6 +8229,7 @@ public final class GameHandler {
             }
         }
         log.info("auth new rate tipo={} qntd={}", tipo, qntd);
+        broadcastServerInfoUpdate();
     }
 
     /** C# {@code GameService.reloadGlobalSystem} — log-only until IFF/event loaders exist. */

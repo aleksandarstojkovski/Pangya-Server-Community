@@ -25,7 +25,7 @@ C# handlers are inline in `AuthServer/AuthServerTcp/AuthServer.cs` and `unit_aut
 | Auth→child | disconnect player | `0x06` | `AuthS2s.AUTH_DISCONNECT_PLAYER` → child handlers (login confirms only if local) |
 | Auth→child | confirm disconnect ack | `0x07` | `AuthS2s.AUTH_CONFIRM_DISCONNECT` → `LoginHandler.authConfirmDisconnectPlayer` |
 | Auth→child | new mail | `0x08` | `AuthS2s.AUTH_NEW_MAIL` → `GameHandler.authNewMailArrived` (`0x210`) |
-| Auth→child | new rate | `0x09` | `AuthS2s.AUTH_NEW_RATE` → `GameHandler.authNewRate` |
+| Auth→child | new rate | `0x09` | `AuthS2s.AUTH_NEW_RATE` → `GameHandler.authNewRate` + channel broadcast `0xF9` |
 | Auth→child | reload system | `0x0A` | `AuthS2s.AUTH_RELOAD_SYSTEM` → `GameHandler.authReloadGlobalSystem` |
 | Auth→child | info player online | `0x0B` | `AuthS2s.AUTH_INFO_PLAYER_ONLINE` → Child→Auth `0x05` |
 | Auth→child | confirm player info | `0x0C` | `AuthS2s.AUTH_CONFIRM_PLAYER_INFO` → messenger login / game resend |

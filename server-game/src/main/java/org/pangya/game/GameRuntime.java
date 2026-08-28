@@ -70,6 +70,8 @@ public final class GameRuntime implements AutoCloseable {
         }
         this.netty = new PangyaNettyServer(ServerKind.GAME, sessions, handler::onPacket);
         this.netty.bind(config.port());
+        handler.setBindPort(netty.localPort());
+        handler.setBindPort(netty.localPort());
         PangyaMetrics metrics = new PangyaMetrics(config.serverName(), sessions::size);
         this.health = new HealthHttp(config.healthPort(), config.serverName(), metrics);
         heartbeatOnce(repo);

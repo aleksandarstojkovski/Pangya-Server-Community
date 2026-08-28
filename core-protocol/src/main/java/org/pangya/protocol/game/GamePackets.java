@@ -416,6 +416,8 @@ public final class GamePackets {
     public static final int SERVER_AUTH_GM_NOTICE = 0x42;
     /** C# auth cube-win-rare notice {@code 0x1D3}: u32 1 + u32 option + PStr. */
     public static final int SERVER_CUBE_WIN_RARE_NOTICE = 0x1D3;
+    /** C# {@code SERVER_UPDATE_SERVER_INFO} / {@code updateRateAndEvent} + {@code reload_files}. */
+    public static final int SERVER_UPDATE_SERVER_INFO = 0xF9;
     /** C# {@code SERVER_ONELINE_QUERY} {@code 0xCA}: u16 count + u32 wait ms. */
     public static final int SERVER_ONELINE_QUERY = 0xCA;
     /** C# {@code SERVER_CHANGE_MASCOT} fail {@code 0xE2}. */
@@ -3396,6 +3398,14 @@ public final class GamePackets {
     /** C# auth {@code 0x42} GM notice. */
     public static byte[] authGmNotice(String notice) {
         return new PacketWriter().opcode(SERVER_AUTH_GM_NOTICE).pstr(notice == null ? "" : notice).toBytes();
+    }
+
+    /** C# {@code 0xF9}: 92-byte {@link org.pangya.protocol.login.ServerInfo#toArray()}. */
+    public static byte[] serverUpdateServerInfo(byte[] serverInfoWire) {
+        return new PacketWriter()
+                .opcode(SERVER_UPDATE_SERVER_INFO)
+                .bytes(serverInfoWire)
+                .toBytes();
     }
 
     /** C# auth cube-win-rare {@code 0x1D3}. */

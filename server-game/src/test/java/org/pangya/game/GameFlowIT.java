@@ -12,6 +12,7 @@ import org.pangya.network.client.PangyaFakeClient;
 import org.pangya.network.redis.SessionKeyStore;
 import org.pangya.protocol.auth.AuthS2s;
 import org.pangya.protocol.game.GamePackets;
+import org.pangya.protocol.login.ServerInfo;
 import org.pangya.protocol.packet.PacketIo;
 import org.pangya.protocol.packet.PacketReader;
 import org.pangya.protocol.packet.PacketWriter;
@@ -6284,6 +6285,40 @@ class GameFlowIT {
             assertEquals(GamePackets.SERVER_NEW_MAIL, mail.opcode());
             assertEquals(0, mail.i32());
             assertEquals(1, mail.i32());
+        }
+    }
+
+    @Test
+    void authNewRateBroadcastsServerInfoUpdate() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config);
+             PangyaFakeClient client = new PangyaFakeClient()) {
+            LoginRepository repo = new JdbiLoginRepository(DatabaseSupport.jdbi(ds));
+            String loginKey = repo.generateAuthKeyLogin(10001);
+            String gameKey = repo.generateAuthKeyGame(10001, 20202);
+            keys.putLoginKey(10001, loginKey);
+            keys.putGameKey(10001, 20202, gameKey);
+            loginToChannel(client, runtime.port(), "testuser", 10001, loginKey, gameKey);
+            drainPending(client, 500);
+
+            runtime.authHandler().onAuthPacket(
+                    AuthS2s.AUTH_NEW_RATE,
+                    new PacketReader(new PacketWriter().u32(0).u32(250).toBytes()));
+
+            PacketReader update = new PacketReader(client.awaitPlain(5, TimeUnit.SECONDS));
+            assertEquals(GamePackets.SERVER_UPDATE_SERVER_INFO, update.opcode());
+            ServerInfo info = ServerInfo.fromReader(update);
+            assertEquals(20202, info.uid);
+            assertEquals(runtime.port(), info.port);
+            assertEquals(2, info.eventFlag & (1 << 1)); // pang_x_plus
         }
     }
 
