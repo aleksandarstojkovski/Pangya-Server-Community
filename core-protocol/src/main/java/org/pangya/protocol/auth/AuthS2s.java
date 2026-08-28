@@ -19,6 +19,13 @@ public final class AuthS2s {
     public static final int CONFIRM_INFO = 0x05;
     public static final int COMMAND_TO_OTHER = 0x06;
     public static final int REPLY_TO_OTHER = 0x07;
+    /** Auth→child: {@code requestSendCommandToOtherServer} (C# {@code unit_auth_server_connect} 0x0D). */
+    public static final int SEND_COMMAND_TO_OTHER = 0x0D;
+
+    /** Messenger {@code funcs_as} guild callbacks ({@code packet_as001}–{@code packet_as003}). */
+    public static final short AS_ACCEPT_GUILD_MEMBER = 0x01;
+    public static final short AS_GUILD_MEMBER_EXIT = 0x02;
+    public static final short AS_KICK_GUILD_MEMBER = 0x03;
 
     /** C# AuthServer tipo=5. */
     public static final int TIPO_LOGIN = 0;

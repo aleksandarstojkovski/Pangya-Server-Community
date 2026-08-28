@@ -36,8 +36,15 @@ public final class AuthServerConnector implements AutoCloseable {
         String newKey(int serverUid);
     }
 
+    /** C# {@code authCmdSendCommandToOtherServer}: req_server_uid + command_id + body. */
+    @FunctionalInterface
+    public interface AuthCommandListener {
+        void onAuthCommand(int reqServerUid, short commandId, PacketReader body);
+    }
+
     private final AppConfig config;
     private final AuthKeyIssuer keys;
+    private volatile AuthCommandListener commandListener;
     private final AtomicBoolean running = new AtomicBoolean(true);
     private final AtomicInteger assignedOid = new AtomicInteger(-1);
     private final CountDownLatch registered = new CountDownLatch(1);
@@ -60,6 +67,10 @@ public final class AuthServerConnector implements AutoCloseable {
 
     public int oid() {
         return assignedOid.get();
+    }
+
+    public void setAuthCommandListener(AuthCommandListener listener) {
+        this.commandListener = listener;
     }
 
     private void reconnectLoop() {
@@ -142,6 +153,19 @@ public final class AuthServerConnector implements AutoCloseable {
                 assignedOid.set(oid);
                 registered.countDown();
                 log.info("registered with auth oid={}", oid);
+            } else if (opcode == AuthS2s.SEND_COMMAND_TO_OTHER) {
+                int reqServerUid = r.u32();
+                short commandId = (short) r.i16();
+                AuthCommandListener listener = commandListener;
+                if (listener != null) {
+                    try {
+                        listener.onAuthCommand(reqServerUid, commandId, r);
+                    } catch (RuntimeException e) {
+                        log.warn("auth command 0x{} failed: {}", Integer.toHexString(commandId), e.toString());
+                    }
+                } else {
+                    log.debug("auth command 0x{} ignored (no listener)", Integer.toHexString(commandId));
+                }
             } else {
                 log.debug("auth s2s opcode=0x{}", Integer.toHexString(opcode));
             }

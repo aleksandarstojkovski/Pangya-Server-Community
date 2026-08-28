@@ -95,6 +95,19 @@ public final class JdbiLoginRepository implements LoginRepository {
                 .findOne());
     }
 
+    @Override
+    public int playerSex(long uid) {
+        if (uid <= 0) {
+            return 0;
+        }
+        return jdbi.withHandle(h -> h.createQuery(
+                        "SELECT \"Sex\" FROM pangya.account WHERE \"UID\" = :uid LIMIT 1")
+                .bind("uid", uid)
+                .mapTo(Integer.class)
+                .findOne()
+                .orElse(0));
+    }
+
     private Optional<PlayerLoginInfo> loadPlayerInfo(String sql, Object key) {
         return jdbi.withHandle(h -> h.createQuery(sql)
                 .bind("key", key)

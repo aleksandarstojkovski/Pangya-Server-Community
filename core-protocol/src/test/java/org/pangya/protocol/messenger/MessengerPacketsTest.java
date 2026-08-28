@@ -104,5 +104,20 @@ class MessengerPacketsTest {
         assertEquals(0, aliasR.u32());
         assertEquals(10002, aliasR.u32());
         assertEquals("Buddy", aliasR.pstr());
+
+        byte[] joined = MessengerPackets.guildMemberJoined(10002, 9001, 0, "testid", "TestNick2");
+        PacketReader joinedR = new PacketReader(joined);
+        assertEquals(MessengerPackets.SERVER_GUILD_MEMBER_JOINED, joinedR.opcode());
+        assertEquals(10002, joinedR.u32());
+        assertEquals(9001, joinedR.u32());
+        assertEquals(0, joinedR.u8());
+        assertEquals("testid", joinedR.pstr());
+        assertEquals("TestNick2", joinedR.pstr());
+        assertEquals(0x1F, joinedR.u16());
+
+        byte[] left = MessengerPackets.guildMemberLeft(10002);
+        PacketReader leftR = new PacketReader(left);
+        assertEquals(MessengerPackets.SERVER_GUILD_MEMBER_LEFT, leftR.opcode());
+        assertEquals(10002, leftR.u32());
     }
 }

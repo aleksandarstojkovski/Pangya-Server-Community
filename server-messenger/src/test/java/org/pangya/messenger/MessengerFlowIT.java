@@ -4,9 +4,11 @@ import org.junit.jupiter.api.Test;
 import org.pangya.db.DatabaseSupport;
 import org.pangya.network.AppConfig;
 import org.pangya.network.client.PangyaFakeClient;
+import org.pangya.protocol.auth.AuthS2s;
 import org.pangya.protocol.messenger.MessengerPackets;
 import org.pangya.protocol.packet.PacketIo;
 import org.pangya.protocol.packet.PacketReader;
+import org.pangya.protocol.packet.PacketWriter;
 
 import java.net.ServerSocket;
 import java.util.LinkedHashMap;
@@ -401,6 +403,73 @@ class MessengerFlowIT {
     }
 
     @Test
+    void authGuildAcceptBroadcastsJoinToMembers() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        DatabaseSupport.migrate(jdbc, user, password);
+        seedTestGuild(jdbc, user, password, 9001L, "TestGuild", 10001);
+        addGuildMember(jdbc, user, password, 9001L, 10002L);
+
+        try (MessengerRuntime runtime = new MessengerRuntime(new AppConfig(testYaml(jdbc, user, password)));
+             PangyaFakeClient leader = new PangyaFakeClient()) {
+            leader.connect("127.0.0.1", runtime.port(), PangyaFakeClient.HelloKind.MESSENGER);
+            leader.awaitHello(5, TimeUnit.SECONDS);
+            leader.sendPlain(MessengerPackets.clientLogin(10001, "TestNick"));
+            PacketReader login = new PacketReader(leader.awaitPlain(5, TimeUnit.SECONDS));
+            assertEquals(MessengerPackets.SERVER_LOGIN_ACK, login.opcode());
+            assertEquals(0, login.u8());
+
+            runtime.handler().onAuthCommand(
+                    0,
+                    AuthS2s.AS_ACCEPT_GUILD_MEMBER,
+                    new PacketReader(new PacketWriter().u32(9001).u32(10002).toBytes()));
+
+            PacketReader joined = awaitGuildJoined(leader);
+            assertEquals(MessengerPackets.SERVER_GUILD_MEMBER_JOINED, joined.opcode());
+            assertEquals(10002, joined.u32());
+            assertEquals(9001, joined.u32());
+        }
+    }
+
+    @Test
+    void authGuildKickBroadcastsLeaveToMembers() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        DatabaseSupport.migrate(jdbc, user, password);
+        seedTestGuild(jdbc, user, password, 9001L, "TestGuild", 10001, 10002);
+
+        try (MessengerRuntime runtime = new MessengerRuntime(new AppConfig(testYaml(jdbc, user, password)));
+             PangyaFakeClient leader = new PangyaFakeClient();
+             PangyaFakeClient member = new PangyaFakeClient()) {
+            leader.connect("127.0.0.1", runtime.port(), PangyaFakeClient.HelloKind.MESSENGER);
+            leader.awaitHello(5, TimeUnit.SECONDS);
+            leader.sendPlain(MessengerPackets.clientLogin(10001, "TestNick"));
+            PacketReader loginA = new PacketReader(leader.awaitPlain(5, TimeUnit.SECONDS));
+            assertEquals(MessengerPackets.SERVER_LOGIN_ACK, loginA.opcode());
+            assertEquals(0, loginA.u8());
+
+            member.connect("127.0.0.1", runtime.port(), PangyaFakeClient.HelloKind.MESSENGER);
+            member.awaitHello(5, TimeUnit.SECONDS);
+            member.sendPlain(MessengerPackets.clientLogin(10002, "TestNick2"));
+            PacketReader loginB = new PacketReader(member.awaitPlain(5, TimeUnit.SECONDS));
+            assertEquals(MessengerPackets.SERVER_LOGIN_ACK, loginB.opcode());
+            assertEquals(0, loginB.u8());
+
+            removeGuildMember(jdbc, user, password, 10002L);
+            runtime.handler().onAuthCommand(
+                    0,
+                    AuthS2s.AS_KICK_GUILD_MEMBER,
+                    new PacketReader(new PacketWriter().u32(9001).u32(10002).toBytes()));
+
+            PacketReader left = awaitGuildLeft(leader);
+            assertEquals(MessengerPackets.SERVER_GUILD_MEMBER_LEFT, left.opcode());
+            assertEquals(10002, left.u32());
+        }
+    }
+
+    @Test
     void nickMismatchSendsLoginFail() throws Exception {
         String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
         String user = env("PANGYA_TEST_JDBC_USER", "pangya");
@@ -416,6 +485,30 @@ class MessengerFlowIT {
             assertEquals(MessengerPackets.SERVER_LOGIN_ACK, ack.opcode());
             assertEquals(1, ack.u8());
         }
+    }
+
+    private static PacketReader awaitGuildJoined(PangyaFakeClient client) throws Exception {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        while (System.nanoTime() < deadline) {
+            byte[] raw = client.awaitPlain(500, TimeUnit.MILLISECONDS);
+            PacketReader packet = new PacketReader(raw);
+            if (packet.opcode() == MessengerPackets.SERVER_GUILD_MEMBER_JOINED) {
+                return new PacketReader(raw);
+            }
+        }
+        throw new AssertionError("timed out waiting for guild join packet");
+    }
+
+    private static PacketReader awaitGuildLeft(PangyaFakeClient client) throws Exception {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        while (System.nanoTime() < deadline) {
+            byte[] raw = client.awaitPlain(500, TimeUnit.MILLISECONDS);
+            PacketReader packet = new PacketReader(raw);
+            if (packet.opcode() == MessengerPackets.SERVER_GUILD_MEMBER_LEFT) {
+                return new PacketReader(raw);
+            }
+        }
+        throw new AssertionError("timed out waiting for guild leave packet");
     }
 
     private static Map<String, Object> testYaml(String jdbc, String user, String password) {
@@ -493,6 +586,32 @@ class MessengerFlowIT {
                             .execute();
                 }
             });
+        }
+    }
+
+    private static void addGuildMember(
+            String jdbc, String user, String password, long guildUid, long memberUid) {
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password)) {
+            DatabaseSupport.jdbi(ds).useHandle(h -> h.createUpdate("""
+                            INSERT INTO pangya.pangya_guild_member (
+                                "GUILD_UID", "MEMBER_UID", "GUILD_PANG", "GUILD_POINT",
+                                "MEMBER_FLAG", "MEMBER_STATE_FLAG", "REG_DATE"
+                            ) VALUES (
+                                :gid, :uid, 0, 0, 0, 0, NOW()
+                            )
+                            """)
+                    .bind("gid", guildUid)
+                    .bind("uid", memberUid)
+                    .execute());
+        }
+    }
+
+    private static void removeGuildMember(String jdbc, String user, String password, long memberUid) {
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password)) {
+            DatabaseSupport.jdbi(ds).useHandle(h -> h.createUpdate(
+                            "DELETE FROM pangya.pangya_guild_member WHERE \"MEMBER_UID\" = :uid")
+                    .bind("uid", memberUid)
+                    .execute());
         }
     }
 }

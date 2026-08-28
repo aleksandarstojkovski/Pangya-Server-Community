@@ -13,11 +13,11 @@ Conteggio Channel: **197** handler `packet_func_sv` registrati in `GameService.i
 
 ## Questo turno
 
-Fatto: `reconcileEquipAtLogin` ora aggiunge Nuri/Air Knight/ball default se mancanti (C# `equipDefault*` SQL); Messenger `0x28`/`0x29` log-only.
-Prossimo opcode/file C#: IFF pin/cube/`initComboDef`; Messenger auth guild callbacks (`packet_as*`); capture JP S9.
+Fatto: auth guild callbacks `packet_as001`–`003` via Auth `0x0D` → `MessengerHandler.onAuthCommand` (accept/exit/kick: refresh friend pages + broadcast `0x3B`/`0x3C`).
+Prossimo opcode/file C#: IFF pin/cube/`initComboDef`; Messenger `0x2A`–`0x2D` auth-check stubs; capture JP S9.
 Blocco: file IFF assenti (pin/cube live, `initComboDef`); nessuna capture client JP Season 9.
 
-Percentuale epic: **scheletro 85%** / **parità client reale 41%**.
+Percentuale epic: **scheletro 85%** / **parità client reale 42%**.
 
 - Scheletro: S0–S3 e S6 chiusi (Gradle, Cipher, Auth/Login, Practice, Ranking/Messenger core, metriche 3000, compose `/health`). S4/S5 aperti.
 - Parità client reale: ~173/197 Channel con happy-path; login dump include equip reconcile + `pacote11F` tipo 3; Ranking/Messenger surface ampliata; zero fail-stub/pulse Channel noti ma IFF/capture ancora aperti.
@@ -31,5 +31,5 @@ Percentuale epic: **scheletro 85%** / **parità client reale 41%**.
 | S2 | [x] | Auth + Login + Redis key |
 | S3 | [x] | Game core + Practice |
 | S4 | [~] | Modi C# + char/card/caddie/achievement: dispatch ampio, profondità fail-stub/IFF |
-| S5 | [~] | Ranking + Messenger: page/search + presence/chat/unblock/alias/guild-chat; room invite/auth callbacks aperti |
+| S5 | [~] | Ranking + Messenger: page/search + presence/chat/unblock/alias/guild-chat + auth guild callbacks; room invite/auth-check stubs aperti |
 | S6 | [x] | `/metrics`, SessionLoadIT 3000, `scripts/verify.sh`, compose health |

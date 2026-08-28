@@ -28,13 +28,14 @@ public final class MessengerRuntime implements AutoCloseable {
     private final PangyaNettyServer netty;
     private final HealthHttp health;
     private final AuthServerConnector auth;
+    private final MessengerHandler handler;
 
     public MessengerRuntime(AppConfig config) {
         this.dataSource = DatabaseSupport.dataSource(config.jdbcUrl(), config.dbUser(), config.dbPassword());
         LoginRepository repo = new JdbiLoginRepository(DatabaseSupport.jdbi(dataSource));
         FriendRepository friends = new JdbiFriendRepository(DatabaseSupport.jdbi(dataSource));
         SessionManager sessions = new SessionManager(new IpDdosFilter());
-        MessengerHandler handler = new MessengerHandler(repo, friends, sessions);
+        this.handler = new MessengerHandler(repo, friends, sessions);
         this.netty = new PangyaNettyServer(
                 ServerKind.MESSENGER, sessions, handler::onPacket, PacketIo.DEFAULT_LOGIN_UID, handler::onDisconnect);
         this.netty.bind(config.port());
@@ -42,6 +43,7 @@ public final class MessengerRuntime implements AutoCloseable {
         this.health = new HealthHttp(config.healthPort(), config.serverName(), metrics);
         if (config.authEnabled()) {
             this.auth = new AuthServerConnector(config, repo::generateAuthServerKey);
+            this.auth.setAuthCommandListener(handler::onAuthCommand);
             this.auth.start();
         } else {
             this.auth = null;
@@ -51,6 +53,11 @@ public final class MessengerRuntime implements AutoCloseable {
 
     public int port() {
         return netty.localPort();
+    }
+
+    /** Integration tests invoke auth guild callbacks through the live session manager. */
+    MessengerHandler handler() {
+        return handler;
     }
 
     @Override

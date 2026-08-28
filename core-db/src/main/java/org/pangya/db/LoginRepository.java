@@ -82,6 +82,9 @@ public interface LoginRepository {
     /** C# {@code CmdPlayerInfo} guild fields from {@code ProcGetPlayerInfoMessage}. */
     Optional<GuildMembership> guildMembership(long uid);
 
+    /** C# {@code player_info.sex}. */
+    int playerSex(long uid);
+
     record GuildMembership(long guildUid, String guildName) {}
 
     record PlayerLoginInfo(

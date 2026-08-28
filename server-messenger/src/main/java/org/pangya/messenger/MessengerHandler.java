@@ -5,6 +5,7 @@ import org.pangya.db.LoginRepository;
 import org.pangya.network.session.PlayerContext;
 import org.pangya.network.session.Session;
 import org.pangya.network.session.SessionManager;
+import org.pangya.protocol.auth.AuthS2s;
 import org.pangya.protocol.messenger.MessengerPackets;
 import org.pangya.protocol.packet.PacketReader;
 import org.slf4j.Logger;
@@ -63,6 +64,18 @@ public final class MessengerHandler {
         sendLogoutToFriends(session);
     }
 
+    /**
+     * C# {@code authCmdSendCommandToOtherServer} → {@code funcs_as} ({@code packet_as001}–{@code packet_as003}).
+     */
+    public void onAuthCommand(int reqServerUid, short commandId, PacketReader body) {
+        switch (commandId) {
+            case AuthS2s.AS_ACCEPT_GUILD_MEMBER -> acceptGuildMember(body);
+            case AuthS2s.AS_GUILD_MEMBER_EXIT -> memberExitedFromGuild(body);
+            case AuthS2s.AS_KICK_GUILD_MEMBER -> kickGuildMember(body);
+            default -> log.debug("unhandled auth command 0x{} reqServer={}", Integer.toHexString(commandId), reqServerUid);
+        }
+    }
+
     private void requestLogin(Session session, PacketReader reader) {
         try {
             MessengerPackets.Login data = MessengerPackets.readLogin(reader);
@@ -114,7 +127,14 @@ public final class MessengerHandler {
         PlayerContext pi = session.player();
         session.send(MessengerPackets.friendStatus(
                 (int) pi.uid, pi.messengerState, channelInfo(pi)));
-        List<FriendRepository.FriendRow> list = friends.friends(pi.uid);
+        pushFriendListPages(session);
+    }
+
+    private void pushFriendListPages(Session session) {
+        if (!session.authorized()) {
+            return;
+        }
+        List<FriendRepository.FriendRow> list = friends.friends(session.player().uid);
         if (list.isEmpty()) {
             session.send(MessengerPackets.emptyFriendPage());
             return;
@@ -130,6 +150,101 @@ public final class MessengerHandler {
             }
             session.send(MessengerPackets.friendPage(page + 1, remaining, current, rows));
             remaining -= current;
+        }
+    }
+
+    private void acceptGuildMember(PacketReader body) {
+        long clubId = body.u32() & 0xffff_ffffL;
+        long memberUid = body.u32() & 0xffff_ffffL;
+        if (clubId == 0 || memberUid == 0) {
+            log.warn("acceptGuildMember invalid club={} member={}", clubId, memberUid);
+            return;
+        }
+        Session memberSession = sessions.findByUid(memberUid);
+        if (memberSession != null) {
+            reloadGuild(memberSession.player());
+        }
+        refreshOnlineGuildMembers(clubId);
+        broadcastGuildJoined(clubId, memberUid, memberSession);
+        log.info("guild accept member={} club={}", memberUid, clubId);
+    }
+
+    private void memberExitedFromGuild(PacketReader body) {
+        handleGuildMemberRemoved(body, "exit");
+    }
+
+    private void kickGuildMember(PacketReader body) {
+        handleGuildMemberRemoved(body, "kick");
+    }
+
+    private void handleGuildMemberRemoved(PacketReader body, String reason) {
+        long clubId = body.u32() & 0xffff_ffffL;
+        long memberUid = body.u32() & 0xffff_ffffL;
+        if (clubId == 0 || memberUid == 0) {
+            log.warn("guild {} invalid club={} member={}", reason, clubId, memberUid);
+            return;
+        }
+        List<Session> guildOnline = new ArrayList<>(sessions.findByGuildUid(clubId));
+        Session memberSession = sessions.findByUid(memberUid);
+        for (Session member : guildOnline) {
+            reloadGuild(member.player());
+            pushFriendListPages(member);
+        }
+        if (memberSession != null) {
+            clearGuild(memberSession.player());
+        }
+        broadcastGuildLeft(guildOnline, memberUid, memberSession);
+        log.info("guild {} member={} club={}", reason, memberUid, clubId);
+    }
+
+    private void refreshOnlineGuildMembers(long clubId) {
+        for (Session member : sessions.findByGuildUid(clubId)) {
+            reloadGuild(member.player());
+            pushFriendListPages(member);
+        }
+    }
+
+    private void reloadGuild(PlayerContext pi) {
+        pi.guildUid = 0;
+        pi.guildName = "";
+        repo.guildMembership(pi.uid).ifPresent(g -> {
+            pi.guildUid = g.guildUid();
+            pi.guildName = g.guildName() == null ? "" : g.guildName();
+        });
+    }
+
+    private void clearGuild(PlayerContext pi) {
+        pi.guildUid = 0;
+        pi.guildName = "";
+    }
+
+    private void broadcastGuildJoined(long clubId, long memberUid, Session memberSession) {
+        var info = repo.playerInfo(memberUid & 0xffff_ffffL).orElse(null);
+        if (info == null) {
+            log.warn("acceptGuildMember missing player uid={}", memberUid);
+            return;
+        }
+        byte[] packet = MessengerPackets.guildMemberJoined(
+                info.uid(),
+                clubId,
+                repo.playerSex(info.uid()),
+                info.id(),
+                info.nickname());
+        for (Session member : sessions.findByGuildUid(clubId)) {
+            if (memberSession != null && member == memberSession) {
+                continue;
+            }
+            member.send(packet);
+        }
+    }
+
+    private void broadcastGuildLeft(List<Session> guildOnline, long memberUid, Session memberSession) {
+        byte[] packet = MessengerPackets.guildMemberLeft(memberUid);
+        for (Session member : guildOnline) {
+            if (memberSession != null && member == memberSession) {
+                continue;
+            }
+            member.send(packet);
         }
     }
 

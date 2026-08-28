@@ -28,6 +28,9 @@ public final class MessengerPackets {
     public static final int CLIENT_GUILD_BATTLE_ROOM_INVITE = 0x28;
     public static final int CLIENT_GIFT_ITEM_NOTIFY = 0x29;
 
+    public static final int SERVER_GUILD_MEMBER_JOINED = 0x3B;
+    public static final int SERVER_GUILD_MEMBER_LEFT = 0x3C;
+
     public static final int SERVER_CONNECT = 0x2E;
     public static final int SERVER_LOGIN_ACK = 0x2F;
     public static final int SERVER_FRIEND_AND_GUILD_LIST = 0x30;
@@ -479,6 +482,25 @@ public final class MessengerPackets {
                 .u16(SUB_FRIEND_APELIDO)
                 .u32(code)
                 .toBytes();
+    }
+
+    /** C# {@code requestAcceptGuildMember}: opcode {@code 0x3B}. */
+    public static byte[] guildMemberJoined(
+            long uid, long guildUid, int sex, String id, String nickname) {
+        return new PacketWriter()
+                .opcode(SERVER_GUILD_MEMBER_JOINED)
+                .u32((int) uid)
+                .u32((int) guildUid)
+                .u8(sex)
+                .pstr(id == null ? "" : id)
+                .pstr(nickname == null ? "" : nickname)
+                .u16(0x1F)
+                .toBytes();
+    }
+
+    /** C# {@code requestMemberExitedFromGuild}/{@code requestKickGuildMember}: opcode {@code 0x3C}. */
+    public static byte[] guildMemberLeft(long uid) {
+        return new PacketWriter().opcode(SERVER_GUILD_MEMBER_LEFT).u32((int) uid).toBytes();
     }
 
     public record Login(int uid, String nickname) {}
