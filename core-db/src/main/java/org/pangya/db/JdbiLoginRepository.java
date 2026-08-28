@@ -250,6 +250,25 @@ public final class JdbiLoginRepository implements LoginRepository {
     }
 
     @Override
+    public void registerPlayerLogon(long uid, int option) {
+        if (option == 1) {
+            jdbi.useHandle(h -> h.createUpdate("""
+                            UPDATE pangya.account
+                               SET "Logon" = 0,
+                                   game_server_id = ''
+                             WHERE "UID" = :uid
+                            """)
+                    .bind("uid", uid)
+                    .execute());
+        } else {
+            jdbi.useHandle(h -> h.createUpdate(
+                            "UPDATE pangya.account SET \"Logon\" = 1 WHERE \"UID\" = :uid")
+                    .bind("uid", uid)
+                    .execute());
+        }
+    }
+
+    @Override
     public String generateAuthKeyLogin(long uid) {
         String key = randomKey(8);
         jdbi.useHandle(h -> {

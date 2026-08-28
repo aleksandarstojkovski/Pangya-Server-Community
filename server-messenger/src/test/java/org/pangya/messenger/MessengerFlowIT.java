@@ -545,7 +545,16 @@ class MessengerFlowIT {
         DatabaseSupport.migrate(jdbc, user, password);
         clearGuildMembership(jdbc, user, password, 10001);
 
-        try (MessengerRuntime runtime = new MessengerRuntime(new AppConfig(testYaml(jdbc, user, password)));
+        List<long[]> confirms = new CopyOnWriteArrayList<>();
+        try (MessengerRuntime runtime = new MessengerRuntime(new AppConfig(testYaml(jdbc, user, password)), new AuthOutbound() {
+                    @Override
+                    public void sendInfoPlayerOnline(int reqServerUid, AuthS2s.AuthServerPlayerInfo info) {}
+
+                    @Override
+                    public void sendConfirmDisconnectPlayer(long serverUid, long playerUid) {
+                        confirms.add(new long[] {serverUid, playerUid});
+                    }
+                });
              PangyaFakeClient client = new PangyaFakeClient()) {
             client.connect("127.0.0.1", runtime.port(), PangyaFakeClient.HelloKind.MESSENGER);
             client.awaitHello(5, TimeUnit.SECONDS);
@@ -565,6 +574,9 @@ class MessengerFlowIT {
                 Thread.sleep(20);
             }
             assertFalse(client.connected());
+            assertEquals(1, confirms.size());
+            assertEquals(30201L, confirms.get(0)[0]);
+            assertEquals(10001L, confirms.get(0)[1]);
         }
     }
 

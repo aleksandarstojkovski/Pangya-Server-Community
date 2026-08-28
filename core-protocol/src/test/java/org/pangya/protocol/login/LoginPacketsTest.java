@@ -222,4 +222,14 @@ class LoginPacketsTest {
         assertEquals(10001, r.u32());
         assertEquals(0, r.remaining());
     }
+
+    @Test
+    void authConfirmDisconnectUsesOpcode03() {
+        byte[] pkt = AuthS2s.confirmDisconnectResponse(10001, 30201);
+        PacketReader r = new PacketReader(pkt);
+        assertEquals(AuthS2s.CONFIRM_DISCONNECT, r.opcode());
+        assertEquals(10001, r.u32());
+        assertEquals(30201, r.u32());
+        assertEquals(0, r.remaining());
+    }
 }

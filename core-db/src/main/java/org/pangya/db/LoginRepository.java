@@ -32,6 +32,9 @@ public interface LoginRepository {
 
     void registerLogonServer(long uid, int gameServerUid);
 
+    /** C# {@code CmdRegisterLogon}: option 0 = login, 1 = logout. */
+    void registerPlayerLogon(long uid, int option);
+
     String generateAuthKeyLogin(long uid);
 
     String generateAuthKeyGame(long uid, int serverUid);

@@ -7,17 +7,21 @@ import org.pangya.db.JdbiInventoryRepository;
 import org.pangya.db.JdbiLoginRepository;
 import org.pangya.db.LoginRepository;
 import org.pangya.network.AppConfig;
+import org.pangya.network.auth.AuthOutbound;
 import org.pangya.network.client.PangyaFakeClient;
 import org.pangya.network.redis.SessionKeyStore;
+import org.pangya.protocol.auth.AuthS2s;
 import org.pangya.protocol.game.GamePackets;
 import org.pangya.protocol.packet.PacketIo;
 import org.pangya.protocol.packet.PacketReader;
+import org.pangya.protocol.packet.PacketWriter;
 
 import java.net.ServerSocket;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -6046,6 +6050,148 @@ class GameFlowIT {
         client.sendPlain(GamePackets.clientEnterChannel(0));
         PacketReader entered = awaitOpcode(client, GamePackets.SERVER_CHANNEL_ENTER_ACK);
         assertEquals(GamePackets.CHANNEL_ENTER_OK, entered.u8());
+    }
+
+    @Test
+    void authInfoPlayerOnlineReportsOnlineAndOffline() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        List<AuthS2s.AuthServerPlayerInfo> sent = new CopyOnWriteArrayList<>();
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config, new AuthOutbound() {
+                 @Override
+                 public void sendInfoPlayerOnline(int reqServerUid, AuthS2s.AuthServerPlayerInfo info) {
+                     sent.add(info);
+                 }
+             });
+             PangyaFakeClient client = new PangyaFakeClient()) {
+            runtime.authHandler().onAuthPacket(
+                    AuthS2s.AUTH_INFO_PLAYER_ONLINE,
+                    new PacketReader(new PacketWriter().u32(30201).u32(99999).toBytes()));
+            assertEquals(1, sent.size());
+            assertEquals(-1, sent.get(0).option());
+            assertEquals(99999L, sent.get(0).uid());
+            sent.clear();
+
+            LoginRepository repo = new JdbiLoginRepository(DatabaseSupport.jdbi(ds));
+            String loginKey = repo.generateAuthKeyLogin(10001);
+            String gameKey = repo.generateAuthKeyGame(10001, 20202);
+            keys.putLoginKey(10001, loginKey);
+            keys.putGameKey(10001, 20202, gameKey);
+            loginToChannel(client, runtime.port(), "testuser", 10001, loginKey, gameKey);
+
+            runtime.authHandler().onAuthPacket(
+                    AuthS2s.AUTH_INFO_PLAYER_ONLINE,
+                    new PacketReader(new PacketWriter().u32(30201).u32(10001).toBytes()));
+            assertEquals(1, sent.size());
+            AuthS2s.AuthServerPlayerInfo online = sent.get(0);
+            assertEquals(1, online.option());
+            assertEquals(10001L, online.uid());
+            assertEquals("testuser", online.id());
+        }
+    }
+
+    @Test
+    void authDisconnectDisconnectsLoggedInPlayer() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        List<long[]> confirms = new CopyOnWriteArrayList<>();
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config, new AuthOutbound() {
+                 @Override
+                 public void sendInfoPlayerOnline(int reqServerUid, AuthS2s.AuthServerPlayerInfo info) {}
+
+                 @Override
+                 public void sendConfirmDisconnectPlayer(long serverUid, long playerUid) {
+                     confirms.add(new long[] {serverUid, playerUid});
+                 }
+             });
+             PangyaFakeClient client = new PangyaFakeClient()) {
+            LoginRepository repo = new JdbiLoginRepository(DatabaseSupport.jdbi(ds));
+            String loginKey = repo.generateAuthKeyLogin(10001);
+            String gameKey = repo.generateAuthKeyGame(10001, 20202);
+            keys.putLoginKey(10001, loginKey);
+            keys.putGameKey(10001, 20202, gameKey);
+            loginToChannel(client, runtime.port(), "testuser", 10001, loginKey, gameKey);
+            assertTrue(client.connected());
+
+            runtime.authHandler().onAuthPacket(
+                    AuthS2s.AUTH_DISCONNECT_PLAYER,
+                    new PacketReader(new PacketWriter().u32(10001).u32(30201).u8(1).toBytes()));
+
+            long deadline = System.currentTimeMillis() + 2000;
+            while (client.connected() && System.currentTimeMillis() < deadline) {
+                Thread.sleep(20);
+            }
+            assertFalse(client.connected());
+            assertEquals(1, confirms.size());
+            assertEquals(30201L, confirms.get(0)[0]);
+            assertEquals(10001L, confirms.get(0)[1]);
+        }
+    }
+
+    @Test
+    void authConfirmSendInfoPlayerOnlineUsesGameServerUid() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        List<Integer> reqServers = new CopyOnWriteArrayList<>();
+        List<AuthS2s.AuthServerPlayerInfo> sent = new CopyOnWriteArrayList<>();
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config, new AuthOutbound() {
+                 @Override
+                 public boolean isLive() {
+                     return true;
+                 }
+
+                 @Override
+                 public void sendInfoPlayerOnline(int reqServerUid, AuthS2s.AuthServerPlayerInfo info) {
+                     reqServers.add(reqServerUid);
+                     sent.add(info);
+                 }
+             });
+             PangyaFakeClient client = new PangyaFakeClient()) {
+            LoginRepository repo = new JdbiLoginRepository(DatabaseSupport.jdbi(ds));
+            String loginKey = repo.generateAuthKeyLogin(10001);
+            String gameKey = repo.generateAuthKeyGame(10001, 20202);
+            keys.putLoginKey(10001, loginKey);
+            keys.putGameKey(10001, 20202, gameKey);
+            loginToChannel(client, runtime.port(), "testuser", 10001, loginKey, gameKey);
+
+            runtime.authHandler().onAuthPacket(
+                    AuthS2s.AUTH_CONFIRM_PLAYER_INFO,
+                    new PacketReader(new PacketWriter()
+                            .u32(30201)
+                            .i32(1)
+                            .u32(10001)
+                            .pstr("ignored")
+                            .pstr("ignored")
+                            .toBytes()));
+
+            assertEquals(1, reqServers.size());
+            assertEquals(20202, reqServers.get(0).intValue());
+            assertEquals(1, sent.size());
+            assertEquals(1, sent.get(0).option());
+            assertEquals(10001L, sent.get(0).uid());
+            assertEquals("testuser", sent.get(0).id());
+        }
     }
 
     @Test

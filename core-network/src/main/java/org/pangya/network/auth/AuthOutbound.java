@@ -15,4 +15,7 @@ public interface AuthOutbound {
 
     /** C# {@code sendInfoPlayerOnline} — Child→Auth {@code 0x05}. */
     void sendInfoPlayerOnline(int reqServerUid, AuthS2s.AuthServerPlayerInfo info);
+
+    /** C# {@code sendConfirmDisconnectPlayer} — Child→Auth {@code 0x03}. */
+    default void sendConfirmDisconnectPlayer(long serverUid, long playerUid) {}
 }

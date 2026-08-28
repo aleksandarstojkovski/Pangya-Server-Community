@@ -86,6 +86,12 @@ public final class AuthServerConnector implements AutoCloseable, AuthOutbound {
         sendToAuth(AuthS2s.requestInfoPlayerOnline(gameServerUid, playerUid));
     }
 
+    /** C# {@code sendConfirmDisconnectPlayer} — Child→Auth {@code 0x03}. */
+    @Override
+    public void sendConfirmDisconnectPlayer(long serverUid, long playerUid) {
+        sendToAuth(AuthS2s.confirmDisconnectResponse(playerUid, serverUid));
+    }
+
     @Override
     public boolean isLive() {
         Channel ch = channel;

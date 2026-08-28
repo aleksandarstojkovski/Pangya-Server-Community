@@ -15,12 +15,12 @@ C# handlers are inline in `AuthServer/AuthServerTcp/AuthServer.cs` and `unit_aut
 | Child→Auth | register server | `0x01` | `AuthS2s.REGISTER` |
 | Auth→child | oid assigned | `0x01` | `AuthS2s.REGISTER_ACK` |
 | Child→Auth | disconnect player | `0x02` | `AuthS2s.DISCONNECT_PLAYER` |
-| | confirm disconnect | `0x03` | |
+| Child→Auth | confirm disconnect | `0x03` | `AuthS2s.confirmDisconnectResponse` → `AuthOutbound.sendConfirmDisconnectPlayer` |
 | Child→Auth | info player request | `0x04` | `AuthS2s.requestInfoPlayerOnline` |
 | Child→Auth | confirm info reply | `0x05` | `AuthS2s.infoPlayerOnlineResponse` |
-| Auth→child | disconnect player | `0x06` | `AuthS2s.AUTH_DISCONNECT_PLAYER` → `MessengerHandler.authDisconnectPlayer` |
+| Auth→child | disconnect player | `0x06` | `AuthS2s.AUTH_DISCONNECT_PLAYER` → `GameAuthHandler` / `MessengerHandler.authDisconnectPlayer` |
 | Auth→child | info player online | `0x0B` | `AuthS2s.AUTH_INFO_PLAYER_ONLINE` → Child→Auth `0x05` |
-| Auth→child | confirm player info | `0x0C` | `AuthS2s.AUTH_CONFIRM_PLAYER_INFO` → `confirmLoginOnOtherServer` |
+| Auth→child | confirm player info | `0x0C` | `AuthS2s.AUTH_CONFIRM_PLAYER_INFO` → messenger `confirmLoginOnOtherServer`; game `authConfirmSendInfoPlayerOnline` |
 | Auth→child | command to other server | `0x0D` | `AuthS2s.SEND_COMMAND_TO_OTHER` → `onAuthCommand` |
 | | reply to other server | `0x07` | |
 

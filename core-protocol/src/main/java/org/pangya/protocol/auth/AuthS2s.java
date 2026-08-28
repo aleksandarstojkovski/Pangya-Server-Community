@@ -91,6 +91,15 @@ public final class AuthS2s {
         return new AuthDisconnectRequest(playerUid, serverUid, force);
     }
 
+    /** Child→Auth {@code 0x03}: player uid, server uid ({@code sendConfirmDisconnectPlayer}). */
+    public static byte[] confirmDisconnectResponse(long playerUid, long serverUid) {
+        return new PacketWriter()
+                .opcode(CONFIRM_DISCONNECT)
+                .u32((int) playerUid)
+                .u32((int) serverUid)
+                .toBytes();
+    }
+
     /** Child→Auth {@code 0x04}: server uid, player uid. */
     public static byte[] requestInfoPlayerOnline(int gameServerUid, long playerUid) {
         return new PacketWriter()

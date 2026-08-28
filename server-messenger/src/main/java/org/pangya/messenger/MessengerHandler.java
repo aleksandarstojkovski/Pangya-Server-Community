@@ -238,12 +238,14 @@ public final class MessengerHandler {
     private void authDisconnectPlayer(PacketReader body) {
         AuthS2s.AuthDisconnectRequest req = AuthS2s.readAuthDisconnect(body);
         Session target = sessions.findByUid(req.playerUid());
-        if (target == null) {
-            log.debug("auth disconnect uid={} not on messenger", req.playerUid());
-            return;
+        if (target != null) {
+            target.disconnect();
+            log.info("auth disconnect uid={} server={} force={}", req.playerUid(), req.serverUid(), req.force());
+        } else {
+            repo.registerPlayerLogon(req.playerUid(), 1);
+            log.debug("auth disconnect uid={} not on messenger, cleared DB logon", req.playerUid());
         }
-        target.disconnect();
-        log.info("auth disconnect uid={} server={} force={}", req.playerUid(), req.serverUid(), req.force());
+        authOut.sendConfirmDisconnectPlayer(req.serverUid(), req.playerUid());
     }
 
     /** C# {@code authCmdInfoPlayerOnline} → {@code sendInfoPlayerOnline}. */
