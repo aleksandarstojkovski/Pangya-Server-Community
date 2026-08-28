@@ -41,6 +41,8 @@ public final class GameHandler {
     private final List<GamePackets.ChannelInfo> channels;
     private final AtomicInteger nextRoom = new AtomicInteger(1);
     private final ConcurrentHashMap<Integer, GameRoom> rooms = new ConcurrentHashMap<>();
+    /** C# {@code BroadcastManager} ticker queue; count × {@link GamePackets#TICKER_WAIT_MS}. */
+    private final List<String> tickers = new ArrayList<>();
 
     public GameHandler(
             AppConfig config,
@@ -124,6 +126,13 @@ public final class GameHandler {
             case GamePackets.CLIENT_ANSWER_GOSTOP -> replyContinueVersus(session, reader);
             case GamePackets.CLIENT_REEMPLOY_CADDIE -> payCaddieHoliday(session, reader);
             case GamePackets.CLIENT_REPORT -> reportChat(session);
+            case GamePackets.CLIENT_CHAT_PENALITY -> changeChatBlock(session, reader);
+            case GamePackets.CLIENT_NOTICE -> noticeGm(session, reader);
+            case GamePackets.CLIENT_DESTROY_ROOM -> destroyRoom(session, reader);
+            case GamePackets.CLIENT_SPEED_RATE -> activeBooster(session, reader);
+            case GamePackets.CLIENT_ONELINE_REQUEST -> sendTicker(session, reader);
+            case GamePackets.CLIENT_ONELINE_QUERY -> queueTicker(session);
+            case GamePackets.CLIENT_CHANGE_MASCOT -> changeMascotMessage(session, reader);
             case GamePackets.CLIENT_ENTER_LOBBY -> enterLobby(session);
             case GamePackets.CLIENT_LEAVE_LOBBY -> leaveLobby(session);
             case GamePackets.CLIENT_CHAT -> chat(session, reader);
@@ -678,6 +687,158 @@ public final class GameHandler {
             session.send(GamePackets.reportAck(GamePackets.REPORT_OK));
         } else {
             session.send(GamePackets.reportAck(GamePackets.REPORT_ALREADY));
+        }
+    }
+
+    /**
+     * C# {@code packet04F}: u8 → {@code 0xAC} oid+state. Versus broadcasts;
+     * Tourney/Practice {@code session_send}.
+     */
+    private void changeChatBlock(Session session, PacketReader reader) {
+        GameRoom room = inGameRoom(session);
+        if (room == null || reader.remaining() < 1) {
+            return;
+        }
+        int block = reader.u8();
+        byte[] pkt = GamePackets.chatPenalty(session.oid(), block);
+        if (GamePackets.usesVersusInitialData(room.tipo)) {
+            room.broadcast(pkt);
+        } else {
+            session.send(pkt);
+        }
+    }
+
+    /**
+     * C# {@code packet065}: f32 speed → {@code 0xC7}. C# non-premium consumes
+     * warehouse TIME_BOOSTER (IFF); without that item the catch is silent.
+     * Java skips consume and always replies.
+     */
+    private void activeBooster(Session session, PacketReader reader) {
+        GameRoom room = inGameRoom(session);
+        if (room == null || reader.remaining() < 4) {
+            return;
+        }
+        float speed = reader.f32();
+        byte[] pkt = GamePackets.speedRate(speed, session.oid());
+        if (GamePackets.usesVersusInitialData(room.tipo)) {
+            room.broadcast(pkt);
+        } else {
+            session.send(pkt);
+        }
+    }
+
+    /**
+     * C# {@code packet067}: {@code 0xCA} count + count×30000 ms.
+     */
+    private void queueTicker(Session session) {
+        if (!session.authorized()) {
+            return;
+        }
+        int count;
+        synchronized (tickers) {
+            count = tickers.size();
+        }
+        session.send(GamePackets.tickerQueue(count, count * GamePackets.TICKER_WAIT_MS));
+    }
+
+    /**
+     * C# {@code packet066}: PStr → consume 1 cookie, queue, {@code 0x96}, then
+     * {@code 0xC9} to every channel. Empty/funds fail {@code 0x50}.
+     */
+    private void sendTicker(Session session, PacketReader reader) {
+        if (!session.authorized()) {
+            return;
+        }
+        String msg = reader.remaining() >= 2 ? reader.pstr() : "";
+        if (msg.isEmpty()) {
+            session.send(GamePackets.tickerFail(GamePackets.TICKER_FAIL_GENERIC));
+            return;
+        }
+        long uid = session.player().uid;
+        long cookie = inventory.cookie(uid);
+        if (cookie < GamePackets.TICKER_COOKIE) {
+            session.send(GamePackets.tickerFail(GamePackets.TICKER_FAIL_FUNDS));
+            return;
+        }
+        inventory.setPangCookie(uid, inventory.pang(uid), cookie - GamePackets.TICKER_COOKIE);
+        long left = cookie - GamePackets.TICKER_COOKIE;
+        synchronized (tickers) {
+            tickers.add(msg);
+        }
+        session.send(GamePackets.cookieBalance(left));
+        String nick = session.player().nickname == null ? "" : session.player().nickname;
+        broadcastAll(GamePackets.tickerMsg(nick, msg));
+    }
+
+    /**
+     * C# {@code packet073}: IFF mascot message. Without IFF the catch is
+     * {@code 0xE2} sbyte -1 + id -1 + empty msg + pang.
+     */
+    private void changeMascotMessage(Session session, PacketReader reader) {
+        if (!session.authorized()) {
+            return;
+        }
+        if (reader.remaining() >= 4) {
+            reader.i32();
+        }
+        if (reader.remaining() >= 2) {
+            reader.pstr();
+        }
+        session.send(GamePackets.mascotMessageFail(inventory.pang(session.player().uid)));
+    }
+
+    /**
+     * C# {@code packet057}: GM broadcasts {@code 0x40} option 7. Others get
+     * {@code SendChatNotice("Command no Executed")}.
+     */
+    private void noticeGm(Session session, PacketReader reader) {
+        if (!session.authorized()) {
+            return;
+        }
+        String nick = session.player().nickname == null ? "" : session.player().nickname;
+        if ((session.player().capability & GamePackets.CAPABILITY_GM) == 0) {
+            session.send(GamePackets.chat(GamePackets.CHAT_NOTICE, nick, "Command no Executed"));
+            return;
+        }
+        String notice = reader.remaining() >= 2 ? reader.pstr() : "";
+        if (notice.isEmpty()) {
+            session.send(GamePackets.chat(GamePackets.CHAT_NOTICE, nick, "Command no Executed"));
+            return;
+        }
+        broadcastAll(GamePackets.chat(GamePackets.CHAT_NOTICE, nick, notice));
+    }
+
+    /**
+     * C# {@code packet060}: GM i16 room number, kick everyone. Non-GM notice.
+     */
+    private void destroyRoom(Session session, PacketReader reader) {
+        if (!session.authorized()) {
+            return;
+        }
+        String nick = session.player().nickname == null ? "" : session.player().nickname;
+        if ((session.player().capability & GamePackets.CAPABILITY_GM) == 0) {
+            session.send(GamePackets.chat(GamePackets.CHAT_NOTICE, nick, "Command no executed!"));
+            return;
+        }
+        if (reader.remaining() < 2) {
+            return;
+        }
+        int numero = reader.i16();
+        GameRoom room = rooms.get(numero);
+        if (room == null) {
+            session.send(GamePackets.chat(GamePackets.CHAT_NOTICE, nick, "Command no executed!"));
+            return;
+        }
+        for (Session member : room.snapshot()) {
+            leaveRoom(member);
+        }
+    }
+
+    private void broadcastAll(byte[] packet) {
+        for (Session other : sessions.snapshot()) {
+            if (other.authorized()) {
+                other.send(packet);
+            }
         }
     }
 

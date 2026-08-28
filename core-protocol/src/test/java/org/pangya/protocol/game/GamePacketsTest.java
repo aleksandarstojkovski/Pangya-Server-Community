@@ -633,5 +633,53 @@ class GamePacketsTest {
         assertEquals(GamePackets.REPORT_OK, reported.u8());
         assertEquals(GamePackets.SERVER_REPORT, 0x94);
         assertEquals(GamePackets.SERVER_REEMPLOY_CADDIE_ACK, 0x93);
+
+        PacketReader penalty = new PacketReader(GamePackets.clientChatPenalty(1));
+        assertEquals(GamePackets.CLIENT_CHAT_PENALITY, penalty.opcode());
+        assertEquals(1, penalty.u8());
+        PacketReader blocked = new PacketReader(GamePackets.chatPenalty(7, 1));
+        assertEquals(GamePackets.SERVER_CHAT_PENALITY, blocked.opcode());
+        assertEquals(7, blocked.i32());
+        assertEquals(1, blocked.u8());
+
+        PacketReader boost = new PacketReader(GamePackets.clientSpeedRate(1.5f));
+        assertEquals(GamePackets.CLIENT_SPEED_RATE, boost.opcode());
+        assertEquals(1.5f, boost.f32());
+        PacketReader rate = new PacketReader(GamePackets.speedRate(1.5f, 7));
+        assertEquals(GamePackets.SERVER_SPEED_RATE, rate.opcode());
+        assertEquals(1.5f, rate.f32());
+        assertEquals(7, rate.i32());
+
+        PacketReader tq = new PacketReader(GamePackets.clientTickerQuery());
+        assertEquals(GamePackets.CLIENT_ONELINE_QUERY, tq.opcode());
+        PacketReader queued = new PacketReader(GamePackets.tickerQueue(2, 60000));
+        assertEquals(GamePackets.SERVER_ONELINE_QUERY, queued.opcode());
+        assertEquals(2, queued.u16());
+        assertEquals(60000, queued.u32());
+        PacketReader tfail = new PacketReader(GamePackets.tickerFail(GamePackets.TICKER_FAIL_FUNDS));
+        assertEquals(GamePackets.SERVER_CHANGE_NICK_ACK, tfail.opcode());
+        assertEquals(GamePackets.TICKER_FAIL_FUNDS, tfail.u32());
+        PacketReader tmsg = new PacketReader(GamePackets.tickerMsg("TestNick", "hello"));
+        assertEquals(GamePackets.SERVER_ONELINE_MSG, tmsg.opcode());
+        assertEquals("TestNick", tmsg.pstr());
+        assertEquals("hello", tmsg.pstr());
+        PacketReader notice = new PacketReader(GamePackets.clientNotice("gm"));
+        assertEquals(GamePackets.CLIENT_NOTICE, notice.opcode());
+        assertEquals("gm", notice.pstr());
+        PacketReader destroy = new PacketReader(GamePackets.clientDestroyRoom(1));
+        assertEquals(GamePackets.CLIENT_DESTROY_ROOM, destroy.opcode());
+        assertEquals(1, destroy.i16());
+
+        PacketReader mascot = new PacketReader(GamePackets.mascotMessageFail(100000));
+        assertEquals(GamePackets.SERVER_CHANGE_MASCOT, mascot.opcode());
+        assertEquals(0xff, mascot.u8());
+        assertEquals(-1, mascot.i32());
+        assertEquals(0, mascot.u16());
+        assertEquals(100000, mascot.u64());
+
+        assertEquals(GamePackets.SERVER_ONELINE_MSG, 0xC9);
+        assertEquals(GamePackets.SERVER_CHAT_PENALITY, 0xAC);
+        assertEquals(GamePackets.SERVER_BUY_ACK, 0x68);
+        assertEquals(GamePackets.CREATE_ROOM_FAILED, 0x07);
     }
 }

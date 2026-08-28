@@ -93,6 +93,18 @@ public final class GamePackets {
     /** C# pang spent after shop buy ({@code 0xC8} + remaining + spent). */
     public static final int SERVER_PANG_SPENT = 0xC8;
     public static final int SERVER_COOKIE = 0x96;
+    /** C# ticker error uses {@code SERVER_CHANGE_NICK_ACK} {@code 0x50} u32. */
+    public static final int SERVER_CHANGE_NICK_ACK = 0x50;
+    /** C# {@code SERVER_CHAT_PENALITY} / {@code 0xAC}: oid + u8. */
+    public static final int SERVER_CHAT_PENALITY = 0xAC;
+    /** C# {@code SERVER_SPEED_RATE} / {@code 0xC7}: f32 + oid. */
+    public static final int SERVER_SPEED_RATE = 0xC7;
+    /** C# {@code SERVER_ONELINE_MSG} ticker {@code 0xC9}: nick + msg PStr. */
+    public static final int SERVER_ONELINE_MSG = 0xC9;
+    /** C# {@code SERVER_ONELINE_QUERY} {@code 0xCA}: u16 count + u32 wait ms. */
+    public static final int SERVER_ONELINE_QUERY = 0xCA;
+    /** C# {@code SERVER_CHANGE_MASCOT} fail {@code 0xE2}. */
+    public static final int SERVER_CHANGE_MASCOT = 0xE2;
     /** C# {@code SERVER_SYNC_ACTIVITY} / {@code pacote0C4}: oid + u8 type + payload. */
     public static final int SERVER_SYNC_ACTIVITY = 0xC4;
     public static final int SERVER_MASCOT_SEED = 0x16A;
@@ -167,6 +179,20 @@ public final class GamePackets {
     public static final int CLIENT_REEMPLOY_CADDIE = 0x39;
     /** C# {@code CLIENT_REPORT} / {@code packet03A} {@code requestPlayerReportChatGame}. */
     public static final int CLIENT_REPORT = 0x3A;
+    /** C# {@code CLIENT_CHAT_PENALITY} / {@code packet04F} chat block. */
+    public static final int CLIENT_CHAT_PENALITY = 0x4F;
+    /** C# {@code CLIENT_NOTICE} / {@code packet057} GM notice. */
+    public static final int CLIENT_NOTICE = 0x57;
+    /** C# {@code CLIENT_DESTROY_ROOM} / {@code packet060} GM destroy. */
+    public static final int CLIENT_DESTROY_ROOM = 0x60;
+    /** C# {@code CLIENT_SPEED_RATE} / {@code packet065} time booster. */
+    public static final int CLIENT_SPEED_RATE = 0x65;
+    /** C# {@code CLIENT_ONELINE_REQUEST} / {@code packet066} send ticker. */
+    public static final int CLIENT_ONELINE_REQUEST = 0x66;
+    /** C# {@code CLIENT_ONELINE_QUERY} / {@code packet067} ticker queue. */
+    public static final int CLIENT_ONELINE_QUERY = 0x67;
+    /** C# {@code CLIENT_CHANGE_MASCOT} / {@code packet073} mascot message. */
+    public static final int CLIENT_CHANGE_MASCOT = 0x73;
     public static final int CLIENT_UPDATE_MACRO = 0x69;
     public static final int CLIENT_REQUEST_SERVER_LIST = 0x43;
     public static final int CLIENT_REQUEST_RANK = 0x47;
@@ -354,6 +380,16 @@ public final class GamePackets {
     public static final int CADDIE_HOLIDAY_FAIL = 1;
     /** C# caddie holiday {@code 0x93} success (needs IFF). */
     public static final int CADDIE_HOLIDAY_OK = 2;
+    /** C# ticker cookie cost. */
+    public static final int TICKER_COOKIE = 1;
+    /** C# ticker wait per queued message. */
+    public static final int TICKER_WAIT_MS = 30000;
+    /** C# ticker / nick-ack fail generic. */
+    public static final int TICKER_FAIL_GENERIC = 1;
+    /** C# ticker fail: not enough cookies. */
+    public static final int TICKER_FAIL_FUNDS = 4;
+    /** C# {@code capability.game_master} bit. */
+    public static final int CAPABILITY_GM = 4;
     /** C# {@code requestBuyItemShop} {@code 0x68} option codes. */
     public static final int BUY_FAIL_INIT = 1;
     public static final int BUY_FAIL_PRICE = 2;
@@ -1314,6 +1350,48 @@ public final class GamePackets {
         return new PacketWriter().opcode(SERVER_REEMPLOY_CADDIE_ACK).u8(CADDIE_HOLIDAY_FAIL).toBytes();
     }
 
+    /** C# {@code 0xAC}: oid + u8 chat-block. */
+    public static byte[] chatPenalty(int oid, int block) {
+        return new PacketWriter().opcode(SERVER_CHAT_PENALITY).i32(oid).u8(block).toBytes();
+    }
+
+    /** C# {@code 0xC7}: f32 speed + oid. */
+    public static byte[] speedRate(float speed, int oid) {
+        return new PacketWriter().opcode(SERVER_SPEED_RATE).f32(speed).i32(oid).toBytes();
+    }
+
+    /** C# {@code 0xCA}: queued ticker count + wait ms. */
+    public static byte[] tickerQueue(int count, int waitMs) {
+        return new PacketWriter().opcode(SERVER_ONELINE_QUERY).u16(count).u32(waitMs).toBytes();
+    }
+
+    /** C# {@code 0xC9}: nick + message. */
+    public static byte[] tickerMsg(String nick, String msg) {
+        return new PacketWriter()
+                .opcode(SERVER_ONELINE_MSG)
+                .pstr(nick == null ? "" : nick)
+                .pstr(msg == null ? "" : msg)
+                .toBytes();
+    }
+
+    /** C# ticker fail via nick-ack {@code 0x50} u32. */
+    public static byte[] tickerFail(int code) {
+        return new PacketWriter().opcode(SERVER_CHANGE_NICK_ACK).u32(code).toBytes();
+    }
+
+    /**
+     * C# mascot-message catch {@code 0xE2}: sbyte -1, i32 -1, u16 0, u64 pang.
+     */
+    public static byte[] mascotMessageFail(long pang) {
+        return new PacketWriter()
+                .opcode(SERVER_CHANGE_MASCOT)
+                .u8(0xff)
+                .i32(-1)
+                .u16(0)
+                .u64(pang)
+                .toBytes();
+    }
+
     /** C# {@code PlayerRoomInfo.stLocation.ToArray}: x z r. */
     public static byte[] location(float x, float z, float r) {
         return new PacketWriter().f32(x).f32(z).f32(r).toBytes();
@@ -2032,6 +2110,45 @@ public final class GamePackets {
     /** C# CLIENT {@code 0x3A}: empty body. */
     public static byte[] clientReport() {
         return new PacketWriter().opcode(CLIENT_REPORT).toBytes();
+    }
+
+    /** C# CLIENT {@code 0x4F}: u8 chat-block. */
+    public static byte[] clientChatPenalty(int block) {
+        return new PacketWriter().opcode(CLIENT_CHAT_PENALITY).u8(block).toBytes();
+    }
+
+    /** C# CLIENT {@code 0x57}: PStr notice. */
+    public static byte[] clientNotice(String notice) {
+        return new PacketWriter().opcode(CLIENT_NOTICE).pstr(notice == null ? "" : notice).toBytes();
+    }
+
+    /** C# CLIENT {@code 0x60}: i16 room number. */
+    public static byte[] clientDestroyRoom(int numero) {
+        return new PacketWriter().opcode(CLIENT_DESTROY_ROOM).i16(numero).toBytes();
+    }
+
+    /** C# CLIENT {@code 0x65}: f32 speed. */
+    public static byte[] clientSpeedRate(float speed) {
+        return new PacketWriter().opcode(CLIENT_SPEED_RATE).f32(speed).toBytes();
+    }
+
+    /** C# CLIENT {@code 0x66}: PStr ticker. */
+    public static byte[] clientTicker(String msg) {
+        return new PacketWriter().opcode(CLIENT_ONELINE_REQUEST).pstr(msg == null ? "" : msg).toBytes();
+    }
+
+    /** C# CLIENT {@code 0x67}: empty body. */
+    public static byte[] clientTickerQuery() {
+        return new PacketWriter().opcode(CLIENT_ONELINE_QUERY).toBytes();
+    }
+
+    /** C# CLIENT {@code 0x73}: i32 mascot id + PStr message. */
+    public static byte[] clientMascotMessage(int mascotId, String msg) {
+        return new PacketWriter()
+                .opcode(CLIENT_CHANGE_MASCOT)
+                .i32(mascotId)
+                .pstr(msg == null ? "" : msg)
+                .toBytes();
     }
 
     /** C# CLIENT {@code 0x63}: type + remaining payload. */

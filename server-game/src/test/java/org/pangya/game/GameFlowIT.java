@@ -369,6 +369,15 @@ class GameFlowIT {
             PacketReader reportAgain = awaitOpcode(host, GamePackets.SERVER_REPORT);
             assertEquals(GamePackets.REPORT_ALREADY, reportAgain.u8());
 
+            host.sendPlain(GamePackets.clientChatPenalty(1));
+            PacketReader block = awaitOpcode(guest, GamePackets.SERVER_CHAT_PENALITY);
+            assertTrue(block.i32() > 0);
+            assertEquals(1, block.u8());
+            host.sendPlain(GamePackets.clientSpeedRate(1.5f));
+            PacketReader boost = awaitOpcode(guest, GamePackets.SERVER_SPEED_RATE);
+            assertEquals(1.5f, boost.f32());
+            assertTrue(boost.i32() > 0);
+
             host.sendPlain(GamePackets.clientTeeshotReady());
             guest.sendPlain(GamePackets.clientTeeshotReady());
             PacketReader teeshot = awaitOpcode(host, GamePackets.SERVER_TEESHOT_READY_ACK);
@@ -533,6 +542,45 @@ class GameFlowIT {
             client.sendPlain(GamePackets.clientPayCaddieHoliday(0));
             PacketReader holiday = awaitOpcode(client, GamePackets.SERVER_REEMPLOY_CADDIE_ACK);
             assertEquals(GamePackets.CADDIE_HOLIDAY_FAIL, holiday.u8());
+
+            client.sendPlain(GamePackets.clientTickerQuery());
+            PacketReader tickerQ = awaitOpcode(client, GamePackets.SERVER_ONELINE_QUERY);
+            assertEquals(0, tickerQ.u16());
+            assertEquals(0, tickerQ.u32());
+            client.sendPlain(GamePackets.clientTicker(""));
+            assertEquals(GamePackets.TICKER_FAIL_GENERIC,
+                    awaitOpcode(client, GamePackets.SERVER_CHANGE_NICK_ACK).u32());
+            client.sendPlain(GamePackets.clientTicker("hi"));
+            assertEquals(GamePackets.TICKER_FAIL_FUNDS,
+                    awaitOpcode(client, GamePackets.SERVER_CHANGE_NICK_ACK).u32());
+            inventory.setPangCookie(10001, 99900, 1);
+            client.sendPlain(GamePackets.clientTicker("hello"));
+            assertEquals(0, awaitOpcode(client, GamePackets.SERVER_COOKIE).u64());
+            PacketReader line = awaitOpcode(client, GamePackets.SERVER_ONELINE_MSG);
+            assertEquals("TestNick", line.pstr());
+            assertEquals("hello", line.pstr());
+            client.sendPlain(GamePackets.clientTickerQuery());
+            PacketReader queued = awaitOpcode(client, GamePackets.SERVER_ONELINE_QUERY);
+            assertEquals(1, queued.u16());
+            assertEquals(GamePackets.TICKER_WAIT_MS, queued.u32());
+
+            client.sendPlain(GamePackets.clientMascotMessage(0, "hi"));
+            PacketReader mascot = awaitOpcode(client, GamePackets.SERVER_CHANGE_MASCOT);
+            assertEquals(0xff, mascot.u8());
+            assertEquals(-1, mascot.i32());
+            assertEquals(0, mascot.u16());
+            assertEquals(99900, mascot.u64());
+
+            client.sendPlain(GamePackets.clientNotice("gm"));
+            PacketReader notice = awaitOpcode(client, GamePackets.SERVER_CHAT);
+            assertEquals(GamePackets.CHAT_NOTICE, notice.u8());
+            notice.pstr();
+            assertEquals("Command no Executed", notice.pstr());
+            client.sendPlain(GamePackets.clientDestroyRoom(1));
+            PacketReader destroyed = awaitOpcode(client, GamePackets.SERVER_CHAT);
+            assertEquals(GamePackets.CHAT_NOTICE, destroyed.u8());
+            destroyed.pstr();
+            assertEquals("Command no executed!", destroyed.pstr());
 
             inventory.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_SHOP_PANG_ITEM);
             inventory.setPangCookie(10001, 100000, 0);
