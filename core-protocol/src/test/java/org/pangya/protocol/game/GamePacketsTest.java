@@ -1278,6 +1278,49 @@ class GamePacketsTest {
                 GamePackets.shopSys(GamePackets.WORKSHOP_RECOVERY_ERR)));
         assertEquals(GamePackets.SERVER_WORKSHOP_RECOVERY, recovery.opcode());
         assertEquals(0x0151, recovery.u32());
+        PacketReader recoveryOk = new PacketReader(GamePackets.workshopRecoveryOk());
+        assertEquals(GamePackets.SERVER_WORKSHOP_RECOVERY, recoveryOk.opcode());
+        assertEquals(GamePackets.WORKSHOP_RECOVERY_OK, recoveryOk.u32());
+        PacketReader recoveryUpd = new PacketReader(GamePackets.workshopRecoveryUpdate(
+                1,
+                new GamePackets.PapelAward(
+                        GamePackets.PAPEL_AWARD_TYPE, GamePackets.TYPEID_SHOP_PANG_ITEM, 9, 0, 2, 1, -1),
+                GamePackets.TYPEID_AIR_KNIGHT,
+                2,
+                new short[] {1, 2, 3, 4, 5},
+                10,
+                3,
+                1,
+                0));
+        assertEquals(GamePackets.SERVER_DAILY_QUEST_STAMP, recoveryUpd.opcode());
+        assertEquals(1, recoveryUpd.u32());
+        assertEquals(2, recoveryUpd.u32());
+        assertEquals(GamePackets.PAPEL_AWARD_TYPE, recoveryUpd.u8());
+        assertEquals(GamePackets.TYPEID_SHOP_PANG_ITEM, recoveryUpd.u32());
+        assertEquals(9, recoveryUpd.i32());
+        assertEquals(0, recoveryUpd.u32());
+        assertEquals(2, recoveryUpd.i32());
+        assertEquals(1, recoveryUpd.i32());
+        assertEquals(-1, recoveryUpd.i32());
+        recoveryUpd.readBytes(GamePackets.PAPEL_AWARD_PAD);
+        assertEquals(GamePackets.WORKSHOP_AWARD_TYPE, recoveryUpd.u8());
+        assertEquals(GamePackets.TYPEID_AIR_KNIGHT, recoveryUpd.u32());
+        assertEquals(2, recoveryUpd.i32());
+        assertEquals(0, recoveryUpd.u32());
+        assertEquals(0, recoveryUpd.i32());
+        assertEquals(0, recoveryUpd.i32());
+        assertEquals(0, recoveryUpd.i32());
+        recoveryUpd.readBytes(GamePackets.PAPEL_AWARD_PAD);
+        assertEquals(1, recoveryUpd.i16());
+        assertEquals(2, recoveryUpd.i16());
+        assertEquals(3, recoveryUpd.i16());
+        assertEquals(4, recoveryUpd.i16());
+        assertEquals(5, recoveryUpd.i16());
+        assertEquals(10, recoveryUpd.u32());
+        assertEquals(3, recoveryUpd.u8());
+        assertEquals(1, recoveryUpd.u32());
+        assertEquals(0, recoveryUpd.u32());
+        assertEquals(0, recoveryUpd.remaining());
         PacketReader transfer = new PacketReader(GamePackets.sysAck(
                 GamePackets.SERVER_WORKSHOP_TRANSFER,
                 GamePackets.shopSys(GamePackets.WORKSHOP_TRANSFER_ERR)));
@@ -2026,6 +2069,10 @@ class GamePacketsTest {
         assertEquals(GamePackets.SERVER_RING_MIRACLE, 0x280);
         assertEquals(GamePackets.SERVER_RING_PAWS_SET, 0x281);
         assertEquals(GamePackets.IFF_GROUP_PART, 2);
+        assertEquals(GamePackets.IFF_GROUP_CLUBSET, 4);
+        assertEquals(GamePackets.IFF_GROUP_CLUBSET, GamePackets.itemGroupIdentify(GamePackets.TYPEID_AIR_KNIGHT));
+        assertEquals(GamePackets.WORKSHOP_AWARD_TYPE, 0xCC);
+        assertEquals(GamePackets.WORKSHOP_TIPO_BLOCKED, -1);
         assertEquals(GamePackets.IFF_GROUP_MASCOT, 16);
         assertEquals(GamePackets.IFF_GROUP_AUX_PART, 28);
         assertEquals(GamePackets.RING_ERR_TYPEID, 0x330001);

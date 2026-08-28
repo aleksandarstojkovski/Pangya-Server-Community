@@ -214,7 +214,7 @@ C#: `GameServer/PangyaEnums/PacketGame.cs` → Java `org.pangya.protocol.game.Ga
 | C | `CLIENT_GZ_INITIAL` / marker / shot-end / chip-in / GZ first / wing / earcuff / glove / ring-ground / assist / Event Arin | `0x12D`/`0x12E`/`0x12F`/`0x131`/`0x137`/`0x138`/`0x171`/`0x180`/`0x181`/`0x184`/`0x185`/`0x192` | not-in-room CHANNEL catch silent; shot-end success `0x1F7` i32 oid + u8 hole + 87-byte echo; chip-in GZ Practice `0x1F2` empty then finish dump |
 | C | `CLIENT_CLUBSETWORKSHOP_TRANSFORM_CONFIRM` | `0x168` | no pending ClubSet → `0x242` `shopSys(0x5300451)` |
 | C | `CLIENT_CLUBSETWORKSHOP_TRANSFORM_CANCEL` | `0x169` | no pending ClubSet → `0x243` `shopSys(0x5300401)` |
-| C | `CLIENT_CLUBSETWORKSHOP_RECOVERY` | `0x16B` | typeid 0 → `0x246` `shopSys(0x5300151)` |
+| C | `CLIENT_CLUBSETWORKSHOP_RECOVERY` | `0x16B` | typeid 0 → `0x246` `shopSys(0x5300151)`; truncated → full `0x5300150`; C0&lt;1 `shopSys(0x5300152)`; missing ClubSet `shopSys(0x5300153)`; no `iff_clubset` `shopSys(0x5300154)`; tipo -1 `shopSys(0x5300155)`; consume fail `shopSys(0x5300156)`; already recovered `shopSys(0x5300157)`; success `0x216` (type 2 consume + type `0xCC` + workshop 23) then `0x246` u32 0 |
 | C | `CLIENT_CLUBSETWORKSHOP_TRANSFER` | `0x16C` | missing UCIM → `0x245` `shopSys(0x5300104)`; opposite `SERVER_LOCKER_ACCESS` |
 | C | `CLIENT_CLUBSET_RESET` | `0x16D` | unknown typeid → `0x247` `shopSys(0x5300506)`; opposite `SERVER_LOCKER_ITEMS` |
 | C | `CLIENT_PLAY_MEMORIAL` | `0x17F` | coin 0 → `0x264` `shopSys(0x6300301)` |
@@ -264,7 +264,7 @@ C#: `GameServer/PangyaEnums/PacketGame.cs` → Java `org.pangya.protocol.game.Ga
 | S | `SERVER_WORKSHOP_TRANSFORM_CONFIRM` | `0x242` | u32 sys |
 | S | `SERVER_WORKSHOP_TRANSFORM_CANCEL` | `0x243` | u32 sys |
 | S | `SERVER_WORKSHOP_TRANSFER` | `0x245` | u32 sys |
-| S | `SERVER_WORKSHOP_RECOVERY` | `0x246` | u32 sys |
+| S | `SERVER_WORKSHOP_RECOVERY` | `0x246` | fail u32 sys; success u32 0 after `0x216` |
 | S | `SERVER_CLUBSET_RESET` | `0x247` | u32 sys |
 | S | `SERVER_MEMORIAL` | `0x264` | u32 sys |
 | S | `SERVER_UCC` | `0x12E` | fail sbyte -1; opposite CLIENT marker |

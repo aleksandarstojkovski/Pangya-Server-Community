@@ -193,6 +193,19 @@ public interface InventoryRepository {
 
     void deleteTimeLimitItem(int typeid);
 
+    /**
+     * C# {@code sIff.findClubSet}: SQL {@code iff_clubset.work_shop_tipo} stand-in.
+     * Empty when the typeid is missing.
+     */
+    OptionalInt clubSetWorkShopTipo(int typeid);
+
+    void upsertClubSetWorkShopTipo(int typeid, int tipo);
+
+    void deleteClubSetIff(int typeid);
+
+    /** C# {@code CmdUpdateClubSetWorkshop} recovery_pts. */
+    void setClubSetRecoveryPts(long uid, int itemId, int recoveryPts);
+
     /** C# {@code PlayerInfo.findItemBuff} by typeid. */
     Optional<ItemBuffRow> itemBuff(long uid, int typeid);
 

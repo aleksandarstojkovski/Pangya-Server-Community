@@ -310,6 +310,25 @@ class InventoryRepositoryTest {
                 repo.deleteItemBuff(10001, GamePackets.TYPEID_SHOP_PANG_ITEM);
                 repo.deleteTimeLimitItem(GamePackets.TYPEID_SHOP_PANG_ITEM);
             }
+            int clubId = repo.warehouse(10001).stream()
+                    .filter(w -> w.typeid == GamePackets.TYPEID_AIR_KNIGHT)
+                    .findFirst()
+                    .orElseThrow()
+                    .id;
+            repo.deleteClubSetIff(GamePackets.TYPEID_AIR_KNIGHT);
+            repo.upsertClubSetWorkShopTipo(GamePackets.TYPEID_AIR_KNIGHT, 0);
+            try {
+                assertEquals(0, repo.clubSetWorkShopTipo(GamePackets.TYPEID_AIR_KNIGHT).orElseThrow());
+                repo.setClubSetRecoveryPts(10001, clubId, 5);
+                assertEquals(5, repo.warehouse(10001).stream()
+                        .filter(w -> w.id == clubId)
+                        .findFirst()
+                        .orElseThrow()
+                        .workshopRecovery);
+            } finally {
+                repo.setClubSetRecoveryPts(10001, clubId, 0);
+                repo.deleteClubSetIff(GamePackets.TYPEID_AIR_KNIGHT);
+            }
             int partTypeid = (GamePackets.IFF_GROUP_PART << 26) | 0x99;
             repo.deleteWarehouseByTypeid(10001, partTypeid);
             int partId = repo.addWarehouseItem(10001, partTypeid, 1);

@@ -4858,28 +4858,97 @@ public final class GameHandler {
     }
 
     /**
-     * C# {@code requestClubSetWorkShopRecoveryPts}: missing warehouse →
-     * {@code 0x246} {@code shopSys(0x5300151)}.
+     * C# {@code requestClubSetWorkShopRecoveryPts}: warehouse recovery item +
+     * ClubSet by id, SQL {@code iff_clubset.work_shop_tipo} stand-in for IFF
+     * {@code findClubSet}. Persist {@code Recovery_Pts=0} before {@code 0x216}/
+     * {@code 0x246} (no in-memory {@code WarehouseItemEx} cache). Skips C#
+     * achievement {@code 0x6C4000A6}.
      */
     private void workshopRecovery(Session session, PacketReader reader) {
         if (!inChannel(session)) {
             return;
         }
-        if (reader.remaining() < 8) {
+        try {
+            if (reader.remaining() < 8) {
+                session.send(GamePackets.sysAck(
+                        GamePackets.SERVER_WORKSHOP_RECOVERY, GamePackets.WORKSHOP_RECOVERY_DEFAULT));
+                return;
+            }
+            int typeid = reader.u32();
+            int clubsetId = reader.i32();
+            long uid = session.player().uid;
+            GamePackets.WarehouseItem recovery = warehouseByTypeid(uid, typeid);
+            if (recovery == null) {
+                session.send(GamePackets.sysAck(
+                        GamePackets.SERVER_WORKSHOP_RECOVERY,
+                        GamePackets.shopSys(GamePackets.WORKSHOP_RECOVERY_ERR)));
+                return;
+            }
+            if ((recovery.c[0] & 0xffff) < 1) {
+                session.send(GamePackets.sysAck(
+                        GamePackets.SERVER_WORKSHOP_RECOVERY,
+                        GamePackets.shopSys(GamePackets.WORKSHOP_RECOVERY_ERR_QNTD)));
+                return;
+            }
+            GamePackets.WarehouseItem club = warehouseById(uid, clubsetId);
+            if (club == null) {
+                session.send(GamePackets.sysAck(
+                        GamePackets.SERVER_WORKSHOP_RECOVERY,
+                        GamePackets.shopSys(GamePackets.WORKSHOP_RECOVERY_ERR_CLUB)));
+                return;
+            }
+            OptionalInt tipo = inventory.clubSetWorkShopTipo(club.typeid);
+            if (tipo.isEmpty()) {
+                session.send(GamePackets.sysAck(
+                        GamePackets.SERVER_WORKSHOP_RECOVERY,
+                        GamePackets.shopSys(GamePackets.WORKSHOP_RECOVERY_ERR_IFF)));
+                return;
+            }
+            if (tipo.getAsInt() == GamePackets.WORKSHOP_TIPO_BLOCKED) {
+                session.send(GamePackets.sysAck(
+                        GamePackets.SERVER_WORKSHOP_RECOVERY,
+                        GamePackets.shopSys(GamePackets.WORKSHOP_RECOVERY_ERR_TIPO)));
+                return;
+            }
+            if (club.workshopRecovery == 0) {
+                session.send(GamePackets.sysAck(
+                        GamePackets.SERVER_WORKSHOP_RECOVERY,
+                        GamePackets.shopSys(GamePackets.WORKSHOP_RECOVERY_ERR_DONE)));
+                return;
+            }
+            int ant = recovery.c[0] & 0xffff;
+            OptionalInt remaining = inventory.consumeWarehouseByTypeid(uid, typeid, 1);
+            if (remaining.isEmpty()) {
+                session.send(GamePackets.sysAck(
+                        GamePackets.SERVER_WORKSHOP_RECOVERY,
+                        GamePackets.shopSys(GamePackets.WORKSHOP_RECOVERY_ERR_CONSUME)));
+                return;
+            }
+            inventory.setClubSetRecoveryPts(uid, club.id, 0);
+            GamePackets.PapelAward consume = new GamePackets.PapelAward(
+                    GamePackets.PAPEL_AWARD_TYPE,
+                    typeid,
+                    recovery.id,
+                    0,
+                    ant,
+                    remaining.getAsInt(),
+                    -1);
+            session.send(GamePackets.workshopRecoveryUpdate(
+                    GamePackets.unixNow(),
+                    consume,
+                    club.typeid,
+                    club.id,
+                    club.workshopC,
+                    club.workshopMastery,
+                    club.workshopLevel,
+                    club.workshopRank,
+                    0));
+            session.send(GamePackets.workshopRecoveryOk());
+        } catch (RuntimeException e) {
+            log.debug("workshop recovery failed: {}", e.toString());
             session.send(GamePackets.sysAck(
                     GamePackets.SERVER_WORKSHOP_RECOVERY, GamePackets.WORKSHOP_RECOVERY_DEFAULT));
-            return;
         }
-        int typeid = reader.u32();
-        reader.i32();
-        if (typeid == 0) {
-            session.send(GamePackets.sysAck(
-                    GamePackets.SERVER_WORKSHOP_RECOVERY,
-                    GamePackets.shopSys(GamePackets.WORKSHOP_RECOVERY_ERR)));
-            return;
-        }
-        session.send(GamePackets.sysAck(
-                GamePackets.SERVER_WORKSHOP_RECOVERY, GamePackets.shopSys(0x5300152)));
     }
 
     /**

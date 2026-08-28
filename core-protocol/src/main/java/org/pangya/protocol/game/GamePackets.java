@@ -263,7 +263,7 @@ public final class GamePackets {
     public static final int SERVER_WORKSHOP_TRANSFORM_CANCEL = 0x243;
     /** C# workshop transfer catch {@code 0x245}. */
     public static final int SERVER_WORKSHOP_TRANSFER = 0x245;
-    /** C# workshop recovery catch {@code 0x246}. */
+    /** C# workshop recovery catch {@code 0x246}; success u32 0 after {@code 0x216}. */
     public static final int SERVER_WORKSHOP_RECOVERY = 0x246;
     /** C# club-set reset catch {@code 0x247}. */
     public static final int SERVER_CLUBSET_RESET = 0x247;
@@ -764,7 +764,7 @@ public final class GamePackets {
     public static final int CLIENT_WORKSHOP_TRANSFORM_CONFIRM = 0x168;
     /** C# {@code packet169} transform cancel. No pending ClubSet → {@code 0x243}. */
     public static final int CLIENT_WORKSHOP_TRANSFORM_CANCEL = 0x169;
-    /** C# {@code packet16B} recovery. Missing warehouse → {@code 0x246}. */
+    /** C# {@code packet16B} recovery. Success {@code 0x216} then {@code 0x246} u32 0. */
     public static final int CLIENT_WORKSHOP_RECOVERY = 0x16B;
     /**
      * C# {@code packet16C} workshop transfer. Same numeric as
@@ -1704,6 +1704,24 @@ public final class GamePackets {
     public static final int WORKSHOP_RECOVERY_ERR = 0x5300151;
     /** C# recovery catch else. */
     public static final int WORKSHOP_RECOVERY_DEFAULT = 0x5300150;
+    /** C# recovery C0 &lt; 1 CHANNEL sys {@code 0x5300152}. */
+    public static final int WORKSHOP_RECOVERY_ERR_QNTD = 0x5300152;
+    /** C# recovery missing ClubSet CHANNEL sys {@code 0x5300153}. */
+    public static final int WORKSHOP_RECOVERY_ERR_CLUB = 0x5300153;
+    /** C# {@code findClubSet} miss CHANNEL sys {@code 0x5300154}. */
+    public static final int WORKSHOP_RECOVERY_ERR_IFF = 0x5300154;
+    /** C# {@code work_shop.tipo == -1} CHANNEL sys {@code 0x5300155}. */
+    public static final int WORKSHOP_RECOVERY_ERR_TIPO = 0x5300155;
+    /** C# {@code removeItem} fail CHANNEL sys {@code 0x5300156}. */
+    public static final int WORKSHOP_RECOVERY_ERR_CONSUME = 0x5300156;
+    /** C# {@code recovery_pts == 0} CHANNEL sys {@code 0x5300157}. */
+    public static final int WORKSHOP_RECOVERY_ERR_DONE = 0x5300157;
+    /** C# {@code 0x246} success u32 0. */
+    public static final int WORKSHOP_RECOVERY_OK = 0;
+    /** C# {@code stItem.type} {@code 0xCC} ClubSet workshop row on {@code 0x216}. */
+    public static final int WORKSHOP_AWARD_TYPE = 0xCC;
+    /** C# IFF {@code ClubSet.work_shop.tipo} -1 cannot recover. */
+    public static final int WORKSHOP_TIPO_BLOCKED = -1;
     /** C# transfer missing UCIM CHANNEL sys. */
     public static final int WORKSHOP_TRANSFER_ERR = 0x5300104;
     /** C# transfer catch else. */
@@ -1911,6 +1929,8 @@ public final class GamePackets {
     public static final int IFF_GROUP_BALL = 5;
     /** C# {@code IFF_GROUP.ITEM}. {@code (typeid & 0xFC000000) >> 26}. */
     public static final int IFF_GROUP_ITEM = 6;
+    /** C# {@code IFF_GROUP.CLUBSET} {@code 4}. {@code TYPEID_AIR_KNIGHT >>> 26}. */
+    public static final int IFF_GROUP_CLUBSET = 4;
     /** C# {@code IFF_GROUP.ENCHANT} {@code 13}. */
     public static final int IFF_GROUP_ENCHANT = 13;
     /**
@@ -2318,6 +2338,12 @@ public final class GamePackets {
         public short[] workshopC = new short[5];
         /** C# {@code clubset_workshop.level}. Locker-remove constructs {@code -1}. */
         public int workshopLevel;
+        /** C# {@code clubset_workshop.mastery} / SQL {@code Mastery_Pts}. */
+        public int workshopMastery;
+        /** C# {@code clubset_workshop.recovery_pts} / SQL {@code Recovery_Pts}. */
+        public int workshopRecovery;
+        /** C# {@code clubset_workshop.rank} / SQL {@code Up}. */
+        public int workshopRank;
 
         public byte[] toArray() {
             PacketWriter w = new PacketWriter();
@@ -3354,6 +3380,54 @@ public final class GamePackets {
             }
         }
         return w.toBytes();
+    }
+
+    /**
+     * C# recovery {@code 0x216}: consume type 2 then type {@code 0xCC} +
+     * {@code stItemEx.clubset_workshop.ToArray()} (5×i16 + mastery + u8 level +
+     * rank + recovery).
+     */
+    public static byte[] workshopRecoveryUpdate(
+            int unix,
+            PapelAward consume,
+            int clubTypeid,
+            int clubId,
+            short[] workshopC,
+            int mastery,
+            int level,
+            int rank,
+            int recovery) {
+        PacketWriter w = new PacketWriter().opcode(SERVER_DAILY_QUEST_STAMP).u32(unix).u32(2);
+        w.u8(consume.type())
+                .u32(consume.typeid())
+                .i32(consume.id())
+                .u32(consume.flagTime())
+                .i32(consume.qntdAnt())
+                .i32(consume.qntdDep())
+                .i32(consume.qntd())
+                .zero(PAPEL_AWARD_PAD);
+        w.u8(WORKSHOP_AWARD_TYPE)
+                .u32(clubTypeid)
+                .i32(clubId)
+                .u32(0)
+                .i32(0)
+                .i32(0)
+                .i32(0)
+                .zero(PAPEL_AWARD_PAD);
+        short[] c = workshopC == null ? new short[5] : workshopC;
+        for (int i = 0; i < 5; i++) {
+            w.i16(i < c.length ? c[i] : 0);
+        }
+        w.u32(mastery)
+                .u8(level)
+                .u32(rank)
+                .u32(recovery);
+        return w.toBytes();
+    }
+
+    /** C# recovery success {@code 0x246} u32 0. */
+    public static byte[] workshopRecoveryOk() {
+        return new PacketWriter().opcode(SERVER_WORKSHOP_RECOVERY).u32(WORKSHOP_RECOVERY_OK).toBytes();
     }
 
     /**
