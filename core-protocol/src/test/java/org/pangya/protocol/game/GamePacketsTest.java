@@ -744,6 +744,9 @@ class GamePacketsTest {
         PacketReader replayAck = new PacketReader(GamePackets.replay(1));
         assertEquals(GamePackets.SERVER_REPLAY, replayAck.opcode());
         assertEquals(1, replayAck.u16());
+        PacketReader autoCmd = new PacketReader(GamePackets.autoCommandFail(GamePackets.STDA_ERROR_TYPE_GAME));
+        assertEquals(GamePackets.SERVER_AUTO_COMMAND_ACK, autoCmd.opcode());
+        assertEquals(GamePackets.STDA_ERROR_TYPE_GAME, autoCmd.u32());
         assertEquals(GamePackets.SERVER_MSN_ACK, 0x95);
         assertEquals(GamePackets.CLIENT_REPORT_ERROR, 0x33);
         assertEquals(GamePackets.SERVER_BUY_ACK, 0x68);
@@ -1866,6 +1869,11 @@ class GamePacketsTest {
         assertEquals(GamePackets.TYPEID_COIN, 0x1A000010);
         assertEquals(GamePackets.SERVER_REPLAY, 0xA4);
         assertEquals(GamePackets.CLIENT_REPLAY_ONLINE, 0x4A);
+        assertEquals(GamePackets.SERVER_AUTO_COMMAND_ACK, 0x22B);
+        assertEquals(GamePackets.CLIENT_ACTIVE_AUTO_COMMAND, 0x156);
+        assertEquals(GamePackets.TYPEID_AUTO_COMMAND, 0x1A00019F);
+        assertEquals(GamePackets.STDA_ERROR_TYPE_GAME, 92);
+        assertEquals(GamePackets.AUTO_COMMAND_ERR_USED, 0x550001);
         assertEquals(GamePackets.SERVER_BUY_ACK, 0x68);
         assertEquals(GamePackets.CREATE_ROOM_FAILED, 0x07);
         assertEquals(GamePackets.SERVER_LAST5, 0x10E);

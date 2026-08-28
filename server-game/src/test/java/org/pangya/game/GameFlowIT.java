@@ -1204,6 +1204,101 @@ class GameFlowIT {
     }
 
     @Test
+    void versusAutoCommandAcksFailAndCountsUses() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config);
+             PangyaFakeClient host = new PangyaFakeClient();
+             PangyaFakeClient guest = new PangyaFakeClient()) {
+            InventoryRepository inv = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
+            try {
+                inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_AUTO_COMMAND);
+                loginTwoPlayers(ds, keys, host, guest, runtime.port());
+                host.sendPlain(GamePackets.clientCreateRoom(GamePackets.TIPO_STROKE, "AC", ""));
+                PacketReader created = awaitOpcode(host, GamePackets.SERVER_ROOM_ENTER_RESULT);
+                assertEquals(0, created.i16());
+                int numero = roomNumberFromInfo(created.readBytes(GamePackets.ROOM_INFO_BYTES));
+                guest.sendPlain(GamePackets.clientJoinRoom(numero, ""));
+                assertEquals(0, awaitOpcode(guest, GamePackets.SERVER_ROOM_ENTER_RESULT).i16());
+                host.sendPlain(GamePackets.clientStartGame());
+                awaitOpcode(host, GamePackets.SERVER_START_GAME_FLAG);
+                awaitOpcode(host, GamePackets.SERVER_START_GAME_FLAG2);
+                awaitOpcode(host, GamePackets.SERVER_PANG_RATE);
+                awaitOpcode(host, GamePackets.SERVER_GAME_INIT);
+                awaitOpcode(host, GamePackets.SERVER_COURSE);
+                awaitOpcode(host, GamePackets.SERVER_MASCOT_SEED);
+                awaitOpcode(guest, GamePackets.SERVER_GAME_INIT);
+                host.sendPlain(GamePackets.clientInitHole(1, 0, 0, 4, 1.5f, 2.5f, 10f, 20f));
+                guest.sendPlain(GamePackets.clientInitHole(1, 0, 0, 4, 1.5f, 2.5f, 10f, 20f));
+                host.sendPlain(GamePackets.clientLoadOk());
+                guest.sendPlain(GamePackets.clientLoadOk());
+                awaitOpcode(host, GamePackets.SERVER_WEATHER);
+                awaitOpcode(host, GamePackets.SERVER_WIND);
+                awaitOpcode(host, GamePackets.SERVER_HOLE_TURN);
+                host.sendPlain(GamePackets.clientAutoCommand());
+                PacketReader miss = awaitOpcode(host, GamePackets.SERVER_AUTO_COMMAND_ACK);
+                assertEquals(GamePackets.STDA_ERROR_TYPE_GAME, miss.u32());
+            } finally {
+                inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_AUTO_COMMAND);
+            }
+        }
+
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config);
+             PangyaFakeClient host = new PangyaFakeClient();
+             PangyaFakeClient guest = new PangyaFakeClient()) {
+            InventoryRepository inv = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
+            try {
+                inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_AUTO_COMMAND);
+                inv.addWarehouseItem(10001, GamePackets.TYPEID_AUTO_COMMAND, 2);
+                loginTwoPlayers(ds, keys, host, guest, runtime.port());
+                host.sendPlain(GamePackets.clientCreateRoom(GamePackets.TIPO_STROKE, "AC2", ""));
+                PacketReader created = awaitOpcode(host, GamePackets.SERVER_ROOM_ENTER_RESULT);
+                assertEquals(0, created.i16());
+                int numero = roomNumberFromInfo(created.readBytes(GamePackets.ROOM_INFO_BYTES));
+                guest.sendPlain(GamePackets.clientJoinRoom(numero, ""));
+                assertEquals(0, awaitOpcode(guest, GamePackets.SERVER_ROOM_ENTER_RESULT).i16());
+                host.sendPlain(GamePackets.clientStartGame());
+                awaitOpcode(host, GamePackets.SERVER_START_GAME_FLAG);
+                awaitOpcode(host, GamePackets.SERVER_START_GAME_FLAG2);
+                awaitOpcode(host, GamePackets.SERVER_PANG_RATE);
+                awaitOpcode(host, GamePackets.SERVER_GAME_INIT);
+                awaitOpcode(host, GamePackets.SERVER_COURSE);
+                awaitOpcode(host, GamePackets.SERVER_MASCOT_SEED);
+                awaitOpcode(guest, GamePackets.SERVER_GAME_INIT);
+                host.sendPlain(GamePackets.clientInitHole(1, 0, 0, 4, 1.5f, 2.5f, 10f, 20f));
+                guest.sendPlain(GamePackets.clientInitHole(1, 0, 0, 4, 1.5f, 2.5f, 10f, 20f));
+                host.sendPlain(GamePackets.clientLoadOk());
+                guest.sendPlain(GamePackets.clientLoadOk());
+                awaitOpcode(host, GamePackets.SERVER_WEATHER);
+                awaitOpcode(host, GamePackets.SERVER_WIND);
+                awaitOpcode(host, GamePackets.SERVER_HOLE_TURN);
+                int hostOid = oidOf(runtime, 10001);
+                host.sendPlain(GamePackets.clientAutoCommand());
+                host.sendPlain(GamePackets.clientAutoCommand());
+                host.sendPlain(GamePackets.clientAutoCommand());
+                PacketReader spent = awaitOpcode(host, GamePackets.SERVER_AUTO_COMMAND_ACK);
+                assertEquals(GamePackets.AUTO_COMMAND_ERR_USED, spent.u32());
+                host.sendPlain(GamePackets.clientCamera(1.25f));
+                PacketReader mira = new PacketReader(host.awaitPlain(5, TimeUnit.SECONDS));
+                assertEquals(GamePackets.SERVER_CAMERA, mira.opcode());
+                assertEquals(hostOid, mira.i32());
+                assertEquals(1.25f, mira.f32());
+            } finally {
+                inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_AUTO_COMMAND);
+            }
+        }
+    }
+
+    @Test
     void toggleAssistWingAndAssistGreen() throws Exception {
         String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
         String user = env("PANGYA_TEST_JDBC_USER", "pangya");

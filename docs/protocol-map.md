@@ -109,6 +109,8 @@ C#: `GameServer/PangyaEnums/PacketGame.cs` → Java `org.pangya.protocol.game.Ga
 | S | `SERVER_ACTIVE_ITEM` | `0x5A` | u32 typeid + i32 seed + i32 oid; opposite C# `CLIENT_OFFLINE_GAME` |
 | C | `CLIENT_REPLAY_ONLINE` | `0x4A` | u32 warehouse typeid; fail silent; consume C0; success `0xA4` u16 remaining; Versus `game_broadcast`; Tourney `session_send` |
 | S | `SERVER_REPLAY` | `0xA4` | u16 remaining C0 (`item.stat.qntd_dep`); opposite C# `CLIENT_REQUEST_PANGYA_QUIZ_LEVEL` |
+| C | `CLIENT_ACTIVE_AUTO_COMMAND` | `0x156` | empty; not-in-game silent; success silent (passive count++); fail `0x22B` u32 92 (`STDA_ERROR_TYPE.GAME`) if C0&lt;1 else `0x550001` if spent |
+| S | `SERVER_AUTO_COMMAND_ACK` | `0x22B` | u32 error; C# success does not send |
 | C | `CLIENT_REEMPLOY_CADDIE` | `0x39` | SQL `iff_caddie`; success `0x93` u8 2 + id + pang; catch u8 1 |
 | C | `CLIENT_CHANGE_MASCOT` | `0x73` | SQL `iff_mascot`; success `0xE2` u8 4 + id + PStr + pang; catch sbyte -1 |
 | S | `SERVER_WHISPER` | `0x84` | byte 0 sender ack / byte 1 deliver |

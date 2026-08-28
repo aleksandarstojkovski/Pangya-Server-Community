@@ -43,6 +43,12 @@ final class GameRoom {
      */
     final ConcurrentHashMap<Integer, ConcurrentHashMap<Integer, ActiveUse>> activeUses =
             new ConcurrentHashMap<>();
+    /**
+     * C# {@code used_item.v_passive} count for {@code AUTO_COMMAND_TYPEID}
+     * (oid → uses this game). Present only when the warehouse had the item
+     * at {@code requestInitItemUsedGame}.
+     */
+    final ConcurrentHashMap<Integer, Integer> autoCommandUses = new ConcurrentHashMap<>();
     /** C# Versus {@code m_timer} generation; increment cancels the running turn. */
     private volatile long turnTimerGen;
     private volatile Thread turnTimer;
@@ -208,6 +214,7 @@ final class GameRoom {
         charIntro.remove(session.oid());
         loadHole.remove(session.oid());
         activeUses.remove(session.oid());
+        autoCommandUses.remove(session.oid());
         shops.remove(session.player().uid);
         for (PersonalShop shop : shops.values()) {
             shop.viewers.remove(session.player().uid);
@@ -415,6 +422,38 @@ final class GameRoom {
         }
         use.count++;
         return true;
+    }
+
+    /**
+     * C# {@code requestInitItemUsedGame} inserts AUTO_COMMAND into
+     * {@code v_passive} when it is in the warehouse {@code passive_item} list.
+     */
+    void initAutoCommand(int oid, boolean present) {
+        if (present) {
+            autoCommandUses.put(oid, 0);
+        } else {
+            autoCommandUses.remove(oid);
+        }
+    }
+
+    /**
+     * {@code 0} success (count++). {@link GamePackets#STDA_ERROR_TYPE_GAME} when
+     * warehouse C0 &lt; 1. {@link GamePackets#AUTO_COMMAND_ERR_USED} when missing
+     * from {@code v_passive} or already spent.
+     */
+    int tryUseAutoCommand(int oid, int warehouseQntd) {
+        if (warehouseQntd < 1) {
+            return GamePackets.STDA_ERROR_TYPE_GAME;
+        }
+        Integer used = autoCommandUses.get(oid);
+        if (used == null) {
+            return GamePackets.AUTO_COMMAND_ERR_USED;
+        }
+        if (used >= warehouseQntd) {
+            return GamePackets.AUTO_COMMAND_ERR_USED;
+        }
+        autoCommandUses.put(oid, used + 1);
+        return 0;
     }
 
     static final class PersonalShop {

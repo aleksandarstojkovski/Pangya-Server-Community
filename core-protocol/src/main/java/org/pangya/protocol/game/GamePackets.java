@@ -418,6 +418,11 @@ public final class GamePackets {
     /** C# Lolo Card Compose {@code 0x22A}: fail u32 error / success u32 0 + typeid. */
     public static final int SERVER_LOLO = 0x22A;
     /**
+     * C# {@code SERVER_ACTIVE_AUTO_COMMAND_ACK} {@code 0x22B}: u32 error.
+     * Success is silent.
+     */
+    public static final int SERVER_AUTO_COMMAND_ACK = 0x22B;
+    /**
      * C# {@code requestDeleteActiveItem} fail {@code 0xC5} sbyte -1.
      * Opposite direction from CLIENT mailbox-get {@code 0xC5} (JP uses {@code 0x146}).
      */
@@ -667,7 +672,12 @@ public final class GamePackets {
     public static final int CLIENT_LEAVE_DAILY_QUEST = 0x154;
     /** C# {@code packet155} {@code requestLoloCardCompose}. */
     public static final int CLIENT_LOLO = 0x155;
-    /** C# {@code CLIENT_ACTIVE_AUTO_COMMAND} / {@code packet156}. Not-in-room silent. */
+    /**
+     * C# {@code CLIENT_ACTIVE_AUTO_COMMAND} / {@code packet156}. Not-in-room /
+     * not-in-game CHANNEL-ROOM catch is silent. Success is silent (count++).
+     * Fail {@link #SERVER_AUTO_COMMAND_ACK} {@code 0x22B} u32: GAME-source
+     * writes {@link #STDA_ERROR_TYPE_GAME}; else {@code 0x550001}.
+     */
     public static final int CLIENT_ACTIVE_AUTO_COMMAND = 0x156;
     /** C# {@code packet157} achievement GUI. */
     public static final int CLIENT_ACHIEVEMENT = 0x157;
@@ -1793,6 +1803,15 @@ public final class GamePackets {
     public static final int TYPEID_SHOP_PANG_ITEM = 0x1A000006;
     /** C# {@code MULLIGAN_ROSE_TYPEID} {@code 0x1800000E}. Banned in Versus. */
     public static final int TYPEID_MULLIGAN_ROSE = 0x1800000E;
+    /** C# {@code AUTO_COMMAND_TYPEID} {@code 0x1A00019F}. */
+    public static final int TYPEID_AUTO_COMMAND = 0x1A00019F;
+    /**
+     * C# {@code STDA_ERROR_TYPE.GAME} ordinal. Auto-command GAME-source catch
+     * writes this as {@link #SERVER_AUTO_COMMAND_ACK} u32.
+     */
+    public static final int STDA_ERROR_TYPE_GAME = 92;
+    /** C# auto-command TOURNEY_BASE catch {@code 0x550001}. */
+    public static final int AUTO_COMMAND_ERR_USED = 0x550001;
     /** C# {@code COIN_TYPEID} {@code 0x1A000010}. */
     public static final int TYPEID_COIN = 0x1A000010;
     /** C# {@code SPINNING_CUBE_TYPEID} {@code 0x1A00015B}. */
@@ -5225,6 +5244,14 @@ public final class GamePackets {
     /** C# CLIENT {@code 0x156} empty. */
     public static byte[] clientAutoCommand() {
         return new PacketWriter().opcode(CLIENT_ACTIVE_AUTO_COMMAND).toBytes();
+    }
+
+    /**
+     * C# {@code requestActiveAutoCommand} catch {@code 0x22B} u32 error.
+     * Success does not send.
+     */
+    public static byte[] autoCommandFail(int code) {
+        return new PacketWriter().opcode(SERVER_AUTO_COMMAND_ACK).u32(code).toBytes();
     }
 
     /** C# CLIENT {@code 0x61} empty (log only). */

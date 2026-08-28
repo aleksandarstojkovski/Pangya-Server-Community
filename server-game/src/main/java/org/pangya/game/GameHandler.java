@@ -596,8 +596,12 @@ public final class GameHandler {
         room.turnOid = 0;
         room.reported.clear();
         room.activeUses.clear();
+        room.autoCommandUses.clear();
         for (var member : room.snapshot()) {
             room.initActiveItems(member.oid(), inventory.userEquip(member.player().uid).itemSlot);
+            GamePackets.WarehouseItem auto = warehouseByTypeid(member.player().uid, GamePackets.TYPEID_AUTO_COMMAND);
+            int qntd = auto == null ? 0 : auto.c[0] & 0xffff;
+            room.initAutoCommand(member.oid(), qntd > 0);
         }
         room.broadcast(GamePackets.startGameFlag());
         room.broadcast(GamePackets.startGameFlag2());
@@ -2030,6 +2034,7 @@ public final class GameHandler {
         room.turnOid = 0;
         room.reported.clear();
         room.activeUses.clear();
+        room.autoCommandUses.clear();
         for (Session member : room.snapshot()) {
             GamePackets.PlayerRoomInfo pri = room.playerInfo(member);
             if (pri == null) {
@@ -3728,11 +3733,21 @@ public final class GameHandler {
     }
 
     /**
-     * C# {@code requestActiveAutoCommand}: not-in-room CHANNEL catch is silent.
+     * C# {@code requestActiveAutoCommand}. Not-in-room / not-in-game CHANNEL-ROOM
+     * catch is silent. Success is silent (passive count++). Fail
+     * {@code 0x22B} u32: missing warehouse C0 writes {@code STDA_ERROR_TYPE.GAME}
+     * (92); not in {@code v_passive} / spent writes {@code 0x550001}.
      */
     private void activeAutoCommand(Session session) {
-        if (!inChannel(session)) {
+        GameRoom room = inGameRoom(session);
+        if (room == null) {
             return;
+        }
+        GamePackets.WarehouseItem item = warehouseByTypeid(session.player().uid, GamePackets.TYPEID_AUTO_COMMAND);
+        int qntd = item == null ? 0 : item.c[0] & 0xffff;
+        int err = room.tryUseAutoCommand(session.oid(), qntd);
+        if (err != 0) {
+            session.send(GamePackets.autoCommandFail(err));
         }
     }
 
