@@ -4264,52 +4264,262 @@ public final class GameHandler {
     }
 
     /**
-     * C# {@code requestClubSetWorkShopUpLevel}: unknown IFF group →
-     * {@code 0x23D} {@code shopSys(0x5300201)}.
+     * C# {@code requestClubSetWorkShopUpLevel}: ITEM/CARD consume, lottery
+     * stat, persist {@code C[stat]++}, {@code 0x216} count 1 then {@code 0x23D}
+     * u32 0 + u32 stat. Pending {@code cwlul}. Catch CHANNEL {@code shopSys};
+     * else full {@code 0x5300200}. Mega typeid 0 stays {@code shopSys(0x5300201)}.
      */
     private void clubWorkshopLevel(Session session, PacketReader reader) {
         if (!inChannel(session)) {
             return;
         }
-        if (reader.remaining() < 10) {
+        try {
+            if (reader.remaining() < 10) {
+                session.send(GamePackets.clubWorkshopFail(GamePackets.WORKSHOP_ERR_DEFAULT));
+                return;
+            }
+            int typeid = reader.u32();
+            int qntd = reader.u16();
+            int clubsetId = reader.i32();
+            int group = GamePackets.itemGroupIdentify(typeid);
+            long uid = session.player().uid;
+            int consumeId;
+            int ant;
+            int extraStat = -1;
+            int extraProb = 0;
+            if (group == GamePackets.IFF_GROUP_ITEM) {
+                GamePackets.WarehouseItem item = warehouseByTypeid(uid, typeid);
+                if (item == null) {
+                    session.send(GamePackets.clubWorkshopFail(
+                            GamePackets.shopSys(GamePackets.WORKSHOP_ERR_MISSING)));
+                    return;
+                }
+                if ((item.c[0] & 0xffff) < qntd) {
+                    session.send(GamePackets.clubWorkshopFail(
+                            GamePackets.shopSys(GamePackets.WORKSHOP_ERR_QNTD)));
+                    return;
+                }
+                if (!inventory.itemIff(typeid)) {
+                    session.send(GamePackets.clubWorkshopFail(
+                            GamePackets.shopSys(GamePackets.WORKSHOP_ERR_IFF_ITEM)));
+                    return;
+                }
+                consumeId = item.id;
+                ant = item.c[0] & 0xffff;
+            } else if (group == GamePackets.IFF_GROUP_CARD) {
+                GamePackets.CardInfo card = null;
+                for (GamePackets.CardInfo c : inventory.cards(uid)) {
+                    if (c.typeid == typeid) {
+                        card = c;
+                        break;
+                    }
+                }
+                if (card == null) {
+                    session.send(GamePackets.clubWorkshopFail(
+                            GamePackets.shopSys(GamePackets.WORKSHOP_ERR_MISSING)));
+                    return;
+                }
+                if (card.qntd < qntd) {
+                    session.send(GamePackets.clubWorkshopFail(
+                            GamePackets.shopSys(GamePackets.WORKSHOP_ERR_QNTD)));
+                    return;
+                }
+                if (!inventory.cardIff(typeid)) {
+                    session.send(GamePackets.clubWorkshopFail(
+                            GamePackets.shopSys(GamePackets.WORKSHOP_ERR_IFF_ITEM)));
+                    return;
+                }
+                consumeId = card.id;
+                ant = card.qntd;
+                if (qntd > 0) {
+                    extraStat = qntd == 1 ? 2 : (qntd == 2 ? 4 : (qntd == 3 ? 0 : (qntd == 4 ? 3 : (qntd == 5 ? 1 : 2))));
+                    extraProb = qntd * 200;
+                }
+            } else {
+                session.send(GamePackets.clubWorkshopFail(
+                        GamePackets.shopSys(GamePackets.WORKSHOP_ERR_GROUP)));
+                return;
+            }
+            GamePackets.WarehouseItem club = warehouseById(uid, clubsetId);
+            if (club == null) {
+                session.send(GamePackets.clubWorkshopFail(
+                        GamePackets.shopSys(GamePackets.WORKSHOP_ERR_CLUB)));
+                return;
+            }
+            if (club.workshopRank == -1) {
+                session.send(GamePackets.clubWorkshopFail(
+                        GamePackets.shopSys(GamePackets.WORKSHOP_ERR_RANK_DONE)));
+                return;
+            }
+            Optional<InventoryRepository.ClubSetIff> iff = inventory.clubSetIff(club.typeid);
+            if (iff.isEmpty()) {
+                session.send(GamePackets.clubWorkshopFail(
+                        GamePackets.shopSys(GamePackets.WORKSHOP_ERR_IFF_CLUB)));
+                return;
+            }
+            InventoryRepository.ClubSetIff clubset = iff.get();
+            if (clubset.tipo() == -1) {
+                session.send(GamePackets.clubWorkshopFail(
+                        GamePackets.shopSys(GamePackets.WORKSHOP_ERR_TIPO)));
+                return;
+            }
+            Optional<int[]> prob = inventory.clubSetLevelUpProb(clubset.tipo());
+            if (prob.isEmpty() || !inventory.clubSetLevelUpAny(clubset.tipo())) {
+                session.send(GamePackets.clubWorkshopFail(
+                        GamePackets.shopSys(GamePackets.WORKSHOP_ERR_LIMIT)));
+                return;
+            }
+            int rank = GamePackets.workshopCalcRank(club.workshopC, clubset.slots());
+            Optional<short[]> limit = inventory.clubSetLevelUpLimit(clubset.tipo(), rank);
+            if (limit.isEmpty()) {
+                session.send(GamePackets.clubWorkshopFail(
+                        GamePackets.shopSys(GamePackets.WORKSHOP_ERR_LIMIT_RANK)));
+                return;
+            }
+            OptionalInt drawn = GamePackets.workshopDrawStat(
+                    limit.get(), club.workshopC, clubset.slots(), prob.get(), extraStat, extraProb);
+            if (drawn.isEmpty()) {
+                session.send(GamePackets.clubWorkshopFail(GamePackets.WORKSHOP_ERR_DEFAULT));
+                return;
+            }
+            int stat = drawn.getAsInt();
+            OptionalInt remaining = group == GamePackets.IFF_GROUP_CARD
+                    ? inventory.consumeCardByTypeid(uid, typeid, qntd)
+                    : inventory.consumeWarehouseByTypeid(uid, typeid, qntd);
+            if (remaining.isEmpty()) {
+                session.send(GamePackets.clubWorkshopFail(
+                        GamePackets.shopSys(GamePackets.WORKSHOP_ERR_CONSUME)));
+                return;
+            }
+            short[] nextC = club.workshopC.clone();
+            nextC[stat]++;
+            inventory.setClubSetWorkshop(
+                    uid, club.id, nextC, club.workshopLevel, club.workshopRank, club.workshopRecovery);
+            session.player().workshopUpClubId = club.id;
+            session.player().workshopUpStat = stat;
+            GamePackets.PapelAward consume = new GamePackets.PapelAward(
+                    GamePackets.PAPEL_AWARD_TYPE,
+                    typeid,
+                    consumeId,
+                    0,
+                    ant,
+                    remaining.getAsInt(),
+                    -qntd);
+            session.send(GamePackets.papelAwards(GamePackets.unixNow(), List.of(consume)));
+            session.send(GamePackets.clubWorkshopLevelOk(stat));
+        } catch (RuntimeException e) {
+            log.debug("workshop up level failed: {}", e.toString());
             session.send(GamePackets.clubWorkshopFail(GamePackets.WORKSHOP_ERR_DEFAULT));
-            return;
         }
-        int typeid = reader.u32();
-        reader.u16();
-        reader.i32();
-        int group = GamePackets.itemGroupIdentify(typeid);
-        if (group != GamePackets.IFF_GROUP_ITEM) {
-            session.send(GamePackets.clubWorkshopFail(GamePackets.shopSys(GamePackets.WORKSHOP_ERR_GROUP)));
-            return;
-        }
-        session.send(GamePackets.clubWorkshopFail(GamePackets.shopSys(0x5300202)));
     }
 
     /**
-     * C# {@code requestClubSetWorkShopUpLevelConfirm}: no pending ClubSet →
-     * {@code 0x23E} {@code shopSys(0x5300301)}.
+     * C# {@code requestClubSetWorkShopUpLevelConfirm}: pending ClubSet
+     * {@code 0x216} type {@code 0xCC} then {@code 0x23E} u32 0 + stat + id.
+     * Skip achievement {@code 0x6C4000A2}. Catch CHANNEL {@code shopSys};
+     * else full {@code 0x5300300}.
      */
     private void clubWorkshopConfirm(Session session) {
         if (!inChannel(session)) {
             return;
         }
-        session.send(GamePackets.clubWorkshopOpcodeFail(
-                GamePackets.SERVER_CLUB_WORKSHOP_CONFIRM,
-                GamePackets.shopSys(GamePackets.WORKSHOP_CONFIRM_ERR)));
+        try {
+            PlayerContext pi = session.player();
+            GamePackets.WarehouseItem club = warehouseById(pi.uid, pi.workshopUpClubId);
+            if (club == null) {
+                session.send(GamePackets.clubWorkshopOpcodeFail(
+                        GamePackets.SERVER_CLUB_WORKSHOP_CONFIRM,
+                        GamePackets.shopSys(GamePackets.WORKSHOP_CONFIRM_ERR)));
+                return;
+            }
+            if ((pi.workshopUpStat & 0xffffffffL) > 4) {
+                session.send(GamePackets.clubWorkshopOpcodeFail(
+                        GamePackets.SERVER_CLUB_WORKSHOP_CONFIRM,
+                        GamePackets.shopSys(GamePackets.WORKSHOP_CONFIRM_ERR_STAT)));
+                return;
+            }
+            if (inventory.clubSetIff(club.typeid).isEmpty()) {
+                session.send(GamePackets.clubWorkshopOpcodeFail(
+                        GamePackets.SERVER_CLUB_WORKSHOP_CONFIRM,
+                        GamePackets.shopSys(GamePackets.WORKSHOP_CONFIRM_ERR_IFF)));
+                return;
+            }
+            session.send(GamePackets.workshopCcUpdate(
+                    GamePackets.unixNow(),
+                    club.typeid,
+                    club.id,
+                    club.workshopC,
+                    club.workshopMastery,
+                    club.workshopLevel,
+                    club.workshopRank,
+                    club.workshopRecovery));
+            session.send(GamePackets.clubWorkshopConfirmOk(pi.workshopUpStat, club.id));
+        } catch (RuntimeException e) {
+            log.debug("workshop up level confirm failed: {}", e.toString());
+            session.send(GamePackets.clubWorkshopOpcodeFail(
+                    GamePackets.SERVER_CLUB_WORKSHOP_CONFIRM, GamePackets.WORKSHOP_CONFIRM_DEFAULT));
+        }
     }
 
     /**
-     * C# {@code requestClubSetWorkShopUpLevelCancel}: no pending ClubSet →
-     * {@code 0x23F} {@code shopSys(0x5300251)}.
+     * C# {@code requestClubSetWorkShopUpLevelCancel}: decrement {@code C[stat]},
+     * increment recovery, persist, {@code 0x216} type {@code 0xCC} then
+     * {@code 0x23F} u32 0 + id. Catch CHANNEL {@code shopSys}; else full
+     * {@code 0x5300250}.
      */
     private void clubWorkshopCancel(Session session) {
         if (!inChannel(session)) {
             return;
         }
-        session.send(GamePackets.clubWorkshopOpcodeFail(
-                GamePackets.SERVER_CLUB_WORKSHOP_CANCEL,
-                GamePackets.shopSys(GamePackets.WORKSHOP_CANCEL_ERR)));
+        try {
+            PlayerContext pi = session.player();
+            GamePackets.WarehouseItem club = warehouseById(pi.uid, pi.workshopUpClubId);
+            if (club == null) {
+                session.send(GamePackets.clubWorkshopOpcodeFail(
+                        GamePackets.SERVER_CLUB_WORKSHOP_CANCEL,
+                        GamePackets.shopSys(GamePackets.WORKSHOP_CANCEL_ERR)));
+                return;
+            }
+            if ((pi.workshopUpStat & 0xffffffffL) > 4) {
+                session.send(GamePackets.clubWorkshopOpcodeFail(
+                        GamePackets.SERVER_CLUB_WORKSHOP_CANCEL,
+                        GamePackets.shopSys(GamePackets.WORKSHOP_CANCEL_ERR_STAT)));
+                return;
+            }
+            Optional<InventoryRepository.ClubSetIff> iff = inventory.clubSetIff(club.typeid);
+            if (iff.isEmpty()) {
+                session.send(GamePackets.clubWorkshopOpcodeFail(
+                        GamePackets.SERVER_CLUB_WORKSHOP_CANCEL,
+                        GamePackets.shopSys(GamePackets.WORKSHOP_CANCEL_ERR_IFF)));
+                return;
+            }
+            if (iff.get().totalRecovery() <= (club.workshopRecovery & 0xffffffffL)) {
+                session.send(GamePackets.clubWorkshopOpcodeFail(
+                        GamePackets.SERVER_CLUB_WORKSHOP_CANCEL,
+                        GamePackets.shopSys(GamePackets.WORKSHOP_CANCEL_ERR_RECOVERY)));
+                return;
+            }
+            int stat = pi.workshopUpStat;
+            short[] nextC = club.workshopC.clone();
+            nextC[stat]--;
+            int recovery = club.workshopRecovery + 1;
+            inventory.setClubSetWorkshop(
+                    pi.uid, club.id, nextC, club.workshopLevel, club.workshopRank, recovery);
+            session.send(GamePackets.workshopCcUpdate(
+                    GamePackets.unixNow(),
+                    club.typeid,
+                    club.id,
+                    nextC,
+                    club.workshopMastery,
+                    club.workshopLevel,
+                    club.workshopRank,
+                    recovery));
+            session.send(GamePackets.clubWorkshopCancelOk(club.id));
+        } catch (RuntimeException e) {
+            log.debug("workshop up level cancel failed: {}", e.toString());
+            session.send(GamePackets.clubWorkshopOpcodeFail(
+                    GamePackets.SERVER_CLUB_WORKSHOP_CANCEL, GamePackets.WORKSHOP_CANCEL_DEFAULT));
+        }
     }
 
     /**

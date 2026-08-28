@@ -229,6 +229,39 @@ public interface InventoryRepository {
 
     void upsertClubSetIff(int typeid, int tipo, short[] stats, short[] slots, int tipoRankS);
 
+    void upsertClubSetIff(
+            int typeid, int tipo, short[] stats, short[] slots, int tipoRankS, int totalRecovery);
+
+    /** C# {@code sIff.findItem}: SQL {@code iff_item} row exists. */
+    boolean itemIff(int typeid);
+
+    void upsertItemIff(int typeid);
+
+    void deleteItemIff(int typeid);
+
+    /** C# {@code sIff.findCard}: SQL {@code iff_card} row exists. */
+    boolean cardIff(int typeid);
+
+    /**
+     * C# {@code ItemManager.removeItem} for cards: consume {@code qntd} from
+     * {@code QNTD}. Empty when missing or insufficient. Remaining 0 deletes.
+     */
+    OptionalInt consumeCardByTypeid(long uid, int typeid, int qntd);
+
+    Optional<short[]> clubSetLevelUpLimit(int tipo, int rank);
+
+    boolean clubSetLevelUpAny(int tipo);
+
+    void upsertClubSetLevelUpLimit(int tipo, int rank, short[] c);
+
+    void deleteClubSetLevelUpLimit(int tipo, int rank);
+
+    Optional<int[]> clubSetLevelUpProb(int tipo);
+
+    void upsertClubSetLevelUpProb(int tipo, int[] c);
+
+    void deleteClubSetLevelUpProb(int tipo);
+
     /** C# {@code sIff.findClubSetWorkShopRankExp}: SQL row exists. */
     boolean clubSetRankExp(int tipo);
 
@@ -444,9 +477,10 @@ public interface InventoryRepository {
 
     /**
      * C# IFF {@code ClubSet}: {@code work_shop.tipo}, {@code Stats.getSlot},
-     * {@code SlotStats.getSlot}, {@code work_shop.tipo_rank_s}.
+     * {@code SlotStats.getSlot}, {@code work_shop.tipo_rank_s},
+     * {@code work_shop.total_recovery}.
      */
-    record ClubSetIff(int tipo, short[] stats, short[] slots, int tipoRankS) {}
+    record ClubSetIff(int tipo, short[] stats, short[] slots, int tipoRankS, int totalRecovery) {}
 
     /** C# IFF {@code TimeLimitItem}: {@code type}, {@code percent}, {@code time} minutes. */
     record TimeLimitItem(int typeid, int tipo, int percent, int timeMinutes) {}

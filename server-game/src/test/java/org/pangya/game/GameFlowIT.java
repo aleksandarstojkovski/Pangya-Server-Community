@@ -2360,6 +2360,184 @@ class GameFlowIT {
     }
 
     @Test
+    void workshopUpLevelThenConfirmAndCancel() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config);
+             PangyaFakeClient client = new PangyaFakeClient()) {
+            InventoryRepository inv = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
+            GamePackets.WarehouseItem club = inv.warehouse(10001).stream()
+                    .filter(w -> w.typeid == GamePackets.TYPEID_AIR_KNIGHT)
+                    .findFirst()
+                    .orElseThrow();
+            int clubId = club.id;
+            short[] origC = club.c.clone();
+            short[] origW = club.workshopC.clone();
+            int origLevel = club.workshopLevel;
+            int origRank = club.workshopRank;
+            int origRecovery = club.workshopRecovery;
+            int origMastery = club.workshopMastery;
+            inv.deleteClubSetIff(GamePackets.TYPEID_AIR_KNIGHT);
+            inv.deleteItemIff(GamePackets.TYPEID_SHOP_PANG_ITEM);
+            inv.deleteClubSetLevelUpLimit(0, 0);
+            inv.deleteClubSetLevelUpProb(0);
+            inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_SHOP_PANG_ITEM);
+            inv.addWarehouseItem(10001, GamePackets.TYPEID_SHOP_PANG_ITEM, 2);
+            inv.setClubSetWorkshop(10001, clubId, new short[5], 0, 0, 0);
+            int consumeId = inv.warehouse(10001).stream()
+                    .filter(w -> w.typeid == GamePackets.TYPEID_SHOP_PANG_ITEM)
+                    .findFirst()
+                    .orElseThrow()
+                    .id;
+            try {
+                LoginRepository repo = new JdbiLoginRepository(DatabaseSupport.jdbi(ds));
+                String loginKey = repo.generateAuthKeyLogin(10001);
+                String gameKey = repo.generateAuthKeyGame(10001, 20202);
+                keys.putLoginKey(10001, loginKey);
+                keys.putGameKey(10001, 20202, gameKey);
+                loginToChannel(client, runtime.port(), "testuser", 10001, loginKey, gameKey);
+
+                client.sendPlain(GamePackets.clientClubWorkshopLevel(
+                        GamePackets.TYPEID_SHOP_PANG_ITEM, 1, clubId));
+                PacketReader missingIff = awaitOpcode(client, GamePackets.SERVER_CLUB_WORKSHOP_LEVEL);
+                assertEquals(GamePackets.shopSys(GamePackets.WORKSHOP_ERR_IFF_ITEM), missingIff.u32());
+
+                inv.upsertItemIff(GamePackets.TYPEID_SHOP_PANG_ITEM);
+                client.sendPlain(GamePackets.clientClubWorkshopLevel(
+                        GamePackets.TYPEID_SHOP_PANG_ITEM, 1, clubId));
+                PacketReader missingClubIff = awaitOpcode(client, GamePackets.SERVER_CLUB_WORKSHOP_LEVEL);
+                assertEquals(GamePackets.shopSys(GamePackets.WORKSHOP_ERR_IFF_CLUB), missingClubIff.u32());
+
+                inv.upsertClubSetIff(
+                        GamePackets.TYPEID_AIR_KNIGHT,
+                        0,
+                        new short[5],
+                        new short[] {6, 6, 6, 6, 6},
+                        0,
+                        5);
+                client.sendPlain(GamePackets.clientClubWorkshopLevel(
+                        GamePackets.TYPEID_SHOP_PANG_ITEM, 1, clubId));
+                PacketReader missingLimit = awaitOpcode(client, GamePackets.SERVER_CLUB_WORKSHOP_LEVEL);
+                assertEquals(GamePackets.shopSys(GamePackets.WORKSHOP_ERR_LIMIT), missingLimit.u32());
+
+                inv.upsertClubSetLevelUpProb(0, new int[] {100, 0, 0, 0, 0});
+                inv.upsertClubSetLevelUpLimit(0, 0, new short[] {7, 0, 0, 0, 0});
+                int before = GamePackets.unixNow();
+                client.sendPlain(GamePackets.clientClubWorkshopLevel(
+                        GamePackets.TYPEID_SHOP_PANG_ITEM, 1, clubId));
+                PacketReader awards = awaitOpcode(client, GamePackets.SERVER_DAILY_QUEST_STAMP);
+                int unix = awards.u32();
+                assertTrue(unix >= before - 1 && unix <= GamePackets.unixNow() + 1);
+                assertEquals(1, awards.u32());
+                assertEquals(GamePackets.PAPEL_AWARD_TYPE, awards.u8());
+                assertEquals(GamePackets.TYPEID_SHOP_PANG_ITEM, awards.u32());
+                assertEquals(consumeId, awards.i32());
+                assertEquals(0, awards.u32());
+                assertEquals(2, awards.i32());
+                assertEquals(1, awards.i32());
+                assertEquals(-1, awards.i32());
+                awards.readBytes(GamePackets.PAPEL_AWARD_PAD);
+                assertEquals(0, awards.remaining());
+                PacketReader levelOk = awaitOpcode(client, GamePackets.SERVER_CLUB_WORKSHOP_LEVEL);
+                assertEquals(GamePackets.WORKSHOP_OK, levelOk.u32());
+                assertEquals(0, levelOk.u32());
+                GamePackets.WarehouseItem afterLevel = inv.warehouse(10001).stream()
+                        .filter(w -> w.id == clubId)
+                        .findFirst()
+                        .orElseThrow();
+                assertEquals(1, afterLevel.workshopC[0]);
+
+                client.sendPlain(GamePackets.clientClubWorkshopEmpty(
+                        GamePackets.CLIENT_CLUB_WORKSHOP_CONFIRM));
+                PacketReader confirmUpd = awaitOpcode(client, GamePackets.SERVER_DAILY_QUEST_STAMP);
+                confirmUpd.u32();
+                assertEquals(1, confirmUpd.u32());
+                assertEquals(GamePackets.WORKSHOP_AWARD_TYPE, confirmUpd.u8());
+                assertEquals(GamePackets.TYPEID_AIR_KNIGHT, confirmUpd.u32());
+                assertEquals(clubId, confirmUpd.i32());
+                assertEquals(0, confirmUpd.u32());
+                assertEquals(0, confirmUpd.i32());
+                assertEquals(0, confirmUpd.i32());
+                assertEquals(0, confirmUpd.i32());
+                confirmUpd.readBytes(GamePackets.PAPEL_AWARD_PAD);
+                assertEquals(1, confirmUpd.i16());
+                for (int i = 0; i < 4; i++) {
+                    assertEquals(0, confirmUpd.i16());
+                }
+                assertEquals(origMastery, confirmUpd.u32());
+                assertEquals(0, confirmUpd.u8());
+                assertEquals(0, confirmUpd.u32());
+                assertEquals(0, confirmUpd.u32());
+                assertEquals(0, confirmUpd.remaining());
+                PacketReader confirmOk = awaitOpcode(client, GamePackets.SERVER_CLUB_WORKSHOP_CONFIRM);
+                assertEquals(GamePackets.WORKSHOP_CONFIRM_OK, confirmOk.u32());
+                assertEquals(0, confirmOk.u32());
+                assertEquals(clubId, confirmOk.i32());
+
+                inv.setClubSetWorkshop(10001, clubId, new short[5], 0, 0, 0);
+                client.sendPlain(GamePackets.clientClubWorkshopLevel(
+                        GamePackets.TYPEID_SHOP_PANG_ITEM, 1, clubId));
+                PacketReader awards2 = awaitOpcode(client, GamePackets.SERVER_DAILY_QUEST_STAMP);
+                awards2.u32();
+                assertEquals(1, awards2.u32());
+                PacketReader levelOk2 = awaitOpcode(client, GamePackets.SERVER_CLUB_WORKSHOP_LEVEL);
+                assertEquals(GamePackets.WORKSHOP_OK, levelOk2.u32());
+                assertEquals(0, levelOk2.u32());
+                client.sendPlain(GamePackets.clientClubWorkshopEmpty(
+                        GamePackets.CLIENT_CLUB_WORKSHOP_CANCEL));
+                PacketReader cancelUpd = awaitOpcode(client, GamePackets.SERVER_DAILY_QUEST_STAMP);
+                cancelUpd.u32();
+                assertEquals(1, cancelUpd.u32());
+                assertEquals(GamePackets.WORKSHOP_AWARD_TYPE, cancelUpd.u8());
+                assertEquals(GamePackets.TYPEID_AIR_KNIGHT, cancelUpd.u32());
+                assertEquals(clubId, cancelUpd.i32());
+                assertEquals(0, cancelUpd.u32());
+                assertEquals(0, cancelUpd.i32());
+                assertEquals(0, cancelUpd.i32());
+                assertEquals(0, cancelUpd.i32());
+                cancelUpd.readBytes(GamePackets.PAPEL_AWARD_PAD);
+                for (int i = 0; i < 5; i++) {
+                    assertEquals(0, cancelUpd.i16());
+                }
+                assertEquals(origMastery, cancelUpd.u32());
+                assertEquals(0, cancelUpd.u8());
+                assertEquals(0, cancelUpd.u32());
+                assertEquals(1, cancelUpd.u32());
+                assertEquals(0, cancelUpd.remaining());
+                PacketReader cancelOk = awaitOpcode(client, GamePackets.SERVER_CLUB_WORKSHOP_CANCEL);
+                assertEquals(GamePackets.WORKSHOP_CANCEL_OK, cancelOk.u32());
+                assertEquals(clubId, cancelOk.i32());
+                GamePackets.WarehouseItem afterCancel = inv.warehouse(10001).stream()
+                        .filter(w -> w.id == clubId)
+                        .findFirst()
+                        .orElseThrow();
+                assertEquals(0, afterCancel.workshopC[0]);
+                assertEquals(1, afterCancel.workshopRecovery);
+
+                client.sendPlain(GamePackets.clientClubWorkshopLevel(0, 1, 0));
+                PacketReader zero = awaitOpcode(client, GamePackets.SERVER_CLUB_WORKSHOP_LEVEL);
+                assertEquals(GamePackets.shopSys(GamePackets.WORKSHOP_ERR_GROUP), zero.u32());
+            } finally {
+                inv.setWarehouseClubC(10001, clubId, origC);
+                inv.setClubSetWorkshop(10001, clubId, origW, origLevel, origRank, origRecovery);
+                inv.setClubSetMasteryPts(10001, clubId, origMastery);
+                inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_SHOP_PANG_ITEM);
+                inv.deleteClubSetIff(GamePackets.TYPEID_AIR_KNIGHT);
+                inv.deleteItemIff(GamePackets.TYPEID_SHOP_PANG_ITEM);
+                inv.deleteClubSetLevelUpLimit(0, 0);
+                inv.deleteClubSetLevelUpProb(0);
+            }
+        }
+    }
+
+    @Test
     void makeTutorialRookieAcksFlagsAndMailsReward() throws Exception {
         String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
         String user = env("PANGYA_TEST_JDBC_USER", "pangya");

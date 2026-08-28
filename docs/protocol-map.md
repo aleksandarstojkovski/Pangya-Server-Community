@@ -156,7 +156,9 @@ C#: `GameServer/PangyaEnums/PacketGame.cs` → Java `org.pangya.protocol.game.Ga
 | C | `CLIENT_REQ_POINT_SHOP_OPEN` | `0x126` | not blocked → `0x1E7` u32 0 |
 | C | `CLIENT_ITEMSTORAGE_REQ_ACCESS` | `0xCC` | empty/`Sanitize` fail → `0x16C` u32 1; seed empty pass → `0x75` |
 | C | `CLIENT_ITEMSTORAGE_REQ_STATE` | `0xD3` | no channel; `0x170` u32 0 + u32 2 (no pass) |
-| C | `CLIENT_CLUBSETWORKSHOP_REQ_UP_LEVEL` | `0x164` | 10 bytes; group ≠ ITEM → `0x23D` `shopSys(0x5300201)` |
+| C | `CLIENT_CLUBSETWORKSHOP_REQ_UP_LEVEL` | `0x164` | group ≠ ITEM/CARD → `0x23D` `shopSys(0x5300201)`; missing item `0x5300202`; C0&lt;qntd `0x5300203`; no `iff_item`/`iff_card` `0x5300204`; missing club `0x5300205`; no `iff_clubset` `0x5300206`; tipo -1 `0x5300207`; consume fail `0x5300208`; no limit/prob `0x5300209`; rank==-1 `0x5300210`; no limit row `0x5300211`; empty lottery → full `0x5300200`; truncated → full `0x5300200`. Success persist `C[stat]++` then `0x216` count 1 (type 2) then `0x23D` u32 0 + u32 stat. SQL `iff_item` + `iff_clubset_level_up_*` |
+| C | `CLIENT_CLUBSETWORKSHOP_REQ_UP_LEVEL_CONFIRM` | `0x165` | no pending ClubSet → `0x23E` `shopSys(0x5300301)`; no IFF `0x5300302`; stat&gt;4 `0x5300303`; truncated/else full `0x5300300`. Success `0x216` type `0xCC` then `0x23E` u32 0 + stat + id |
+| C | `CLIENT_CLUBSETWORKSHOP_REQ_UP_LEVEL_CANCEL` | `0x166` | no pending ClubSet → `0x23F` `shopSys(0x5300251)`; stat&gt;4 `0x5300252`; no IFF `0x5300253`; recovery exhausted `0x5300254`; else full `0x5300250`. Success decrement `C[stat]` + recovery++ then `0x216` type `0xCC` then `0x23F` u32 0 + id |
 | C | `CLIENT_OPEN_LUCKY_POUCH` | `0xB2` | catch `0x129` u8 1 + 12 zeros |
 | C | `CLIENT_COMPLETE_QUEST` | `0xAE` | tipo 0/1/2 success `0x11F` u8 tipo + u8 1 + u32 flags + mail `@ADM`; già fatto `shopSys(0x5300551)`; ordine `shopSys(0x5300554)`; tipo ignoto `0x44` u8 `0xE2` + `shopSys(0x5300552)`. Opposite messenger Friend_List `0x11F`. |
 | C | `CLIENT_TAKE_MAIL` | `0x146` | i32 id. ITEM SQL stand-in: `leftItems` + warehouse, `0x216` type 2 empty UCC PStr+status+seq+5 zero (15 byte, non pad Papel 25) poi `0x214` u32 0. Box vuoto/`id≤0` `0x5500100`; no item `pacote214(1)`; group≠ITEM `pacote214(3)`; add fail `pacote214(2)`. Opposite `SERVER_MAIL_TAKE`. |
@@ -168,8 +170,6 @@ C#: `GameServer/PangyaEnums/PacketGame.cs` → Java `org.pangya.protocol.game.Ga
 | C | `CLIENT_REQ_POINT_SHOP_TP` | `0x127` | not blocked → `0x1E8` u32 0 + u32 tiki pts (seed 0) |
 | C | `CLIENT_REQ_POINT_SHOP_EXCHANGE_TP` | `0x128` | count 0 → `0x1E9` `shopSys(0x5200905)` |
 | C | `CLIENT_REQ_POINT_SHOP_EXCHANGE_ITEM` | `0x129` | count 0 → `0x1EA` `shopSys(0x5200905)`; opposite SERVER lucky-pouch |
-| C | `CLIENT_CLUBSETWORKSHOP_REQ_UP_LEVEL_CONFIRM` | `0x165` | no pending ClubSet → `0x23E` `shopSys(0x5300301)` |
-| C | `CLIENT_CLUBSETWORKSHOP_REQ_UP_LEVEL_CANCEL` | `0x166` | no pending ClubSet → `0x23F` `shopSys(0x5300251)` |
 | C | `CLIENT_CLUBSETWORKSHOP_REQ_UP_RANK` | `0x167` | qntd>0 missing card → `0x240` `shopSys(0x5300351)` |
 | C | `CLIENT_USE_ITEM_BUFF` | `0xD8` | typeid 0 → `0x181` `shopSys(0x5500401)`; ITEM+SQL `iff_time_limit_item` success u32 2 + count 1 + typeid + ItemBuff; missing warehouse `shopSys(0x5500402)`; non-ITEM `shopSys(0x5500403)`; no TLI `shopSys(0x5500404)` |
 | C | `CLIENT_COMET_REFILL` | `0xEC` | ITEM+BALL SQL `pangya_comet_refill`; success `0x197` u8 1 + item + ball + u16 C0; else u8 0 + 10 zeros. Opposite locker-add `SERVER_SHOP_BUY` |

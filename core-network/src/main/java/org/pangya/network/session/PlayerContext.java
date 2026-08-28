@@ -74,4 +74,8 @@ public final class PlayerContext {
      * assist typeid {@code 0x1BE00016}.
      */
     public volatile int assistId;
+    /** C# {@code PlayerInfo.cwlul.clubset_id} pending workshop up-level. */
+    public volatile int workshopUpClubId;
+    /** C# {@code PlayerInfo.cwlul.stat} pending workshop up-level. */
+    public volatile int workshopUpStat;
 }

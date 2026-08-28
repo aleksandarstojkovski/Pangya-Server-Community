@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 import org.pangya.protocol.packet.PacketReader;
 
 import java.util.List;
+import java.util.OptionalInt;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -1411,6 +1412,53 @@ class GamePacketsTest {
         assertEquals(GamePackets.WORKSHOP_RANK_S, GamePackets.workshopCalcRank(new short[] {11, 11, 11, 11, 11}));
         assertEquals(-1, GamePackets.workshopSCalcRank(new short[5]));
         assertEquals(0, GamePackets.workshopSCalcRank(new short[] {6, 6, 6, 6, 6}));
+        assertEquals(0, GamePackets.workshopCalcRank(new short[5], new short[] {6, 6, 6, 6, 6}));
+        assertEquals(
+                OptionalInt.of(0),
+                GamePackets.workshopDrawStat(
+                        new short[] {7, 0, 0, 0, 0},
+                        new short[5],
+                        new short[] {6, 6, 6, 6, 6},
+                        new int[] {100, 0, 0, 0, 0},
+                        -1,
+                        0));
+        assertTrue(GamePackets.workshopDrawStat(
+                new short[5], new short[5], new short[5], new int[5], -1, 0).isEmpty());
+        PacketReader levelOk = new PacketReader(GamePackets.clubWorkshopLevelOk(0));
+        assertEquals(GamePackets.SERVER_CLUB_WORKSHOP_LEVEL, levelOk.opcode());
+        assertEquals(GamePackets.WORKSHOP_OK, levelOk.u32());
+        assertEquals(0, levelOk.u32());
+        PacketReader confirmOk = new PacketReader(GamePackets.clubWorkshopConfirmOk(0, 2));
+        assertEquals(GamePackets.SERVER_CLUB_WORKSHOP_CONFIRM, confirmOk.opcode());
+        assertEquals(GamePackets.WORKSHOP_CONFIRM_OK, confirmOk.u32());
+        assertEquals(0, confirmOk.u32());
+        assertEquals(2, confirmOk.i32());
+        PacketReader cancelOk = new PacketReader(GamePackets.clubWorkshopCancelOk(2));
+        assertEquals(GamePackets.SERVER_CLUB_WORKSHOP_CANCEL, cancelOk.opcode());
+        assertEquals(GamePackets.WORKSHOP_CANCEL_OK, cancelOk.u32());
+        assertEquals(2, cancelOk.i32());
+        PacketReader ccUpd = new PacketReader(GamePackets.workshopCcUpdate(
+                1, GamePackets.TYPEID_AIR_KNIGHT, 2, new short[] {1, 0, 0, 0, 0}, 300, 0, 0, 1));
+        assertEquals(GamePackets.SERVER_DAILY_QUEST_STAMP, ccUpd.opcode());
+        assertEquals(1, ccUpd.u32());
+        assertEquals(1, ccUpd.u32());
+        assertEquals(GamePackets.WORKSHOP_AWARD_TYPE, ccUpd.u8());
+        assertEquals(GamePackets.TYPEID_AIR_KNIGHT, ccUpd.u32());
+        assertEquals(2, ccUpd.i32());
+        assertEquals(0, ccUpd.u32());
+        assertEquals(0, ccUpd.i32());
+        assertEquals(0, ccUpd.i32());
+        assertEquals(0, ccUpd.i32());
+        ccUpd.readBytes(GamePackets.PAPEL_AWARD_PAD);
+        assertEquals(1, ccUpd.i16());
+        for (int i = 0; i < 4; i++) {
+            assertEquals(0, ccUpd.i16());
+        }
+        assertEquals(300, ccUpd.u32());
+        assertEquals(0, ccUpd.u8());
+        assertEquals(0, ccUpd.u32());
+        assertEquals(1, ccUpd.u32());
+        assertEquals(0, ccUpd.remaining());
         PacketReader reset = new PacketReader(GamePackets.sysAck(
                 GamePackets.SERVER_CLUBSET_RESET, GamePackets.shopSys(GamePackets.CLUBSET_RESET_ERR)));
         assertEquals(GamePackets.SERVER_CLUBSET_RESET, reset.opcode());
@@ -2294,6 +2342,10 @@ class GamePacketsTest {
         assertEquals(GamePackets.TYPEID_CLUBSET_RESET_HARD, 0x1A00024B);
         assertEquals(GamePackets.CLUBSET_RESET_OK, 0);
         assertEquals(GamePackets.CLUBSET_RESET_ERR_ITEM, 0x5300501);
+        assertEquals(GamePackets.WORKSHOP_OK, 0);
+        assertEquals(GamePackets.WORKSHOP_CONFIRM_OK, 0);
+        assertEquals(GamePackets.WORKSHOP_CANCEL_OK, 0);
+        assertEquals(GamePackets.WORKSHOP_ERR_MISSING, 0x5300202);
         assertEquals(GamePackets.SERVER_BUY_ACK, 0x68);
         assertEquals(GamePackets.CREATE_ROOM_FAILED, 0x07);
         assertEquals(GamePackets.SERVER_LAST5, 0x10E);

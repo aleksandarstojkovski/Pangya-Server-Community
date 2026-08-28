@@ -2490,7 +2490,7 @@ public final class JdbiInventoryRepository implements InventoryRepository {
     public Optional<ClubSetIff> clubSetIff(int typeid) {
         return jdbi.withHandle(h -> h.createQuery("""
                         SELECT work_shop_tipo, stats0, stats1, stats2, stats3, stats4,
-                               slot0, slot1, slot2, slot3, slot4, tipo_rank_s
+                               slot0, slot1, slot2, slot3, slot4, tipo_rank_s, total_recovery
                           FROM pangya.iff_clubset
                          WHERE typeid = :typeid
                         """)
@@ -2511,28 +2511,35 @@ public final class JdbiInventoryRepository implements InventoryRepository {
                             rs.getShort("slot3"),
                             rs.getShort("slot4")
                         },
-                        rs.getInt("tipo_rank_s")))
+                        rs.getInt("tipo_rank_s"),
+                        rs.getInt("total_recovery")))
                 .findOne());
     }
 
     @Override
     public void upsertClubSetIff(int typeid, int tipo, short[] stats, short[] slots) {
-        upsertClubSetIff(typeid, tipo, stats, slots, 0);
+        upsertClubSetIff(typeid, tipo, stats, slots, 0, 0);
     }
 
     @Override
     public void upsertClubSetIff(int typeid, int tipo, short[] stats, short[] slots, int tipoRankS) {
+        upsertClubSetIff(typeid, tipo, stats, slots, tipoRankS, 0);
+    }
+
+    @Override
+    public void upsertClubSetIff(
+            int typeid, int tipo, short[] stats, short[] slots, int tipoRankS, int totalRecovery) {
         short[] st = pad5(stats);
         short[] sl = pad5(slots);
         jdbi.useHandle(h -> h.createUpdate("""
                         INSERT INTO pangya.iff_clubset (
                             typeid, work_shop_tipo,
                             stats0, stats1, stats2, stats3, stats4,
-                            slot0, slot1, slot2, slot3, slot4, tipo_rank_s)
+                            slot0, slot1, slot2, slot3, slot4, tipo_rank_s, total_recovery)
                         VALUES (
                             :typeid, :tipo,
                             :s0, :s1, :s2, :s3, :s4,
-                            :l0, :l1, :l2, :l3, :l4, :rank)
+                            :l0, :l1, :l2, :l3, :l4, :rank, :recovery)
                         ON CONFLICT (typeid) DO UPDATE SET
                             work_shop_tipo = EXCLUDED.work_shop_tipo,
                             stats0 = EXCLUDED.stats0, stats1 = EXCLUDED.stats1,
@@ -2541,7 +2548,8 @@ public final class JdbiInventoryRepository implements InventoryRepository {
                             slot0 = EXCLUDED.slot0, slot1 = EXCLUDED.slot1,
                             slot2 = EXCLUDED.slot2, slot3 = EXCLUDED.slot3,
                             slot4 = EXCLUDED.slot4,
-                            tipo_rank_s = EXCLUDED.tipo_rank_s
+                            tipo_rank_s = EXCLUDED.tipo_rank_s,
+                            total_recovery = EXCLUDED.total_recovery
                         """)
                 .bind("typeid", typeid)
                 .bind("tipo", tipo)
@@ -2550,6 +2558,193 @@ public final class JdbiInventoryRepository implements InventoryRepository {
                 .bind("l0", sl[0]).bind("l1", sl[1]).bind("l2", sl[2])
                 .bind("l3", sl[3]).bind("l4", sl[4])
                 .bind("rank", tipoRankS)
+                .bind("recovery", totalRecovery)
+                .execute());
+    }
+
+    @Override
+    public boolean itemIff(int typeid) {
+        return jdbi.withHandle(h -> h.createQuery("""
+                        SELECT 1 FROM pangya.iff_item WHERE typeid = :typeid
+                        """)
+                .bind("typeid", typeid)
+                .mapTo(Integer.class)
+                .findOne())
+                .isPresent();
+    }
+
+    @Override
+    public void upsertItemIff(int typeid) {
+        jdbi.useHandle(h -> h.createUpdate("""
+                        INSERT INTO pangya.iff_item (typeid) VALUES (:typeid)
+                        ON CONFLICT (typeid) DO NOTHING
+                        """)
+                .bind("typeid", typeid)
+                .execute());
+    }
+
+    @Override
+    public void deleteItemIff(int typeid) {
+        jdbi.useHandle(h -> h.createUpdate("DELETE FROM pangya.iff_item WHERE typeid = :typeid")
+                .bind("typeid", typeid)
+                .execute());
+    }
+
+    @Override
+    public boolean cardIff(int typeid) {
+        return jdbi.withHandle(h -> h.createQuery("""
+                        SELECT 1 FROM pangya.iff_card WHERE typeid = :typeid
+                        """)
+                .bind("typeid", typeid)
+                .mapTo(Integer.class)
+                .findOne())
+                .isPresent();
+    }
+
+    @Override
+    public OptionalInt consumeCardByTypeid(long uid, int typeid, int qntd) {
+        if (qntd <= 0) {
+            return OptionalInt.empty();
+        }
+        return jdbi.inTransaction(h -> {
+            int[] row = h.createQuery("""
+                            SELECT card_itemid, COALESCE("QNTD", 0) AS qntd
+                              FROM pangya.pangya_card
+                             WHERE "UID" = :uid AND card_typeid = :typeid
+                             ORDER BY card_itemid
+                             LIMIT 1
+                            """)
+                    .bind("uid", uid)
+                    .bind("typeid", typeid)
+                    .map((rs, ctx) -> new int[] {rs.getInt("card_itemid"), rs.getInt("qntd")})
+                    .findOne()
+                    .orElse(null);
+            if (row == null || row[1] < qntd) {
+                return OptionalInt.empty();
+            }
+            int remaining = row[1] - qntd;
+            if (remaining <= 0) {
+                h.createUpdate("DELETE FROM pangya.pangya_card WHERE card_itemid = :id")
+                        .bind("id", row[0])
+                        .execute();
+                return OptionalInt.of(0);
+            }
+            h.createUpdate("""
+                            UPDATE pangya.pangya_card
+                               SET "QNTD" = :qntd
+                             WHERE card_itemid = :id
+                            """)
+                    .bind("qntd", remaining)
+                    .bind("id", row[0])
+                    .execute();
+            return OptionalInt.of(remaining);
+        });
+    }
+
+    @Override
+    public Optional<short[]> clubSetLevelUpLimit(int tipo, int rank) {
+        return jdbi.withHandle(h -> h.createQuery("""
+                        SELECT c0, c1, c2, c3, c4
+                          FROM pangya.iff_clubset_level_up_limit
+                         WHERE tipo = :tipo AND rank = :rank
+                        """)
+                .bind("tipo", tipo)
+                .bind("rank", rank)
+                .map((rs, ctx) -> new short[] {
+                    rs.getShort("c0"),
+                    rs.getShort("c1"),
+                    rs.getShort("c2"),
+                    rs.getShort("c3"),
+                    rs.getShort("c4")
+                })
+                .findOne());
+    }
+
+    @Override
+    public boolean clubSetLevelUpAny(int tipo) {
+        return jdbi.withHandle(h -> h.createQuery("""
+                        SELECT 1 FROM pangya.iff_clubset_level_up_limit
+                         WHERE tipo = :tipo
+                         LIMIT 1
+                        """)
+                .bind("tipo", tipo)
+                .mapTo(Integer.class)
+                .findOne())
+                .isPresent();
+    }
+
+    @Override
+    public void upsertClubSetLevelUpLimit(int tipo, int rank, short[] c) {
+        short[] v = pad5(c);
+        jdbi.useHandle(h -> h.createUpdate("""
+                        INSERT INTO pangya.iff_clubset_level_up_limit (
+                            tipo, rank, c0, c1, c2, c3, c4)
+                        VALUES (:tipo, :rank, :c0, :c1, :c2, :c3, :c4)
+                        ON CONFLICT (tipo, rank) DO UPDATE SET
+                            c0 = EXCLUDED.c0, c1 = EXCLUDED.c1, c2 = EXCLUDED.c2,
+                            c3 = EXCLUDED.c3, c4 = EXCLUDED.c4
+                        """)
+                .bind("tipo", tipo)
+                .bind("rank", rank)
+                .bind("c0", v[0]).bind("c1", v[1]).bind("c2", v[2])
+                .bind("c3", v[3]).bind("c4", v[4])
+                .execute());
+    }
+
+    @Override
+    public void deleteClubSetLevelUpLimit(int tipo, int rank) {
+        jdbi.useHandle(h -> h.createUpdate("""
+                        DELETE FROM pangya.iff_clubset_level_up_limit
+                         WHERE tipo = :tipo AND rank = :rank
+                        """)
+                .bind("tipo", tipo)
+                .bind("rank", rank)
+                .execute());
+    }
+
+    @Override
+    public Optional<int[]> clubSetLevelUpProb(int tipo) {
+        return jdbi.withHandle(h -> h.createQuery("""
+                        SELECT c0, c1, c2, c3, c4
+                          FROM pangya.iff_clubset_level_up_prob
+                         WHERE tipo = :tipo
+                        """)
+                .bind("tipo", tipo)
+                .map((rs, ctx) -> new int[] {
+                    rs.getInt("c0"),
+                    rs.getInt("c1"),
+                    rs.getInt("c2"),
+                    rs.getInt("c3"),
+                    rs.getInt("c4")
+                })
+                .findOne());
+    }
+
+    @Override
+    public void upsertClubSetLevelUpProb(int tipo, int[] c) {
+        int[] v = c == null ? new int[5] : c;
+        jdbi.useHandle(h -> h.createUpdate("""
+                        INSERT INTO pangya.iff_clubset_level_up_prob (
+                            tipo, c0, c1, c2, c3, c4)
+                        VALUES (:tipo, :c0, :c1, :c2, :c3, :c4)
+                        ON CONFLICT (tipo) DO UPDATE SET
+                            c0 = EXCLUDED.c0, c1 = EXCLUDED.c1, c2 = EXCLUDED.c2,
+                            c3 = EXCLUDED.c3, c4 = EXCLUDED.c4
+                        """)
+                .bind("tipo", tipo)
+                .bind("c0", v.length > 0 ? v[0] : 0)
+                .bind("c1", v.length > 1 ? v[1] : 0)
+                .bind("c2", v.length > 2 ? v[2] : 0)
+                .bind("c3", v.length > 3 ? v[3] : 0)
+                .bind("c4", v.length > 4 ? v[4] : 0)
+                .execute());
+    }
+
+    @Override
+    public void deleteClubSetLevelUpProb(int tipo) {
+        jdbi.useHandle(h -> h.createUpdate(
+                        "DELETE FROM pangya.iff_clubset_level_up_prob WHERE tipo = :tipo")
+                .bind("tipo", tipo)
                 .execute());
     }
 

@@ -7,6 +7,8 @@ import org.pangya.protocol.packet.PacketWriter;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.OptionalInt;
+import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * JP {@code PacketGame.cs} subset for S3/S4 (login, channel, rooms, start-game).
@@ -1584,6 +1586,28 @@ public final class GamePackets {
     public static final int WORKSHOP_ERR_GROUP = 0x5300201;
     /** C# workshop catch else. */
     public static final int WORKSHOP_ERR_DEFAULT = 0x5300200;
+    /** C# workshop missing warehouse/card CHANNEL sys {@code 0x5300202}. */
+    public static final int WORKSHOP_ERR_MISSING = 0x5300202;
+    /** C# workshop C0/qntd CHANNEL sys {@code 0x5300203}. */
+    public static final int WORKSHOP_ERR_QNTD = 0x5300203;
+    /** C# workshop {@code findItem}/{@code findCard} miss CHANNEL sys {@code 0x5300204}. */
+    public static final int WORKSHOP_ERR_IFF_ITEM = 0x5300204;
+    /** C# workshop missing ClubSet CHANNEL sys {@code 0x5300205}. */
+    public static final int WORKSHOP_ERR_CLUB = 0x5300205;
+    /** C# workshop {@code findClubSet} miss CHANNEL sys {@code 0x5300206}. */
+    public static final int WORKSHOP_ERR_IFF_CLUB = 0x5300206;
+    /** C# workshop {@code work_shop.tipo == -1} CHANNEL sys {@code 0x5300207}. */
+    public static final int WORKSHOP_ERR_TIPO = 0x5300207;
+    /** C# workshop consume fail CHANNEL sys {@code 0x5300208}. */
+    public static final int WORKSHOP_ERR_CONSUME = 0x5300208;
+    /** C# workshop level-up limit/prob miss CHANNEL sys {@code 0x5300209}. */
+    public static final int WORKSHOP_ERR_LIMIT = 0x5300209;
+    /** C# workshop {@code workshop.rank == -1} CHANNEL sys {@code 0x5300210}. */
+    public static final int WORKSHOP_ERR_RANK_DONE = 0x5300210;
+    /** C# workshop no limit row for calcRank CHANNEL sys {@code 0x5300211}. */
+    public static final int WORKSHOP_ERR_LIMIT_RANK = 0x5300211;
+    /** C# {@code 0x23D} success u32 0. */
+    public static final int WORKSHOP_OK = 0;
     /** C# locker empty-pass CHANNEL sys 1. */
     public static final int LOCKER_ERR_EMPTY = 1;
     /** C# locker wrong pass {@code 0x75}. */
@@ -1636,10 +1660,24 @@ public final class GamePackets {
     public static final int WORKSHOP_CONFIRM_ERR = 0x5300301;
     /** C# workshop confirm catch else. */
     public static final int WORKSHOP_CONFIRM_DEFAULT = 0x5300300;
+    /** C# workshop confirm {@code findClubSet} miss CHANNEL sys {@code 0x5300302}. */
+    public static final int WORKSHOP_CONFIRM_ERR_IFF = 0x5300302;
+    /** C# workshop confirm {@code stat > 4} CHANNEL sys {@code 0x5300303}. */
+    public static final int WORKSHOP_CONFIRM_ERR_STAT = 0x5300303;
+    /** C# {@code 0x23E} success u32 0. */
+    public static final int WORKSHOP_CONFIRM_OK = 0;
     /** C# workshop cancel missing ClubSet CHANNEL sys. */
     public static final int WORKSHOP_CANCEL_ERR = 0x5300251;
     /** C# workshop cancel catch else. */
     public static final int WORKSHOP_CANCEL_DEFAULT = 0x5300250;
+    /** C# workshop cancel {@code stat > 4} CHANNEL sys {@code 0x5300252}. */
+    public static final int WORKSHOP_CANCEL_ERR_STAT = 0x5300252;
+    /** C# workshop cancel {@code findClubSet} miss CHANNEL sys {@code 0x5300253}. */
+    public static final int WORKSHOP_CANCEL_ERR_IFF = 0x5300253;
+    /** C# workshop cancel recovery exhausted CHANNEL sys {@code 0x5300254}. */
+    public static final int WORKSHOP_CANCEL_ERR_RECOVERY = 0x5300254;
+    /** C# {@code 0x23F} success u32 0. */
+    public static final int WORKSHOP_CANCEL_OK = 0;
     /** C# workshop rank missing card CHANNEL sys. */
     public static final int WORKSHOP_RANK_ERR = 0x5300351;
     /** C# workshop rank catch else. */
@@ -3480,21 +3518,81 @@ public final class GamePackets {
     }
 
     /**
-     * C# {@code ClubsetWorkshop.calcRank} with IFF {@code SlotStats} as zeros
-     * (SQL stand-in has no ClubSet slots). Rank S is {@link #WORKSHOP_RANK_S}.
+     * C# {@code ClubsetWorkshop.calcRank}: workshop C + IFF {@code SlotStats}.
+     * Total in {@code [30,60)} else {@link Integer#MAX_VALUE}. Rank S is
+     * {@link #WORKSHOP_RANK_S}. 1-arg treats SlotStats as zeros (transfer).
      */
     public static int workshopCalcRank(short[] workshopC) {
+        return workshopCalcRank(workshopC, null);
+    }
+
+    public static int workshopCalcRank(short[] workshopC, short[] slotStats) {
         int total = 0;
-        if (workshopC != null) {
-            int n = Math.min(5, workshopC.length);
-            for (int i = 0; i < n; i++) {
+        for (int i = 0; i < 5; i++) {
+            if (workshopC != null && i < workshopC.length) {
                 total += workshopC[i] & 0xffff;
+            }
+            if (slotStats != null && i < slotStats.length) {
+                total += slotStats[i] & 0xffff;
             }
         }
         if (total >= 30 && total < 60) {
             return (total - 30) / 5;
         }
         return Integer.MAX_VALUE;
+    }
+
+    /**
+     * C# lottery over stats where {@code limit.c[i] > workshop.c[i] + SlotStats[i]}.
+     * Empty when no stat is eligible ({@code Lottery.fill_roleta} throws, catch
+     * else {@code 0x5300200}). One eligible index is deterministic.
+     */
+    public static OptionalInt workshopDrawStat(
+            short[] limitC, short[] workshopC, short[] slotStats, int[] prob, int extraStat, int extraProb) {
+        int eligible = -1;
+        int eligibleCount = 0;
+        int[] weight = new int[5];
+        for (int i = 0; i < 5; i++) {
+            int have = 0;
+            if (workshopC != null && i < workshopC.length) {
+                have += workshopC[i] & 0xffff;
+            }
+            if (slotStats != null && i < slotStats.length) {
+                have += slotStats[i] & 0xffff;
+            }
+            int cap = limitC != null && i < limitC.length ? (limitC[i] & 0xffff) : 0;
+            if (cap > have) {
+                int p = prob != null && i < prob.length ? prob[i] : 0;
+                if (extraStat == i) {
+                    p += extraProb;
+                }
+                weight[i] = p <= 0 ? 100 : p;
+                eligible = i;
+                eligibleCount++;
+            }
+        }
+        if (eligibleCount == 0) {
+            return OptionalInt.empty();
+        }
+        if (eligibleCount == 1) {
+            return OptionalInt.of(eligible);
+        }
+        int total = 0;
+        for (int i = 0; i < 5; i++) {
+            total += weight[i];
+        }
+        int pick = ThreadLocalRandom.current().nextInt(total);
+        int acc = 0;
+        for (int i = 0; i < 5; i++) {
+            if (weight[i] <= 0) {
+                continue;
+            }
+            acc += weight[i];
+            if (pick < acc) {
+                return OptionalInt.of(i);
+            }
+        }
+        return OptionalInt.of(eligible);
     }
 
     private static void writeWorkshopClubRow(
@@ -3836,6 +3934,51 @@ public final class GamePackets {
     /** C# workshop catch {@code 0x23D} u32 sys. */
     public static byte[] clubWorkshopFail(int code) {
         return new PacketWriter().opcode(SERVER_CLUB_WORKSHOP_LEVEL).u32(code).toBytes();
+    }
+
+    /** C# up-level success {@code 0x23D} u32 0 + u32 stat. */
+    public static byte[] clubWorkshopLevelOk(int stat) {
+        return new PacketWriter()
+                .opcode(SERVER_CLUB_WORKSHOP_LEVEL)
+                .u32(WORKSHOP_OK)
+                .u32(stat)
+                .toBytes();
+    }
+
+    /** C# up-level confirm success {@code 0x23E} u32 0 + u32 stat + i32 id. */
+    public static byte[] clubWorkshopConfirmOk(int stat, int clubsetId) {
+        return new PacketWriter()
+                .opcode(SERVER_CLUB_WORKSHOP_CONFIRM)
+                .u32(WORKSHOP_CONFIRM_OK)
+                .u32(stat)
+                .i32(clubsetId)
+                .toBytes();
+    }
+
+    /** C# up-level cancel success {@code 0x23F} u32 0 + i32 id. */
+    public static byte[] clubWorkshopCancelOk(int clubsetId) {
+        return new PacketWriter()
+                .opcode(SERVER_CLUB_WORKSHOP_CANCEL)
+                .u32(WORKSHOP_CANCEL_OK)
+                .i32(clubsetId)
+                .toBytes();
+    }
+
+    /**
+     * C# confirm/cancel {@code 0x216} count 1 type {@code 0xCC} workshop tail.
+     */
+    public static byte[] workshopCcUpdate(
+            int unix,
+            int clubTypeid,
+            int clubId,
+            short[] workshopC,
+            int mastery,
+            int level,
+            int rank,
+            int recovery) {
+        PacketWriter w = new PacketWriter().opcode(SERVER_DAILY_QUEST_STAMP).u32(unix).u32(1);
+        writeWorkshopClubRow(w, clubTypeid, clubId, workshopC, mastery, level, rank, recovery);
+        return w.toBytes();
     }
 
     /**

@@ -371,6 +371,7 @@ class InventoryRepositoryTest {
             repo.upsertClubSetRankExp(0);
             try {
                 assertEquals(0, repo.clubSetIff(GamePackets.TYPEID_AIR_KNIGHT).orElseThrow().tipoRankS());
+                assertEquals(0, repo.clubSetIff(GamePackets.TYPEID_AIR_KNIGHT).orElseThrow().totalRecovery());
                 assertTrue(repo.clubSetRankExp(0));
                 repo.setClubSetWorkshop(10001, clubId, new short[] {1, 0, 0, 0, 0}, 2, 1, 5);
                 repo.setWarehouseClubC(10001, clubId, new short[] {1, 0, 0, 0, 0});
@@ -389,6 +390,28 @@ class InventoryRepositoryTest {
                 repo.setClubSetWorkshop(10001, clubId, new short[5], 0, 0, 0);
                 repo.deleteClubSetIff(GamePackets.TYPEID_AIR_KNIGHT);
                 repo.deleteClubSetRankExp(0);
+            }
+            repo.deleteItemIff(GamePackets.TYPEID_SHOP_PANG_ITEM);
+            repo.upsertItemIff(GamePackets.TYPEID_SHOP_PANG_ITEM);
+            repo.deleteClubSetLevelUpLimit(0, 0);
+            repo.deleteClubSetLevelUpProb(0);
+            repo.upsertClubSetLevelUpLimit(0, 0, new short[] {7, 0, 0, 0, 0});
+            repo.upsertClubSetLevelUpProb(0, new int[] {100, 0, 0, 0, 0});
+            try {
+                assertTrue(repo.itemIff(GamePackets.TYPEID_SHOP_PANG_ITEM));
+                assertTrue(repo.clubSetLevelUpAny(0));
+                assertEquals(7, repo.clubSetLevelUpLimit(0, 0).orElseThrow()[0]);
+                assertEquals(100, repo.clubSetLevelUpProb(0).orElseThrow()[0]);
+                repo.deleteCardByTypeid(10001, GamePackets.TYPEID_CARD_NORMAL);
+                repo.addCard(10001, GamePackets.TYPEID_CARD_NORMAL, 2);
+                assertEquals(1, repo.consumeCardByTypeid(10001, GamePackets.TYPEID_CARD_NORMAL, 1).orElseThrow());
+                assertEquals(0, repo.consumeCardByTypeid(10001, GamePackets.TYPEID_CARD_NORMAL, 1).orElseThrow());
+                assertTrue(repo.consumeCardByTypeid(10001, GamePackets.TYPEID_CARD_NORMAL, 1).isEmpty());
+            } finally {
+                repo.deleteItemIff(GamePackets.TYPEID_SHOP_PANG_ITEM);
+                repo.deleteClubSetLevelUpLimit(0, 0);
+                repo.deleteClubSetLevelUpProb(0);
+                repo.deleteCardByTypeid(10001, GamePackets.TYPEID_CARD_NORMAL);
             }
             repo.deletePartIff(GamePackets.TYPEID_RENTAL_PART);
             repo.upsertPartValorRental(GamePackets.TYPEID_RENTAL_PART, 100);
