@@ -283,6 +283,13 @@ public interface InventoryRepository {
 
     void deleteCardIff(int typeid);
 
+    /** C# {@code CardSystem.findCardPack/draws}: ordered deterministic SQL draw. */
+    List<CardPackReward> cardPackRewards(int packTypeid);
+
+    void upsertCardPackReward(int packTypeid, int seq, int cardTypeid);
+
+    void deleteCardPackRewards(int packTypeid);
+
     /**
      * C# {@code ItemManager.removeItem} for cards: consume {@code qntd} from
      * {@code QNTD}. Empty when missing or insufficient. Remaining 0 deletes.
@@ -542,6 +549,8 @@ public interface InventoryRepository {
 
     /** C# IFF Card special effect fields. */
     record CardSpecialIff(int typeid, int effect, int effectValue, int effectTime) {}
+
+    record CardPackReward(int seq, int cardTypeid) {}
 
     /** C# IFF {@code TimeLimitItem}: {@code type}, {@code percent}, {@code time} minutes. */
     record TimeLimitItem(int typeid, int tipo, int percent, int timeMinutes) {}

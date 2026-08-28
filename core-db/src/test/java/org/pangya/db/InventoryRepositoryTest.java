@@ -453,6 +453,15 @@ class InventoryRepositoryTest {
                 var special = repo.cardSpecialIff(GamePackets.TYPEID_CARD_SPECIAL_PANG).orElseThrow();
                 assertEquals(GamePackets.CARD_EFFECT_PANG, special.effect());
                 assertEquals(500, special.effectValue());
+                repo.deleteCardPackRewards(GamePackets.TYPEID_CARD_PACK_TEST);
+                repo.upsertCardPackReward(
+                        GamePackets.TYPEID_CARD_PACK_TEST, 0, GamePackets.TYPEID_CARD_PACK_REWARD_1);
+                repo.upsertCardPackReward(
+                        GamePackets.TYPEID_CARD_PACK_TEST, 1, GamePackets.TYPEID_CARD_PACK_REWARD_2);
+                assertEquals(2, repo.cardPackRewards(GamePackets.TYPEID_CARD_PACK_TEST).size());
+                assertEquals(
+                        GamePackets.TYPEID_CARD_PACK_REWARD_1,
+                        repo.cardPackRewards(GamePackets.TYPEID_CARD_PACK_TEST).get(0).cardTypeid());
                 repo.deleteCardByTypeid(10001, GamePackets.TYPEID_CARD_NORMAL);
                 repo.addCard(10001, GamePackets.TYPEID_CARD_NORMAL, 2);
                 assertEquals(1, repo.consumeCardByTypeid(10001, GamePackets.TYPEID_CARD_NORMAL, 1).orElseThrow());
@@ -466,6 +475,7 @@ class InventoryRepositoryTest {
                 repo.deleteCutinIff(GamePackets.TYPEID_CUTIN_SKIN);
                 repo.deleteBoxMailReward(GamePackets.TYPEID_BOX_MAIL_TEST);
                 repo.deleteCardIff(GamePackets.TYPEID_CARD_SPECIAL_PANG);
+                repo.deleteCardPackRewards(GamePackets.TYPEID_CARD_PACK_TEST);
                 repo.deleteCardByTypeid(10001, GamePackets.TYPEID_CARD_NORMAL);
             }
             repo.deletePartIff(GamePackets.TYPEID_RENTAL_PART);

@@ -2236,6 +2236,11 @@ public final class GamePackets {
     public static final int TYPEID_CARD_NORMAL = 0x7C000001;
     /** Test C# {@code CARD_SUB_TYPE.T_SPECIAL} card. */
     public static final int TYPEID_CARD_SPECIAL_PANG = 0x7C800001;
+    /** Test C# CardPack subgroup 3. */
+    public static final int TYPEID_CARD_PACK_TEST = 0x7CC00001;
+    public static final int TYPEID_CARD_PACK_REWARD_1 = 0x7C000101;
+    public static final int TYPEID_CARD_PACK_REWARD_2 = 0x7C400101;
+    public static final int TYPEID_CARD_PACK_REWARD_3 = 0x7C800101;
     /** C# {@code ASSIST_ITEM_TYPEID} {@code 0x1BE00016}. */
     public static final int TYPEID_ASSIST = 0x1BE00016;
     /** C# toggle-assist add fail {@code 0x5200801}. */
@@ -4238,6 +4243,37 @@ public final class GamePackets {
                 .zero(SYSTEMTIME_BYTES * 2)
                 .u16(0)
                 .toBytes();
+    }
+
+    /**
+     * C# card-pack success {@code 0x154}. The consumed pack row uses the
+     * subgroup-3 one-byte card count tail; card rows use a u32 1 tail.
+     */
+    public static byte[] cardPackOk(
+            int packId, int packTypeid, int packRemaining, List<CardPackAward> cards) {
+        List<CardPackAward> draws = cards == null ? List.of() : cards;
+        PacketWriter w = new PacketWriter().opcode(SERVER_OPEN_CARD_PACK).u32(0);
+        writeCardPackRow(w, packId, packTypeid, packRemaining, draws.size());
+        for (CardPackAward card : draws) {
+            writeCardPackRow(w, card.id(), card.typeid(), card.qntdDep(), draws.size());
+        }
+        return w.toBytes();
+    }
+
+    private static void writeCardPackRow(
+            PacketWriter w, int id, int typeid, int qntdDep, int drawCount) {
+        int subgroup = itemSubGroupIdentify22(typeid);
+        w.i32(id)
+                .u32(typeid)
+                .zero(12)
+                .i32(subgroup == 3 || subgroup == 4 ? 1 : qntdDep)
+                .zero(32)
+                .u16(1);
+        if (subgroup == 3 || subgroup == 4) {
+            w.u8(drawCount);
+        } else {
+            w.u32(1);
+        }
     }
 
     /** C# item-buff catch {@code 0x181} u32 sys. */
@@ -7061,6 +7097,8 @@ public final class GamePackets {
     public record BuyRequest(int option, List<BuyItem> items, int couponId) {}
 
     public record BoughtItem(int typeid, int id, int time, int flagTime, int qntdDep) {}
+
+    public record CardPackAward(int id, int typeid, int qntdDep) {}
 
     public record HoleInfo(int id, int pin, int course, int numero, int weather, int wind, int degree) {}
 

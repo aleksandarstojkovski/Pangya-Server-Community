@@ -5414,14 +5414,77 @@ public final class GameHandler {
     }
 
     /**
-     * C# {@code requestOpenCardPack}: catch always {@code 0x154} u32 1.
+     * C# {@code requestOpenCardPack}. SQL {@code card_pack_catalog} replaces
+     * {@code CardSystem.findCardPack/draws}. Success consumes one pack, adds
+     * each ordered draw to card inventory, and sends the variable-row
+     * {@code 0x154}. Every failure is the client-compatible u32 1.
      */
     private void openCardPack(Session session, PacketReader reader) {
         if (!inChannel(session)) {
             return;
         }
-        session.send(GamePackets.sysAck(
-                GamePackets.SERVER_OPEN_CARD_PACK, GamePackets.CARD_PACK_ERR));
+        try {
+            if (reader.remaining() < 8) {
+                session.send(GamePackets.sysAck(
+                        GamePackets.SERVER_OPEN_CARD_PACK, GamePackets.CARD_PACK_ERR));
+                return;
+            }
+            int typeid = reader.u32();
+            int id = reader.i32();
+            long uid = session.player().uid;
+            GamePackets.CardInfo pack = null;
+            for (GamePackets.CardInfo c : inventory.cards(uid)) {
+                if (c.id == id) {
+                    pack = c;
+                    break;
+                }
+            }
+            if (pack == null || pack.qntd < 1) {
+                session.send(GamePackets.sysAck(
+                        GamePackets.SERVER_OPEN_CARD_PACK, GamePackets.CARD_PACK_ERR));
+                return;
+            }
+            List<InventoryRepository.CardPackReward> draw = inventory.cardPackRewards(typeid);
+            if (draw.isEmpty()) {
+                session.send(GamePackets.sysAck(
+                        GamePackets.SERVER_OPEN_CARD_PACK, GamePackets.CARD_PACK_ERR));
+                return;
+            }
+            OptionalInt packRemaining = inventory.consumeCardByTypeid(uid, pack.typeid, 1);
+            if (packRemaining.isEmpty()) {
+                session.send(GamePackets.sysAck(
+                        GamePackets.SERVER_OPEN_CARD_PACK, GamePackets.CARD_PACK_ERR));
+                return;
+            }
+            List<GamePackets.CardPackAward> awards = new ArrayList<>();
+            for (InventoryRepository.CardPackReward reward : draw) {
+                if (reward.cardTypeid() == 0) {
+                    session.send(GamePackets.sysAck(
+                            GamePackets.SERVER_OPEN_CARD_PACK, GamePackets.CARD_PACK_ERR));
+                    return;
+                }
+                int cardId = inventory.addCard(uid, reward.cardTypeid(), 1);
+                int qntdDep = 0;
+                for (GamePackets.CardInfo c : inventory.cards(uid)) {
+                    if (c.id == cardId) {
+                        qntdDep = c.qntd;
+                        break;
+                    }
+                }
+                if (cardId <= 0 || qntdDep <= 0) {
+                    session.send(GamePackets.sysAck(
+                            GamePackets.SERVER_OPEN_CARD_PACK, GamePackets.CARD_PACK_ERR));
+                    return;
+                }
+                awards.add(new GamePackets.CardPackAward(cardId, reward.cardTypeid(), qntdDep));
+            }
+            session.send(GamePackets.cardPackOk(
+                    pack.id, pack.typeid, packRemaining.getAsInt(), awards));
+        } catch (RuntimeException e) {
+            log.debug("open card pack failed uid={}: {}", session.player().uid, e.toString());
+            session.send(GamePackets.sysAck(
+                    GamePackets.SERVER_OPEN_CARD_PACK, GamePackets.CARD_PACK_ERR));
+        }
     }
 
     /**

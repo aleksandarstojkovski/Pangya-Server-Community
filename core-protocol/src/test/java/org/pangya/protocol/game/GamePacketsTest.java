@@ -1287,6 +1287,21 @@ class GamePacketsTest {
                 GamePackets.SERVER_OPEN_CARD_PACK, GamePackets.CARD_PACK_ERR));
         assertEquals(GamePackets.SERVER_OPEN_CARD_PACK, cardPack.opcode());
         assertEquals(1, cardPack.u32());
+        PacketReader cardPackOk = new PacketReader(GamePackets.cardPackOk(
+                8,
+                GamePackets.TYPEID_CARD_PACK_TEST,
+                0,
+                List.of(
+                        new GamePackets.CardPackAward(9, GamePackets.TYPEID_CARD_PACK_REWARD_1, 1),
+                        new GamePackets.CardPackAward(10, GamePackets.TYPEID_CARD_PACK_REWARD_2, 2),
+                        new GamePackets.CardPackAward(11, GamePackets.TYPEID_CARD_PACK_REWARD_3, 1))));
+        assertEquals(GamePackets.SERVER_OPEN_CARD_PACK, cardPackOk.opcode());
+        assertEquals(0, cardPackOk.u32());
+        assertCardPackRow(cardPackOk, 8, GamePackets.TYPEID_CARD_PACK_TEST, 1, 3);
+        assertCardPackRow(cardPackOk, 9, GamePackets.TYPEID_CARD_PACK_REWARD_1, 1, 1);
+        assertCardPackRow(cardPackOk, 10, GamePackets.TYPEID_CARD_PACK_REWARD_2, 2, 1);
+        assertCardPackRow(cardPackOk, 11, GamePackets.TYPEID_CARD_PACK_REWARD_3, 1, 1);
+        assertEquals(0, cardPackOk.remaining());
         PacketReader useCard = new PacketReader(GamePackets.sysAck(
                 GamePackets.SERVER_USE_CARD, GamePackets.shopSys(GamePackets.CARD_ERR_TYPEID)));
         assertEquals(GamePackets.SERVER_USE_CARD, useCard.opcode());
@@ -2447,9 +2462,27 @@ class GamePacketsTest {
         assertEquals(GamePackets.itemSubGroupIdentify22(GamePackets.TYPEID_CARD_SPECIAL_PANG), 2);
         assertEquals(GamePackets.CARD_EFFECT_PANG, 4);
         assertEquals(GamePackets.CARD_SPECIAL_OK, 0);
+        assertEquals(GamePackets.itemSubGroupIdentify22(GamePackets.TYPEID_CARD_PACK_TEST), 3);
+        assertEquals(GamePackets.CARD_PACK_ERR, 1);
         assertEquals(GamePackets.WORKSHOP_ERR_MISSING, 0x5300202);
         assertEquals(GamePackets.SERVER_BUY_ACK, 0x68);
         assertEquals(GamePackets.CREATE_ROOM_FAILED, 0x07);
         assertEquals(GamePackets.SERVER_LAST5, 0x10E);
+    }
+
+    private static void assertCardPackRow(
+            PacketReader reader, int id, int typeid, int qntdDep, int tail) {
+        assertEquals(id, reader.i32());
+        assertEquals(typeid, reader.u32());
+        reader.readBytes(12);
+        assertEquals(qntdDep, reader.i32());
+        reader.readBytes(32);
+        assertEquals(1, reader.u16());
+        int subgroup = GamePackets.itemSubGroupIdentify22(typeid);
+        if (subgroup == 3 || subgroup == 4) {
+            assertEquals(tail, reader.u8());
+        } else {
+            assertEquals(tail, reader.u32());
+        }
     }
 }

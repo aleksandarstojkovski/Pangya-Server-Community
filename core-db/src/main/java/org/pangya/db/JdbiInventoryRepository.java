@@ -2852,6 +2852,42 @@ public final class JdbiInventoryRepository implements InventoryRepository {
     }
 
     @Override
+    public List<CardPackReward> cardPackRewards(int packTypeid) {
+        return jdbi.withHandle(h -> h.createQuery("""
+                        SELECT seq, card_typeid
+                          FROM pangya.card_pack_catalog
+                         WHERE pack_typeid = :typeid
+                         ORDER BY seq
+                        """)
+                .bind("typeid", packTypeid)
+                .map((rs, ctx) -> new CardPackReward(
+                        rs.getInt("seq"), rs.getInt("card_typeid")))
+                .list());
+    }
+
+    @Override
+    public void upsertCardPackReward(int packTypeid, int seq, int cardTypeid) {
+        jdbi.useHandle(h -> h.createUpdate("""
+                        INSERT INTO pangya.card_pack_catalog (pack_typeid, seq, card_typeid)
+                        VALUES (:pack, :seq, :card)
+                        ON CONFLICT (pack_typeid, seq) DO UPDATE SET
+                            card_typeid = EXCLUDED.card_typeid
+                        """)
+                .bind("pack", packTypeid)
+                .bind("seq", seq)
+                .bind("card", cardTypeid)
+                .execute());
+    }
+
+    @Override
+    public void deleteCardPackRewards(int packTypeid) {
+        jdbi.useHandle(h -> h.createUpdate(
+                        "DELETE FROM pangya.card_pack_catalog WHERE pack_typeid = :typeid")
+                .bind("typeid", packTypeid)
+                .execute());
+    }
+
+    @Override
     public OptionalInt consumeCardByTypeid(long uid, int typeid, int qntd) {
         if (qntd <= 0) {
             return OptionalInt.empty();
