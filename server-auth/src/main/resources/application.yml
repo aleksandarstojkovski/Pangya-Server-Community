@@ -1,0 +1,13 @@
+server:
+  name: auth
+  port: 7777
+  healthPort: 9077
+database:
+  url: jdbc:postgresql://postgres:5432/pangya
+  user: pangya
+  password: pangya
+  migrateOnStart: true
+redis:
+  uri: redis://redis:6379
+auth:
+  guid: 8888

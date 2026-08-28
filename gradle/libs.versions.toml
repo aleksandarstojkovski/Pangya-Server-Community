@@ -1,0 +1,35 @@
+[versions]
+junit = "5.11.4"
+slf4j = "2.0.16"
+logback = "1.5.16"
+logstash = "8.0"
+netty = "4.1.118.Final"
+flyway = "10.22.0"
+jdbi = "3.47.0"
+postgresql = "42.7.5"
+hikari = "6.2.1"
+jedis = "5.2.0"
+micrometer = "1.14.5"
+snakeyaml = "2.3"
+[libraries]
+junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit" }
+slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4j" }
+logback-classic = { module = "ch.qos.logback:logback-classic", version.ref = "logback" }
+logstash-logback = { module = "net.logstash.logback:logstash-logback-encoder", version.ref = "logstash" }
+netty-all = { module = "io.netty:netty-all", version.ref = "netty" }
+flyway-core = { module = "org.flywaydb:flyway-core", version.ref = "flyway" }
+flyway-postgres = { module = "org.flywaydb:flyway-database-postgresql", version.ref = "flyway" }
+jdbi-core = { module = "org.jdbi:jdbi3-core", version.ref = "jdbi" }
+jdbi-postgres = { module = "org.jdbi:jdbi3-postgres", version.ref = "jdbi" }
+jdbi-sqlobject = { module = "org.jdbi:jdbi3-sqlobject", version.ref = "jdbi" }
+postgresql = { module = "org.postgresql:postgresql", version.ref = "postgresql" }
+hikari = { module = "com.zaxxer:HikariCP", version.ref = "hikari" }
+jedis = { module = "redis.clients:jedis", version.ref = "jedis" }
+micrometer-core = { module = "io.micrometer:micrometer-core", version.ref = "micrometer" }
+micrometer-prometheus = { module = "io.micrometer:micrometer-registry-prometheus", version.ref = "micrometer" }
+snakeyaml = { module = "org.yaml:snakeyaml", version.ref = "snakeyaml" }
+[bundles]
+logging = ["slf4j-api", "logback-classic", "logstash-logback"]
+jdbi = ["jdbi-core", "jdbi-postgres", "jdbi-sqlobject"]
+flyway = ["flyway-core", "flyway-postgres"]
+test = ["junit-jupiter"]

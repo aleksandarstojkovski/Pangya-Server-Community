@@ -1,0 +1,34 @@
+server:
+  name: game
+  port: 20202
+  healthPort: 9202
+database:
+  url: jdbc:postgresql://postgres:5432/pangya
+  user: pangya
+  password: pangya
+redis:
+  uri: redis://redis:6379
+auth:
+  host: auth
+  port: 7777
+channels:
+  - name: Channel (Rookies)
+    maxUser: 500
+    maxLevel: 16
+    lowLevel: 0
+    flag: 0
+  - name: Channel (Geral)
+    maxUser: 500
+    maxLevel: 70
+    lowLevel: 0
+    flag: 0
+  - name: Channel (Free 2)
+    maxUser: 500
+    maxLevel: 70
+    lowLevel: 0
+    flag: 0
+  - name: Channel (Free 3)
+    maxUser: 500
+    maxLevel: 70
+    lowLevel: 0
+    flag: 0

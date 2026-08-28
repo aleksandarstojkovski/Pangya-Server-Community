@@ -1,0 +1,13 @@
+.git
+.gradle
+**/build
+reference
+.env
+*.md
+docs
+SQL
+Server
+www
+Documentation
+.idea
+.cursor

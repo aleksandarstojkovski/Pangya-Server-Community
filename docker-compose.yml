@@ -1,0 +1,147 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-pangya}
+      POSTGRES_USER: ${POSTGRES_USER:-pangya}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pangya}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pangya-pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-pangya} -d ${POSTGRES_DB:-pangya}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  auth:
+    build:
+      context: .
+      args:
+        MODULE: server-auth
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-pangya}
+      DATABASE_USER: ${POSTGRES_USER:-pangya}
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-pangya}
+      REDIS_URI: redis://redis:6379
+      PANGYA_MIGRATE_ON_START: "true"
+    ports:
+      - "7777:7777"
+      - "9077:9077"
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/9077"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  login:
+    build:
+      context: .
+      args:
+        MODULE: server-login
+    depends_on:
+      auth:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-pangya}
+      DATABASE_USER: ${POSTGRES_USER:-pangya}
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-pangya}
+      REDIS_URI: redis://redis:6379
+    ports:
+      - "10203:10203"
+      - "9103:9103"
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/9103"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  game:
+    build:
+      context: .
+      args:
+        MODULE: server-game
+    depends_on:
+      auth:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-pangya}
+      DATABASE_USER: ${POSTGRES_USER:-pangya}
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-pangya}
+      REDIS_URI: redis://redis:6379
+    ports:
+      - "20202:20202"
+      - "9202:9202"
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/9202"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  ranking:
+    build:
+      context: .
+      args:
+        MODULE: server-ranking
+    depends_on:
+      auth:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-pangya}
+      DATABASE_USER: ${POSTGRES_USER:-pangya}
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-pangya}
+      REDIS_URI: redis://redis:6379
+    ports:
+      - "4774:4774"
+      - "9474:9474"
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/9474"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  messenger:
+    build:
+      context: .
+      args:
+        MODULE: server-messenger
+    depends_on:
+      auth:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-pangya}
+      DATABASE_USER: ${POSTGRES_USER:-pangya}
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-pangya}
+      REDIS_URI: redis://redis:6379
+    ports:
+      - "30201:30201"
+      - "9302:9302"
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/9302"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+volumes:
+  pangya-pg:
