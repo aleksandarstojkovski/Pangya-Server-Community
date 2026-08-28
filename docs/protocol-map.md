@@ -20,6 +20,7 @@ C# handlers are inline in `AuthServer/AuthServerTcp/AuthServer.cs` and `unit_aut
 | | confirm info | `0x05` | |
 | Auth→child | disconnect player | `0x06` | `AuthS2s.AUTH_DISCONNECT_PLAYER` → `MessengerHandler.authDisconnectPlayer` |
 | Auth→child | confirm player info | `0x0C` | `AuthS2s.AUTH_CONFIRM_PLAYER_INFO` → `finishLogin` |
+| Auth→child | info player online | `0x0B` | `AuthS2s.AUTH_INFO_PLAYER_ONLINE` → Child→Auth `0x05` |
 | Auth→child | command to other server | `0x0D` | `AuthS2s.SEND_COMMAND_TO_OTHER` → `onAuthCommand` |
 | | reply to other server | `0x07` | |
 

@@ -22,6 +22,8 @@ public final class AuthS2s {
 
     /** Auth→child opcodes ({@code unit_auth_server_connect.init_Packets}). */
     public static final int AUTH_DISCONNECT_PLAYER = 0x06;
+    /** Auth→child: {@code requestInfoPlayerOnline}. */
+    public static final int AUTH_INFO_PLAYER_ONLINE = 0x0B;
     /** Auth→child: {@code requestConfirmSendInfoPlayerOnline}. */
     public static final int AUTH_CONFIRM_PLAYER_INFO = 0x0C;
     /** Auth→child: {@code requestSendCommandToOtherServer}. */
@@ -89,6 +91,29 @@ public final class AuthS2s {
         return new AuthDisconnectRequest(playerUid, serverUid, force);
     }
 
+    /** Auth→child {@code 0x0B}: req server uid, player uid. */
+    public static AuthInfoPlayerOnlineRequest readAuthInfoPlayerOnline(PacketReader reader) {
+        int reqServerUid = reader.u32();
+        long playerUid = reader.u32() & 0xffff_ffffL;
+        return new AuthInfoPlayerOnlineRequest(reqServerUid, playerUid);
+    }
+
+    /**
+     * Child→Auth {@code 0x05} ({@code sendInfoPlayerOnline}): server uid, option i32,
+     * uid u32, optional id+ip PStr when option==1.
+     */
+    public static byte[] infoPlayerOnlineResponse(int reqServerUid, AuthServerPlayerInfo info) {
+        PacketWriter w = new PacketWriter()
+                .opcode(CONFIRM_INFO)
+                .u32(reqServerUid)
+                .i32(info.option())
+                .u32((int) info.uid());
+        if (info.option() == 1) {
+            w.pstr(info.id()).pstr(info.ip());
+        }
+        return w.toBytes();
+    }
+
     /** Auth→child {@code 0x0C}: req server uid, option i32, uid u32, optional id+ip PStr. */
     public static AuthConfirmPlayerInfo readAuthConfirmPlayerInfo(PacketReader reader) {
         int reqServerUid = reader.u32();
@@ -103,6 +128,19 @@ public final class AuthS2s {
     }
 
     public record AuthDisconnectRequest(long playerUid, long serverUid, int force) {}
+
+    public record AuthInfoPlayerOnlineRequest(int reqServerUid, long playerUid) {}
+
+    /** C# {@code AuthServerPlayerInfo}: option 1 = online with id/ip, -1 = offline. */
+    public record AuthServerPlayerInfo(long uid, String id, String ip, int option) {
+        public static AuthServerPlayerInfo online(long uid, String id, String ip) {
+            return new AuthServerPlayerInfo(uid, id, ip, 1);
+        }
+
+        public static AuthServerPlayerInfo offline(long uid) {
+            return new AuthServerPlayerInfo(uid, "", "", -1);
+        }
+    }
 
     public record AuthConfirmPlayerInfo(
             int reqServerUid, int option, long uid, String id, String ip) {}

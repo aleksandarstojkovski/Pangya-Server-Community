@@ -189,4 +189,27 @@ class LoginPacketsTest {
         assertEquals(0, r.u16());
         assertEquals(0, r.remaining());
     }
+
+    @Test
+    void authInfoPlayerOnlineResponseMatchesCsharpLayout() {
+        byte[] online = AuthS2s.infoPlayerOnlineResponse(
+                30201, AuthS2s.AuthServerPlayerInfo.online(10001, "testuser", "127.0.0.1"));
+        PacketReader r = new PacketReader(online);
+        assertEquals(AuthS2s.CONFIRM_INFO, r.opcode());
+        assertEquals(30201, r.u32());
+        assertEquals(1, r.i32());
+        assertEquals(10001, r.u32());
+        assertEquals("testuser", r.pstr());
+        assertEquals("127.0.0.1", r.pstr());
+        assertEquals(0, r.remaining());
+
+        byte[] offline = AuthS2s.infoPlayerOnlineResponse(
+                30201, AuthS2s.AuthServerPlayerInfo.offline(10002));
+        PacketReader off = new PacketReader(offline);
+        assertEquals(AuthS2s.CONFIRM_INFO, off.opcode());
+        assertEquals(30201, off.u32());
+        assertEquals(-1, off.i32());
+        assertEquals(10002, off.u32());
+        assertEquals(0, off.remaining());
+    }
 }

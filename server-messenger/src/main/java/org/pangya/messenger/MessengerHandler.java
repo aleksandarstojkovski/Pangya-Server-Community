@@ -2,6 +2,7 @@ package org.pangya.messenger;
 
 import org.pangya.db.FriendRepository;
 import org.pangya.db.LoginRepository;
+import org.pangya.network.auth.AuthOutbound;
 import org.pangya.network.session.PlayerContext;
 import org.pangya.network.session.Session;
 import org.pangya.network.session.SessionManager;
@@ -25,11 +26,17 @@ public final class MessengerHandler {
     private final LoginRepository repo;
     private final FriendRepository friends;
     private final SessionManager sessions;
+    private final AuthOutbound authOut;
 
     public MessengerHandler(LoginRepository repo, FriendRepository friends, SessionManager sessions) {
+        this(repo, friends, sessions, (reqServerUid, info) -> {});
+    }
+
+    MessengerHandler(LoginRepository repo, FriendRepository friends, SessionManager sessions, AuthOutbound authOut) {
         this.repo = repo;
         this.friends = friends;
         this.sessions = sessions;
+        this.authOut = authOut;
     }
 
     public void onPacket(Session session, byte[] plaintext) {
@@ -75,6 +82,7 @@ public final class MessengerHandler {
     public void onAuthPacket(int opcode, PacketReader body) {
         switch (opcode) {
             case AuthS2s.AUTH_DISCONNECT_PLAYER -> authDisconnectPlayer(body);
+            case AuthS2s.AUTH_INFO_PLAYER_ONLINE -> authInfoPlayerOnline(body);
             case AuthS2s.AUTH_CONFIRM_PLAYER_INFO -> authConfirmPlayerInfo(body);
             case AuthS2s.SEND_COMMAND_TO_OTHER -> {
                 int reqServerUid = body.u32();
@@ -150,6 +158,21 @@ public final class MessengerHandler {
         }
         target.disconnect();
         log.info("auth disconnect uid={} server={} force={}", req.playerUid(), req.serverUid(), req.force());
+    }
+
+    /** C# {@code authCmdInfoPlayerOnline} → {@code sendInfoPlayerOnline}. */
+    private void authInfoPlayerOnline(PacketReader body) {
+        AuthS2s.AuthInfoPlayerOnlineRequest req = AuthS2s.readAuthInfoPlayerOnline(body);
+        Session target = sessions.findByUid(req.playerUid());
+        AuthS2s.AuthServerPlayerInfo info;
+        if (target != null) {
+            PlayerContext pi = target.player();
+            info = AuthS2s.AuthServerPlayerInfo.online(pi.uid, pi.id, target.ip());
+        } else {
+            info = AuthS2s.AuthServerPlayerInfo.offline(req.playerUid());
+        }
+        authOut.sendInfoPlayerOnline(req.reqServerUid(), info);
+        log.debug("auth info player online uid={} reqServer={} option={}", req.playerUid(), req.reqServerUid(), info.option());
     }
 
     private void authConfirmPlayerInfo(PacketReader body) {

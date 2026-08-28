@@ -11,8 +11,11 @@ import org.pangya.protocol.packet.PacketReader;
 import org.pangya.protocol.packet.PacketWriter;
 
 import java.net.ServerSocket;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -434,6 +437,44 @@ class MessengerFlowIT {
             assertEquals(1, page.u8());
             assertEquals(2, page.u16());
             assertEquals(2, page.u16());
+        }
+    }
+
+    @Test
+    void authInfoPlayerOnlineReportsOnlineAndOffline() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        DatabaseSupport.migrate(jdbc, user, password);
+        clearGuildMembership(jdbc, user, password, 10001);
+
+        List<AuthS2s.AuthServerPlayerInfo> sent = new CopyOnWriteArrayList<>();
+        try (MessengerRuntime runtime = new MessengerRuntime(
+                new AppConfig(testYaml(jdbc, user, password)), (req, info) -> sent.add(info));
+             PangyaFakeClient client = new PangyaFakeClient()) {
+            runtime.handler().onAuthPacket(
+                    AuthS2s.AUTH_INFO_PLAYER_ONLINE,
+                    new PacketReader(new PacketWriter().u32(30201).u32(99999).toBytes()));
+            assertEquals(1, sent.size());
+            assertEquals(-1, sent.get(0).option());
+            assertEquals(99999L, sent.get(0).uid());
+            sent.clear();
+
+            client.connect("127.0.0.1", runtime.port(), PangyaFakeClient.HelloKind.MESSENGER);
+            client.awaitHello(5, TimeUnit.SECONDS);
+            client.sendPlain(MessengerPackets.clientLogin(10001, "TestNick"));
+            PacketReader login = new PacketReader(client.awaitPlain(5, TimeUnit.SECONDS));
+            assertEquals(MessengerPackets.SERVER_LOGIN_ACK, login.opcode());
+            assertEquals(0, login.u8());
+
+            runtime.handler().onAuthPacket(
+                    AuthS2s.AUTH_INFO_PLAYER_ONLINE,
+                    new PacketReader(new PacketWriter().u32(30201).u32(10001).toBytes()));
+            assertEquals(1, sent.size());
+            AuthS2s.AuthServerPlayerInfo online = sent.get(0);
+            assertEquals(1, online.option());
+            assertEquals(10001L, online.uid());
+            assertEquals("testuser", online.id());
         }
     }
 

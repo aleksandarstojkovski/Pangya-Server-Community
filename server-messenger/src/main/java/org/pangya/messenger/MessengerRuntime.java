@@ -31,23 +31,32 @@ public final class MessengerRuntime implements AutoCloseable {
     private final MessengerHandler handler;
 
     public MessengerRuntime(AppConfig config) {
+        this(config, null);
+    }
+
+    /** Tests may override auth outbound when {@code authEnabled} is false. */
+    MessengerRuntime(AppConfig config, org.pangya.network.auth.AuthOutbound authOutOverride) {
         this.dataSource = DatabaseSupport.dataSource(config.jdbcUrl(), config.dbUser(), config.dbPassword());
         LoginRepository repo = new JdbiLoginRepository(DatabaseSupport.jdbi(dataSource));
         FriendRepository friends = new JdbiFriendRepository(DatabaseSupport.jdbi(dataSource));
         SessionManager sessions = new SessionManager(new IpDdosFilter());
-        this.handler = new MessengerHandler(repo, friends, sessions);
+        org.pangya.network.auth.AuthOutbound outbound;
+        if (config.authEnabled()) {
+            this.auth = new AuthServerConnector(config, repo::generateAuthServerKey);
+            outbound = this.auth;
+            this.handler = new MessengerHandler(repo, friends, sessions, outbound);
+            this.auth.setAuthInboundListener(handler::onAuthPacket);
+            this.auth.start();
+        } else {
+            this.auth = null;
+            outbound = authOutOverride != null ? authOutOverride : (reqServerUid, info) -> {};
+            this.handler = new MessengerHandler(repo, friends, sessions, outbound);
+        }
         this.netty = new PangyaNettyServer(
                 ServerKind.MESSENGER, sessions, handler::onPacket, PacketIo.DEFAULT_LOGIN_UID, handler::onDisconnect);
         this.netty.bind(config.port());
         PangyaMetrics metrics = new PangyaMetrics(config.serverName(), sessions::size);
         this.health = new HealthHttp(config.healthPort(), config.serverName(), metrics);
-        if (config.authEnabled()) {
-            this.auth = new AuthServerConnector(config, repo::generateAuthServerKey);
-            this.auth.setAuthInboundListener(handler::onAuthPacket);
-            this.auth.start();
-        } else {
-            this.auth = null;
-        }
         log.info("messenger server uid={} port={}", config.uid(), config.port());
     }
 

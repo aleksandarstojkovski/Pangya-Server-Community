@@ -28,7 +28,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * C# {@code unit_auth_server_connect}: TCP to Auth, first packet raw, then Cipher.
  * Reconnect uses exponential backoff on a virtual thread (never on the Netty event loop).
  */
-public final class AuthServerConnector implements AutoCloseable {
+public final class AuthServerConnector implements AutoCloseable, AuthOutbound {
 
     private static final Logger log = LoggerFactory.getLogger(AuthServerConnector.class);
 
@@ -50,6 +50,7 @@ public final class AuthServerConnector implements AutoCloseable {
     private final CountDownLatch registered = new CountDownLatch(1);
     private final EventLoopGroup group = new NioEventLoopGroup(1);
     private volatile Channel channel;
+    private volatile int cipherKey = -1;
     private Thread loop;
 
     public AuthServerConnector(AppConfig config, AuthKeyIssuer keys) {
@@ -71,6 +72,23 @@ public final class AuthServerConnector implements AutoCloseable {
 
     public void setAuthInboundListener(AuthInboundListener listener) {
         this.inboundListener = listener;
+    }
+
+    /** C# {@code sendInfoPlayerOnline} — Child→Auth {@code 0x05}. */
+    @Override
+    public void sendInfoPlayerOnline(int reqServerUid, AuthS2s.AuthServerPlayerInfo info) {
+        sendToAuth(AuthS2s.infoPlayerOnlineResponse(reqServerUid, info));
+    }
+
+    private void sendToAuth(byte[] plain) {
+        Channel ch = channel;
+        int key = cipherKey;
+        if (ch == null || !ch.isActive() || key < 0) {
+            log.warn("auth outbound dropped (not connected)");
+            return;
+        }
+        byte[] enc = Cipher.encryptClient(plain, key, 0);
+        ch.writeAndFlush(ch.alloc().buffer(enc.length).writeBytes(enc));
     }
 
     private void reconnectLoop() {
@@ -132,6 +150,7 @@ public final class AuthServerConnector implements AutoCloseable {
                 r.opcode();
                 key = r.u32() & 0xff;
                 int authUid = r.u32();
+                AuthServerConnector.this.cipherKey = key;
                 log.info("auth first key={} authUid={}", key, authUid);
                 String dbKey = keys.newKey(config.uid());
                 byte[] plain = AuthS2s.register(
@@ -169,6 +188,7 @@ public final class AuthServerConnector implements AutoCloseable {
 
         @Override
         public void channelInactive(ChannelHandlerContext ctx) {
+            AuthServerConnector.this.cipherKey = -1;
             closed.countDown();
         }
 
