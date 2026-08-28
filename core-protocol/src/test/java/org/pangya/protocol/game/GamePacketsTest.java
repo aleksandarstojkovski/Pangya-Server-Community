@@ -644,6 +644,11 @@ class GamePacketsTest {
         PacketReader holidayFail = new PacketReader(GamePackets.caddieHolidayFail());
         assertEquals(GamePackets.SERVER_REEMPLOY_CADDIE_ACK, holidayFail.opcode());
         assertEquals(GamePackets.CADDIE_HOLIDAY_FAIL, holidayFail.u8());
+        PacketReader holidayOk = new PacketReader(GamePackets.caddieHolidayOk(20, 99000));
+        assertEquals(GamePackets.SERVER_REEMPLOY_CADDIE_ACK, holidayOk.opcode());
+        assertEquals(GamePackets.CADDIE_HOLIDAY_OK, holidayOk.u8());
+        assertEquals(20, holidayOk.i32());
+        assertEquals(99000, holidayOk.u64());
 
         PacketReader report = new PacketReader(GamePackets.clientReport());
         assertEquals(GamePackets.CLIENT_REPORT, report.opcode());
@@ -696,6 +701,15 @@ class GamePacketsTest {
         assertEquals(-1, mascot.i32());
         assertEquals(0, mascot.u16());
         assertEquals(100000, mascot.u64());
+        PacketReader mascotOk = new PacketReader(GamePackets.mascotMessageOk(21, "hello", 99900));
+        assertEquals(GamePackets.SERVER_CHANGE_MASCOT, mascotOk.opcode());
+        assertEquals(GamePackets.MASCOT_MSG_OK, mascotOk.u8());
+        assertEquals(21, mascotOk.i32());
+        assertEquals("hello", mascotOk.pstr());
+        assertEquals(99900, mascotOk.u64());
+        PacketReader timeout = new PacketReader(GamePackets.timeout(9));
+        assertEquals(GamePackets.SERVER_TIMEOUT, timeout.opcode());
+        assertEquals(9, timeout.i32());
 
         assertEquals(GamePackets.SERVER_ONELINE_MSG, 0xC9);
         assertEquals(GamePackets.SERVER_CHAT_PENALITY, 0xAC);
@@ -852,6 +866,25 @@ class GamePacketsTest {
         PacketReader cadieFail = new PacketReader(GamePackets.cadieFail(GamePackets.shopSys(GamePackets.CADIE_ERR_COUNT)));
         assertEquals(GamePackets.SERVER_CADIE, cadieFail.opcode());
         assertEquals(GamePackets.shopSys(GamePackets.CADIE_ERR_COUNT), cadieFail.u32());
+        PacketReader cadieOk = new PacketReader(GamePackets.cadieOk(
+                0, GamePackets.TYPEID_SHOP_PANG_ITEM, 9, 1, 1, 0));
+        assertEquals(GamePackets.SERVER_CADIE, cadieOk.opcode());
+        assertEquals(0, cadieOk.u32());
+        assertEquals(0, cadieOk.u32());
+        assertEquals(1, cadieOk.u32());
+        assertEquals(GamePackets.TYPEID_SHOP_PANG_ITEM, cadieOk.u32());
+        assertEquals(9, cadieOk.i32());
+        assertEquals(1, cadieOk.i32());
+        assertEquals(1, cadieOk.i32());
+        assertEquals(0, cadieOk.u32());
+        PacketReader cadieItems = new PacketReader(
+                GamePackets.clientCadieItems(0, 1, GamePackets.TYPEID_SHOP_PANG_ITEM, 9));
+        assertEquals(GamePackets.CLIENT_CADIE, cadieItems.opcode());
+        assertEquals(0, cadieItems.u16());
+        assertEquals(1, cadieItems.u32());
+        assertEquals(1, cadieItems.u8());
+        assertEquals(GamePackets.TYPEID_SHOP_PANG_ITEM, cadieItems.u32());
+        assertEquals(9, cadieItems.i32());
         PacketReader loloFail = new PacketReader(GamePackets.loloFail(GamePackets.shopSys(GamePackets.LOLO_ERR_IFF)));
         assertEquals(GamePackets.SERVER_LOLO, loloFail.opcode());
         assertEquals(GamePackets.shopSys(GamePackets.LOLO_ERR_IFF), loloFail.u32());
@@ -1411,6 +1444,11 @@ class GamePacketsTest {
         assertEquals(99000, playOk.u64());
         assertEquals(0, playOk.u64());
         assertEquals(GamePackets.PAPEL_PRICE_NORMAL, 1000);
+        assertEquals(GamePackets.CADDIE_HOLIDAY_PANG, 1000);
+        assertEquals(GamePackets.MASCOT_MSG_PRICE, 100);
+        assertEquals(GamePackets.SERVER_TIMEOUT, 0x5C);
+        assertEquals(GamePackets.TYPEID_CADDIE_PAPEL, 0x1C000000);
+        assertEquals(GamePackets.TYPEID_MASCOT, 0x40000000);
         assertEquals(GamePackets.SERVER_BUY_ACK, 0x68);
         assertEquals(GamePackets.CREATE_ROOM_FAILED, 0x07);
         assertEquals(GamePackets.SERVER_LAST5, 0x10E);

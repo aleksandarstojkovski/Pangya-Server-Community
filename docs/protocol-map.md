@@ -101,7 +101,10 @@ C#: `GameServer/PangyaEnums/PacketGame.cs` → Java `org.pangya.protocol.game.Ga
 | C | `CLIENT_REQUEST_CHANGE_TEAM` | `0x10` | u8 team; broadcast `0x7D` oid + team |
 | C | `CLIENT_REQUEST_USERINFO_OFFLINE` | `0x07` | u8 opt + PStr nick; `0xA1` err 0 + uid + MemberInfoEx 299, else err 2 |
 | C | `CLIENT_REQUEST_BANISH` | `0x26` | u32 uid; master kicks via leave `0x4C` -1 |
-| C | `CLIENT_REQUEST_SERVER_TIME` | `0x5C` | empty; `0xBA` SYSTEMTIME 16 bytes |
+| C | `CLIENT_TIMECHECK` | `0x22` | Versus `startTime`; `timeVs>0` → `0x5C` oid when the turn timer fires |
+| C | `CLIENT_CLICK` | `0x14` | Versus bar-space; `state==0 && tempo==1` → `0x5C` oid |
+| C | `CLIENT_REEMPLOY_CADDIE` | `0x39` | SQL `iff_caddie`; success `0x93` u8 2 + id + pang; catch u8 1 |
+| C | `CLIENT_CHANGE_MASCOT` | `0x73` | SQL `iff_mascot`; success `0xE2` u8 4 + id + PStr + pang; catch sbyte -1 |
 | S | `SERVER_WHISPER` | `0x84` | byte 0 sender ack / byte 1 deliver |
 | S | `SERVER_DETAIL_ROOM_INFO` | `0x86` | num_player u32 + holes + time + course + tipo + modo + trophy + rows |
 | S | `SERVER_PLAYER_INFO` | `0x89` | u32 err (+ season/uid when err>0); GM deny=3 |
@@ -132,7 +135,7 @@ C#: `GameServer/PangyaEnums/PacketGame.cs` → Java `org.pangya.protocol.game.Ga
 | C | `CLIENT_LEAVE_DAILY_QUEST` | `0x154` | empty/zero → `0x228` option 1 only |
 | C | `CLIENT_ACHIEVEMENT` | `0x157` | empty map no packet; short body `0x22C` i32 1 |
 | C | `CLIENT_LOLO` | `0x155` | u64 pang + 3×typeid; no IFF card → `0x22A` sys `0x151` |
-| C | `CLIENT_CADIE` | `0x158` | count 0/`>4` → `0x22F` sys `5200451&0xFFFF`; IFF miss `5200452&0xFFFF` |
+| C | `CLIENT_CADIE` | `0x158` | count 0/`>4` → `0x22F` sys `5200451&0xFFFF`; truncated/SQL miss `5200452&0xFFFF`; success `0x216` awards + `0x22F` u32 0 + seq + item |
 | C | `CLIENT_REQUEST_MESSENGER_SERVER_LIST` | `0x8B` | `0xFC` u8 count + 92-byte `ServerInfo` (type 3); empty still sends 0 |
 | C | `CLIENT_REQUEST_REFRESH_GACHA_TICKETS` | `0x9E` | `0x102` i32×2 tickets + pang + cookie; catch `0x44` u8 `0xE2` |
 | C | `CLIENT_ENCHANT` | `0x4B` | missing warehouse/IFF → `0xA5` u8 0 |
@@ -278,7 +281,7 @@ C#: `GameServer/PangyaEnums/PacketGame.cs` → Java `org.pangya.protocol.game.Ga
 | S | `SERVER_DAILY_QUEST_LEAVE` | `0x228` | |
 | S | `SERVER_ACHIEVEMENT_GUI` | `0x22C` | i32 option |
 | S | `SERVER_LOLO` | `0x22A` | u32 error |
-| S | `SERVER_CADIE` | `0x22F` | u32 error |
+| S | `SERVER_CADIE` | `0x22F` | u32 0 + seq + receive item on success; u32 error on fail |
 | C | `CLIENT_SHOP_OPEN_ITEMS` | `0x7C` | u32 count + 172-byte `PersonalShopItem`; success `0xEB` u32 1 + nick 22 + uid + items. Count 0/`>10` `shopSys(5200251)`; no shop `shopSys(5200252)`; truncated/IFF/`qntd`/price → full `5200250`. Opposite SERVER master `0x7C` |
 | C | `CLIENT_SHOP_BUY` | `0x7D` | u32 owner + item; missing shop `0xEC` `shopSys(5200552)`; truncated/`ToRead`/buy errors full `5200550`. Success `0xEC` both (u8 1 seller / 0 buyer) + `0xED` + seller `0x40` option 7. Opposite SERVER team `0x7D` |
 | S | `SERVER_SHOP_ITEMS` | `0xEB` | u32 1 + nick 22 + uid + count + items, or u32 error |

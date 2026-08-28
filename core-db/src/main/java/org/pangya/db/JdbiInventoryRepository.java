@@ -821,4 +821,263 @@ public final class JdbiInventoryRepository implements InventoryRepository {
             return new PapelPlayResult(0, balls, awards, pangAfter, cookie);
         });
     }
+
+    @Override
+    public CaddieHolidayResult payCaddieHoliday(long uid, int caddieId) {
+        return jdbi.inTransaction(h -> {
+            long pang = h.createQuery("SELECT COALESCE(\"Pang\", 0) FROM pangya.user_info WHERE \"UID\" = :uid")
+                    .bind("uid", uid)
+                    .mapTo(Long.class)
+                    .findOne()
+                    .orElse(0L);
+            if (caddieId <= 0) {
+                return CaddieHolidayResult.fail(pang);
+            }
+            Integer typeid = h.createQuery("""
+                            SELECT typeid FROM pangya.pangya_caddie_information
+                             WHERE "UID" = :uid AND item_id = :id AND "Valid" = 1 AND "RentFlag" = :rent
+                            """)
+                    .bind("uid", uid)
+                    .bind("id", caddieId)
+                    .bind("rent", GamePackets.CADDIE_RENT_HOLIDAY)
+                    .mapTo(Integer.class)
+                    .findOne()
+                    .orElse(null);
+            if (typeid == null) {
+                return CaddieHolidayResult.fail(pang);
+            }
+            Integer price = h.createQuery("""
+                            SELECT valor_mensal FROM pangya.iff_caddie
+                             WHERE typeid = :typeid AND (is_cash = 1 OR valor_mensal > 0)
+                            """)
+                    .bind("typeid", typeid)
+                    .mapTo(Integer.class)
+                    .findOne()
+                    .orElse(null);
+            if (price == null || pang < price) {
+                return CaddieHolidayResult.fail(pang);
+            }
+            long pangAfter = pang - price;
+            h.createUpdate("""
+                            UPDATE pangya.user_info
+                               SET "Pang" = :pang
+                             WHERE "UID" = :uid
+                            """)
+                    .bind("pang", pangAfter)
+                    .bind("uid", uid)
+                    .execute();
+            h.createUpdate("""
+                            UPDATE pangya.pangya_caddie_information
+                               SET "EndDate" = NOW() + (:secs * INTERVAL '1 second')
+                             WHERE item_id = :id AND "UID" = :uid
+                            """)
+                    .bind("secs", GamePackets.CADDIE_HOLIDAY_SECONDS)
+                    .bind("id", caddieId)
+                    .bind("uid", uid)
+                    .execute();
+            return new CaddieHolidayResult(0, caddieId, pangAfter);
+        });
+    }
+
+    @Override
+    public MascotMessageResult changeMascotMessage(long uid, int mascotId, String message) {
+        return jdbi.inTransaction(h -> {
+            long pang = h.createQuery("SELECT COALESCE(\"Pang\", 0) FROM pangya.user_info WHERE \"UID\" = :uid")
+                    .bind("uid", uid)
+                    .mapTo(Long.class)
+                    .findOne()
+                    .orElse(0L);
+            if (message == null || message.isEmpty() || message.length() > GamePackets.MASCOT_MSG_MAX) {
+                return MascotMessageResult.fail(pang);
+            }
+            Integer typeid = h.createQuery("""
+                            SELECT typeid FROM pangya.pangya_mascot_info
+                             WHERE "UID" = :uid AND item_id = :id AND "Valid" = 1
+                            """)
+                    .bind("uid", uid)
+                    .bind("id", mascotId)
+                    .mapTo(Integer.class)
+                    .findOne()
+                    .orElse(null);
+            if (typeid == null) {
+                return MascotMessageResult.fail(pang);
+            }
+            Integer price = h.createQuery("""
+                            SELECT change_price FROM pangya.iff_mascot
+                             WHERE typeid = :typeid AND msg_active = 1
+                            """)
+                    .bind("typeid", typeid)
+                    .mapTo(Integer.class)
+                    .findOne()
+                    .orElse(null);
+            if (price == null || pang < price) {
+                return MascotMessageResult.fail(pang);
+            }
+            long pangAfter = pang - price;
+            h.createUpdate("""
+                            UPDATE pangya.user_info
+                               SET "Pang" = :pang
+                             WHERE "UID" = :uid
+                            """)
+                    .bind("pang", pangAfter)
+                    .bind("uid", uid)
+                    .execute();
+            h.createUpdate("""
+                            UPDATE pangya.pangya_mascot_info
+                               SET "Message" = :msg
+                             WHERE item_id = :id AND "UID" = :uid
+                            """)
+                    .bind("msg", message)
+                    .bind("id", mascotId)
+                    .bind("uid", uid)
+                    .execute();
+            return new MascotMessageResult(0, mascotId, message, pangAfter);
+        });
+    }
+
+    @Override
+    public CadieExchangeResult cadieExchange(
+            long uid, int seq, int requested, int level, int[] typeids, int[] ids) {
+        return jdbi.inTransaction(h -> {
+            int lookup = seq + 1;
+            var box = h.createQuery("""
+                            SELECT seq, level, receive_typeid, receive_qntd, box_random_id,
+                                   trade0_typeid, trade0_qntd, trade1_typeid, trade1_qntd,
+                                   trade2_typeid, trade2_qntd, trade3_typeid, trade3_qntd
+                              FROM pangya.cadie_magic_box
+                             WHERE seq = :seq AND active = 1
+                            """)
+                    .bind("seq", lookup)
+                    .map((rs, ctx) -> new int[] {
+                            rs.getInt("seq"),
+                            rs.getInt("level"),
+                            rs.getInt("receive_typeid"),
+                            rs.getInt("receive_qntd"),
+                            rs.getInt("trade0_typeid"),
+                            rs.getInt("trade0_qntd"),
+                            rs.getInt("trade1_typeid"),
+                            rs.getInt("trade1_qntd"),
+                            rs.getInt("trade2_typeid"),
+                            rs.getInt("trade2_qntd"),
+                            rs.getInt("trade3_typeid"),
+                            rs.getInt("trade3_qntd")
+                    })
+                    .findOne()
+                    .orElse(null);
+            if (box == null) {
+                return CadieExchangeResult.fail(GamePackets.CADIE_ERR_IFF);
+            }
+            if (level < box[1]) {
+                return CadieExchangeResult.fail(GamePackets.CADIE_ERR_LEVEL);
+            }
+            if (requested <= 0) {
+                return CadieExchangeResult.fail(GamePackets.CADIE_ERR_EXCHANGE);
+            }
+            int count = typeids == null ? 0 : typeids.length;
+            int[] have = new int[count];
+            int[] need = new int[count];
+            for (int i = 0; i < count; i++) {
+                int tradeTypeid = box[4 + i * 2];
+                int tradeQntd = box[5 + i * 2];
+                if (tradeTypeid != 0 && tradeTypeid != typeids[i]) {
+                    return CadieExchangeResult.fail(GamePackets.CADIE_ERR_MISMATCH);
+                }
+                if (tradeTypeid == 0 || tradeQntd <= 0) {
+                    continue;
+                }
+                need[i] = tradeQntd * requested;
+                Integer c0 = h.createQuery("""
+                                SELECT "C0" FROM pangya.pangya_item_warehouse
+                                 WHERE "UID" = :uid AND item_id = :id AND typeid = :typeid AND valid = 1
+                                """)
+                        .bind("uid", uid)
+                        .bind("id", ids[i])
+                        .bind("typeid", typeids[i])
+                        .mapTo(Integer.class)
+                        .findOne()
+                        .orElse(null);
+                if (c0 == null || (c0 & 0xffff) < need[i]) {
+                    return CadieExchangeResult.fail(GamePackets.CADIE_ERR_EXCHANGE);
+                }
+                have[i] = c0 & 0xffff;
+            }
+            List<GamePackets.PapelAward> awards = new ArrayList<>();
+            for (int i = 0; i < count; i++) {
+                if (need[i] <= 0) {
+                    continue;
+                }
+                int ant = have[i];
+                int dep = ant - need[i];
+                h.createUpdate("""
+                                UPDATE pangya.pangya_item_warehouse
+                                   SET "C0" = :c0
+                                 WHERE item_id = :id
+                                """)
+                        .bind("c0", dep)
+                        .bind("id", ids[i])
+                        .execute();
+                awards.add(new GamePackets.PapelAward(
+                        GamePackets.PAPEL_AWARD_TYPE, typeids[i], ids[i], 0, ant, dep, -need[i]));
+            }
+            int receiveTypeid = box[2];
+            int add = box[3] * requested;
+            Integer existingId = h.createQuery("""
+                            SELECT item_id FROM pangya.pangya_item_warehouse
+                             WHERE "UID" = :uid AND typeid = :typeid AND valid = 1
+                             ORDER BY item_id
+                             LIMIT 1
+                            """)
+                    .bind("uid", uid)
+                    .bind("typeid", receiveTypeid)
+                    .mapTo(Integer.class)
+                    .findOne()
+                    .orElse(null);
+            int ant;
+            int id;
+            if (existingId == null) {
+                ant = 0;
+                id = h.createQuery("""
+                                INSERT INTO pangya.pangya_item_warehouse (
+                                    "UID", typeid, valid, "Gift_flag", flag,
+                                    "C0", "C1", "C2", "C3", "C4", "Purchase", "ItemType",
+                                    "ClubSet_WorkShop_Flag", "ClubSet_WorkShop_C0", "ClubSet_WorkShop_C1",
+                                    "ClubSet_WorkShop_C2", "ClubSet_WorkShop_C3", "ClubSet_WorkShop_C4",
+                                    "Mastery_Pts", "Recovery_Pts", "Level", "Up",
+                                    "Total_Mastery_Pts", "Mastery_Gasto"
+                                ) VALUES (
+                                    :uid, :typeid, 1, 0, 0,
+                                    :qntd, 0, 0, 0, 0, 1, 2,
+                                    0, 0, 0, 0, 0, 0,
+                                    0, 0, 0, 0, 0, 0
+                                )
+                                RETURNING item_id
+                                """)
+                        .bind("uid", uid)
+                        .bind("typeid", receiveTypeid)
+                        .bind("qntd", add)
+                        .mapTo(Integer.class)
+                        .one();
+            } else {
+                id = existingId;
+                ant = h.createQuery("""
+                                SELECT "C0" FROM pangya.pangya_item_warehouse
+                                 WHERE item_id = :id
+                                """)
+                        .bind("id", id)
+                        .mapTo(Integer.class)
+                        .one() & 0xffff;
+                h.createUpdate("""
+                                UPDATE pangya.pangya_item_warehouse
+                                   SET "C0" = :c0
+                                 WHERE item_id = :id
+                                """)
+                        .bind("c0", ant + add)
+                        .bind("id", id)
+                        .execute();
+            }
+            awards.add(new GamePackets.PapelAward(
+                    GamePackets.PAPEL_AWARD_TYPE, receiveTypeid, id, 0, ant, ant + add, add));
+            return new CadieExchangeResult(0, seq, awards, receiveTypeid, id, add, ant + add, 0);
+        });
+    }
 }

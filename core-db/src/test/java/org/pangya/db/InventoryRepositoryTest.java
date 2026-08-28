@@ -27,7 +27,11 @@ class InventoryRepositoryTest {
             GamePackets.UserEquip equip = repo.userEquip(10001);
             assertEquals(chars.getFirst().id, equip.characterId);
             assertEquals(warehouse.getFirst().id, equip.clubsetId);
-            assertTrue(repo.mascots(10001).isEmpty());
+            assertEquals(1, repo.caddies(10001).size());
+            assertEquals(GamePackets.TYPEID_CADDIE_PAPEL, repo.caddies(10001).getFirst().typeid);
+            assertEquals(GamePackets.CADDIE_RENT_HOLIDAY, repo.caddies(10001).getFirst().rentFlag);
+            assertEquals(1, repo.mascots(10001).size());
+            assertEquals(GamePackets.TYPEID_MASCOT, repo.mascots(10001).getFirst().typeid);
             assertTrue(repo.cards(10001).isEmpty());
             repo.equipCharacter(10001, 1);
             repo.equipCaddie(10001, 0);
@@ -107,6 +111,33 @@ class InventoryRepositoryTest {
             assertEquals(100000 - GamePackets.PAPEL_PRICE_NORMAL - GamePackets.PAPEL_PRICE_BIG, big.pang());
             repo.setLevel(10001, GamePackets.GIFT_MIN_LEVEL);
             repo.setLevel(10001, 1);
+            repo.setPangCookie(10001, 100000, 0);
+            var holiday = repo.payCaddieHoliday(10001, repo.caddies(10001).getFirst().id);
+            assertEquals(0, holiday.code());
+            assertEquals(100000 - GamePackets.CADDIE_HOLIDAY_PANG, holiday.pang());
+            assertEquals(1, repo.payCaddieHoliday(10001, 0).code());
+            repo.setPangCookie(10001, 100000, 0);
+            var mascot = repo.changeMascotMessage(10001, repo.mascots(10001).getFirst().id, "hello");
+            assertEquals(0, mascot.code());
+            assertEquals("hello", mascot.message());
+            assertEquals("hello", repo.mascots(10001).getFirst().message);
+            assertEquals(1, repo.changeMascotMessage(10001, 0, "hello").code());
+            repo.changeMascotMessage(10001, repo.mascots(10001).getFirst().id, "ok");
+            repo.setPangCookie(10001, 100000, 0);
+            repo.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_SHOP_PANG_ITEM);
+            var stockCadie = repo.buyShopItem(
+                    10001, GamePackets.TYPEID_SHOP_PANG_ITEM, 1, GamePackets.SHOP_PANG_PRICE, 0);
+            assertEquals(0, stockCadie.code());
+            var cadie = repo.cadieExchange(
+                    10001,
+                    0,
+                    1,
+                    1,
+                    new int[] {GamePackets.TYPEID_SHOP_PANG_ITEM},
+                    new int[] {stockCadie.itemId()});
+            assertEquals(0, cadie.code());
+            assertEquals(GamePackets.TYPEID_SHOP_PANG_ITEM, cadie.receiveTypeid());
+            assertEquals(1, cadie.receiveQntd());
             repo.setPangCookie(10001, 100000, 0);
             repo.setPangCookie(10002, 100000, 0);
             repo.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_SHOP_PANG_ITEM);

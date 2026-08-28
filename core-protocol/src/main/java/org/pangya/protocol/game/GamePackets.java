@@ -949,8 +949,20 @@ public final class GamePackets {
     public static final int REPORT_ALREADY = 1;
     /** C# caddie holiday {@code 0x93} catch. */
     public static final int CADDIE_HOLIDAY_FAIL = 1;
-    /** C# caddie holiday {@code 0x93} success (needs IFF). */
+    /** C# caddie holiday {@code 0x93} success {@code WriteByte(2)}. */
     public static final int CADDIE_HOLIDAY_OK = 2;
+    /** C# {@code pCi.rent_flag != 2} rejects holiday pay. */
+    public static final int CADDIE_RENT_HOLIDAY = 2;
+    /** C# {@code GetSystemTimeAsUnix() + (30 * 24 * 3600)}. */
+    public static final int CADDIE_HOLIDAY_SECONDS = 30 * 24 * 3600;
+    /** Seeded {@code iff_caddie.valor_mensal} for {@link #TYPEID_CADDIE_PAPEL}. */
+    public static final int CADDIE_HOLIDAY_PANG = 1000;
+    /** C# mascot-message success {@code 0xE2} {@code WriteByte(4)}. */
+    public static final int MASCOT_MSG_OK = 4;
+    /** C# {@code msg.Length > 30} rejects. */
+    public static final int MASCOT_MSG_MAX = 30;
+    /** Seeded {@code iff_mascot.change_price} for {@link #TYPEID_MASCOT}. */
+    public static final int MASCOT_MSG_PRICE = 100;
     /** C# ticker cookie cost. */
     public static final int TICKER_COOKIE = 1;
     /** C# ticker wait per queued message. */
@@ -1103,9 +1115,26 @@ public final class GamePackets {
     /** C# Cadie catch else (non-CHANNEL). */
     public static final int CADIE_ERR_DEFAULT = 5200450;
     /**
-     * C# Cadie IFF/{@code findCadieMagicBox} miss: CHANNEL sys {@code 5200452}.
+     * C# Cadie IFF/{@code findCadieMagicBox} miss / truncated items: CHANNEL sys
+     * {@code 5200452}.
      */
     public static final int CADIE_ERR_IFF = 5200452;
+    /**
+     * C# Cadie {@code mi.level < cmb.level}: CHANNEL sys {@code 5200455}.
+     */
+    public static final int CADIE_ERR_LEVEL = 5200455;
+    /**
+     * C# Cadie trade typeid mismatch: CHANNEL sys {@code 5200454}.
+     */
+    public static final int CADIE_ERR_MISMATCH = 5200454;
+    /**
+     * C# Cadie {@code exchangeCadieMagicBox <= 0}: CHANNEL sys {@code 5200458}.
+     */
+    public static final int CADIE_ERR_EXCHANGE = 5200458;
+    /** C# {@code findCadieMagicBox((uint)(seq + 1))} for the seeded recipe. */
+    public static final int CADIE_SEQ = 1;
+    /** C# {@code CadieMagicBox} max {@code item_trade} slots. */
+    public static final int CADIE_MAX_TRADE = 4;
     /**
      * C# Lolo {@code findCard} null: CHANNEL sys {@code 0x5400151}.
      */
@@ -1393,6 +1422,14 @@ public final class GamePackets {
     public static final int TYPEID_GACHA_SUB = 0x1A000083;
     /** Seeded {@code shop_catalog.pang_price} for {@link #TYPEID_SHOP_PANG_ITEM}. */
     public static final int SHOP_PANG_PRICE = 100;
+    /**
+     * C# {@code IFF_GROUP.CADDIE} {@code 7 << 26}: Papel caddie {@code 0x1C000000}.
+     */
+    public static final int TYPEID_CADDIE_PAPEL = 0x1C000000;
+    /**
+     * C# {@code IFF_GROUP.MASCOT} {@code 16 << 26}: {@code 0x40000000}.
+     */
+    public static final int TYPEID_MASCOT = 0x40000000;
     /** C# {@code IFF_GROUP.CHARACTER}: {@code typeid >>> 26}. */
     public static final int IFF_GROUP_CHARACTER = 1;
 
@@ -1599,11 +1636,15 @@ public final class GamePackets {
     }
 
     public static byte[] clientCreateRoom(int tipo, String name, String password) {
+        return clientCreateRoom(tipo, name, password, 0, 0);
+    }
+
+    public static byte[] clientCreateRoom(int tipo, String name, String password, int timeVs, int time30s) {
         return new PacketWriter()
                 .opcode(CLIENT_REQUEST_CREATE_ROOM)
                 .u8(0)
-                .u32(0)
-                .u32(0)
+                .u32(timeVs)
+                .u32(time30s)
                 .u8(tipo == TIPO_PRACTICE ? 1 : 4)
                 .u8(tipo)
                 .u8(18)
@@ -2339,6 +2380,16 @@ public final class GamePackets {
         return new PacketWriter().opcode(SERVER_REEMPLOY_CADDIE_ACK).u8(CADDIE_HOLIDAY_FAIL).toBytes();
     }
 
+    /** C# holiday success {@code 0x93} u8 2 + id + pang. */
+    public static byte[] caddieHolidayOk(int caddieId, long pang) {
+        return new PacketWriter()
+                .opcode(SERVER_REEMPLOY_CADDIE_ACK)
+                .u8(CADDIE_HOLIDAY_OK)
+                .i32(caddieId)
+                .u64(pang)
+                .toBytes();
+    }
+
     /** C# {@code 0xAC}: oid + u8 chat-block. */
     public static byte[] chatPenalty(int oid, int block) {
         return new PacketWriter().opcode(SERVER_CHAT_PENALITY).i32(oid).u8(block).toBytes();
@@ -2379,6 +2430,24 @@ public final class GamePackets {
                 .u16(0)
                 .u64(pang)
                 .toBytes();
+    }
+
+    /**
+     * C# mascot-message success {@code 0xE2}: u8 4 + id + PStr msg + pang.
+     */
+    public static byte[] mascotMessageOk(int mascotId, String msg, long pang) {
+        return new PacketWriter()
+                .opcode(SERVER_CHANGE_MASCOT)
+                .u8(MASCOT_MSG_OK)
+                .i32(mascotId)
+                .pstr(msg == null ? "" : msg)
+                .u64(pang)
+                .toBytes();
+    }
+
+    /** C# Versus {@code timeIsOver} {@code 0x5C} i32 oid. */
+    public static byte[] timeout(int oid) {
+        return new PacketWriter().opcode(SERVER_TIMEOUT).i32(oid).toBytes();
     }
 
     /** C# Msg_OFF success {@code 0x95}: sub + u32 0 + remaining pang. */
@@ -3280,6 +3349,23 @@ public final class GamePackets {
         return new PacketWriter().opcode(SERVER_CADIE).u32(code).toBytes();
     }
 
+    /**
+     * C# Cadie success {@code 0x22F}: u32 0 + seq + count 1 + typeid/id/qntd/qntd_dep/flag_time.
+     */
+    public static byte[] cadieOk(int seq, int typeid, int id, int qntd, int qntdDep, int flagTime) {
+        return new PacketWriter()
+                .opcode(SERVER_CADIE)
+                .u32(0)
+                .u32(seq)
+                .u32(1)
+                .u32(typeid)
+                .i32(id)
+                .i32(qntd)
+                .i32(qntdDep)
+                .u32(flagTime)
+                .toBytes();
+    }
+
     /** C# Lolo {@code 0x22A} u32 error. */
     public static byte[] loloFail(int code) {
         return new PacketWriter().opcode(SERVER_LOLO).u32(code).toBytes();
@@ -4013,7 +4099,8 @@ public final class GamePackets {
     }
 
     /**
-     * C# CLIENT {@code 0x158}: u16 seq + u32 requested + u8 count + count×(u32 typeid + u32 qntd).
+     * C# CLIENT {@code 0x158}: u16 seq + u32 requested + u8 count + count×(u32 typeid + i32 id).
+     * Three-arg form omits items (truncated → {@link #CADIE_ERR_IFF}).
      */
     public static byte[] clientCadie(int seq, int requested, int count) {
         return new PacketWriter()
@@ -4021,6 +4108,17 @@ public final class GamePackets {
                 .u16(seq)
                 .u32(requested)
                 .u8(count)
+                .toBytes();
+    }
+
+    public static byte[] clientCadieItems(int seq, int requested, int typeid, int id) {
+        return new PacketWriter()
+                .opcode(CLIENT_CADIE)
+                .u16(seq)
+                .u32(requested)
+                .u8(1)
+                .u32(typeid)
+                .i32(id)
                 .toBytes();
     }
 

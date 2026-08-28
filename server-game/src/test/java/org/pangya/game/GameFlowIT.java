@@ -435,6 +435,58 @@ class GameFlowIT {
     }
 
     @Test
+    void versusTurnTimeoutBroadcastsPacote5C() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config);
+             PangyaFakeClient host = new PangyaFakeClient();
+             PangyaFakeClient guest = new PangyaFakeClient()) {
+            loginTwoPlayers(ds, keys, host, guest, runtime.port());
+            host.sendPlain(GamePackets.clientCreateRoom(GamePackets.TIPO_STROKE, "VS-T", "", 250, 0));
+            PacketReader created = awaitOpcode(host, GamePackets.SERVER_ROOM_ENTER_RESULT);
+            assertEquals(0, created.i16());
+            int numero = roomNumberFromInfo(created.readBytes(GamePackets.ROOM_INFO_BYTES));
+            guest.sendPlain(GamePackets.clientJoinRoom(numero, ""));
+            assertEquals(0, awaitOpcode(guest, GamePackets.SERVER_ROOM_ENTER_RESULT).i16());
+
+            host.sendPlain(GamePackets.clientStartGame());
+            awaitOpcode(host, GamePackets.SERVER_START_GAME_FLAG);
+            awaitOpcode(host, GamePackets.SERVER_START_GAME_FLAG2);
+            awaitOpcode(host, GamePackets.SERVER_PANG_RATE);
+            awaitOpcode(host, GamePackets.SERVER_GAME_INIT);
+            awaitOpcode(host, GamePackets.SERVER_COURSE);
+            awaitOpcode(host, GamePackets.SERVER_MASCOT_SEED);
+            awaitOpcode(guest, GamePackets.SERVER_GAME_INIT);
+
+            host.sendPlain(GamePackets.clientInitHole(1, 0, 0, 4, 1.5f, 2.5f, 10f, 20f));
+            guest.sendPlain(GamePackets.clientInitHole(1, 0, 0, 4, 1.5f, 2.5f, 10f, 20f));
+            host.sendPlain(GamePackets.clientLoadOk());
+            guest.sendPlain(GamePackets.clientLoadOk());
+            awaitOpcode(host, GamePackets.SERVER_WEATHER);
+            awaitOpcode(host, GamePackets.SERVER_WIND);
+            awaitOpcode(host, GamePackets.SERVER_HOLE_TURN);
+            host.sendPlain(GamePackets.clientContinueVersus(GamePackets.CONTINUE_GO));
+            awaitOpcode(host, GamePackets.SERVER_WIND);
+            awaitOpcode(host, GamePackets.SERVER_PLAYER_TURN);
+
+            host.sendPlain(GamePackets.clientClick(1, 0.5f));
+            host.sendPlain(GamePackets.clientTimeCheck());
+            PacketReader timed = awaitOpcode(host, GamePackets.SERVER_TIMEOUT);
+            assertTrue(timed.i32() > 0);
+            host.sendPlain(GamePackets.clientClick(0, 0f));
+            PacketReader clickTimeout = awaitOpcode(host, GamePackets.SERVER_TIMEOUT);
+            assertTrue(clickTimeout.i32() > 0);
+        }
+    }
+
+    @Test
     void twoPlayersStartMatchAndReceiveVersusDump() throws Exception {
         startTwoPlayerVersusMode(GamePackets.TIPO_MATCH, "MATCH");
     }
@@ -577,6 +629,13 @@ class GameFlowIT {
             client.sendPlain(GamePackets.clientPayCaddieHoliday(0));
             PacketReader holiday = awaitOpcode(client, GamePackets.SERVER_REEMPLOY_CADDIE_ACK);
             assertEquals(GamePackets.CADDIE_HOLIDAY_FAIL, holiday.u8());
+            int caddieId = inventory.caddies(10001).getFirst().id;
+            client.sendPlain(GamePackets.clientPayCaddieHoliday(caddieId));
+            PacketReader holidayOk = awaitOpcode(client, GamePackets.SERVER_REEMPLOY_CADDIE_ACK);
+            assertEquals(GamePackets.CADDIE_HOLIDAY_OK, holidayOk.u8());
+            assertEquals(caddieId, holidayOk.i32());
+            assertEquals(99900 - GamePackets.CADDIE_HOLIDAY_PANG, holidayOk.u64());
+            inventory.setPangCookie(10001, 99900, 0);
 
             client.sendPlain(GamePackets.clientTickerQuery());
             PacketReader tickerQ = awaitOpcode(client, GamePackets.SERVER_ONELINE_QUERY);
@@ -605,6 +664,14 @@ class GameFlowIT {
             assertEquals(-1, mascot.i32());
             assertEquals(0, mascot.u16());
             assertEquals(99900, mascot.u64());
+            int mascotId = inventory.mascots(10001).getFirst().id;
+            client.sendPlain(GamePackets.clientMascotMessage(mascotId, "hello"));
+            PacketReader mascotOk = awaitOpcode(client, GamePackets.SERVER_CHANGE_MASCOT);
+            assertEquals(GamePackets.MASCOT_MSG_OK, mascotOk.u8());
+            assertEquals(mascotId, mascotOk.i32());
+            assertEquals("hello", mascotOk.pstr());
+            assertEquals(99900 - GamePackets.MASCOT_MSG_PRICE, mascotOk.u64());
+            inventory.setPangCookie(10001, 99900, 0);
 
             client.sendPlain(GamePackets.clientNotice("gm"));
             PacketReader notice = awaitOpcode(client, GamePackets.SERVER_CHAT);
@@ -1547,6 +1614,30 @@ class GameFlowIT {
             host.sendPlain(GamePackets.clientLolo(0, 0, 0, 0));
             PacketReader lolo = awaitOpcode(host, GamePackets.SERVER_LOLO);
             assertEquals(GamePackets.shopSys(GamePackets.LOLO_ERR_IFF), lolo.u32());
+
+            inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_SHOP_PANG_ITEM);
+            inv.setPangCookie(10001, 100000, 0);
+            var bought = inv.buyShopItem(
+                    10001, GamePackets.TYPEID_SHOP_PANG_ITEM, 1, GamePackets.SHOP_PANG_PRICE, 0);
+            assertEquals(0, bought.code());
+            int beforeCadie = GamePackets.unixNow();
+            host.sendPlain(GamePackets.clientCadieItems(
+                    0, 1, GamePackets.TYPEID_SHOP_PANG_ITEM, bought.itemId()));
+            PacketReader cadieAwards = awaitOpcode(host, GamePackets.SERVER_DAILY_QUEST_STAMP);
+            int cadieUnix = cadieAwards.u32();
+            assertTrue(cadieUnix >= beforeCadie - 1 && cadieUnix <= GamePackets.unixNow() + 1);
+            assertEquals(2, cadieAwards.u32());
+            PacketReader cadieOk = awaitOpcode(host, GamePackets.SERVER_CADIE);
+            assertEquals(0, cadieOk.u32());
+            assertEquals(0, cadieOk.u32());
+            assertEquals(1, cadieOk.u32());
+            assertEquals(GamePackets.TYPEID_SHOP_PANG_ITEM, cadieOk.u32());
+            assertEquals(bought.itemId(), cadieOk.i32());
+            assertEquals(1, cadieOk.i32());
+            assertEquals(1, cadieOk.i32());
+            assertEquals(0, cadieOk.u32());
+            inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_SHOP_PANG_ITEM);
+            inv.setPangCookie(10001, pang, cookie);
 
             host.sendPlain(GamePackets.clientRefreshGacha());
             PacketReader gacha = awaitOpcode(host, GamePackets.SERVER_GACHA_COUPON);

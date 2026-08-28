@@ -67,6 +67,24 @@ public interface InventoryRepository {
      */
     PapelPlayResult playPapel(long uid, boolean big);
 
+    /**
+     * C# {@code requestPayCaddieHolyDay}: SQL {@code iff_caddie.valor_mensal}
+     * stand-in. Fail codes are swallowed on the wire as {@code 0x93} u8 1.
+     */
+    CaddieHolidayResult payCaddieHoliday(long uid, int caddieId);
+
+    /**
+     * C# {@code requestChangeMascotMessage}: SQL {@code iff_mascot} stand-in.
+     */
+    MascotMessageResult changeMascotMessage(long uid, int mascotId, String message);
+
+    /**
+     * C# {@code requestCadieCauldronExchange}: SQL {@code cadie_magic_box}
+     * stand-in for IFF {@code CadieMagicBox}. {@code seq} is the client ushort;
+     * lookup uses {@code seq + 1}.
+     */
+    CadieExchangeResult cadieExchange(long uid, int seq, int requested, int level, int[] typeids, int[] ids);
+
     record ShopItem(int typeid, int pangPrice, int cookiePrice, boolean canOverlap) {}
 
     record ShopBuyResult(
@@ -100,6 +118,35 @@ public interface InventoryRepository {
 
         public static PapelPlayResult fail(int code) {
             return new PapelPlayResult(code, List.of(), List.of(), 0, 0);
+        }
+    }
+
+    record CaddieHolidayResult(int code, int caddieId, long pang) {
+
+        public static CaddieHolidayResult fail(long pang) {
+            return new CaddieHolidayResult(1, 0, pang);
+        }
+    }
+
+    record MascotMessageResult(int code, int mascotId, String message, long pang) {
+
+        public static MascotMessageResult fail(long pang) {
+            return new MascotMessageResult(1, -1, "", pang);
+        }
+    }
+
+    record CadieExchangeResult(
+            int code,
+            int seq,
+            List<GamePackets.PapelAward> awards,
+            int receiveTypeid,
+            int receiveId,
+            int receiveQntd,
+            int qntdDep,
+            int flagTime) {
+
+        public static CadieExchangeResult fail(int code) {
+            return new CadieExchangeResult(code, 0, List.of(), 0, 0, 0, 0, 0);
         }
     }
 }

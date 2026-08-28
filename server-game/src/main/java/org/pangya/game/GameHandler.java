@@ -116,7 +116,7 @@ public final class GameHandler {
             case GamePackets.CLIENT_USE_ITEM -> { }
             case GamePackets.CLIENT_EMOTICON -> changeTyping(session, reader);
             case GamePackets.CLIENT_DROP -> moveBall(session, reader);
-            case GamePackets.CLIENT_TIMECHECK -> { }
+            case GamePackets.CLIENT_TIMECHECK -> startTurnTime(session);
             case GamePackets.CLIENT_LOADING_INFO -> loadPercent(session, reader);
             case GamePackets.CLIENT_TEAMCHAT -> teamChat(session, reader);
             case GamePackets.CLIENT_ALLOW_WHISPER -> allowWhisper(session, reader);
@@ -677,11 +677,50 @@ public final class GameHandler {
     }
 
     private void changeBarSpace(Session session, PacketReader reader) {
-        // C# Versus/Tourney store bar state; timeout {@code 0x5C} is not sent until 3 misses.
-        if (inGameRoom(session) != null && reader.remaining() >= 5) {
-            reader.u8();
-            reader.f32();
+        GameRoom room = inGameRoom(session);
+        if (room == null || reader.remaining() < 5) {
+            return;
         }
+        int state = reader.u8();
+        reader.f32();
+        GameRoom.PlayerShot shot = room.shots.computeIfAbsent(session.oid(), id -> new GameRoom.PlayerShot());
+        shot.barState = state;
+        if (!GamePackets.usesVersusInitialData(room.tipo) || state != 0 || shot.turnTempo != 1) {
+            return;
+        }
+        shot.turnTempo = 0;
+        shot.timeOuts++;
+        room.broadcast(GamePackets.timeout(session.oid()));
+    }
+
+    /**
+     * C# {@code packet022} / {@code requestStartTurnTime}: Versus {@code startTime}
+     * with {@code m_ri.time_vs}. {@code 0x5C} is broadcast when the timer fires.
+     */
+    private void startTurnTime(Session session) {
+        GameRoom room = inGameRoom(session);
+        if (room == null || !GamePackets.usesVersusInitialData(room.tipo) || room.info.timeVs <= 0) {
+            return;
+        }
+        int oid = session.oid();
+        room.startTurnTimer(room.info.timeVs, () -> onTurnTimeout(room, oid));
+    }
+
+    /**
+     * C# {@code VersusBase.timeIsOver} always broadcasts {@code 0x5C}; Versus then
+     * sets {@code pgi.tempo = 1} and resets it when the bar is still at state 0.
+     */
+    private void onTurnTimeout(GameRoom room, int oid) {
+        if (!room.inGame) {
+            return;
+        }
+        GameRoom.PlayerShot shot = room.shots.computeIfAbsent(oid, id -> new GameRoom.PlayerShot());
+        shot.turnTempo = 1;
+        if (shot.barState == 0 && room.turnOid == oid) {
+            shot.turnTempo = 0;
+            shot.timeOuts++;
+        }
+        room.broadcast(GamePackets.timeout(oid));
     }
 
     private void activePowerShot(Session session, PacketReader reader) {
@@ -865,17 +904,27 @@ public final class GameHandler {
     }
 
     /**
-     * C# {@code packet039}: holiday pay needs IFF {@code valor_mensal}. Catch
-     * always writes {@code 0x93} u8 1.
+     * C# {@code packet039}: SQL {@code iff_caddie.valor_mensal}. Catch always
+     * writes {@code 0x93} u8 1.
      */
     private void payCaddieHoliday(Session session, PacketReader reader) {
         if (!session.authorized()) {
             return;
         }
-        if (reader.remaining() >= 4) {
-            reader.i32();
+        int caddieId = reader.remaining() >= 4 ? reader.i32() : 0;
+        InventoryRepository.CaddieHolidayResult result;
+        try {
+            result = inventory.payCaddieHoliday(session.player().uid, caddieId);
+        } catch (RuntimeException e) {
+            log.warn("caddie holiday uid={} failed: {}", session.player().uid, e.toString());
+            session.send(GamePackets.caddieHolidayFail());
+            return;
         }
-        session.send(GamePackets.caddieHolidayFail());
+        if (result.code() != 0) {
+            session.send(GamePackets.caddieHolidayFail());
+            return;
+        }
+        session.send(GamePackets.caddieHolidayOk(result.caddieId(), result.pang()));
     }
 
     /**
@@ -976,20 +1025,28 @@ public final class GameHandler {
     }
 
     /**
-     * C# {@code packet073}: IFF mascot message. Without IFF the catch is
+     * C# {@code packet073}: SQL {@code iff_mascot} message. Catch is
      * {@code 0xE2} sbyte -1 + id -1 + empty msg + pang.
      */
     private void changeMascotMessage(Session session, PacketReader reader) {
         if (!session.authorized()) {
             return;
         }
-        if (reader.remaining() >= 4) {
-            reader.i32();
+        int mascotId = reader.remaining() >= 4 ? reader.i32() : 0;
+        String msg = reader.remaining() >= 2 ? reader.pstr() : "";
+        InventoryRepository.MascotMessageResult result;
+        try {
+            result = inventory.changeMascotMessage(session.player().uid, mascotId, msg);
+        } catch (RuntimeException e) {
+            log.warn("mascot message uid={} failed: {}", session.player().uid, e.toString());
+            session.send(GamePackets.mascotMessageFail(inventory.pang(session.player().uid)));
+            return;
         }
-        if (reader.remaining() >= 2) {
-            reader.pstr();
+        if (result.code() != 0) {
+            session.send(GamePackets.mascotMessageFail(result.pang()));
+            return;
         }
-        session.send(GamePackets.mascotMessageFail(inventory.pang(session.player().uid)));
+        session.send(GamePackets.mascotMessageOk(result.mascotId(), result.message(), result.pang()));
     }
 
     /**
@@ -1868,6 +1925,7 @@ public final class GameHandler {
         room.info.state = 1;
         room.course = null;
         room.pauseCount = 0;
+        room.stopTurnTimer();
         room.shots.clear();
         room.clearCharIntro();
         room.clearLoadHole();
@@ -2928,7 +2986,8 @@ public final class GameHandler {
 
     /**
      * C# {@code requestCadieCauldronExchange}: count 0/&gt;4 sys {@code 5200451};
-     * IFF miss {@code 5200452}; both written as {@code sys & 0xFFFF}.
+     * truncated items / SQL miss {@code 5200452}; both written as {@code sys & 0xFFFF}.
+     * Success is {@code 0x216} awards then {@code 0x22F} u32 0.
      */
     private void cadieExchange(Session session, PacketReader reader) {
         if (!inChannel(session)) {
@@ -2938,14 +2997,44 @@ public final class GameHandler {
             session.send(GamePackets.cadieFail(GamePackets.CADIE_ERR_DEFAULT));
             return;
         }
-        reader.u16();
-        reader.u32();
+        int seq = reader.u16();
+        int requested = reader.u32();
         int count = reader.u8();
-        if (count == 0 || count > 4) {
+        if (count == 0 || count > GamePackets.CADIE_MAX_TRADE) {
             session.send(GamePackets.cadieFail(GamePackets.shopSys(GamePackets.CADIE_ERR_COUNT)));
             return;
         }
-        session.send(GamePackets.cadieFail(GamePackets.shopSys(GamePackets.CADIE_ERR_IFF)));
+        if (reader.remaining() < count * 8) {
+            session.send(GamePackets.cadieFail(GamePackets.shopSys(GamePackets.CADIE_ERR_IFF)));
+            return;
+        }
+        int[] typeids = new int[count];
+        int[] ids = new int[count];
+        for (int i = 0; i < count; i++) {
+            typeids[i] = reader.u32();
+            ids[i] = reader.i32();
+        }
+        InventoryRepository.CadieExchangeResult result;
+        try {
+            result = inventory.cadieExchange(
+                    session.player().uid, seq, requested, session.player().level, typeids, ids);
+        } catch (RuntimeException e) {
+            log.warn("cadie exchange uid={} failed: {}", session.player().uid, e.toString());
+            session.send(GamePackets.cadieFail(GamePackets.CADIE_ERR_DEFAULT));
+            return;
+        }
+        if (result.code() != 0) {
+            session.send(GamePackets.cadieFail(GamePackets.shopSys(result.code())));
+            return;
+        }
+        session.send(GamePackets.papelAwards(GamePackets.unixNow(), result.awards()));
+        session.send(GamePackets.cadieOk(
+                result.seq(),
+                result.receiveTypeid(),
+                result.receiveId(),
+                result.receiveQntd(),
+                result.qntdDep(),
+                result.flagTime()));
     }
 
     /**

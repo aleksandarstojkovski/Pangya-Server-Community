@@ -35,6 +35,9 @@ final class GameRoom {
     final ConcurrentHashMap<Long, Boolean> reported = new ConcurrentHashMap<>();
     /** C# {@code PersonalShopManager} per-owner shops. */
     final ConcurrentHashMap<Long, PersonalShop> shops = new ConcurrentHashMap<>();
+    /** C# Versus {@code m_timer} generation; increment cancels the running turn. */
+    private volatile long turnTimerGen;
+    private volatile Thread turnTimer;
 
     GameRoom(GamePackets.CreateRoom req, int numero, int masterUid, int ratePang, int rateExp, int channelId) {
         this.tipo = req.tipo();
@@ -300,6 +303,37 @@ final class GameRoom {
         return turnOid;
     }
 
+    /**
+     * C# {@code VersusBase.startTime} / {@code MakeTime(m_ri.time_vs)}.
+     * {@code timeVs == 0} does not start a timer (IT rooms).
+     */
+    void startTurnTimer(int millis, Runnable onTimeout) {
+        stopTurnTimer();
+        if (millis <= 0 || onTimeout == null) {
+            return;
+        }
+        long gen = ++turnTimerGen;
+        turnTimer = Thread.ofVirtual().start(() -> {
+            try {
+                Thread.sleep(millis);
+                if (gen == turnTimerGen) {
+                    onTimeout.run();
+                }
+            } catch (InterruptedException ignored) {
+                Thread.currentThread().interrupt();
+            }
+        });
+    }
+
+    void stopTurnTimer() {
+        turnTimerGen++;
+        Thread timer = turnTimer;
+        turnTimer = null;
+        if (timer != null) {
+            timer.interrupt();
+        }
+    }
+
     void broadcast(byte[] packet) {
         for (Session session : snapshot()) {
             session.send(packet);
@@ -312,6 +346,12 @@ final class GameRoom {
         float z;
         int shotState;
         int tempo;
+        /** C# {@code PlayerGameInfo.bar_space} state for Versus timeout. */
+        int barState;
+        /** C# {@code PlayerGameInfo.tempo} (1 after turn timer, distinct from shot tempo). */
+        int turnTempo;
+        /** C# {@code pgi.data.time_out}. */
+        int timeOuts;
     }
 
     static final class PersonalShop {
