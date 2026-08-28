@@ -7,20 +7,20 @@ Questo repo è solo la riscrittura Java. **S4 non è done.**
 
 S0 [x] S1 [x] S2 [x] S3 [x] S4 [~] S5 [~] S6 [x]
 
-S4 profondità: **154** opcode success 1:1 / **18** opcode solo fail-stub / **19** stimati rimanenti dal C# Channel
+S4 profondità: **155** opcode success 1:1 / **17** opcode solo fail-stub / **18** stimati rimanenti dal C# Channel
 
 Conteggio Channel: **197** handler `packet_func_sv` registrati in `GameService.init_Packets`. Java ha uno `switch` per **195** di quelli (mancano `0x174`/`0x175`, no-op anche in C#). Success 1:1 = happy-path wire C# raggiungibile (SQL stand-in ammesso). Fail-stub = Java manda solo il catch C#; il success C# vuole IFF/`ItemManager`. Rimanenti ≈ fail-stub + GZ first-hole pulse `0x137`.
 
 ## Questo turno
 
-Fatto: workshop transform confirm/cancel `0x168`/`0x169` + rank `flag_transformar` dialog `0x241`. SQL `iff_clubset.flag_transformar` + `iff_clubset_original` (V24, **191** tabelle). Lottery deterministica sul primo special con originali. Cancel `0x243` 0+stat+id; confirm delete+add then `0x216` count 2 type 2 + `0x242` 0+typeid+id. Catch CHANNEL `shopSys`; else full `0x5300450`/`0x5300400`. Mega empty resta `shopSys(0x5300451)`/`shopSys(0x5300401)`.
-Prossimo opcode/file C#: daily `0x152`–`0x154`; box-mail `0xEF`; cutin success `0xE5`; card `0xBD`/`0xCA`; UCC `0xB9`; memorial `0x17F`; GZ first-hole `packet137` pulse.
-Blocco: file IFF assenti (pin/cube live, `initComboDef`, cutin success `0xE5` `findCutinInfomation`); nessuna capture client JP Season 9.
+Fatto: cutin success `0xE5` per SKIN e CHARACTER (`TourneyBase`/`VersusBase`). SQL `iff_cutin_information` (V25, **192** tabelle) sostituisce `CutinInfomation.iff`; valida uid, character equipaggiato, gruppo/active e condition. Success broadcast `0x18D` u8 1 + 8×u32 + 4 sprite fissi da 40; fail u8 0 + u16 1; GZ resta u16 3.
+Prossimo opcode/file C#: daily `0x152`–`0x154`; box-mail `0xEF`; card `0xBD`/`0xCA`; UCC `0xB9`; memorial `0x17F`; GZ first-hole `packet137` pulse.
+Blocco: file IFF assenti (pin/cube live, `initComboDef`); nessuna capture client JP Season 9.
 
 Percentuale epic: **scheletro 85%** / **parità client reale 35%**.
 
 - Scheletro: S0–S3 e S6 chiusi (Gradle, Cipher, Auth/Login, Practice, Ranking/Messenger core, metriche 3000, compose `/health`). S4/S5 aperti.
-- Parità client reale: ~154/197 Channel con happy-path; SQL al posto IFF; fail-stub su card/UCC/cutin/memorial/daily; zero capture JP S9.
+- Parità client reale: ~155/197 Channel con happy-path; SQL al posto IFF; fail-stub su card/UCC/memorial/daily/box-mail; zero capture JP S9.
 
 ## Slice (non dichiarare S4 done)
 

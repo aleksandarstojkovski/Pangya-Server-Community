@@ -7016,8 +7016,9 @@ public final class GameHandler {
 
     /**
      * C# Versus/Tourney {@code requestActiveCutin} {@code 0x18D}. Not-in-room /
-     * not-in-game is silent. Grand Zodiac sends u8 0 + u16 3. Without IFF
-     * {@code findCutinInfomation} Tourney/Versus catch writes u8 0 + u16 1.
+     * not-in-game is silent. Grand Zodiac sends u8 0 + u16 3. SQL
+     * {@code iff_cutin_information} stands in for {@code findCutinInfomation}.
+     * Success broadcasts u8 1 + CutinInformation to the room.
      */
     private void activeCutin(Session session, PacketReader reader) {
         if (!inChannel(session)) {
@@ -7031,12 +7032,72 @@ public final class GameHandler {
             session.send(GamePackets.cutinFail(GamePackets.CUTIN_ERR));
             return;
         }
-        reader.readBytes(GamePackets.CUTIN_BODY_BYTES);
+        int uid = reader.u32();
+        int tipo = reader.u32();
+        reader.u16();
+        int charTypeid = reader.u32();
+        int active = reader.u8();
         if (GamePackets.usesGrandZodiac(room.tipo)) {
             session.send(GamePackets.cutinFail(GamePackets.CUTIN_GZ_DISABLED));
             return;
         }
-        session.send(GamePackets.cutinFail(GamePackets.CUTIN_ERR));
+        if ((uid & 0xffff_ffffL) != session.player().uid) {
+            session.send(GamePackets.cutinFail(GamePackets.CUTIN_ERR));
+            return;
+        }
+        long playerUid = session.player().uid;
+        GamePackets.UserEquip equip = inventory.userEquip(playerUid);
+        GamePackets.CharacterInfo equipped = null;
+        for (GamePackets.CharacterInfo c : inventory.characters(playerUid)) {
+            if (c.id == equip.characterId) {
+                equipped = c;
+                break;
+            }
+        }
+        if (equipped == null) {
+            session.send(GamePackets.cutinFail(GamePackets.CUTIN_ERR));
+            return;
+        }
+        Optional<InventoryRepository.CutinIff> cutin = Optional.empty();
+        int group = GamePackets.itemGroupIdentify(charTypeid);
+        if (group == GamePackets.IFF_GROUP_CHARACTER && active == 1) {
+            if (equipped.typeid != charTypeid) {
+                session.send(GamePackets.cutinFail(GamePackets.CUTIN_ERR));
+                return;
+            }
+            for (int cutinId : equipped.cutIn) {
+                if (cutinId <= 0) {
+                    continue;
+                }
+                GamePackets.WarehouseItem item = warehouseById(playerUid, cutinId);
+                if (item == null) {
+                    continue;
+                }
+                Optional<InventoryRepository.CutinIff> found = inventory.cutinIff(item.typeid);
+                if (found.isEmpty()) {
+                    session.send(GamePackets.cutinFail(GamePackets.CUTIN_ERR));
+                    return;
+                }
+                if (found.get().condition() == tipo) {
+                    cutin = found;
+                    break;
+                }
+            }
+        } else if (group == GamePackets.IFF_GROUP_SKIN && active == 0) {
+            cutin = inventory.cutinIff(charTypeid);
+        }
+        if (cutin.isEmpty() || cutin.get().typeid() == 0) {
+            session.send(GamePackets.cutinFail(GamePackets.CUTIN_ERR));
+            return;
+        }
+        InventoryRepository.CutinIff info = cutin.get();
+        room.broadcast(GamePackets.cutinOk(
+                info.typeid(),
+                info.sector(),
+                info.condition(),
+                info.imageTypes(),
+                info.tempo(),
+                info.sprites()));
     }
 
     /**

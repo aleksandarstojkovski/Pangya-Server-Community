@@ -2641,6 +2641,86 @@ public final class JdbiInventoryRepository implements InventoryRepository {
     }
 
     @Override
+    public Optional<CutinIff> cutinIff(int typeid) {
+        return jdbi.withHandle(h -> h.createQuery("""
+                        SELECT typeid, sector, condition,
+                               img0_tipo, img1_tipo, img2_tipo, img3_tipo, tempo,
+                               sprite0, sprite1, sprite2, sprite3
+                          FROM pangya.iff_cutin_information
+                         WHERE typeid = :typeid
+                        """)
+                .bind("typeid", typeid)
+                .map((rs, ctx) -> new CutinIff(
+                        rs.getInt("typeid"),
+                        rs.getInt("sector"),
+                        rs.getInt("condition"),
+                        new int[] {
+                            rs.getInt("img0_tipo"),
+                            rs.getInt("img1_tipo"),
+                            rs.getInt("img2_tipo"),
+                            rs.getInt("img3_tipo")
+                        },
+                        rs.getInt("tempo"),
+                        new String[] {
+                            rs.getString("sprite0"),
+                            rs.getString("sprite1"),
+                            rs.getString("sprite2"),
+                            rs.getString("sprite3")
+                        }))
+                .findOne());
+    }
+
+    @Override
+    public void upsertCutinIff(
+            int typeid, int sector, int condition, int[] imageTypes, int tempo, String[] sprites) {
+        int[] img = imageTypes == null ? new int[4] : imageTypes;
+        String[] spr = sprites == null ? new String[4] : sprites;
+        jdbi.useHandle(h -> h.createUpdate("""
+                        INSERT INTO pangya.iff_cutin_information (
+                            typeid, sector, condition,
+                            img0_tipo, img1_tipo, img2_tipo, img3_tipo, tempo,
+                            sprite0, sprite1, sprite2, sprite3)
+                        VALUES (
+                            :typeid, :sector, :condition,
+                            :i0, :i1, :i2, :i3, :tempo,
+                            :s0, :s1, :s2, :s3)
+                        ON CONFLICT (typeid) DO UPDATE SET
+                            sector = EXCLUDED.sector,
+                            condition = EXCLUDED.condition,
+                            img0_tipo = EXCLUDED.img0_tipo,
+                            img1_tipo = EXCLUDED.img1_tipo,
+                            img2_tipo = EXCLUDED.img2_tipo,
+                            img3_tipo = EXCLUDED.img3_tipo,
+                            tempo = EXCLUDED.tempo,
+                            sprite0 = EXCLUDED.sprite0,
+                            sprite1 = EXCLUDED.sprite1,
+                            sprite2 = EXCLUDED.sprite2,
+                            sprite3 = EXCLUDED.sprite3
+                        """)
+                .bind("typeid", typeid)
+                .bind("sector", sector)
+                .bind("condition", condition)
+                .bind("i0", img.length > 0 ? img[0] : 0)
+                .bind("i1", img.length > 1 ? img[1] : 0)
+                .bind("i2", img.length > 2 ? img[2] : 0)
+                .bind("i3", img.length > 3 ? img[3] : 0)
+                .bind("tempo", tempo)
+                .bind("s0", spr.length > 0 && spr[0] != null ? spr[0] : "")
+                .bind("s1", spr.length > 1 && spr[1] != null ? spr[1] : "")
+                .bind("s2", spr.length > 2 && spr[2] != null ? spr[2] : "")
+                .bind("s3", spr.length > 3 && spr[3] != null ? spr[3] : "")
+                .execute());
+    }
+
+    @Override
+    public void deleteCutinIff(int typeid) {
+        jdbi.useHandle(h -> h.createUpdate(
+                        "DELETE FROM pangya.iff_cutin_information WHERE typeid = :typeid")
+                .bind("typeid", typeid)
+                .execute());
+    }
+
+    @Override
     public boolean itemIff(int typeid) {
         return jdbi.withHandle(h -> h.createQuery("""
                         SELECT 1 FROM pangya.iff_item WHERE typeid = :typeid

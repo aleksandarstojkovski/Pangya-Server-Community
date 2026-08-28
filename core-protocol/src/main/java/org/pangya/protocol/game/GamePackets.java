@@ -259,6 +259,8 @@ public final class GamePackets {
     public static final int CUTIN_GZ_DISABLED = 3;
     /** C# {@code stActiveCutin} body: u32 uid + u32 tipo + u16 opt + u32 char + u8. */
     public static final int CUTIN_BODY_BYTES = 15;
+    /** C# CutinInformation success body after opcode: option + 8 u32 + 4×40 sprites. */
+    public static final int CUTIN_OK_BODY_BYTES = 193;
     /** C# delete-rental {@code 0x190}: fail u8 1; success u8 0 + typeid + id. */
     public static final int SERVER_DELETE_RENTAL = 0x190;
     /** C# workshop transform-confirm catch {@code 0x242}. */
@@ -2210,6 +2212,10 @@ public final class GamePackets {
     public static final int IFF_GROUP_CARD = 31;
     /** C# {@code IFF_GROUP.CHARACTER}: {@code typeid >>> 26}. */
     public static final int IFF_GROUP_CHARACTER = 1;
+    /** C# {@code IFF_GROUP.SKIN} index 56. */
+    public static final int IFF_GROUP_SKIN = 56;
+    /** Test skin CutinInformation typeid. */
+    public static final int TYPEID_CUTIN_SKIN = (IFF_GROUP_SKIN << 26) | 1;
     /** C# {@code IFF_GROUP.PART} {@code 2}. */
     public static final int IFF_GROUP_PART = 2;
     /** Test PART typeid {@code (IFF_GROUP_PART << 26) | 0x9A}. */
@@ -4527,6 +4533,30 @@ public final class GamePackets {
      */
     public static byte[] cutinFail(int code) {
         return new PacketWriter().opcode(SERVER_CUTIN).u8(0).u16(code).toBytes();
+    }
+
+    /**
+     * C# {@code requestActiveCutin} success: u8 1 + typeid/sector/condition +
+     * four image animation types + tempo + four fixed 40-byte sprite names.
+     */
+    public static byte[] cutinOk(
+            int typeid, int sector, int condition, int[] imageTypes, int tempo, String[] sprites) {
+        int[] img = imageTypes == null ? new int[4] : imageTypes;
+        String[] spr = sprites == null ? new String[4] : sprites;
+        PacketWriter w = new PacketWriter()
+                .opcode(SERVER_CUTIN)
+                .u8(1)
+                .u32(typeid)
+                .u32(sector)
+                .u32(condition);
+        for (int i = 0; i < 4; i++) {
+            w.u32(i < img.length ? img[i] : 0);
+        }
+        w.u32(tempo);
+        for (int i = 0; i < 4; i++) {
+            w.fixedStr(i < spr.length && spr[i] != null ? spr[i] : "", 40);
+        }
+        return w.toBytes();
     }
 
     /** C# Chip-in / GZ {@code 0x1F2} empty. */

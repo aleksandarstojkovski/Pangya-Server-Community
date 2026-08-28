@@ -250,6 +250,14 @@ public interface InventoryRepository {
 
     void deleteClubSetOriginal(int specialTypeid);
 
+    /** C# {@code sIff.findCutinInfomation}: SQL stand-in for CutinInfomation.iff. */
+    Optional<CutinIff> cutinIff(int typeid);
+
+    void upsertCutinIff(
+            int typeid, int sector, int condition, int[] imageTypes, int tempo, String[] sprites);
+
+    void deleteCutinIff(int typeid);
+
     /** C# {@code sIff.findItem}: SQL {@code iff_item} row exists. */
     boolean itemIff(int typeid);
 
@@ -508,6 +516,10 @@ public interface InventoryRepository {
 
     /** C# {@code findClubSetOriginal} row: original typeid + {@code SlotStats}. */
     record ClubSetOriginal(int typeid, short[] slots) {}
+
+    /** C# {@code CutinInformation}: fields serialized by {@code requestActiveCutin}. */
+    record CutinIff(
+            int typeid, int sector, int condition, int[] imageTypes, int tempo, String[] sprites) {}
 
     /** C# IFF {@code TimeLimitItem}: {@code type}, {@code percent}, {@code time} minutes. */
     record TimeLimitItem(int typeid, int tipo, int percent, int timeMinutes) {}

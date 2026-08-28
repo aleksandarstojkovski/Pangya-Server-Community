@@ -968,6 +968,73 @@ class GameFlowIT {
     }
 
     @Test
+    void skinCutinBroadcastsIffPayloadInPractice() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config);
+             PangyaFakeClient client = new PangyaFakeClient()) {
+            InventoryRepository inv = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
+            inv.deleteCutinIff(GamePackets.TYPEID_CUTIN_SKIN);
+            try {
+                inv.upsertCutinIff(
+                        GamePackets.TYPEID_CUTIN_SKIN,
+                        2,
+                        1,
+                        new int[] {10, 11, 12, 13},
+                        7,
+                        new String[] {"char", "bg", "pattern", "text"});
+                LoginRepository repo = new JdbiLoginRepository(DatabaseSupport.jdbi(ds));
+                String loginKey = repo.generateAuthKeyLogin(10001);
+                String gameKey = repo.generateAuthKeyGame(10001, 20202);
+                keys.putLoginKey(10001, loginKey);
+                keys.putGameKey(10001, 20202, gameKey);
+                loginToChannel(client, runtime.port(), "testuser", 10001, loginKey, gameKey);
+
+                client.sendPlain(GamePackets.clientCreatePractice("cutin", ""));
+                assertEquals(0, awaitOpcode(client, GamePackets.SERVER_ROOM_ENTER_RESULT).i16());
+                client.sendPlain(GamePackets.clientStartGame());
+                awaitOpcode(client, GamePackets.SERVER_START_GAME_FLAG);
+                awaitOpcode(client, GamePackets.SERVER_START_GAME_FLAG2);
+                awaitOpcode(client, GamePackets.SERVER_PANG_RATE);
+                awaitOpcode(client, GamePackets.SERVER_GAME_INIT);
+                awaitOpcode(client, GamePackets.SERVER_COURSE);
+
+                client.sendPlain(GamePackets.clientCutin(
+                        10001, 1, 0, GamePackets.TYPEID_CUTIN_SKIN, 0));
+                PacketReader ok = awaitOpcode(client, GamePackets.SERVER_CUTIN);
+                assertEquals(1, ok.u8());
+                assertEquals(GamePackets.TYPEID_CUTIN_SKIN, ok.u32());
+                assertEquals(2, ok.u32());
+                assertEquals(1, ok.u32());
+                for (int i = 0; i < 4; i++) {
+                    assertEquals(10 + i, ok.u32());
+                }
+                assertEquals(7, ok.u32());
+                assertEquals("char", ok.fixedStr(40));
+                assertEquals("bg", ok.fixedStr(40));
+                assertEquals("pattern", ok.fixedStr(40));
+                assertEquals("text", ok.fixedStr(40));
+                assertEquals(0, ok.remaining());
+
+                client.sendPlain(GamePackets.clientCutin(
+                        10002, 1, 0, GamePackets.TYPEID_CUTIN_SKIN, 0));
+                PacketReader wrongUid = awaitOpcode(client, GamePackets.SERVER_CUTIN);
+                assertEquals(0, wrongUid.u8());
+                assertEquals(GamePackets.CUTIN_ERR, wrongUid.u16());
+            } finally {
+                inv.deleteCutinIff(GamePackets.TYPEID_CUTIN_SKIN);
+            }
+        }
+    }
+
+    @Test
     void versusUseItemBroadcastsActiveItem() throws Exception {
         String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
         String user = env("PANGYA_TEST_JDBC_USER", "pangya");

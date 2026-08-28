@@ -187,7 +187,7 @@ C#: `GameServer/PangyaEnums/PacketGame.cs` → Java `org.pangya.protocol.game.Ga
 | C | `CLIENT_ITEMSTORAGE_REQ_CHANGE_PASS` | `0xD1` | empty old → `0x174` u32 1 |
 | C | `CLIENT_ITEMSTORAGE_REQ_CHANGE_MODE` | `0xD2` | empty pass → `0x173` `shopSys(5100251)` |
 | C | `CLIENT_ITEMSTORAGE_REQ_UPDATE_PANG` | `0xD4` | opt 1 deposit / opt 0 withdraw → `0x171` u32 0 + `0xC8` wallet+moved + `0x172` locker; pang&gt;wallet `shopSys(5100352)`; pang&gt;locker `shopSys(5100353)`; opt ignoto `shopSys(5100351)`; pang≤0 `5100350`. Opposite CLIENT earcuff `0x171`. |
-| C | `CLIENT_ACTIVE_CUTIN` | `0xE5` | not-in-room/not-in-game silent; in-game without IFF `0x18D` u8 0 + u16 1; GZ u16 3 |
+| C | `CLIENT_ACTIVE_CUTIN` | `0xE5` | not-in-room/not-in-game silent; GZ `0x18D` u8 0 + u16 3. SQL `iff_cutin_information` stand-in: valida uid + character equipaggiato; SKIN active 0 lookup diretto, CHARACTER active 1 via `cut_in[]` e condition. Success room broadcast `0x18D` u8 1 + typeid/sector/condition + 4 img tipo + tempo + 4×sprite[40]; miss u8 0 + u16 1 |
 | C | `CLIENT_EXTEND_RENTAL` | `0xE6` | item_id≤0 / missing / non-PART / no `iff_part` / valor≤0 / pang short → `0x18F` u8 1; success `0xC8` remaining+spent then `0x18F` u8 0 + typeid + id. SQL `iff_part.valor_rental` stand-in; +7 days `EndDate` |
 | C | `CLIENT_DELETE_RENTAL` | `0xE7` | item_id≤0 / missing / non-PART / no `iff_part` / valor≤0 → `0x190` u8 1; success u8 0 + typeid + id; SQL `valid=0` stand-in `CmdDeleteRental` |
 | C | `CLIENT_UCC_LOAD` | `0xFE` | no reply |
@@ -285,6 +285,7 @@ C#: `GameServer/PangyaEnums/PacketGame.cs` → Java `org.pangya.protocol.game.Ga
 | S | `SERVER_CHAR_CARD_PATCHER` | `0x272` | fail u32 error; success u32 0 + u32 card typeid |
 | S | `SERVER_CHAR_CARD_REMOVE` | `0x273` | fail u32 error; success u32 0 + u32 card typeid |
 | S | `SERVER_TIKI_SHOP_EXCHANGE` | `0x274` | u32 error |
+| S | `SERVER_CUTIN` | `0x18D` | fail u8 0 + u16 error; success u8 1 + CutinInformation fields (193-byte body); opposite CLIENT Tiki exchange |
 | S | `SERVER_DELETE_ITEM` | `0xC5` | fail sbyte -1; success u8 1 + u32 typeid + u32 qntd + i32 id |
 | S | `SERVER_DAILY_QUEST_STAMP` | `0x216` | unix + count; take-mail type 2 uses empty UCC PStr + status + seq + 5 zeros (15), not Papel 25-byte pad. Opposite C# `pacote216` item-update |
 | S | `SERVER_MAIL_TAKE` | `0x214` | i32 error; 0 ok after `0x216`. Opposite `CLIENT_TAKE_MAIL` `0x146` |

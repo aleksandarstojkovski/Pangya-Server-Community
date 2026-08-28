@@ -1600,6 +1600,27 @@ class GamePacketsTest {
         assertEquals(GamePackets.SERVER_CUTIN, cutinGz.opcode());
         assertEquals(0, cutinGz.u8());
         assertEquals(GamePackets.CUTIN_GZ_DISABLED, cutinGz.u16());
+        PacketReader cutinOk = new PacketReader(GamePackets.cutinOk(
+                GamePackets.TYPEID_CUTIN_SKIN,
+                2,
+                1,
+                new int[] {10, 11, 12, 13},
+                7,
+                new String[] {"char", "bg", "pattern", "text"}));
+        assertEquals(GamePackets.SERVER_CUTIN, cutinOk.opcode());
+        assertEquals(1, cutinOk.u8());
+        assertEquals(GamePackets.TYPEID_CUTIN_SKIN, cutinOk.u32());
+        assertEquals(2, cutinOk.u32());
+        assertEquals(1, cutinOk.u32());
+        for (int i = 0; i < 4; i++) {
+            assertEquals(10 + i, cutinOk.u32());
+        }
+        assertEquals(7, cutinOk.u32());
+        assertEquals("char", cutinOk.fixedStr(40));
+        assertEquals("bg", cutinOk.fixedStr(40));
+        assertEquals("pattern", cutinOk.fixedStr(40));
+        assertEquals("text", cutinOk.fixedStr(40));
+        assertEquals(0, cutinOk.remaining());
         PacketReader gzEnd = new PacketReader(GamePackets.gzEndGame());
         assertEquals(GamePackets.SERVER_GZ_END_GAME, gzEnd.opcode());
         assertEquals(0, gzEnd.remaining());
@@ -2388,6 +2409,9 @@ class GamePacketsTest {
         assertEquals(GamePackets.WORKSHOP_TRANSFORM_CONFIRM_OK, 0);
         assertEquals(GamePackets.WORKSHOP_TRANSFORM_CANCEL_OK, 0);
         assertEquals(GamePackets.TYPEID_WINGTROSS_EVO, 0x1000005D);
+        assertEquals(GamePackets.IFF_GROUP_SKIN, 56);
+        assertEquals(GamePackets.itemGroupIdentify(GamePackets.TYPEID_CUTIN_SKIN), 56);
+        assertEquals(GamePackets.CUTIN_OK_BODY_BYTES, 193);
         assertEquals(GamePackets.WORKSHOP_ERR_MISSING, 0x5300202);
         assertEquals(GamePackets.SERVER_BUY_ACK, 0x68);
         assertEquals(GamePackets.CREATE_ROOM_FAILED, 0x07);
