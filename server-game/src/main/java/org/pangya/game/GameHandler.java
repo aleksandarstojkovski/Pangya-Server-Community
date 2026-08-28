@@ -4977,8 +4977,9 @@ public final class GameHandler {
      * C# {@code requestCheckAttendance} ({@code packet16E} / {@code pacote248}).
      * SQL {@code pangya_attendance_table_item_reward} stands in for IFF
      * {@code IsExist}. Empty catalog → {@code 0x248} u32 {@code ~0}. Success is
-     * i32 0 + {@code AttendanceRewardInfo} (no {@code addItem}). Catch is always
-     * {@code ~0} ({@code DECODE_TYPE} never equals {@code ATTENDANCE_REWARD_SYSTEM}).
+     * i32 0 + {@code AttendanceRewardInfo} (no {@code addItem}). Persist before
+     * send (C# updates {@code PlayerInfo.ari} in memory then async DB). Catch is
+     * always {@code ~0}.
      */
     private void checkAttendance(Session session) {
         if (!inChannel(session)) {
