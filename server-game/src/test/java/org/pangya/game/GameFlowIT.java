@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -170,6 +171,12 @@ class GameFlowIT {
                 assertEquals(1, wind.u8());
                 PacketReader remain = new PacketReader(client.awaitPlain(5, TimeUnit.SECONDS));
                 assertEquals(GamePackets.SERVER_REMAIN_TIME, remain.opcode());
+
+                byte[] shotBody = GamePackets.shotEndLocationSample();
+                client.sendPlain(GamePackets.clientEmpty(GamePackets.CLIENT_SHOT_END));
+                client.sendPlain(GamePackets.clientShotEnd(shotBody));
+                PacketReader shotEnd = awaitOpcode(client, GamePackets.SERVER_SHOT_END);
+                assertShotEnd(shotEnd, oidOf(runtime, 10001), 1, shotBody);
 
                 client.sendPlain(GamePackets.clientCamera(1.25f));
                 PacketReader mira = awaitOpcode(client, GamePackets.SERVER_CAMERA);
@@ -884,6 +891,70 @@ class GameFlowIT {
             assertEquals(10001, paws.u32());
             PacketReader guestPaws = awaitOpcode(guest, GamePackets.SERVER_ACTIVE_PAWS);
             assertEquals(10001, guestPaws.u32());
+        }
+    }
+
+    @Test
+    void versusShotEndBroadcastsTurnOidAndEcho() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config);
+             PangyaFakeClient host = new PangyaFakeClient();
+             PangyaFakeClient guest = new PangyaFakeClient()) {
+            loginTwoPlayers(ds, keys, host, guest, runtime.port());
+            host.sendPlain(GamePackets.clientCreateRoom(GamePackets.TIPO_STROKE, "SE", ""));
+            PacketReader created = awaitOpcode(host, GamePackets.SERVER_ROOM_ENTER_RESULT);
+            assertEquals(0, created.i16());
+            int numero = roomNumberFromInfo(created.readBytes(GamePackets.ROOM_INFO_BYTES));
+            guest.sendPlain(GamePackets.clientJoinRoom(numero, ""));
+            assertEquals(0, awaitOpcode(guest, GamePackets.SERVER_ROOM_ENTER_RESULT).i16());
+            host.sendPlain(GamePackets.clientStartGame());
+            awaitOpcode(host, GamePackets.SERVER_START_GAME_FLAG);
+            awaitOpcode(host, GamePackets.SERVER_START_GAME_FLAG2);
+            awaitOpcode(host, GamePackets.SERVER_PANG_RATE);
+            awaitOpcode(host, GamePackets.SERVER_GAME_INIT);
+            awaitOpcode(host, GamePackets.SERVER_COURSE);
+            awaitOpcode(host, GamePackets.SERVER_MASCOT_SEED);
+            awaitOpcode(guest, GamePackets.SERVER_GAME_INIT);
+            host.sendPlain(GamePackets.clientInitHole(1, 0, 0, 4, 1.5f, 2.5f, 10f, 20f));
+            guest.sendPlain(GamePackets.clientInitHole(1, 0, 0, 4, 1.5f, 2.5f, 10f, 20f));
+            host.sendPlain(GamePackets.clientLoadOk());
+            guest.sendPlain(GamePackets.clientLoadOk());
+            awaitOpcode(host, GamePackets.SERVER_WEATHER);
+            awaitOpcode(host, GamePackets.SERVER_WIND);
+            awaitOpcode(host, GamePackets.SERVER_HOLE_TURN);
+            int hostOid = oidOf(runtime, 10001);
+            byte[] shotBody = GamePackets.shotEndLocationSample();
+            host.sendPlain(GamePackets.clientEmpty(GamePackets.CLIENT_SHOT_END));
+            guest.sendPlain(GamePackets.clientShotEnd(shotBody));
+            PacketReader hostFromGuest = awaitOpcode(host, GamePackets.SERVER_SHOT_END);
+            assertShotEnd(hostFromGuest, hostOid, 1, shotBody);
+            PacketReader guestFromGuest = awaitOpcode(guest, GamePackets.SERVER_SHOT_END);
+            assertShotEnd(guestFromGuest, hostOid, 1, shotBody);
+            byte[] hostBody = GamePackets.shotEndLocation(
+                    0.5f,
+                    1.5f, 2.5f, 3.5f,
+                    1,
+                    4.5f, 5.5f, 6.5f,
+                    7.5f, 8.5f, 9.5f,
+                    10.5f, 11.5f,
+                    12,
+                    13.5f, 14.5f,
+                    0, 3,
+                    15.5f, 16.5f, 17.5f, 18.5f, 19.5f,
+                    20);
+            host.sendPlain(GamePackets.clientShotEnd(hostBody));
+            PacketReader hostAck = awaitOpcode(host, GamePackets.SERVER_SHOT_END);
+            assertShotEnd(hostAck, hostOid, 1, hostBody);
+            PacketReader guestAck = awaitOpcode(guest, GamePackets.SERVER_SHOT_END);
+            assertShotEnd(guestAck, hostOid, 1, hostBody);
         }
     }
 
@@ -3025,6 +3096,13 @@ class GameFlowIT {
         update.readBytes(22);
         update.u8();
         return update.i32();
+    }
+
+    private static void assertShotEnd(PacketReader r, int oid, int hole, byte[] body) {
+        assertEquals(oid, r.i32());
+        assertEquals(hole, r.u8());
+        assertArrayEquals(body, r.readBytes(GamePackets.SHOT_END_LOCATION_BYTES));
+        assertEquals(0, r.remaining());
     }
 
     private static int oidOf(GameRuntime runtime, long uid) {

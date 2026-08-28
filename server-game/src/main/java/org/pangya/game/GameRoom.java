@@ -356,6 +356,8 @@ final class GameRoom {
         int timeOuts;
         /** C# {@code PlayerGameInfo.degree} set by GM versus wind. */
         int degree;
+        /** C# {@code PlayerGameInfo.shot_data_for_cube}. */
+        byte[] shotEndLocation;
     }
 
     static final class PersonalShop {

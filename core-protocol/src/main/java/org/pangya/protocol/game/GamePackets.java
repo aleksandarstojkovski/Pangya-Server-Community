@@ -210,6 +210,14 @@ public final class GamePackets {
     public static final int SERVER_WORKSHOP_EVENT = 0x24E;
     /** C# {@code requestClubWorkShopEventCount} {@code 0x24B}: i32 0 + 16 subcodes. */
     public static final int SERVER_WORKSHOP_EVENT_COUNT = 0x24B;
+    /**
+     * C# Versus/Tourney {@code requestShotEndData} {@code 0x1F7}: i32 oid +
+     * u8 hole + {@code ShotEndLocationData.ToArray()} (87 bytes). Fail is
+     * silent. Same numeric family as {@link #SERVER_MARKER}.
+     */
+    public static final int SERVER_SHOT_END = 0x1F7;
+    /** C# {@code ShotEndLocationData} {@code ToArray} size. */
+    public static final int SHOT_END_LOCATION_BYTES = 87;
     /** C# Versus {@code requestMarkerOnCourse} {@code 0x1F8}. */
     public static final int SERVER_MARKER = 0x1F8;
     /** C# {@code requestActivePaws} {@code 0x236} u32 uid. */
@@ -738,8 +746,10 @@ public final class GamePackets {
      */
     public static final int CLIENT_MARKER = 0x12E;
     /**
-     * C# {@code packet12F} shot-end. Same numeric as
-     * {@link #SERVER_INVITE_REPLY}, opposite direction. Not-in-room silent.
+     * C# {@code packet12F} {@code requestShotEndData}. Same numeric as
+     * {@link #SERVER_INVITE_REPLY}, opposite direction. Not-in-room /
+     * not-in-game / truncated CHANNEL catch is silent. Versus and Tourney
+     * broadcast {@link #SERVER_SHOT_END}.
      */
     public static final int CLIENT_SHOT_END = 0x12F;
     /** C# {@code packet131} leave chip-in. Not-in-room silent. */
@@ -3338,6 +3348,94 @@ public final class GamePackets {
             w.u8(i + 1);
         }
         return w.toBytes();
+    }
+
+    /**
+     * C# {@code ShotEndLocationData.ToArray}: 12×f32 + 3×u8 + u32 special +
+     * 5×f32 + u32 time (87 bytes).
+     */
+    public static byte[] shotEndLocation(
+            float porcentagem,
+            float velX,
+            float velY,
+            float velZ,
+            int option,
+            float locX,
+            float locY,
+            float locZ,
+            float windX,
+            float windY,
+            float windZ,
+            float ballX,
+            float ballY,
+            int specialShot,
+            float spin,
+            float curve,
+            int unknown,
+            int taco,
+            float powerFactor,
+            float powerClub,
+            float spinFactor,
+            float curveFactor,
+            float powerShot,
+            int timeHoleSync) {
+        return new PacketWriter()
+                .f32(porcentagem)
+                .f32(velX)
+                .f32(velY)
+                .f32(velZ)
+                .u8(option)
+                .f32(locX)
+                .f32(locY)
+                .f32(locZ)
+                .f32(windX)
+                .f32(windY)
+                .f32(windZ)
+                .f32(ballX)
+                .f32(ballY)
+                .u32(specialShot)
+                .f32(spin)
+                .f32(curve)
+                .u8(unknown)
+                .u8(taco)
+                .f32(powerFactor)
+                .f32(powerClub)
+                .f32(spinFactor)
+                .f32(curveFactor)
+                .f32(powerShot)
+                .u32(timeHoleSync)
+                .toBytes();
+    }
+
+    /** Distinctive 87-byte {@code ShotEndLocationData} for tests. */
+    public static byte[] shotEndLocationSample() {
+        return shotEndLocation(
+                1.0f,
+                2.0f, 3.0f, 4.0f,
+                5,
+                6.0f, 7.0f, 8.0f,
+                9.0f, 10.0f, 11.0f,
+                12.0f, 13.0f,
+                14,
+                15.0f, 16.0f,
+                17, 18,
+                19.0f, 20.0f, 21.0f, 22.0f, 23.0f,
+                24);
+    }
+
+    /** C# shot-end ack {@code 0x1F7}: i32 oid + u8 hole + location bytes. */
+    public static byte[] shotEnd(int oid, int hole, byte[] location) {
+        return new PacketWriter()
+                .opcode(SERVER_SHOT_END)
+                .i32(oid)
+                .u8(hole)
+                .bytes(location)
+                .toBytes();
+    }
+
+    /** C# CLIENT {@code 0x12F}: {@code ShotEndLocationData} body. */
+    public static byte[] clientShotEnd(byte[] location) {
+        return new PacketWriter().opcode(CLIENT_SHOT_END).bytes(location).toBytes();
     }
 
     /** C# Versus marker {@code 0x1F8}: i32 oid + 3× f32. */

@@ -5,6 +5,7 @@ import org.pangya.protocol.packet.PacketReader;
 
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -1139,6 +1140,17 @@ class GamePacketsTest {
         assertEquals(1.5f, marker.f32());
         assertEquals(2.5f, marker.f32());
         assertEquals(3.5f, marker.f32());
+        byte[] shotBody = GamePackets.shotEndLocationSample();
+        assertEquals(GamePackets.SHOT_END_LOCATION_BYTES, shotBody.length);
+        PacketReader shotEnd = new PacketReader(GamePackets.shotEnd(7, 1, shotBody));
+        assertEquals(GamePackets.SERVER_SHOT_END, shotEnd.opcode());
+        assertEquals(7, shotEnd.i32());
+        assertEquals(1, shotEnd.u8());
+        assertArrayEquals(shotBody, shotEnd.readBytes(GamePackets.SHOT_END_LOCATION_BYTES));
+        assertEquals(0, shotEnd.remaining());
+        PacketReader clientShot = new PacketReader(GamePackets.clientShotEnd(shotBody));
+        assertEquals(GamePackets.CLIENT_SHOT_END, clientShot.opcode());
+        assertArrayEquals(shotBody, clientShot.readBytes(GamePackets.SHOT_END_LOCATION_BYTES));
         PacketReader paws = new PacketReader(GamePackets.activePaws(10001));
         assertEquals(GamePackets.SERVER_ACTIVE_PAWS, paws.opcode());
         assertEquals(10001, paws.u32());
@@ -1758,6 +1770,9 @@ class GamePacketsTest {
         assertEquals(GamePackets.CLIENT_WORKSHOP_EVENT_COUNT, 0x173);
         assertEquals(GamePackets.SERVER_WORKSHOP_EVENT_COUNT, 0x24B);
         assertEquals(GamePackets.SERVER_MARKER, 0x1F8);
+        assertEquals(GamePackets.SERVER_SHOT_END, 0x1F7);
+        assertEquals(GamePackets.SHOT_END_LOCATION_BYTES, 87);
+        assertEquals(GamePackets.CLIENT_SHOT_END, 0x12F);
         assertEquals(GamePackets.SERVER_ACTIVE_PAWS, 0x236);
         assertEquals(GamePackets.SERVER_ACTIVE_WING, 0x203);
         assertEquals(GamePackets.SERVER_TOGGLE_ASSIST, 0x26A);

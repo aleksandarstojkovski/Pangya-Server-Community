@@ -225,7 +225,7 @@ public final class GameHandler {
             case GamePackets.CLIENT_GP_EXIT_ROOM -> exitRoomGrandPrix(session, reader);
             case GamePackets.CLIENT_GZ_INITIAL -> { }
             case GamePackets.CLIENT_MARKER -> markerOnCourse(session, reader);
-            case GamePackets.CLIENT_SHOT_END -> { }
+            case GamePackets.CLIENT_SHOT_END -> shotEnd(session, reader);
             case GamePackets.CLIENT_LEAVE_CHIP_IN -> { }
             case GamePackets.CLIENT_GZ_FIRST_HOLE -> { }
             case GamePackets.CLIENT_WING -> activeWing(session, reader);
@@ -5319,6 +5319,46 @@ public final class GameHandler {
             }
         }
         return null;
+    }
+
+    /**
+     * C# Versus/Tourney {@code requestShotEndData} {@code 0x1F7}. Not-in-room /
+     * not-in-game ROOM throw and truncated {@code ShotEndLocationData} ctor
+     * are CHANNEL-catch silent. Versus uses {@code m_player_turn} oid/hole
+     * and stores cube data only when the sender is the turn player. Tourney
+     * broadcasts the sender oid/hole. Both modes {@code game_broadcast}.
+     */
+    private void shotEnd(Session session, PacketReader reader) {
+        if (!inChannel(session) || reader.remaining() < GamePackets.SHOT_END_LOCATION_BYTES) {
+            return;
+        }
+        byte[] body = reader.readBytes(GamePackets.SHOT_END_LOCATION_BYTES);
+        GameRoom room = rooms.get(session.player().roomNumber);
+        if (room == null || !room.inGame) {
+            return;
+        }
+        int oid;
+        int hole;
+        if (GamePackets.usesVersusInitialData(room.tipo)) {
+            if (room.turnOid == 0) {
+                return;
+            }
+            oid = room.turnOid;
+            GameRoom.PlayerShot turnShot = room.shots.get(oid);
+            hole = turnShot == null ? 0 : turnShot.hole;
+            if (session.oid() == oid) {
+                GameRoom.PlayerShot shot = room.shots.computeIfAbsent(oid, id -> new GameRoom.PlayerShot());
+                shot.shotEndLocation = body;
+            }
+        } else if (GamePackets.usesTourneyInitialData(room.tipo)) {
+            oid = session.oid();
+            GameRoom.PlayerShot shot = room.shots.computeIfAbsent(oid, id -> new GameRoom.PlayerShot());
+            shot.shotEndLocation = body;
+            hole = shot.hole;
+        } else {
+            return;
+        }
+        room.broadcast(GamePackets.shotEnd(oid, hole, body));
     }
 
     /**
