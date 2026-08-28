@@ -88,6 +88,20 @@ public final class GamePackets {
     /** C# {@code SERVER_RESPONSE_USERINFO_OFFLINE}. */
     public static final int SERVER_USERINFO_OFFLINE = 0xA1;
     public static final int SERVER_RANK_ADDRESS = 0xA2;
+    /**
+     * C# {@code pacote0A5} club-set/character stat up/down. Opposite direction
+     * from CLIENT enchant {@code 0x4B}.
+     */
+    public static final int SERVER_CLUB_STATS = 0xA5;
+    /** C# {@code pacote0FC} messenger {@code ServerInfo} list. */
+    public static final int SERVER_MESSENGER_LIST = 0xFC;
+    /**
+     * C# {@code pacote102} gacha tickets + pang + cookie. Same layout as the
+     * login-dump first tail packet.
+     */
+    public static final int SERVER_GACHA_COUPON = 0x102;
+    /** C# {@code pacote113} intrusion (enter tourney after start). */
+    public static final int SERVER_INTRUSION = 0x113;
     /** C# {@code pacote10E} last-5 players. */
     public static final int SERVER_LAST5 = 0x10E;
     /** C# {@code pacote0AA} / {@code SERVER_NEW_ITEM}. */
@@ -131,6 +145,8 @@ public final class GamePackets {
     public static final int SERVER_SHOP_BUY = 0xEC;
     /** C# {@code SERVER_OPEN_PAPEL_SHOP} {@code 0x10B}. */
     public static final int SERVER_PAPEL_SHOP = 0x10B;
+    /** C# Papel-play result {@code 0x21B}. */
+    public static final int SERVER_PAPEL_PLAY = 0x21B;
     /** C# {@code SERVER_REQ_ENTER_SHOP_ACK} {@code 0x20E}. */
     public static final int SERVER_ENTER_SHOP = 0x20E;
     /** C# {@code SERVER_YOU_RECEIVED_NEW_MAIL} / {@code pacote210}. */
@@ -248,8 +264,20 @@ public final class GamePackets {
     public static final int CLIENT_MSN_REQUEST = 0x3C;
     /** C# {@code CLIENT_SHOT_COMMAND} / {@code packet042} arrow sequence. */
     public static final int CLIENT_SHOT_COMMAND = 0x42;
+    /** C# {@code CLIENT_JOIN_GALLERY} / {@code packet03E} spy enter. Catch silent. */
+    public static final int CLIENT_JOIN_GALLERY = 0x3E;
     /** C# {@code CLIENT_REPLAY_ONLINE} / {@code packet04A}; catch is silent. */
     public static final int CLIENT_REPLAY_ONLINE = 0x4A;
+    /**
+     * C# {@code CLIENT_ENCHANT} / {@code packet04B} club-set stats. Same numeric
+     * value as {@link #SERVER_ROOM_USER_INFO_CHANGED}, opposite direction.
+     */
+    public static final int CLIENT_ENCHANT = 0x4B;
+    /**
+     * C# {@code CLIENT_REQUEST_KICK} / {@code packet061}: log only (GM kick is
+     * {@code 0x8F}). Same numeric as C# {@code SERVER_DISCONNECT}.
+     */
+    public static final int CLIENT_REQUEST_KICK = 0x61;
     /** C# {@code CLIENT_CHAT_PENALITY} / {@code packet04F} chat block. */
     public static final int CLIENT_CHAT_PENALITY = 0x4F;
     /** C# {@code CLIENT_NOTICE} / {@code packet057} GM notice. */
@@ -286,8 +314,27 @@ public final class GamePackets {
     public static final int CLIENT_SHOP_BUY = 0x7D;
     /** C# {@code packet098} {@code requestOpenPapelShop}. */
     public static final int CLIENT_PAPEL_SHOP = 0x98;
+    /** C# {@code CLIENT_INTRUSION} / {@code packet09D} enter tourney after start. */
+    public static final int CLIENT_INTRUSION = 0x9D;
+    /**
+     * C# {@code CLIENT_REQUEST_REFRESH_GACHA_TICKETS} / {@code packet09E}.
+     * Same numeric as {@link #SERVER_WEATHER}, opposite direction.
+     */
+    public static final int CLIENT_REFRESH_GACHA = 0x9E;
+    /**
+     * C# {@code CLIENT_UPDATE_INGAME_WEBPAGE} / {@code packet0A1}. Same numeric
+     * as {@link #SERVER_USERINFO_OFFLINE}, opposite direction.
+     */
+    public static final int CLIENT_WEB_LINK = 0xA1;
+    /**
+     * C# {@code CLIENT_REQUEST_PANG_INFO} / {@code packet0A2} web-guild exit.
+     * Same numeric as {@link #SERVER_RANK_ADDRESS}, opposite direction.
+     */
+    public static final int CLIENT_REQUEST_PANG_INFO = 0xA2;
     /** C# {@code packet140} {@code requestEnterShop}. */
     public static final int CLIENT_ENTER_SHOP = 0x140;
+    /** C# {@code CLIENT_REQ_NEW_BONGDARISHOP_PLAY_NORMAL} / {@code packet14B}. */
+    public static final int CLIENT_PAPEL_PLAY = 0x14B;
     /** C# {@code packet143} {@code requestOpenMailBox}. */
     public static final int CLIENT_OPEN_MAILBOX = 0x143;
     /** C# {@code packet144} {@code requestInfoMail}. */
@@ -309,6 +356,13 @@ public final class GamePackets {
     public static final int CLIENT_ENTER_OTHER_CHANNEL = 0x83;
     /** C# {@code packet088} {@code requestCheckGameGuardAuthAnswer} (empty). */
     public static final int CLIENT_GAMEGUARD = 0x88;
+    /**
+     * C# {@code CLIENT_REQUEST_MESSENGER_SERVER_LIST} / {@code packet08B}.
+     * Same numeric as {@link #SERVER_PAUSE}, opposite direction.
+     */
+    public static final int CLIENT_REQUEST_MESSENGER_LIST = 0x8B;
+    /** C# {@code CLIENT_GM_COMMAND} / {@code packet08F}. Non-GM catch is silent. */
+    public static final int CLIENT_GM_COMMAND = 0x8F;
     /** C# {@code packet0B4}: log-only invite relog. */
     public static final int CLIENT_INVITE_RELOGIN = 0xB4;
     /** C# {@code packet141} {@code requestChangeWindNextHoleRepeat}. */
@@ -323,6 +377,8 @@ public final class GamePackets {
     public static final int CLIENT_LEAVE_DAILY_QUEST = 0x154;
     /** C# {@code packet155} {@code requestLoloCardCompose}. */
     public static final int CLIENT_LOLO = 0x155;
+    /** C# {@code CLIENT_ACTIVE_AUTO_COMMAND} / {@code packet156}. Not-in-room silent. */
+    public static final int CLIENT_ACTIVE_AUTO_COMMAND = 0x156;
     /** C# {@code packet157} achievement GUI. */
     public static final int CLIENT_ACHIEVEMENT = 0x157;
     /** C# {@code packet158} {@code requestCadieCauldronExchange}. */
@@ -650,6 +706,32 @@ public final class GamePackets {
     public static final int LOLO_ERR_IFF = 0x5400151;
     /** C# Lolo catch else. */
     public static final int LOLO_ERR_DEFAULT = 0x5400150;
+    /**
+     * C# Papel play empty {@code dropBalls}: CHANNEL sys {@code 0x5900103}.
+     */
+    public static final int PAPEL_PLAY_ERR_BALLS = 0x5900103;
+    /** C# Papel play catch else. */
+    public static final int PAPEL_PLAY_ERR_DEFAULT = 0x5900100;
+    /**
+     * C# gacha catch else (non-CHANNEL) on {@code 0x44} u8 {@code 0xE2}.
+     */
+    public static final int GACHA_ERR_DEFAULT = 0x5300600;
+    /** C# gacha fail {@code 0x44} option byte. */
+    public static final int GACHA_ERR_MARKER = 0xE2;
+    /** C# intrusion catch {@code 0x113} first byte. */
+    public static final int INTRUSION_ERR = 6;
+    /**
+     * C# missing room CHANNEL sys {@code 1}; else branch also writes {@code 1}.
+     */
+    public static final int INTRUSION_SYS = 1;
+    /** C# club-stats catch {@code 0xA5} u8 0. */
+    public static final int CLUB_STATS_ERR = 0;
+    /** C# {@code TYPE_SERVER.GAME}. */
+    public static final int SERVER_TYPE_GAME = 1;
+    /** C# {@code TYPE_SERVER.MSN}. */
+    public static final int SERVER_TYPE_MSN = 3;
+    /** C# {@code TYPE_SERVER.RANK}. */
+    public static final int SERVER_TYPE_RANK = 4;
     /** C# {@code IFF_GROUP.ITEM}. {@code (typeid & 0xFC000000) >> 26}. */
     public static final int IFF_GROUP_ITEM = 6;
     /** C# {@code WriteSByte(-1)} on delete-item fail. */
@@ -684,6 +766,10 @@ public final class GamePackets {
      * IFF ITEM {@code 0x1A000006} (436207622). SQL shop catalog stand-in for C# {@code IsBuyItem}.
      */
     public static final int TYPEID_SHOP_PANG_ITEM = 0x1A000006;
+    /** C# gacha ticket typeid {@code 436207744}. */
+    public static final int TYPEID_GACHA_TICKET = 0x1A000080;
+    /** C# gacha sub-ticket typeid {@code 436207747}. */
+    public static final int TYPEID_GACHA_SUB = 0x1A000083;
     /** Seeded {@code shop_catalog.pang_price} for {@link #TYPEID_SHOP_PANG_ITEM}. */
     public static final int SHOP_PANG_PRICE = 100;
     /** C# {@code IFF_GROUP.CHARACTER}: {@code typeid >>> 26}. */
@@ -863,7 +949,7 @@ public final class GamePackets {
             List<CounterItem> counterList,
             List<AchievementInfo> achievementList) {
         List<byte[]> out = new ArrayList<>();
-        out.add(new PacketWriter().opcode(0x102).i32(0).i32(0).u64(pang).u64(cookie).toBytes());
+        out.add(gachaCoupon(0, 0, pang, cookie));
         PacketWriter th = new PacketWriter().opcode(0x131).u8(1).u8(MS_NUM_MAPS);
         for (int i = 0; i < MS_NUM_MAPS; i++) {
             th.u8(i).i32(1000);
@@ -1761,6 +1847,57 @@ public final class GamePackets {
     /** C# {@code 0x10B}: u32 0 + i64 daily limit. */
     public static byte[] papelShopOk(long limit) {
         return new PacketWriter().opcode(SERVER_PAPEL_SHOP).u32(0).i64(limit).toBytes();
+    }
+
+    /**
+     * C# Papel-play catch {@code 0x21B} u32 sys. Empty balls write
+     * {@code shopSys(0x5900103)}.
+     */
+    public static byte[] papelPlayFail(int code) {
+        return new PacketWriter().opcode(SERVER_PAPEL_PLAY).u32(code).toBytes();
+    }
+
+    /**
+     * C# {@code pacote102}: i32 normal + i32 partial + u64 pang + u64 cookie.
+     */
+    public static byte[] gachaCoupon(int normal, int partial, long pang, long cookie) {
+        return new PacketWriter()
+                .opcode(SERVER_GACHA_COUPON)
+                .i32(normal)
+                .i32(partial)
+                .u64(pang)
+                .u64(cookie)
+                .toBytes();
+    }
+
+    /**
+     * C# gacha catch {@code 0x44} u8 {@code 0xE2} + u32 sys (else {@code 0x5300600}).
+     */
+    public static byte[] gachaCouponFail(int code) {
+        return new PacketWriter().opcode(SERVER_LOGIN_ACK).u8(GACHA_ERR_MARKER).u32(code).toBytes();
+    }
+
+    /** C# club-stats catch {@code 0xA5} u8 0. */
+    public static byte[] clubStatsFail() {
+        return new PacketWriter().opcode(SERVER_CLUB_STATS).u8(CLUB_STATS_ERR).toBytes();
+    }
+
+    /**
+     * C# intrusion catch {@code 0x113}: u8 6 + u8 sys (CHANNEL low 8 bits, else 1).
+     */
+    public static byte[] intrusionFail(int sys) {
+        return new PacketWriter().opcode(SERVER_INTRUSION).u8(INTRUSION_ERR).u8(sys).toBytes();
+    }
+
+    /**
+     * C# {@code pacote0FC}: u8 count + {@code ServerInfo.ToArray()} 92-byte rows.
+     */
+    public static byte[] messengerList(List<byte[]> servers) {
+        PacketWriter w = new PacketWriter().opcode(SERVER_MESSENGER_LIST).u8(servers.size());
+        for (byte[] server : servers) {
+            w.bytes(server);
+        }
+        return w.toBytes();
     }
 
     /** C# {@code 0x20E}: two int32 zeros. */
@@ -2915,6 +3052,65 @@ public final class GamePackets {
     /** C# CLIENT {@code 0x155}: u64 pang + 3×u32 typeid. */
     public static byte[] clientLolo(long pang, int t0, int t1, int t2) {
         return new PacketWriter().opcode(CLIENT_LOLO).u64(pang).u32(t0).u32(t1).u32(t2).toBytes();
+    }
+
+    /** C# CLIENT {@code 0x8B} empty. */
+    public static byte[] clientMessengerList() {
+        return new PacketWriter().opcode(CLIENT_REQUEST_MESSENGER_LIST).toBytes();
+    }
+
+    /** C# CLIENT {@code 0x9E} empty. */
+    public static byte[] clientRefreshGacha() {
+        return new PacketWriter().opcode(CLIENT_REFRESH_GACHA).toBytes();
+    }
+
+    /** C# CLIENT {@code 0x4B}: u8 opt + u8 stat + i32 item id. */
+    public static byte[] clientEnchant(int opt, int stat, int itemId) {
+        return new PacketWriter().opcode(CLIENT_ENCHANT).u8(opt).u8(stat).i32(itemId).toBytes();
+    }
+
+    /** C# CLIENT {@code 0x9D}: u8 option + u16 room (options 0/1). */
+    public static byte[] clientIntrusion(int option, int room) {
+        return new PacketWriter().opcode(CLIENT_INTRUSION).u8(option).u16(room).toBytes();
+    }
+
+    /** C# CLIENT {@code 0x14B} empty. */
+    public static byte[] clientPapelPlay() {
+        return new PacketWriter().opcode(CLIENT_PAPEL_PLAY).toBytes();
+    }
+
+    /** C# CLIENT {@code 0xA1}: sbyte place. */
+    public static byte[] clientWebLink(int place) {
+        return new PacketWriter().opcode(CLIENT_WEB_LINK).u8(place).toBytes();
+    }
+
+    /** C# CLIENT {@code 0xA2} empty. */
+    public static byte[] clientPangInfo() {
+        return new PacketWriter().opcode(CLIENT_REQUEST_PANG_INFO).toBytes();
+    }
+
+    /** C# CLIENT {@code 0x3E}: u16 room + PStr password. */
+    public static byte[] clientJoinGallery(int room, String password) {
+        return new PacketWriter()
+                .opcode(CLIENT_JOIN_GALLERY)
+                .u16(room)
+                .pstr(password == null ? "" : password)
+                .toBytes();
+    }
+
+    /** C# CLIENT {@code 0x8F}: i16 cmd. */
+    public static byte[] clientGmCommand(int cmd) {
+        return new PacketWriter().opcode(CLIENT_GM_COMMAND).i16(cmd).toBytes();
+    }
+
+    /** C# CLIENT {@code 0x156} empty. */
+    public static byte[] clientAutoCommand() {
+        return new PacketWriter().opcode(CLIENT_ACTIVE_AUTO_COMMAND).toBytes();
+    }
+
+    /** C# CLIENT {@code 0x61} empty (log only). */
+    public static byte[] clientRequestKick() {
+        return new PacketWriter().opcode(CLIENT_REQUEST_KICK).toBytes();
     }
 
     /** C# CLIENT {@code 0x63}: type + remaining payload. */

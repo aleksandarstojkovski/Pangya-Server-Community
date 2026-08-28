@@ -2,6 +2,8 @@ package org.pangya.game;
 
 import org.junit.jupiter.api.Test;
 import org.pangya.db.DatabaseSupport;
+import org.pangya.db.InventoryRepository;
+import org.pangya.db.JdbiInventoryRepository;
 import org.pangya.db.JdbiLoginRepository;
 import org.pangya.db.LoginRepository;
 import org.pangya.network.AppConfig;
@@ -1136,6 +1138,10 @@ class GameFlowIT {
                     "RANK", 4774, "127.0.0.1", 4774, 100, 0, 4,
                     0, 0, 0, (short) 0, (short) 0, (short) 0, (short) 0,
                     "Release.JP.983.01", "JP.R7.983.01"));
+            repo.upsertServer(new LoginRepository.ServerListRow(
+                    "MSN", 30201, "127.0.0.1", 30201, 100, 0, 3,
+                    0, 0, 0, (short) 0, (short) 0, (short) 0, (short) 0,
+                    "Release.JP.983.01", "JP.R7.983.01"));
             loginTwoPlayers(ds, keys, host, guest, runtime.port());
 
             host.sendPlain(GamePackets.clientRequestUserInfo(10001, 0));
@@ -1192,6 +1198,12 @@ class GameFlowIT {
             assertEquals("127.0.0.1", rank.pstr());
             assertEquals(4774, rank.i32());
 
+            host.sendPlain(GamePackets.clientMessengerList());
+            PacketReader msn = awaitOpcode(host, GamePackets.SERVER_MESSENGER_LIST);
+            assertEquals(1, msn.u8());
+            msn.readBytes(GamePackets.SERVER_INFO_BYTES);
+            assertEquals(0, msn.remaining());
+
             host.sendPlain(GamePackets.clientLast5());
             PacketReader last5 = awaitOpcode(host, GamePackets.SERVER_LAST5);
             assertEquals(GamePackets.LAST5_COUNT * GamePackets.LAST5_PLAYER_BYTES, last5.remaining());
@@ -1219,6 +1231,9 @@ class GameFlowIT {
              PangyaFakeClient host = new PangyaFakeClient();
              PangyaFakeClient guest = new PangyaFakeClient()) {
             loginTwoPlayers(ds, keys, host, guest, runtime.port());
+            InventoryRepository inv = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
+            long pang = inv.pang(10001);
+            long cookie = inv.cookie(10001);
 
             int before = GamePackets.unixNow();
             host.sendPlain(GamePackets.clientDailyQuest());
@@ -1267,6 +1282,33 @@ class GameFlowIT {
             host.sendPlain(GamePackets.clientLolo(0, 0, 0, 0));
             PacketReader lolo = awaitOpcode(host, GamePackets.SERVER_LOLO);
             assertEquals(GamePackets.shopSys(GamePackets.LOLO_ERR_IFF), lolo.u32());
+
+            host.sendPlain(GamePackets.clientRefreshGacha());
+            PacketReader gacha = awaitOpcode(host, GamePackets.SERVER_GACHA_COUPON);
+            assertEquals(0, gacha.i32());
+            assertEquals(0, gacha.i32());
+            assertEquals(pang, gacha.u64());
+            assertEquals(cookie, gacha.u64());
+
+            host.sendPlain(GamePackets.clientEnchant(1, 0, 99999));
+            PacketReader club = awaitOpcode(host, GamePackets.SERVER_CLUB_STATS);
+            assertEquals(GamePackets.CLUB_STATS_ERR, club.u8());
+
+            host.sendPlain(GamePackets.clientIntrusion(0, 99));
+            PacketReader intrusion = awaitOpcode(host, GamePackets.SERVER_INTRUSION);
+            assertEquals(GamePackets.INTRUSION_ERR, intrusion.u8());
+            assertEquals(GamePackets.INTRUSION_SYS, intrusion.u8());
+
+            host.sendPlain(GamePackets.clientPapelPlay());
+            PacketReader papelPlay = awaitOpcode(host, GamePackets.SERVER_PAPEL_PLAY);
+            assertEquals(GamePackets.shopSys(GamePackets.PAPEL_PLAY_ERR_BALLS), papelPlay.u32());
+
+            host.sendPlain(GamePackets.clientWebLink(70));
+            host.sendPlain(GamePackets.clientJoinGallery(99, "x"));
+            host.sendPlain(GamePackets.clientGmCommand(3));
+            host.sendPlain(GamePackets.clientAutoCommand());
+            host.sendPlain(GamePackets.clientRequestKick());
+            host.sendPlain(GamePackets.clientPangInfo());
 
             host.sendPlain(GamePackets.clientDeleteItem(1, 1));
             PacketReader deleted = awaitOpcode(host, GamePackets.SERVER_DELETE_ITEM);

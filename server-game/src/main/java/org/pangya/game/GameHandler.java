@@ -157,6 +157,7 @@ public final class GameHandler {
             case GamePackets.CLIENT_SHOP_OPEN_ITEMS -> openSaleShopItems(session, reader);
             case GamePackets.CLIENT_SHOP_BUY -> buySaleShop(session, reader);
             case GamePackets.CLIENT_PAPEL_SHOP -> openPapelShop(session);
+            case GamePackets.CLIENT_PAPEL_PLAY -> playPapelShop(session);
             case GamePackets.CLIENT_ENTER_SHOP -> enterShop(session);
             case GamePackets.CLIENT_OPEN_MAILBOX -> openMailBox(session, reader);
             case GamePackets.CLIENT_OPEN_MAIL -> openMail(session, reader);
@@ -174,8 +175,17 @@ public final class GameHandler {
             case GamePackets.CLIENT_REWARD_DAILY_QUEST -> rewardDailyQuest(session, reader);
             case GamePackets.CLIENT_LEAVE_DAILY_QUEST -> leaveDailyQuest(session, reader);
             case GamePackets.CLIENT_LOLO -> loloCardCompose(session, reader);
+            case GamePackets.CLIENT_ACTIVE_AUTO_COMMAND -> activeAutoCommand(session);
             case GamePackets.CLIENT_ACHIEVEMENT -> achievementGui(session, reader);
             case GamePackets.CLIENT_CADIE -> cadieExchange(session, reader);
+            case GamePackets.CLIENT_ENCHANT -> clubSetStats(session, reader);
+            case GamePackets.CLIENT_INTRUSION -> enterGameAfterStarted(session, reader);
+            case GamePackets.CLIENT_REFRESH_GACHA -> updateGachaCoupon(session);
+            case GamePackets.CLIENT_WEB_LINK -> enterWebLink(session, reader);
+            case GamePackets.CLIENT_REQUEST_PANG_INFO -> exitedFromWebGuild(session);
+            case GamePackets.CLIENT_JOIN_GALLERY -> enterSpyRoom(session, reader);
+            case GamePackets.CLIENT_GM_COMMAND -> commonCmdGm(session, reader);
+            case GamePackets.CLIENT_REQUEST_KICK -> { }
             case GamePackets.CLIENT_ENTER_LOBBY -> enterLobby(session);
             case GamePackets.CLIENT_LEAVE_LOBBY -> leaveLobby(session);
             case GamePackets.CLIENT_CHAT -> chat(session, reader);
@@ -192,6 +202,7 @@ public final class GameHandler {
             case GamePackets.CLIENT_REQUEST_USERINFO -> requestPlayerInfo(session, reader);
             case GamePackets.CLIENT_UPDATE_MACRO -> updateMacros(session, reader);
             case GamePackets.CLIENT_REQUEST_SERVER_LIST -> requestServerList(session);
+            case GamePackets.CLIENT_REQUEST_MESSENGER_LIST -> requestMessengerList(session);
             case GamePackets.CLIENT_REQUEST_RANK -> requestRank(session);
             case GamePackets.CLIENT_USER_MATCH_HISTORY -> last5Players(session);
             case GamePackets.CLIENT_CHANGE_TEAM -> changeTeam(session, reader);
@@ -1053,6 +1064,17 @@ public final class GameHandler {
             return;
         }
         session.send(GamePackets.papelShopOk(0));
+    }
+
+    /**
+     * C# {@code requestPlayPapelShop}: unseeded balls → CHANNEL sys
+     * {@code 0x5900103} written as {@code sys & 0xFFFF}.
+     */
+    private void playPapelShop(Session session) {
+        if (!inChannel(session)) {
+            return;
+        }
+        session.send(GamePackets.papelPlayFail(GamePackets.shopSys(GamePackets.PAPEL_PLAY_ERR_BALLS)));
     }
 
     /** C# {@code packet140}: {@code 0x20E} two zeros. */
@@ -2351,31 +2373,50 @@ public final class GameHandler {
             return;
         }
         List<byte[]> servers = new ArrayList<>();
-        for (LoginRepository.ServerListRow row : repo.serverList(1)) {
-            ServerInfo info = new ServerInfo();
-            info.name = row.name() == null ? "" : row.name();
-            info.uid = row.uid();
-            info.maxUser = row.maxUser();
-            info.currUser = row.currUser();
-            info.ip = row.ip() == null ? "" : row.ip();
-            info.port = row.port();
-            info.property = row.property();
-            info.angelicWings = row.angelicWings();
-            info.eventFlag = row.eventFlag();
-            info.eventMap = row.eventMap();
-            info.appRate = row.appRate();
-            info.scratchRate = row.scratchRate();
-            info.imgNo = row.imgNo();
-            servers.add(info.toArray());
+        for (LoginRepository.ServerListRow row : repo.serverList(GamePackets.SERVER_TYPE_GAME)) {
+            servers.add(toServerInfo(row).toArray());
         }
         session.send(GamePackets.serverAndChannelList(servers, channels));
+    }
+
+    /**
+     * C# {@code packet08B}: {@code CmdServerList(TYPE_SERVER.MSN)} then
+     * {@code pacote0FC} (u8 count + 92-byte rows). Empty list still sends count 0.
+     */
+    private void requestMessengerList(Session session) {
+        if (!session.authorized()) {
+            return;
+        }
+        List<byte[]> servers = new ArrayList<>();
+        for (LoginRepository.ServerListRow row : repo.serverList(GamePackets.SERVER_TYPE_MSN)) {
+            servers.add(toServerInfo(row).toArray());
+        }
+        session.send(GamePackets.messengerList(servers));
+    }
+
+    private static ServerInfo toServerInfo(LoginRepository.ServerListRow row) {
+        ServerInfo info = new ServerInfo();
+        info.name = row.name() == null ? "" : row.name();
+        info.uid = row.uid();
+        info.maxUser = row.maxUser();
+        info.currUser = row.currUser();
+        info.ip = row.ip() == null ? "" : row.ip();
+        info.port = row.port();
+        info.property = row.property();
+        info.angelicWings = row.angelicWings();
+        info.eventFlag = row.eventFlag();
+        info.eventMap = row.eventMap();
+        info.appRate = row.appRate();
+        info.scratchRate = row.scratchRate();
+        info.imgNo = row.imgNo();
+        return info;
     }
 
     private void requestRank(Session session) {
         if (!session.authorized()) {
             return;
         }
-        List<LoginRepository.ServerListRow> ranks = repo.serverList(4);
+        List<LoginRepository.ServerListRow> ranks = repo.serverList(GamePackets.SERVER_TYPE_RANK);
         if (ranks.isEmpty()) {
             return;
         }
@@ -2556,6 +2597,140 @@ public final class GameHandler {
         reader.u32();
         reader.u32();
         session.send(GamePackets.loloFail(GamePackets.shopSys(GamePackets.LOLO_ERR_IFF)));
+    }
+
+    /**
+     * C# {@code requestClubSetStatsUpdate}: missing warehouse / IFF → {@code 0xA5}
+     * u8 0. Opt 1/3 is clubset.
+     */
+    private void clubSetStats(Session session, PacketReader reader) {
+        if (!inChannel(session)) {
+            return;
+        }
+        if (reader.remaining() < 6) {
+            session.send(GamePackets.clubStatsFail());
+            return;
+        }
+        int opt = reader.u8();
+        reader.u8();
+        int itemId = reader.i32();
+        if (opt != 1 && opt != 3) {
+            return;
+        }
+        long uid = session.player().uid;
+        boolean owned = inventory.warehouse(uid).stream().anyMatch(w -> w.id == itemId);
+        if (!owned) {
+            session.send(GamePackets.clubStatsFail());
+        }
+    }
+
+    /**
+     * C# {@code requestEnterGameAfterStarted}: missing room CHANNEL sys 1 →
+     * {@code 0x113} u8 6 + u8 1.
+     */
+    private void enterGameAfterStarted(Session session, PacketReader reader) {
+        if (!inChannel(session)) {
+            return;
+        }
+        if (reader.remaining() < 1) {
+            session.send(GamePackets.intrusionFail(GamePackets.INTRUSION_SYS));
+            return;
+        }
+        int option = reader.u8();
+        if (option == 0 || option == 1) {
+            if (reader.remaining() < 2) {
+                session.send(GamePackets.intrusionFail(GamePackets.INTRUSION_SYS));
+                return;
+            }
+            int numero = reader.u16();
+            if (rooms.get(numero) == null) {
+                session.send(GamePackets.intrusionFail(GamePackets.INTRUSION_SYS));
+            }
+        }
+    }
+
+    /**
+     * C# {@code requestUpdateGachaCoupon}: SQL {@code c0} for typeids
+     * {@code 0x1A000080}/{@code 0x1A000083} then {@code pacote102}.
+     */
+    private void updateGachaCoupon(Session session) {
+        if (!inChannel(session)) {
+            return;
+        }
+        try {
+            int normal = 0;
+            int partial = 0;
+            for (GamePackets.WarehouseItem item : inventory.warehouse(session.player().uid)) {
+                if (item.typeid == GamePackets.TYPEID_GACHA_TICKET) {
+                    normal = item.c[0];
+                } else if (item.typeid == GamePackets.TYPEID_GACHA_SUB) {
+                    partial = item.c[0];
+                }
+            }
+            session.send(GamePackets.gachaCoupon(
+                    normal,
+                    partial,
+                    inventory.pang(session.player().uid),
+                    inventory.cookie(session.player().uid)));
+        } catch (RuntimeException e) {
+            session.send(GamePackets.gachaCouponFail(GamePackets.GACHA_ERR_DEFAULT));
+        }
+    }
+
+    /**
+     * C# {@code requestEnterWebLinkState}: ReadSByte {@code place}. No reply.
+     */
+    private void enterWebLink(Session session, PacketReader reader) {
+        if (!inChannel(session) || reader.remaining() < 1) {
+            return;
+        }
+        session.player().place = (byte) reader.u8();
+    }
+
+    /**
+     * C# {@code requestExitedFromWebGuild}: {@code 0xC8} only when pang changed.
+     * Java reads pang from SQL so seed matches in-memory and stays silent.
+     */
+    private void exitedFromWebGuild(Session session) {
+        if (!inChannel(session)) {
+            return;
+        }
+    }
+
+    /**
+     * C# {@code requestEnterSpyRoom}: missing/locked room catch is silent.
+     */
+    private void enterSpyRoom(Session session, PacketReader reader) {
+        if (!inChannel(session) || reader.remaining() < 2) {
+            return;
+        }
+        reader.u16();
+        if (reader.remaining() >= 2) {
+            reader.pstr();
+        }
+    }
+
+    /**
+     * C# {@code requestCommonCmdGM}: non-GM throws GAME_SERVER; packet catch
+     * is silent.
+     */
+    private void commonCmdGm(Session session, PacketReader reader) {
+        if (!session.authorized() || reader.remaining() < 2) {
+            return;
+        }
+        reader.i16();
+        if ((session.player().capability & 4) == 0) {
+            return;
+        }
+    }
+
+    /**
+     * C# {@code requestActiveAutoCommand}: not-in-room CHANNEL catch is silent.
+     */
+    private void activeAutoCommand(Session session) {
+        if (!inChannel(session)) {
+            return;
+        }
     }
 
     private void changeTeam(Session session, PacketReader reader) {
