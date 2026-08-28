@@ -208,6 +208,14 @@ public final class GamePackets {
     public static final int SERVER_UCC_WEB_KEY = 0x153;
     /** C# club workshop event {@code pacote24E} {@code 0x24E}. */
     public static final int SERVER_WORKSHOP_EVENT = 0x24E;
+    /** C# {@code requestClubWorkShopEventCount} {@code 0x24B}: i32 0 + 16 subcodes. */
+    public static final int SERVER_WORKSHOP_EVENT_COUNT = 0x24B;
+    /** C# Versus {@code requestMarkerOnCourse} {@code 0x1F8}. */
+    public static final int SERVER_MARKER = 0x1F8;
+    /** C# {@code requestActivePaws} {@code 0x236} u32 uid. */
+    public static final int SERVER_ACTIVE_PAWS = 0x236;
+    /** C# {@code leaveRoomGrandPrix} {@code 0x254}: u32 0 + i16 -1. */
+    public static final int SERVER_GP_EXIT_ROOM = 0x254;
     /** C# attendance check catch {@code 0x248} u32 {@code ~0}. */
     public static final int SERVER_ATTENDANCE = 0x248;
     /** C# attendance login-count catch {@code 0x249} u32 {@code ~0}. */
@@ -648,6 +656,11 @@ public final class GamePackets {
      * {@link #SERVER_LOCKER_PANG}, opposite direction. Always {@code 0x24E}.
      */
     public static final int CLIENT_WORKSHOP_EVENT = 0x172;
+    /**
+     * C# {@code packet173} club workshop event count → {@code 0x24B}.
+     * Same numeric as {@link #SERVER_LOCKER_MODE}, opposite direction.
+     */
+    public static final int CLIENT_WORKSHOP_EVENT_COUNT = 0x173;
     /**
      * C# {@code packet176} GP lobby. Same numeric as
      * {@link #SERVER_LOCKER_MAKE_PASS}, opposite direction.
@@ -1429,6 +1442,8 @@ public final class GamePackets {
     public static final int GP_ENTER_ERR_DEFAULT = 0x6700000;
     /** C# {@code pacote24E} holes-per-phase literal. */
     public static final int WORKSHOP_EVENT_HOLES = 3000;
+    /** C# {@code requestClubWorkShopEventCount} writes 16 subcodes {@code 1..16}. */
+    public static final int WORKSHOP_EVENT_COUNT_SLOTS = 16;
     /** C# {@code 3000/30} barra max. */
     public static final int WORKSHOP_EVENT_BARRA_MAX = 100;
     /** C# {@code barraMax} / last-byte literals. */
@@ -3181,6 +3196,39 @@ public final class GamePackets {
     }
 
     /**
+     * C# {@code requestClubWorkShopEventCount}: {@code 0x24B} i32 0 then
+     * bytes {@code 1..16}.
+     */
+    public static byte[] workshopEventCount() {
+        PacketWriter w = new PacketWriter().opcode(SERVER_WORKSHOP_EVENT_COUNT).i32(0);
+        for (int i = 0; i < WORKSHOP_EVENT_COUNT_SLOTS; i++) {
+            w.u8(i + 1);
+        }
+        return w.toBytes();
+    }
+
+    /** C# Versus marker {@code 0x1F8}: i32 oid + 3× f32. */
+    public static byte[] markerOnCourse(int oid, float x, float y, float z) {
+        return new PacketWriter()
+                .opcode(SERVER_MARKER)
+                .i32(oid)
+                .f32(x)
+                .f32(y)
+                .f32(z)
+                .toBytes();
+    }
+
+    /** C# paws {@code 0x236}: u32 uid. */
+    public static byte[] activePaws(int uid) {
+        return new PacketWriter().opcode(SERVER_ACTIVE_PAWS).u32(uid).toBytes();
+    }
+
+    /** C# {@code leaveRoomGrandPrix} {@code 0x254}: u32 0 + i16 -1. */
+    public static byte[] gpExitRoomAck() {
+        return new PacketWriter().opcode(SERVER_GP_EXIT_ROOM).u32(0).i16(-1).toBytes();
+    }
+
+    /**
      * C# GP lobby OK {@code 0x250}: u32 0 + countBit + typeids ({@code i+1})
      * + v_gpc count 0 + f32 avg score.
      */
@@ -4919,6 +4967,24 @@ public final class GamePackets {
     /** C# CLIENT {@code 0xE5}/{@code 0xFE} empty. */
     public static byte[] clientEmpty(int opcode) {
         return new PacketWriter().opcode(opcode).toBytes();
+    }
+
+    /** C# CLIENT {@code 0x12E} marker: 3× f32. */
+    public static byte[] clientMarker(float x, float y, float z) {
+        return new PacketWriter().opcode(CLIENT_MARKER).f32(x).f32(y).f32(z).toBytes();
+    }
+
+    /**
+     * C# CLIENT {@code 0x17A}: u8 opt + i16 flag + 16-byte key then
+     * {@code leaveRoomGrandPrix}.
+     */
+    public static byte[] clientGpExitRoom() {
+        return new PacketWriter()
+                .opcode(CLIENT_GP_EXIT_ROOM)
+                .u8(0)
+                .i16(-1)
+                .zero(16)
+                .toBytes();
     }
 
     /** C# CLIENT {@code 0x63}: type + remaining payload. */

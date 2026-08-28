@@ -218,12 +218,13 @@ public final class GameHandler {
             case GamePackets.CLIENT_ATTENDANCE -> checkAttendance(session);
             case GamePackets.CLIENT_ATTENDANCE_LOGIN -> attendanceLoginCount(session);
             case GamePackets.CLIENT_WORKSHOP_EVENT -> openClubWorkshopEvent(session);
+            case GamePackets.CLIENT_WORKSHOP_EVENT_COUNT -> clubWorkshopEventCount(session);
             case GamePackets.CLIENT_GP_LOBBY -> enterLobbyGrandPrix(session);
             case GamePackets.CLIENT_GP_LEAVE -> leaveLobbyGrandPrix(session);
             case GamePackets.CLIENT_GP_ENTER -> enterRoomGrandPrix(session, reader);
-            case GamePackets.CLIENT_GP_EXIT_ROOM -> { }
+            case GamePackets.CLIENT_GP_EXIT_ROOM -> exitRoomGrandPrix(session, reader);
             case GamePackets.CLIENT_GZ_INITIAL -> { }
-            case GamePackets.CLIENT_MARKER -> { }
+            case GamePackets.CLIENT_MARKER -> markerOnCourse(session, reader);
             case GamePackets.CLIENT_SHOT_END -> { }
             case GamePackets.CLIENT_LEAVE_CHIP_IN -> { }
             case GamePackets.CLIENT_GZ_FIRST_HOLE -> { }
@@ -2300,6 +2301,14 @@ public final class GameHandler {
     }
 
     private void leaveRoom(Session session) {
+        leaveRoom(session, true);
+    }
+
+    /**
+     * C# {@code leaveRoom} plus optional {@code 0x4C} ({@code leaveRoomMultiPlayer}).
+     * Grand Prix exit sends {@code 0x254} instead of {@code 0x4C}.
+     */
+    private void leaveRoom(Session session, boolean sendExitAck) {
         PlayerContext pi = session.player();
         if (!session.authorized() || pi.roomNumber < 0) {
             return;
@@ -2341,7 +2350,9 @@ public final class GameHandler {
             sendLobbyRoomInfo(leftover, destroyed ? GamePackets.ROOM_LIST_REMOVE : GamePackets.ROOM_LIST_UPDATE);
         }
         sendLobbyPlayerInfo(session, GamePackets.LOBBY_USER_UPDATE);
-        session.send(GamePackets.exitRoomAck(-1));
+        if (sendExitAck) {
+            session.send(GamePackets.exitRoomAck(-1));
+        }
     }
 
     /**
@@ -4342,6 +4353,17 @@ public final class GameHandler {
     }
 
     /**
+     * C# {@code requestClubWorkShopEventCount}: always {@code 0x24B} i32 0
+     * then bytes {@code 1..16}.
+     */
+    private void clubWorkshopEventCount(Session session) {
+        if (!inChannel(session)) {
+            return;
+        }
+        session.send(GamePackets.workshopEventCount());
+    }
+
+    /**
      * C# {@code enterLobbyGrandPrix}: {@code uProperty.grand_prix} (bit 11)
      * required; already-in-lobby CHANNEL sys 0 → {@code 0x250} u32 0;
      * else {@code enterLobby} without {@code 0xF5} then OK body.
@@ -4401,6 +4423,25 @@ public final class GameHandler {
         session.send(GamePackets.sysAck(
                 GamePackets.SERVER_START_GAME_FAIL,
                 GamePackets.shopSys(GamePackets.GP_ENTER_ERR_IFF)));
+    }
+
+    /**
+     * C# {@code requestExitRoomGrandPrix}: u8 + i16 + 16-byte key then
+     * {@code leaveRoomGrandPrix} → {@code 0x254} (no {@code 0x4C}). Truncated
+     * / not-in-room is silent.
+     */
+    private void exitRoomGrandPrix(Session session, PacketReader reader) {
+        if (!inChannel(session) || reader.remaining() < 19) {
+            return;
+        }
+        reader.u8();
+        reader.i16();
+        reader.readBytes(16);
+        if (session.player().roomNumber < 0) {
+            return;
+        }
+        leaveRoom(session, false);
+        session.send(GamePackets.gpExitRoomAck());
     }
 
     /**
@@ -4762,11 +4803,40 @@ public final class GameHandler {
 
     /**
      * C# {@code requestActivePaws}: not-in-room CHANNEL catch is silent.
+     * Versus broadcasts {@code 0x236} uid; Tourney/Practice send only to self.
      */
     private void activePaws(Session session) {
         if (!inChannel(session)) {
             return;
         }
+        GameRoom room = rooms.get(session.player().roomNumber);
+        if (room == null || !room.inGame) {
+            return;
+        }
+        byte[] packet = GamePackets.activePaws((int) session.player().uid);
+        if (GamePackets.usesVersusInitialData(room.tipo)) {
+            room.broadcast(packet);
+        } else {
+            session.send(packet);
+        }
+    }
+
+    /**
+     * C# Versus {@code requestMarkerOnCourse} {@code 0x1F8}. GameBase ignore
+     * (Tourney); not-in-room CHANNEL catch is silent.
+     */
+    private void markerOnCourse(Session session, PacketReader reader) {
+        if (!inChannel(session) || reader.remaining() < 12) {
+            return;
+        }
+        float x = reader.f32();
+        float y = reader.f32();
+        float z = reader.f32();
+        GameRoom room = rooms.get(session.player().roomNumber);
+        if (room == null || !room.inGame || !GamePackets.usesVersusInitialData(room.tipo)) {
+            return;
+        }
+        room.broadcast(GamePackets.markerOnCourse(session.oid(), x, y, z));
     }
 
     /**

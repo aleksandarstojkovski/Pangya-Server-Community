@@ -1127,6 +1127,34 @@ class GamePacketsTest {
         assertEquals(0, workshopEv.u8());
         assertEquals(10, workshopEv.u8());
         assertEquals(10, workshopEv.u8());
+        PacketReader workshopCount = new PacketReader(GamePackets.workshopEventCount());
+        assertEquals(GamePackets.SERVER_WORKSHOP_EVENT_COUNT, workshopCount.opcode());
+        assertEquals(0, workshopCount.i32());
+        for (int i = 1; i <= GamePackets.WORKSHOP_EVENT_COUNT_SLOTS; i++) {
+            assertEquals(i, workshopCount.u8());
+        }
+        PacketReader marker = new PacketReader(GamePackets.markerOnCourse(2, 1.5f, 2.5f, 3.5f));
+        assertEquals(GamePackets.SERVER_MARKER, marker.opcode());
+        assertEquals(2, marker.i32());
+        assertEquals(1.5f, marker.f32());
+        assertEquals(2.5f, marker.f32());
+        assertEquals(3.5f, marker.f32());
+        PacketReader paws = new PacketReader(GamePackets.activePaws(10001));
+        assertEquals(GamePackets.SERVER_ACTIVE_PAWS, paws.opcode());
+        assertEquals(10001, paws.u32());
+        PacketReader gpExit = new PacketReader(GamePackets.gpExitRoomAck());
+        assertEquals(GamePackets.SERVER_GP_EXIT_ROOM, gpExit.opcode());
+        assertEquals(0, gpExit.u32());
+        assertEquals(-1, gpExit.i16());
+        PacketReader clientMarker = new PacketReader(GamePackets.clientMarker(1f, 2f, 3f));
+        assertEquals(GamePackets.CLIENT_MARKER, clientMarker.opcode());
+        assertEquals(1f, clientMarker.f32());
+        assertEquals(2f, clientMarker.f32());
+        assertEquals(3f, clientMarker.f32());
+        PacketReader clientGpExit = new PacketReader(GamePackets.clientGpExitRoom());
+        assertEquals(GamePackets.CLIENT_GP_EXIT_ROOM, clientGpExit.opcode());
+        assertEquals(0, clientGpExit.u8());
+        assertEquals(-1, clientGpExit.i16());
         PacketReader attend = new PacketReader(GamePackets.sysAck(
                 GamePackets.SERVER_ATTENDANCE, GamePackets.ATTENDANCE_FAIL));
         assertEquals(GamePackets.SERVER_ATTENDANCE, attend.opcode());
@@ -1644,6 +1672,11 @@ class GamePacketsTest {
         assertEquals(GamePackets.CHAR_CARD_AWARD_TYPE, cardPacket.u8());
         assertEquals(GamePackets.GM_CMD_BLOCKED,
                 "Nao pode executar esse comando, voce foi bloqueado pelo ADM.");
+        assertEquals(GamePackets.CLIENT_WORKSHOP_EVENT_COUNT, 0x173);
+        assertEquals(GamePackets.SERVER_WORKSHOP_EVENT_COUNT, 0x24B);
+        assertEquals(GamePackets.SERVER_MARKER, 0x1F8);
+        assertEquals(GamePackets.SERVER_ACTIVE_PAWS, 0x236);
+        assertEquals(GamePackets.SERVER_GP_EXIT_ROOM, 0x254);
         assertEquals(GamePackets.SERVER_BUY_ACK, 0x68);
         assertEquals(GamePackets.CREATE_ROOM_FAILED, 0x07);
         assertEquals(GamePackets.SERVER_LAST5, 0x10E);
