@@ -16,10 +16,9 @@ S4 profondità: **173** opcode success 1:1 / **0** opcode solo fail-stub / **0**
 
 | Campo | Valore |
 |-------|--------|
-| Fatto | S5 Messenger: unblock `0x1B`, alias `0x1F`, guild chat `0x25` + guild SQL on login |
-| Prossimo opcode/file C# | IFF pin/cube/`initComboDef`, GM equipDefault, Messenger room invite, capture JP S9 |
-| Blocco | IFF assenti (pin/cube, `initComboDef`); nessuna capture JP S9 |
-| Percentuale epic | scheletro **85%** / parità client reale **39%** |
+| Fatto | equipDefault SQL add-item + Messenger `0x28`/`0x29` stubs |
+| Prossimo opcode/file C# | IFF pin/cube/`initComboDef`, Messenger auth guild AS packets, capture JP S9 |
+| Percentuale epic | scheletro **85%** / parità client reale **41%** |
 | VM | Java 21.0.10, Docker 29.7.2, Compose v5.5.0, 4 CPU / 15 GiB |
 
 ## Mappa C# → Java

@@ -171,6 +171,7 @@ public final class JdbiInventoryRepository implements InventoryRepository {
 
     @Override
     public GamePackets.UserEquip reconcileEquipAtLogin(long uid) {
+        ensureDefaultInventory(uid);
         GamePackets.UserEquip equip = userEquip(uid);
         List<GamePackets.CharacterInfo> chars = characters(uid);
         List<GamePackets.CaddieInfo> caddies = caddies(uid);
@@ -233,6 +234,48 @@ public final class JdbiInventoryRepository implements InventoryRepository {
             persistUserEquip(uid, equip);
         }
         return equip;
+    }
+
+    /** C# {@code equipDefaultCharacter|ClubSet|Ball} when inventory rows are missing. */
+    private void ensureDefaultInventory(long uid) {
+        if (characters(uid).isEmpty()) {
+            insertDefaultCharacter(uid, GamePackets.TYPEID_NURI);
+        }
+        List<GamePackets.WarehouseItem> wh = warehouse(uid);
+        if (wh.stream().noneMatch(w -> (w.typeid >>> 26) == GamePackets.IFF_GROUP_CLUBSET)) {
+            addWarehouseItem(uid, GamePackets.TYPEID_AIR_KNIGHT, 1);
+        }
+        wh = warehouse(uid);
+        if (wh.stream().noneMatch(w -> (w.typeid >>> 26) == GamePackets.IFF_GROUP_BALL)) {
+            addWarehouseItem(uid, GamePackets.TYPEID_DEFAULT_BALL, 1);
+        }
+    }
+
+    private void insertDefaultCharacter(long uid, int typeid) {
+        jdbi.useHandle(h -> h.createUpdate("""
+                        INSERT INTO pangya.pangya_character_information (
+                            typeid, "UID",
+                            parts_1, parts_2, parts_3, parts_4, parts_5, parts_6, parts_7, parts_8,
+                            parts_9, parts_10, parts_11, parts_12, parts_13, parts_14, parts_15, parts_16,
+                            parts_17, parts_18, parts_19, parts_20, parts_21, parts_22, parts_23, parts_24,
+                            default_hair, default_shirts, gift_flag,
+                            "PCL0", "PCL1", "PCL2", "PCL3", "PCL4", "Purchase",
+                            auxparts_1, auxparts_2, auxparts_3, auxparts_4, auxparts_5,
+                            "CutIn_1", "CutIn_2", "CutIn_3", "CutIn_4", "Mastery"
+                        ) VALUES (
+                            :typeid, :uid,
+                            0, 0, 0, 0, 0, 0, 0, 0,
+                            0, 0, 0, 0, 0, 0, 0, 0,
+                            0, 0, 0, 0, 0, 0, 0, 0,
+                            0, 0, 0,
+                            0, 0, 0, 0, 0, 0,
+                            0, 0, 0, 0, 0,
+                            0, 0, 0, 0, 0
+                        )
+                        """)
+                .bind("typeid", typeid)
+                .bind("uid", uid)
+                .execute());
     }
 
     private static int findWarehouseIdByTypeid(List<GamePackets.WarehouseItem> wh, int typeid) {

@@ -25,6 +25,8 @@ public final class MessengerPackets {
     public static final int CLIENT_REQ_UPDATE_CHANNEL_INFO = 0x23;
     public static final int CLIENT_NOTIFY_ROOM_INVITE = 0x24;
     public static final int CLIENT_REQ_CHAT_GUILD = 0x25;
+    public static final int CLIENT_GUILD_BATTLE_ROOM_INVITE = 0x28;
+    public static final int CLIENT_GIFT_ITEM_NOTIFY = 0x29;
 
     public static final int SERVER_CONNECT = 0x2E;
     public static final int SERVER_LOGIN_ACK = 0x2F;
@@ -291,6 +293,27 @@ public final class MessengerPackets {
 
     public static byte[] clientNotifyRoomInvite(int uid) {
         return new PacketWriter().opcode(CLIENT_NOTIFY_ROOM_INVITE).u32(uid).toBytes();
+    }
+
+    public static byte[] clientGuildBattleRoomInvite(
+            int serverUid, int channelId, int roomNum, int inviterUid, String inviterNick, int invitedUid) {
+        return new PacketWriter()
+                .opcode(CLIENT_GUILD_BATTLE_ROOM_INVITE)
+                .u32(serverUid)
+                .u8(channelId)
+                .u16(roomNum)
+                .u32(inviterUid)
+                .pstr(inviterNick == null ? "" : inviterNick)
+                .u32(invitedUid)
+                .toBytes();
+    }
+
+    public static byte[] clientGiftItemNotify(int senderUid, int receiverUid) {
+        return new PacketWriter()
+                .opcode(CLIENT_GIFT_ITEM_NOTIFY)
+                .u32(senderUid)
+                .u32(receiverUid)
+                .toBytes();
     }
 
     public static byte[] clientNotifyLogout() {

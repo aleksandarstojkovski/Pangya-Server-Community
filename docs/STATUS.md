@@ -13,14 +13,14 @@ Conteggio Channel: **197** handler `packet_func_sv` registrati in `GameService.i
 
 ## Questo turno
 
-Fatto: S5 Messenger — unblock `0x1B` → `0x10D`/`0x115`; alias `0x1F` → `0x119`; guild chat `0x25` → `0x113` u8 1 broadcast; login carica guild da SQL.
-Prossimo opcode/file C#: IFF pin/cube/`initComboDef`; GM default-throw/equipDefault; Messenger `0x24` room invite; capture JP S9.
+Fatto: `reconcileEquipAtLogin` ora aggiunge Nuri/Air Knight/ball default se mancanti (C# `equipDefault*` SQL); Messenger `0x28`/`0x29` log-only.
+Prossimo opcode/file C#: IFF pin/cube/`initComboDef`; Messenger auth guild callbacks (`packet_as*`); capture JP S9.
 Blocco: file IFF assenti (pin/cube live, `initComboDef`); nessuna capture client JP Season 9.
 
-Percentuale epic: **scheletro 85%** / **parità client reale 39%**.
+Percentuale epic: **scheletro 85%** / **parità client reale 41%**.
 
 - Scheletro: S0–S3 e S6 chiusi (Gradle, Cipher, Auth/Login, Practice, Ranking/Messenger core, metriche 3000, compose `/health`). S4/S5 aperti.
-- Parità client reale: ~173/197 Channel con happy-path; login dump include `pacote11F` tipo 3; Ranking page/search; Messenger presence/chat/unblock/alias/guild-chat; zero fail-stub/pulse Channel noti ma IFF/capture ancora aperti.
+- Parità client reale: ~173/197 Channel con happy-path; login dump include equip reconcile + `pacote11F` tipo 3; Ranking/Messenger surface ampliata; zero fail-stub/pulse Channel noti ma IFF/capture ancora aperti.
 
 ## Slice (non dichiarare S4 done)
 

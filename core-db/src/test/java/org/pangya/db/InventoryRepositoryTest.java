@@ -613,6 +613,55 @@ class InventoryRepositoryTest {
         }
     }
 
+    @Test
+    void reconcileEquipAddsDefaultsWhenMissing() {
+        String url = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        DatabaseSupport.migrate(url, user, password);
+
+        try (var ds = DatabaseSupport.dataSource(url, user, password)) {
+            var jdbi = DatabaseSupport.jdbi(ds);
+            InventoryRepository repo = new JdbiInventoryRepository(jdbi);
+            long uid = 10002L;
+            try {
+                jdbi.useHandle(h -> {
+                    h.createUpdate("DELETE FROM pangya.pangya_character_information WHERE \"UID\" = :uid")
+                            .bind("uid", uid)
+                            .execute();
+                    h.createUpdate("""
+                                    DELETE FROM pangya.pangya_item_warehouse
+                                     WHERE "UID" = :uid
+                                       AND (typeid = :club OR typeid = :ball)
+                                    """)
+                            .bind("uid", uid)
+                            .bind("club", GamePackets.TYPEID_AIR_KNIGHT)
+                            .bind("ball", GamePackets.TYPEID_DEFAULT_BALL)
+                            .execute();
+                    h.createUpdate("""
+                                    UPDATE pangya.pangya_user_equip
+                                       SET character_id = 0, club_id = 0, ball_type = 0
+                                     WHERE "UID" = :uid
+                                    """)
+                            .bind("uid", uid)
+                            .execute();
+                });
+                GamePackets.UserEquip fixed = repo.reconcileEquipAtLogin(uid);
+                assertFalse(repo.characters(uid).isEmpty());
+                assertEquals(GamePackets.TYPEID_NURI, repo.characters(uid).getFirst().typeid);
+                assertTrue(repo.warehouse(uid).stream()
+                        .anyMatch(w -> w.typeid == GamePackets.TYPEID_AIR_KNIGHT));
+                assertTrue(repo.warehouse(uid).stream()
+                        .anyMatch(w -> w.typeid == GamePackets.TYPEID_DEFAULT_BALL));
+                assertEquals(repo.characters(uid).getFirst().id, fixed.characterId);
+                assertTrue(fixed.clubsetId > 0);
+                assertEquals(GamePackets.TYPEID_DEFAULT_BALL, fixed.ballTypeid);
+            } finally {
+                DatabaseSupport.migrate(url, user, password);
+            }
+        }
+    }
+
     private static String env(String name, String fallback) {
         String v = System.getenv(name);
         return (v == null || v.isBlank()) ? fallback : v;

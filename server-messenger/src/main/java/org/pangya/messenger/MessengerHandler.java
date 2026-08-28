@@ -53,6 +53,8 @@ public final class MessengerHandler {
             case MessengerPackets.CLIENT_REQ_UPDATE_CHANNEL_INFO -> updateChannelInfo(session, reader);
             case MessengerPackets.CLIENT_REQ_CHAT_GUILD -> chatGuild(session, reader);
             case MessengerPackets.CLIENT_NOTIFY_ROOM_INVITE -> notifyRoomInvite(session, reader);
+            case MessengerPackets.CLIENT_GUILD_BATTLE_ROOM_INVITE -> guildBattleRoomInvite(session, reader);
+            case MessengerPackets.CLIENT_GIFT_ITEM_NOTIFY -> giftItemNotify(session, reader);
             default -> log.debug("unhandled messenger opcode 0x{}", Integer.toHexString(opcode));
         }
     }
@@ -375,6 +377,43 @@ public final class MessengerHandler {
         } catch (RuntimeException e) {
             log.warn("assign apelido failed: {}", e.toString());
             session.send(MessengerPackets.assignApelidoError(0x5200900));
+        }
+    }
+
+    private void guildBattleRoomInvite(Session session, PacketReader reader) {
+        if (!session.authorized()) {
+            return;
+        }
+        try {
+            int serverUid = reader.u32();
+            int channelId = reader.u8();
+            int roomNum = reader.u16();
+            int inviterUid = reader.u32();
+            String inviterNick = reader.remaining() >= 2 ? reader.pstr() : "";
+            int invitedUid = reader.u32();
+            if (inviterUid != (int) session.player().uid) {
+                log.warn("guild battle invite uid mismatch session={} packet={}", session.player().uid, inviterUid);
+                return;
+            }
+            log.info(
+                    "guild battle invite from uid={} nick={} invited={} server={} ch={} room={}",
+                    inviterUid, inviterNick, invitedUid, serverUid, channelId, roomNum);
+        } catch (RuntimeException e) {
+            log.warn("guild battle invite failed uid={}: {}", session.player().uid, e.toString());
+        }
+    }
+
+    private void giftItemNotify(Session session, PacketReader reader) {
+        if (!session.authorized()) {
+            return;
+        }
+        try {
+            int senderUid = reader.u32();
+            int receiverUid = reader.u32();
+            log.info("messenger gift item sender={} receiver={} from session={}",
+                    senderUid, receiverUid, session.player().uid);
+        } catch (RuntimeException e) {
+            log.warn("gift item notify failed uid={}: {}", session.player().uid, e.toString());
         }
     }
 

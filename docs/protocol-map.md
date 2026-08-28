@@ -346,7 +346,7 @@ Hello is `makeRaw` `0x2E` + byte 1 + byte 1 + uint32 key.
 
 CLIENT `0x12`: uint32 uid, PStr nickname. Success `0x2F` byte 0 + uint32 uid. Fail byte 1.
 Friend list CLIENT `0x14` → `0x30` sub `0x115` + uid + state 4 + OK + 75-byte empty `ChannelPlayerInfo`, then **always** `0x30` sub `0x102` + `ManyPacket.Pagina` (byte pagina, u16 total, u16 current). Empty list still sends pagina=1, total=0, current=0 (`FRIEND_PAG_LIMIT` 30). Friend rows: FriendInfo 65 + ChannelPlayerInfo 75 (live or offline -1s + icon 5) + cUnknown + level + state + flag.
-Add friend CLIENT `0x18` uid+PStr nick → `0x30` sub `0x104` + OK + 65-byte `FriendInfo` + offline ChannelPlayerInfo (online target: live CPI + sub `0x106` to added player). Agree `0x19` → sub `0x109`. Block `0x1A` → sub `0x10C` + `0x10F` to target. Remove `0x1C` uid+PStr nick → sub `0x10B`. Logout CLIENT `0x16` or TCP disconnect → broadcast sub `0x10F`. Check nick CLIENT `0x17` PStr → sub `0x117` OK (code 0 + nick + uid) or error. State CLIENT `0x1D` u8 → broadcast sub `0x115` to friends. Channel CLIENT `0x23` 75-byte CPI → echo `0x115` self + broadcast friends. Chat friend CLIENT `0x1E` uid+PStr msg → sub `0x113` u8 0 to online target. Unblock CLIENT `0x1B` uid → sub `0x10D`; online friend also gets `0x115`. Alias CLIENT `0x1F` uid+PStr apelido → sub `0x119`. Guild chat CLIENT `0x25` PStr msg → sub `0x113` u8 1 to self + online guild members (requires `pangya_guild_member`). Login loads guild uid/name via SQL join.
+Add friend CLIENT `0x18` uid+PStr nick → `0x30` sub `0x104` + OK + 65-byte `FriendInfo` + offline ChannelPlayerInfo (online target: live CPI + sub `0x106` to added player). Agree `0x19` → sub `0x109`. Block `0x1A` → sub `0x10C` + `0x10F` to target. Remove `0x1C` uid+PStr nick → sub `0x10B`. Logout CLIENT `0x16` or TCP disconnect → broadcast sub `0x10F`. Check nick CLIENT `0x17` PStr → sub `0x117` OK (code 0 + nick + uid) or error. State CLIENT `0x1D` u8 → broadcast sub `0x115` to friends. Channel CLIENT `0x23` 75-byte CPI → echo `0x115` self + broadcast friends. Chat friend CLIENT `0x1E` uid+PStr msg → sub `0x113` u8 0 to online target. Unblock CLIENT `0x1B` uid → sub `0x10D`; online friend also gets `0x115`. Alias CLIENT `0x1F` uid+PStr apelido → sub `0x119`. Guild chat CLIENT `0x25` PStr msg → sub `0x113` u8 1 to self + online guild members (requires `pangya_guild_member`). Room invite CLIENT `0x24` u32 uid (must match session) → log-only like C#. Login loads guild uid/name via SQL join.
 
 | Dir | C# | Opcode |
 |-----|----|--------|
@@ -359,6 +359,9 @@ Add friend CLIENT `0x18` uid+PStr nick → `0x30` sub `0x104` + OK + 65-byte `Fr
 | C | `CLIENT_REQ_ASSIGN_APELIDO` | `0x1F` |
 | C | `CLIENT_REQ_UPDATE_CHANNEL_INFO` | `0x23` |
 | C | `CLIENT_REQ_CHAT_GUILD` | `0x25` |
+| C | `CLIENT_NOTIFY_ROOM_INVITE` | `0x24` |
+| C | `CLIENT_GUILD_BATTLE_ROOM_INVITE` | `0x28` |
+| C | `CLIENT_GIFT_ITEM_NOTIFY` | `0x29` |
 | S | `SERVER_CONNECT_0x2E` | `0x2E` |
 | S | `SERVER_LOGIN_ACK_0x2F` | `0x2F` |
 | S | `SERVER_FRIEND_AND_GUILD_LIST_0x30` | `0x30` |
