@@ -13,14 +13,14 @@ Conteggio Channel: **197** handler `packet_func_sv` registrati in `GameService.i
 
 ## Questo turno
 
-Fatto: GZ first-hole `packet137` barrier. Ogni player imposta `init_first_hole_gz`; quando tutti pronti resetta barrier/timer e, per player, manda `0x8D` 0, `0x53` own oid, broadcast `0x6D` hole start, poi `0x1F4` i32 1. Nessun fail-stub o pulse Channel noto rimane. S4 resta non-done per IFF/capture e superfici non-Channel.
-Prossimo opcode/file C#: IFF pin/cube/`initComboDef`; login `pacote11F` tutorial tipo 3; GM default-throw; audit S5 Ranking/Messenger; capture JP S9.
+Fatto: login `pacote11F` tipo 3 — dopo channel list manda i16 3 + u32 rookie/beginner/advancer da SQL `pangya.tutorial` (C# LoginManager case 5). `LOGIN_DUMP_PACKET_COUNT` +1.
+Prossimo opcode/file C#: IFF pin/cube/`initComboDef`; GM default-throw; audit S5 Ranking/Messenger; capture JP S9.
 Blocco: file IFF assenti (pin/cube live, `initComboDef`); nessuna capture client JP Season 9.
 
-Percentuale epic: **scheletro 85%** / **parità client reale 35%**.
+Percentuale epic: **scheletro 85%** / **parità client reale 36%**.
 
 - Scheletro: S0–S3 e S6 chiusi (Gradle, Cipher, Auth/Login, Practice, Ranking/Messenger core, metriche 3000, compose `/health`). S4/S5 aperti.
-- Parità client reale: ~173/197 Channel con happy-path; SQL al posto IFF; zero fail-stub/pulse Channel noti ma IFF/capture ancora aperti.
+- Parità client reale: ~173/197 Channel con happy-path; login dump include `pacote11F` tipo 3; SQL al posto IFF; zero fail-stub/pulse Channel noti ma IFF/capture ancora aperti.
 
 ## Slice (non dichiarare S4 done)
 

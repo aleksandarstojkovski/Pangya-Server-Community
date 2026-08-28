@@ -16,10 +16,10 @@ S4 profondità: **173** opcode success 1:1 / **0** opcode solo fail-stub / **0**
 
 | Campo | Valore |
 |-------|--------|
-| Fatto | GZ `packet137` all-player barrier → `0x8D`/`0x53`/broadcast `0x6D`/`0x1F4`; Channel remaining 0 |
-| Prossimo opcode/file C# | IFF pin/cube/`initComboDef`, login tipo 3, GM throws, S5 audit, capture JP S9 |
+| Fatto | Login `pacote11F` tipo 3 (i16 3 + TutorialInfo 12 byte da SQL) dopo channel list |
+| Prossimo opcode/file C# | IFF pin/cube/`initComboDef`, GM throws, S5 audit, capture JP S9 |
 | Blocco | IFF assenti (pin/cube, `initComboDef`); nessuna capture JP S9 |
-| Percentuale epic | scheletro **85%** / parità client reale **35%** |
+| Percentuale epic | scheletro **85%** / parità client reale **36%** |
 | VM | Java 21.0.10, Docker 29.7.2, Compose v5.5.0, 4 CPU / 15 GiB |
 
 ## Mappa C# → Java

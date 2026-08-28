@@ -94,6 +94,14 @@ class GameFlowIT {
                 assertEquals(2, channels.u8());
                 assertEquals(2 * 77, channels.remaining());
 
+                PacketReader tutoInfo = new PacketReader(loginPkts.get(8));
+                assertEquals(GamePackets.SERVER_MAKE_TUTORIAL, tutoInfo.opcode());
+                assertEquals(GamePackets.TUTORIAL_INFO_LOGIN_TIPO, tutoInfo.i16());
+                assertEquals(0, tutoInfo.u32());
+                assertEquals(0, tutoInfo.u32());
+                assertEquals(0, tutoInfo.u32());
+                assertEquals(0, tutoInfo.remaining());
+
                 client.sendPlain(GamePackets.clientEnterChannel(0));
                 PacketReader entered = new PacketReader(client.awaitPlain(5, TimeUnit.SECONDS));
                 assertEquals(GamePackets.SERVER_CHANNEL_ENTER_ACK, entered.opcode());
@@ -296,8 +304,8 @@ class GameFlowIT {
                 assertEquals(GamePackets.SERVER_LOGIN_ACK, new PacketReader(again.get(1)).opcode());
                 assertEquals(0x70, new PacketReader(again.get(2)).opcode());
                 assertEquals(GamePackets.SERVER_CHANNEL_LIST, new PacketReader(again.get(7)).opcode());
-                assertEquals(0xF1, new PacketReader(again.get(12)).opcode());
-                assertEquals(0x25D, new PacketReader(again.get(27)).opcode());
+                assertEquals(0xF1, new PacketReader(again.get(13)).opcode());
+                assertEquals(0x25D, new PacketReader(again.get(28)).opcode());
             }
         }
     }
@@ -2852,6 +2860,53 @@ class GameFlowIT {
                 inv.deleteClubSetLevelUpLimit(1, 1);
                 inv.deleteClubSetRankExp(1);
                 inv.deleteClubSetOriginal(GamePackets.TYPEID_WINGTROSS_EVO);
+            }
+        }
+    }
+
+    @Test
+    void loginSendsTutorialInfoPacote11FTipo3() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config);
+             PangyaFakeClient client = new PangyaFakeClient()) {
+            InventoryRepository inv = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
+            try {
+                inv.updateTutorial(10001, 7, 0x300, 0x50000);
+                LoginRepository repo = new JdbiLoginRepository(DatabaseSupport.jdbi(ds));
+                String loginKey = repo.generateAuthKeyLogin(10001);
+                String gameKey = repo.generateAuthKeyGame(10001, 20202);
+                keys.putLoginKey(10001, loginKey);
+                keys.putGameKey(10001, 20202, gameKey);
+
+                client.connect("127.0.0.1", runtime.port(), PangyaFakeClient.HelloKind.GAME);
+                client.awaitHello(5, TimeUnit.SECONDS);
+                client.sendPlain(GamePackets.clientLogin(
+                        "testuser",
+                        10001,
+                        loginKey,
+                        GamePackets.JP_CLIENT_VERSION,
+                        GamePackets.xorPacketVersion(GamePackets.JP_PACKET_VERSION),
+                        gameKey));
+                List<byte[]> loginPkts = collect(client, GamePackets.LOGIN_DUMP_PACKET_COUNT, 8, TimeUnit.SECONDS);
+                assertEquals(GamePackets.LOGIN_DUMP_PACKET_COUNT, loginPkts.size());
+
+                PacketReader tutoInfo = new PacketReader(loginPkts.get(8));
+                assertEquals(GamePackets.SERVER_MAKE_TUTORIAL, tutoInfo.opcode());
+                assertEquals(GamePackets.TUTORIAL_INFO_LOGIN_TIPO, tutoInfo.i16());
+                assertEquals(7, tutoInfo.u32());
+                assertEquals(0x300, tutoInfo.u32());
+                assertEquals(0x50000, tutoInfo.u32());
+                assertEquals(0, tutoInfo.remaining());
+            } finally {
+                inv.updateTutorial(10001, 0, 0, 0);
             }
         }
     }

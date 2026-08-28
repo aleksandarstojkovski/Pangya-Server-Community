@@ -1576,6 +1576,8 @@ public final class GamePackets {
     public static final int TUTORIAL_TIPO_ROOKIE = 0;
     public static final int TUTORIAL_TIPO_BEGINNER = 1;
     public static final int TUTORIAL_TIPO_ADVANCER = 2;
+    /** C# {@code pacote11F(pi, 3)} login init (distinct from quest-completion u8 layout). */
+    public static final int TUTORIAL_INFO_LOGIN_TIPO = 3;
     /** C# success {@code 0x11F} second byte. */
     public static final int TUTORIAL_OK = 1;
     public static final String TUTORIAL_ROOKIE_MSG = "NICE TUTORIAL ROOKIE CLEAR";
@@ -2368,8 +2370,13 @@ public final class GamePackets {
      * (includes {@code 0xF1}/{@code 0x135}, no GB {@code 0x1B1}).
      */
     public static final int LOGIN_DUMP_TAIL_COUNT = 20;
+    /** C# LoginManager case 5 {@code pacote11F(pi, 3)} after channel list, before tail. */
+    public static final int LOGIN_DUMP_TUTORIAL_COUNT = 1;
     public static final int LOGIN_DUMP_PACKET_COUNT =
-            LOGIN_NEW_MAIL_COUNT + LOGIN_DUMP_PREFIX_COUNT + LOGIN_DUMP_TAIL_COUNT;
+            LOGIN_NEW_MAIL_COUNT
+                    + LOGIN_DUMP_PREFIX_COUNT
+                    + LOGIN_DUMP_TUTORIAL_COUNT
+                    + LOGIN_DUMP_TAIL_COUNT;
 
     public static boolean isCharacterTypeid(int typeid) {
         return (typeid >>> 26) == IFF_GROUP_CHARACTER;
@@ -4303,6 +4310,19 @@ public final class GamePackets {
                 .u8(tipo)
                 .u8(TUTORIAL_OK)
                 .u32(flags)
+                .toBytes();
+    }
+
+    /**
+     * C# {@code pacote11F(pi, 3)} login init: i16 tipo + {@code TutorialInfo.ToArray()}.
+     */
+    public static byte[] tutorialInfoLogin(int rookie, int beginner, int advancer) {
+        return new PacketWriter()
+                .opcode(SERVER_MAKE_TUTORIAL)
+                .i16(TUTORIAL_INFO_LOGIN_TIPO)
+                .u32(rookie)
+                .u32(beginner)
+                .u32(advancer)
                 .toBytes();
     }
 

@@ -115,6 +115,7 @@ class GamePacketsTest {
         List<byte[]> tail = GamePackets.loginDumpTail(10001, 0, 0, 1);
         assertEquals(GamePackets.LOGIN_DUMP_TAIL_COUNT, tail.size());
         assertEquals(GamePackets.LOGIN_NEW_MAIL_COUNT + GamePackets.LOGIN_DUMP_PREFIX_COUNT
+                + GamePackets.LOGIN_DUMP_TUTORIAL_COUNT
                 + GamePackets.LOGIN_DUMP_TAIL_COUNT, GamePackets.LOGIN_DUMP_PACKET_COUNT);
         assertEquals(0x102, new PacketReader(tail.get(0)).opcode());
         assertEquals(0xF1, new PacketReader(tail.get(4)).opcode());
@@ -1142,6 +1143,13 @@ class GamePacketsTest {
         assertEquals(0, tutoOk.u8());
         assertEquals(GamePackets.TUTORIAL_OK, tutoOk.u8());
         assertEquals(1, tutoOk.u32());
+        PacketReader tutoLogin = new PacketReader(GamePackets.tutorialInfoLogin(1, 0x100, 0x20000));
+        assertEquals(GamePackets.SERVER_MAKE_TUTORIAL, tutoLogin.opcode());
+        assertEquals(GamePackets.TUTORIAL_INFO_LOGIN_TIPO, tutoLogin.i16());
+        assertEquals(1, tutoLogin.u32());
+        assertEquals(0x100, tutoLogin.u32());
+        assertEquals(0x20000, tutoLogin.u32());
+        assertEquals(0, tutoLogin.remaining());
         PacketReader webClient = new PacketReader(GamePackets.clientWebAuthKey());
         assertEquals(GamePackets.CLIENT_WEB_AUTH_KEY, webClient.opcode());
         assertEquals(0, webClient.remaining());

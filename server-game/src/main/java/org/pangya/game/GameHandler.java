@@ -437,6 +437,9 @@ public final class GameHandler {
             pi.tutoRookie = tuto.rookie();
             pi.tutoBeginner = tuto.beginner();
             pi.tutoAdvancer = tuto.advancer();
+            // C# LoginManager case 5: pacote11F(pi, 3) before sendCompleteData tail.
+            session.send(GamePackets.tutorialInfoLogin(
+                    pi.tutoRookie, pi.tutoBeginner, pi.tutoAdvancer));
             for (byte[] extra : GamePackets.loginDumpTail(
                     (int) pi.uid,
                     inventory.pang(pi.uid),
