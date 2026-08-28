@@ -4467,11 +4467,11 @@ class GameFlowIT {
                 awaitOpcode(client, GamePackets.SERVER_START_GAME_FLAG2);
                 awaitOpcode(client, GamePackets.SERVER_PANG_RATE);
                 PacketReader init = awaitOpcode(client, GamePackets.SERVER_GAME_INIT);
-                assertEquals(GamePackets.TIPO_GRAND_PRIX, init.u8());
+                assertEquals(GamePackets.TIPO_TOURNEY, init.u8());
                 assertEquals(1, init.u32());
                 PacketReader course = awaitOpcode(client, GamePackets.SERVER_COURSE);
                 assertEquals(0, course.u8());
-                assertEquals(GamePackets.TIPO_GRAND_PRIX, course.u8());
+                assertEquals(GamePackets.TIPO_TOURNEY, course.u8());
             } finally {
                 inv.deleteGrandPrixEvent(GamePackets.TYPEID_GP_EVENT_TEST);
             }
