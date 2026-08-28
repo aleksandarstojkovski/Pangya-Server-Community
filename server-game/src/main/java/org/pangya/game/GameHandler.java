@@ -8241,7 +8241,45 @@ public final class GameHandler {
 
     /** C# {@code GameService.reloadGlobalSystem} — log-only until IFF/event loaders exist. */
     void authReloadGlobalSystem(int tipo) {
-        log.info("auth reload global system tipo={}", tipo);
+        try {
+            switch (tipo) {
+                case 0 -> log.info("auth reload all global systems (stub)");
+                case 1 -> log.info("auth reload IFF (stub)");
+                case 2 -> log.info("auth reload card system (stub)");
+                case 3 -> log.info("auth reload comet refill (stub)");
+                case 4 -> log.info("auth reload papel shop (stub)");
+                case 5 -> log.info("auth reload box system (stub)");
+                case 6 -> log.info("auth reload memorial shop (stub)");
+                case 7 -> log.info("auth reload cube coin (stub)");
+                case 8 -> log.info("auth reload treasure hunter (stub)");
+                case 9 -> log.info("auth reload drop system (stub)");
+                case 10 -> log.info("auth reload attendance reward (stub)");
+                case 11 -> log.info("auth reload map course data (stub)");
+                case 12 -> log.info("auth reload approach mission (stub)");
+                case 13 -> log.info("auth reload grand zodiac event (stub)");
+                case 14 -> log.info("auth reload coin cube location (stub)");
+                case 15 -> log.info("auth reload golden time (stub)");
+                case 16 -> log.info("auth reload login reward (stub)");
+                case 17 -> log.info("auth reload bot gm event (stub)");
+                case 18 -> log.info("auth reload smart calculator (stub)");
+                default -> {
+                    log.warn("auth reload global system unknown tipo={}", tipo);
+                    return;
+                }
+            }
+            log.info("auth reload global system tipo={} ok", tipo);
+        } catch (RuntimeException e) {
+            log.warn("auth reload global system tipo={} failed: {}", tipo, e.toString());
+        }
+    }
+
+    /**
+     * C# {@code GameService.reload_files}: {@code config_init} + {@code reload_systems}
+     * then channel broadcast {@code 0xF9}. System loaders remain stubs until IFF exists.
+     */
+    void reloadFiles() {
+        log.info("reload files (config/system reload stub)");
+        broadcastServerInfoUpdate();
     }
 
     /** C# {@code GameService.authCmdShutdown}. */

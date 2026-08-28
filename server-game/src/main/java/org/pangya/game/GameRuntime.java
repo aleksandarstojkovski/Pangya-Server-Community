@@ -114,6 +114,11 @@ public final class GameRuntime implements AutoCloseable {
         return authHandler;
     }
 
+    /** Package tests reach {@link GameHandler} helpers (e.g. {@code reloadFiles}). */
+    GameHandler gameHandler() {
+        return authHandler.game();
+    }
+
     private void heartbeatLoop(LoginRepository repo) {
         while (running.get()) {
             heartbeatOnce(repo);

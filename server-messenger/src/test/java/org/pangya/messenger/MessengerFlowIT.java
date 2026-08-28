@@ -598,6 +598,21 @@ class MessengerFlowIT {
     }
 
     @Test
+    void authReloadGlobalSystemAcceptsTipoZero() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password));
+        try (MessengerRuntime runtime = new MessengerRuntime(config)) {
+            runtime.handler().onAuthPacket(
+                    AuthS2s.AUTH_RELOAD_SYSTEM,
+                    new PacketReader(new PacketWriter().u32(0).toBytes()));
+        }
+    }
+
+    @Test
     void authGuildAcceptBroadcastsJoinToMembers() throws Exception {
         String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
         String user = env("PANGYA_TEST_JDBC_USER", "pangya");

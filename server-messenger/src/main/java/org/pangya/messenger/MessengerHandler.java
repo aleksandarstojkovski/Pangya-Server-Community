@@ -104,6 +104,15 @@ public final class MessengerHandler {
     public void onAuthPacket(int opcode, PacketReader body) {
         switch (opcode) {
             case AuthS2s.AUTH_SHUTDOWN -> shutdownScheduler.accept(body.i32());
+            case AuthS2s.AUTH_BROADCAST_NOTICE,
+                    AuthS2s.AUTH_BROADCAST_TICKER,
+                    AuthS2s.AUTH_BROADCAST_CUBE_WIN_RARE,
+                    AuthS2s.AUTH_NEW_MAIL -> { /* C# Messenger no-op */ }
+            case AuthS2s.AUTH_NEW_RATE -> {
+                AuthS2s.AuthNewRateRequest req = AuthS2s.readAuthNewRate(body);
+                authNewRate(req.tipo(), req.qntd());
+            }
+            case AuthS2s.AUTH_RELOAD_SYSTEM -> authReloadGlobalSystem(body.u32());
             case AuthS2s.AUTH_DISCONNECT_PLAYER -> authDisconnectPlayer(body);
             case AuthS2s.AUTH_INFO_PLAYER_ONLINE -> authInfoPlayerOnline(body);
             case AuthS2s.AUTH_CONFIRM_PLAYER_INFO -> authConfirmPlayerInfo(body);
@@ -253,6 +262,35 @@ public final class MessengerHandler {
             log.debug("auth disconnect uid={} not on messenger, cleared DB logon", req.playerUid());
         }
         authOut.sendConfirmDisconnectPlayer(req.serverUid(), req.playerUid());
+    }
+
+    /** C# {@code MessengerServer.updateRateAndEvent} — DB rate update stub (no {@code 0xF9}). */
+    private void authNewRate(int tipo, long qntd) {
+        if (qntd == 0 && tipo != 9 && tipo != 10 && tipo != 11 && tipo != 12 && tipo != 13 && tipo != 14 && tipo != 15) {
+            log.warn("auth new rate tipo={} qntd=0 ignored", tipo);
+            return;
+        }
+        log.info("auth new rate tipo={} qntd={} (messenger stub)", tipo, qntd);
+    }
+
+    /** C# {@code MessengerServer.reloadGlobalSystem} — log-only until IFF loaders exist. */
+    private void authReloadGlobalSystem(int tipo) {
+        try {
+            switch (tipo) {
+                case 0 -> log.info("auth reload all global systems (stub)");
+                case 1 -> log.info("auth reload IFF (stub)");
+                case 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17 ->
+                        log.debug("auth reload tipo={} (no messenger system)", tipo);
+                case 18 -> log.info("auth reload smart calculator (stub)");
+                default -> {
+                    log.warn("auth reload global system unknown tipo={}", tipo);
+                    return;
+                }
+            }
+            log.info("auth reload global system tipo={} ok", tipo);
+        } catch (RuntimeException e) {
+            log.warn("auth reload global system tipo={} failed: {}", tipo, e.toString());
+        }
     }
 
     /** C# {@code authCmdInfoPlayerOnline} → {@code sendInfoPlayerOnline}. */

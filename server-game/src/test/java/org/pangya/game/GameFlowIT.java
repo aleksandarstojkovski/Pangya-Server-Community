@@ -6341,6 +6341,37 @@ class GameFlowIT {
     }
 
     @Test
+    void reloadFilesBroadcastsServerInfoUpdate() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config);
+             PangyaFakeClient client = new PangyaFakeClient()) {
+            LoginRepository repo = new JdbiLoginRepository(DatabaseSupport.jdbi(ds));
+            String loginKey = repo.generateAuthKeyLogin(10001);
+            String gameKey = repo.generateAuthKeyGame(10001, 20202);
+            keys.putLoginKey(10001, loginKey);
+            keys.putGameKey(10001, 20202, gameKey);
+            loginToChannel(client, runtime.port(), "testuser", 10001, loginKey, gameKey);
+            drainPending(client, 500);
+
+            runtime.gameHandler().reloadFiles();
+
+            PacketReader update = new PacketReader(client.awaitPlain(5, TimeUnit.SECONDS));
+            assertEquals(GamePackets.SERVER_UPDATE_SERVER_INFO, update.opcode());
+            ServerInfo info = ServerInfo.fromReader(update);
+            assertEquals(20202, info.uid);
+            assertEquals(runtime.port(), info.port);
+        }
+    }
+
+    @Test
     void badGameKeySendsSecurityAck() throws Exception {
         String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
         String user = env("PANGYA_TEST_JDBC_USER", "pangya");

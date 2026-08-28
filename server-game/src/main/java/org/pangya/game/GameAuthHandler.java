@@ -38,6 +38,11 @@ public final class GameAuthHandler {
         this.game = game;
     }
 
+    /** Package tests reach channel helpers (e.g. {@code reloadFiles}). */
+    GameHandler game() {
+        return game;
+    }
+
     public void onAuthPacket(int opcode, PacketReader body) {
         switch (opcode) {
             case AuthS2s.AUTH_SHUTDOWN -> game.authShutdown(body.i32());

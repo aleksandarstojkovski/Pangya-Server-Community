@@ -83,6 +83,14 @@ public final class LoginHandler {
     public void onAuthPacket(int opcode, PacketReader body) {
         switch (opcode) {
             case AuthS2s.AUTH_SHUTDOWN -> shutdownScheduler.accept(body.i32());
+            case AuthS2s.AUTH_BROADCAST_NOTICE,
+                    AuthS2s.AUTH_BROADCAST_TICKER,
+                    AuthS2s.AUTH_BROADCAST_CUBE_WIN_RARE,
+                    AuthS2s.AUTH_NEW_MAIL,
+                    AuthS2s.AUTH_NEW_RATE,
+                    AuthS2s.AUTH_RELOAD_SYSTEM,
+                    AuthS2s.AUTH_INFO_PLAYER_ONLINE,
+                    AuthS2s.AUTH_CONFIRM_PLAYER_INFO -> { /* C# Login no-op */ }
             case AuthS2s.AUTH_DISCONNECT_PLAYER -> authDisconnectPlayer(body);
             case AuthS2s.AUTH_CONFIRM_DISCONNECT -> authConfirmDisconnectPlayer(body);
             default -> log.debug("unhandled auth packet 0x{}", Integer.toHexString(opcode));

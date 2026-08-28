@@ -13,8 +13,8 @@ Conteggio Channel: **197** handler `packet_func_sv` registrati in `GameService.i
 
 ## Questo turno
 
-Fatto: Auth shutdown timer su tutti i child server (`AuthShutdownScheduler`); Auth rate `0xF9`; auth admin/broadcast; auth inbound completo.
-Prossimo: IFF pin/cube/`initComboDef`; capture JP S9; S4 `reloadGlobalSystem` loaders.
+Fatto: `reload_files` → broadcast `0xF9`; auth reload/rate su Messenger; auth shutdown su tutti i child; auth rate `0xF9` su Game.
+Prossimo: IFF pin/cube/`initComboDef`; capture JP S9; S4 loader depth per `reloadGlobalSystem`.
 Blocco: file IFF assenti (pin/cube live, `initComboDef`); nessuna capture client JP Season 9.
 
 Percentuale epic: **scheletro 85%** / **parità client reale 43%**.
