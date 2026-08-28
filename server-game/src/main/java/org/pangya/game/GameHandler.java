@@ -1041,8 +1041,8 @@ public final class GameHandler {
     /**
      * C# {@code packet036}: u8 0 stops Versus like {@code 0x37}; u8 1 calls
      * {@code changeTurn} → {@code sendPlayerTurn} ({@code 0x5B}+{@code 0x63}).
-     * {@code m_player_turn == null} throws and is silent. Last-hole {@code 0x199}
-     * needs {@code acerto_hole} and is not invented here.
+     * Last-hole {@code 0x199} + {@code calculeClearVS} run before turn rotation
+     * (C# {@code VersusBase.changeTurn}).
      */
     private void replyContinueVersus(Session session, PacketReader reader) {
         GameRoom room = inGameRoom(session);
@@ -1059,6 +1059,7 @@ public final class GameHandler {
         if (opt != GamePackets.CONTINUE_GO || room.turnOid == 0 || room.course == null) {
             return;
         }
+        applyVersusTurnEndClearBonus(room, session);
         int oid = room.rotateTurn();
         if (oid == 0) {
             return;
@@ -1066,6 +1067,77 @@ public final class GameHandler {
         GamePackets.HoleInfo info = versusHole(room, oid);
         room.broadcast(GamePackets.wind(info.wind(), 0, info.degree(), 1));
         room.broadcast(GamePackets.playerTurn(oid));
+    }
+
+    /**
+     * C# {@code VersusBase.changeTurn}: broadcast {@code 0x199} and
+     * {@code MapSystem.calculeClearVS} for {@code m_player_turn} on the last hole.
+     */
+    private void applyVersusTurnEndClearBonus(GameRoom room, Session actor) {
+        if (room.tipo == GamePackets.TIPO_MATCH) {
+            applyMatchEndClearBonus(room);
+            return;
+        }
+        int turnOid = room.turnOid != 0 ? room.turnOid : actor.oid();
+        GameRoom.PlayerShot shot = room.shots.get(turnOid);
+        if (shot == null || (shot.displayState & GamePackets.DISPLAY_ACERTO_HOLE) == 0) {
+            shot = room.shots.get(actor.oid());
+        }
+        if (shot == null || (shot.displayState & GamePackets.DISPLAY_ACERTO_HOLE) == 0) {
+            return;
+        }
+        int holeNum = shot.hole == 0 ? 1 : shot.hole;
+        if (holeNum < room.info.holes) {
+            return;
+        }
+        room.broadcast(GamePackets.lastHole());
+        if ((shot.displayState & GamePackets.DISPLAY_CLEAR_BONUS) == 0) {
+            return;
+        }
+        int courseId = room.info.course & 0x7f;
+        MapCatalog.CourseCtx map = catalogs.courseMap(courseId);
+        if (map == null) {
+            log.warn("versus clear bonus missing course map course={} room={}", courseId, room.info.numero);
+            return;
+        }
+        int numPlayers = room.snapshot().size();
+        shot.bonusPang += MapCatalog.calculeClearVs(map, numPlayers, room.info.holes);
+    }
+
+    /**
+     * C# {@code Match.changeHole}: broadcast {@code 0x199} and
+     * {@code calculeClearMatch} for each team when the match ends on the last hole.
+     * Java stand-in: credit every player once when all have {@code acerto_hole} on
+     * the final hole (team pang merge is not modeled yet).
+     */
+    private void applyMatchEndClearBonus(GameRoom room) {
+        if (room.matchClearBonusApplied) {
+            return;
+        }
+        int holes = room.info.holes;
+        for (Session member : room.snapshot()) {
+            GameRoom.PlayerShot shot = room.shots.get(member.oid());
+            if (shot == null
+                    || (shot.displayState & GamePackets.DISPLAY_ACERTO_HOLE) == 0
+                    || (shot.hole == 0 ? 1 : shot.hole) < holes) {
+                return;
+            }
+        }
+        room.matchClearBonusApplied = true;
+        room.broadcast(GamePackets.lastHole());
+        int courseId = room.info.course & 0x7f;
+        MapCatalog.CourseCtx map = catalogs.courseMap(courseId);
+        if (map == null) {
+            log.warn("match clear bonus missing course map course={} room={}", courseId, room.info.numero);
+            return;
+        }
+        int bonus = MapCatalog.calculeClearMatch(map, holes);
+        for (Session member : room.snapshot()) {
+            GameRoom.PlayerShot shot = room.shots.get(member.oid());
+            if (shot != null) {
+                shot.bonusPang += bonus;
+            }
+        }
     }
 
     /**

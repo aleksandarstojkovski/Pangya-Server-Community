@@ -35,6 +35,8 @@ final class GameRoom {
     final ConcurrentHashMap<Integer, Boolean> loadHole = new ConcurrentHashMap<>();
     /** C# Versus {@code m_player_turn.oid}; 0 until {@code sendReplyFinishLoadHole}. */
     volatile int turnOid;
+    /** C# Match {@code changeHole} clear bonus applied once per game. */
+    volatile boolean matchClearBonusApplied;
     /** C# {@code m_player_report_game} UIDs that already sent {@code 0x3A}. */
     final ConcurrentHashMap<Long, Boolean> reported = new ConcurrentHashMap<>();
     /** C# {@code PersonalShopManager} per-owner shops. */
