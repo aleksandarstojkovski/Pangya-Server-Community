@@ -11,6 +11,7 @@ import org.pangya.protocol.game.GamePackets;
 import org.pangya.protocol.login.ServerInfo;
 import org.pangya.protocol.packet.PacketIo;
 import org.pangya.protocol.packet.PacketReader;
+import org.pangya.protocol.packet.PacketWriter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -113,7 +114,12 @@ public final class GameHandler {
             case GamePackets.CLIENT_SHOT_ACK -> finishShot(session);
             case GamePackets.CLIENT_REQUEST_EQUIP_ITEM -> equipItem(session, reader);
             case GamePackets.CLIENT_REQUEST_BUY_ITEM -> buyItem(session, reader);
+            case GamePackets.CLIENT_REQUEST_GIFT_ITEM -> giftItem(session, reader);
             case GamePackets.CLIENT_LOUNGE_STATE -> loungeState(session);
+            case GamePackets.CLIENT_SYNC_ACTIVITY -> playerLocationRoom(session, reader);
+            case GamePackets.CLIENT_SLEEP -> changeSleep(session, reader);
+            case GamePackets.CLIENT_TEESHOT_READY -> finishCharIntro(session);
+            case GamePackets.CLIENT_END_STROKE_GAME -> lastPlayerFinishVersus(session);
             case GamePackets.CLIENT_ENTER_LOBBY -> enterLobby(session);
             case GamePackets.CLIENT_LEAVE_LOBBY -> leaveLobby(session);
             case GamePackets.CLIENT_CHAT -> chat(session, reader);
@@ -388,6 +394,7 @@ public final class GameHandler {
         room.info.state = 0;
         room.startMillis = System.currentTimeMillis();
         room.course = new GameCourse(room.info);
+        room.clearCharIntro();
         room.broadcast(GamePackets.startGameFlag());
         room.broadcast(GamePackets.startGameFlag2());
         room.broadcast(GamePackets.pangRate(room.info.ratePang));
@@ -590,12 +597,29 @@ public final class GameHandler {
             return;
         }
         reader.readBytes(GamePackets.USER_INFO_BYTES);
+        sendFinishGameDump(session, room);
+        finishGameRoom(room);
+    }
+
+    /**
+     * C# {@code packet037} / {@code requestLastPlayerFinishVersus}: Versus
+     * {@code finish_game(first, 2)} then {@code room.finish_game()}.
+     */
+    private void lastPlayerFinishVersus(Session session) {
+        GameRoom room = inGameRoom(session);
+        if (room == null || !GamePackets.usesVersusInitialData(room.tipo)) {
+            return;
+        }
+        sendFinishGameDump(session, room);
+        finishGameRoom(room);
+    }
+
+    private void sendFinishGameDump(Session session, GameRoom room) {
         session.send(GamePackets.prizeList(new int[0]));
         session.send(GamePackets.gameResult(0, room.info.trophy, 0, 2));
         session.send(GamePackets.myStatistics(GamePackets.userInfoPublic(session.player().level)));
         session.send(GamePackets.treasureHunterItem());
         session.send(GamePackets.pangSpent(inventory.pang(session.player().uid), 0));
-        finishGameRoom(room);
     }
 
     /**
@@ -765,6 +789,7 @@ public final class GameHandler {
         room.course = null;
         room.pauseCount = 0;
         room.shots.clear();
+        room.clearCharIntro();
         for (Session member : room.snapshot()) {
             GamePackets.PlayerRoomInfo pri = room.playerInfo(member);
             if (pri == null) {
@@ -913,6 +938,44 @@ public final class GameHandler {
         }
     }
 
+    /**
+     * C# {@code packet01F} / {@code requestGiftItemShop}. Success needs IFF + mailbox;
+     * Java only emits fail {@code 0x6A} (empty → 9, otherwise init-item 1 / catch 10).
+     */
+    private void giftItem(Session session, PacketReader reader) {
+        if (!session.authorized()) {
+            return;
+        }
+        long pang = inventory.pang(session.player().uid);
+        long cookie = inventory.cookie(session.player().uid);
+        try {
+            if (reader.remaining() < 9) {
+                session.send(GamePackets.giftFailed(GamePackets.BUY_FAIL_GENERIC, pang, cookie));
+                return;
+            }
+            reader.u16();
+            reader.u32();
+            reader.pstr();
+            if (reader.remaining() < 3) {
+                session.send(GamePackets.giftFailed(GamePackets.BUY_FAIL_GENERIC, pang, cookie));
+                return;
+            }
+            reader.u8();
+            int qntd = reader.u16();
+            if (qntd <= 0) {
+                session.send(GamePackets.giftFailed(GamePackets.BUY_FAIL_EMPTY, pang, cookie));
+                return;
+            }
+            for (int i = 0; i < qntd; i++) {
+                GamePackets.readBuyItem(reader);
+            }
+            session.send(GamePackets.giftFailed(GamePackets.BUY_FAIL_INIT, pang, cookie));
+        } catch (RuntimeException e) {
+            log.warn("gift item uid={} failed: {}", session.player().uid, e.toString());
+            session.send(GamePackets.giftFailed(GamePackets.BUY_FAIL_GENERIC, pang, cookie));
+        }
+    }
+
     private void loungeState(Session session) {
         if (!session.authorized()) {
             return;
@@ -922,6 +985,122 @@ public final class GameHandler {
             return;
         }
         room.broadcast(GamePackets.loungeState(session.oid()));
+    }
+
+    /**
+     * C# {@code packet063} / {@code requestPlayerLocationRoom}: type + payload →
+     * room {@code 0xC4}. Location types 4/6 add xz and set r; type 9 is unknown.
+     */
+    private void playerLocationRoom(Session session, PacketReader reader) {
+        if (!session.authorized() || reader.remaining() < 1) {
+            return;
+        }
+        GameRoom room = rooms.get(session.player().roomNumber);
+        if (room == null) {
+            return;
+        }
+        int type = reader.u8();
+        PlayerContext pi = session.player();
+        GamePackets.PlayerRoomInfo pri = room.playerInfo(session);
+        byte[] payload;
+        switch (type) {
+            case GamePackets.ACTION_ROTATION -> {
+                if (reader.remaining() < 4) {
+                    return;
+                }
+                pi.locR = reader.f32();
+                if (pri != null) {
+                    pri.r = pi.locR;
+                }
+                payload = new PacketWriter().f32(pi.locR).toBytes();
+            }
+            case GamePackets.ACTION_LOUNGER_LOC, GamePackets.ACTION_MOVE -> {
+                if (reader.remaining() < GamePackets.LOCATION_BYTES) {
+                    return;
+                }
+                float dx = reader.f32();
+                float dz = reader.f32();
+                float r = reader.f32();
+                pi.locX += dx;
+                pi.locZ += dz;
+                pi.locR = r;
+                if (pri != null) {
+                    pri.x = pi.locX;
+                    pri.z = pi.locZ;
+                    pri.r = pi.locR;
+                }
+                payload = GamePackets.location(dx, dz, r);
+            }
+            case GamePackets.ACTION_LOUNGER_STATE -> {
+                if (reader.remaining() < 4) {
+                    return;
+                }
+                pi.loungeState = reader.u32();
+                if (pri != null) {
+                    pri.state = pi.loungeState;
+                }
+                payload = new PacketWriter().u32(pi.loungeState).toBytes();
+            }
+            case GamePackets.ACTION_ACK_PLAYER -> {
+                if (reader.remaining() < 4) {
+                    return;
+                }
+                pi.stateLounge = reader.u32();
+                if (pri != null) {
+                    pri.stateLounge = pi.stateLounge;
+                }
+                payload = new PacketWriter().u32(pi.stateLounge).toBytes();
+            }
+            case GamePackets.ACTION_MOTION_ROOM,
+                    GamePackets.ACTION_MOTION_LOUNGER,
+                    GamePackets.ACTION_ANIMATION_WITH_EFFECTS -> payload = reader.remainingBytes();
+            default -> {
+                return;
+            }
+        }
+        room.broadcast(GamePackets.syncActivity(session.oid(), type, payload));
+    }
+
+    /**
+     * C# {@code packet032}: u8 state → room {@code 0x8E} plus lobby {@code 0x46} option 3.
+     */
+    private void changeSleep(Session session, PacketReader reader) {
+        if (!session.authorized() || reader.remaining() < 1) {
+            return;
+        }
+        GameRoom room = rooms.get(session.player().roomNumber);
+        if (room == null) {
+            return;
+        }
+        int state = reader.u8();
+        PlayerContext pi = session.player();
+        pi.away = state & 1;
+        GamePackets.PlayerRoomInfo pri = room.playerInfo(session);
+        if (pri == null) {
+            return;
+        }
+        if (pi.away != 0) {
+            pri.stateFlag |= GamePackets.PLAYER_AWAY_BIT;
+        } else {
+            pri.stateFlag &= ~GamePackets.PLAYER_AWAY_BIT;
+        }
+        room.broadcast(GamePackets.sleep(session.oid(), state));
+        sendLobbyPlayerInfo(session, GamePackets.LOBBY_USER_UPDATE);
+    }
+
+    /**
+     * C# {@code packet034}: Tourney stores the flag with no reply. Versus broadcasts
+     * empty {@code 0x90} when every in-room player has finished the intro.
+     */
+    private void finishCharIntro(Session session) {
+        GameRoom room = inGameRoom(session);
+        if (room == null || !GamePackets.usesVersusInitialData(room.tipo)) {
+            return;
+        }
+        if (room.markCharIntro(session)) {
+            room.clearCharIntro();
+            room.broadcast(GamePackets.teeshotReady());
+        }
     }
 
     private GameRoom inGameRoom(Session session) {
@@ -1066,6 +1245,14 @@ public final class GameHandler {
         pri.uid = (int) pi.uid;
         pri.level = pi.level;
         pri.place = 10;
+        pri.x = pi.locX;
+        pri.z = pi.locZ;
+        pri.r = pi.locR;
+        pri.state = pi.loungeState;
+        pri.stateLounge = pi.stateLounge;
+        if (pi.away != 0) {
+            pri.stateFlag |= GamePackets.PLAYER_AWAY_BIT;
+        }
         if (room.info.master == (int) pi.uid) {
             pri.stateFlag |= GamePackets.PLAYER_MASTER_BIT | GamePackets.PLAYER_READY_BIT;
         }
@@ -1247,6 +1434,9 @@ public final class GameHandler {
         info.capability = pi.capability;
         info.teamPoint = 1000;
         info.nickDisplay = "@NT_" + info.nick;
+        if (pi.away != 0) {
+            info.state |= GamePackets.PLAYER_LOBBY_AWAY_BIT;
+        }
         GamePackets.UserEquip equip = inventory.userEquip(pi.uid);
         info.title = equip.skinTypeid.length > 5 ? equip.skinTypeid[5] : 0;
         return info;

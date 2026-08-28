@@ -532,4 +532,82 @@ class GamePacketsTest {
         assertEquals(GamePackets.SERVER_BUY_ACK, 0x68);
         assertEquals(GamePackets.CREATE_ROOM_FAILED, 0x07);
     }
+
+    @Test
+    void loungeSleepTeeshotGiftPacketsMatchCsharp() {
+        PacketReader loc = new PacketReader(GamePackets.clientSyncActivityLocation(
+                GamePackets.ACTION_LOUNGER_LOC, 1.5f, 2.5f, 0.25f));
+        assertEquals(GamePackets.CLIENT_SYNC_ACTIVITY, loc.opcode());
+        assertEquals(GamePackets.ACTION_LOUNGER_LOC, loc.u8());
+        assertEquals(1.5f, loc.f32());
+        assertEquals(2.5f, loc.f32());
+        assertEquals(0.25f, loc.f32());
+        assertEquals(0, loc.remaining());
+
+        PacketReader rot = new PacketReader(GamePackets.clientSyncActivityRotation(1.0f));
+        assertEquals(GamePackets.CLIENT_SYNC_ACTIVITY, rot.opcode());
+        assertEquals(GamePackets.ACTION_ROTATION, rot.u8());
+        assertEquals(1.0f, rot.f32());
+
+        byte[] motion = {1, 2, 3};
+        PacketReader sync = new PacketReader(GamePackets.syncActivity(7, GamePackets.ACTION_MOTION_ROOM, motion));
+        assertEquals(GamePackets.SERVER_SYNC_ACTIVITY, sync.opcode());
+        assertEquals(7, sync.i32());
+        assertEquals(GamePackets.ACTION_MOTION_ROOM, sync.u8());
+        assertEquals(3, sync.remaining());
+
+        PacketReader sleep = new PacketReader(GamePackets.clientSleep(1));
+        assertEquals(GamePackets.CLIENT_SLEEP, sleep.opcode());
+        assertEquals(1, sleep.u8());
+
+        PacketReader slept = new PacketReader(GamePackets.sleep(7, 1));
+        assertEquals(GamePackets.SERVER_SLEEP, slept.opcode());
+        assertEquals(7, slept.i32());
+        assertEquals(1, slept.u8());
+        assertEquals(GamePackets.PLAYER_AWAY_BIT, 1 << 2);
+        assertEquals(GamePackets.PLAYER_LOBBY_AWAY_BIT, 1);
+
+        PacketReader teeshot = new PacketReader(GamePackets.clientTeeshotReady());
+        assertEquals(GamePackets.CLIENT_TEESHOT_READY, teeshot.opcode());
+        assertEquals(0, teeshot.remaining());
+
+        PacketReader ready = new PacketReader(GamePackets.teeshotReady());
+        assertEquals(GamePackets.SERVER_TEESHOT_READY_ACK, ready.opcode());
+        assertEquals(0, ready.remaining());
+
+        PacketReader end = new PacketReader(GamePackets.clientEndStroke());
+        assertEquals(GamePackets.CLIENT_END_STROKE_GAME, end.opcode());
+        assertEquals(0, end.remaining());
+
+        PacketReader emptyGift = new PacketReader(GamePackets.clientGiftEmpty(10002));
+        assertEquals(GamePackets.CLIENT_REQUEST_GIFT_ITEM, emptyGift.opcode());
+        assertEquals(0, emptyGift.u16());
+        assertEquals(10002, emptyGift.u32());
+        assertEquals("", emptyGift.pstr());
+        assertEquals(0, emptyGift.u8());
+        assertEquals(0, emptyGift.u16());
+
+        PacketReader giftFail = new PacketReader(GamePackets.giftFailed(GamePackets.BUY_FAIL_EMPTY, 100000, 0));
+        assertEquals(GamePackets.SERVER_RESPONSE_GIFT_ITEM, giftFail.opcode());
+        assertEquals(GamePackets.BUY_FAIL_EMPTY, giftFail.u32());
+        assertEquals(100000, giftFail.u64());
+        assertEquals(0, giftFail.u64());
+
+        PacketReader giftItem = new PacketReader(GamePackets.clientGiftItem(
+                10002, GamePackets.TYPEID_SHOP_PANG_ITEM, 1, GamePackets.SHOP_PANG_PRICE, 0));
+        assertEquals(GamePackets.CLIENT_REQUEST_GIFT_ITEM, giftItem.opcode());
+        giftItem.u16();
+        giftItem.u32();
+        giftItem.pstr();
+        giftItem.u8();
+        assertEquals(1, giftItem.u16());
+        assertEquals(0, giftItem.i32());
+        assertEquals(GamePackets.TYPEID_SHOP_PANG_ITEM, giftItem.u32());
+
+        assertEquals(GamePackets.SERVER_BUY_ACK, 0x68);
+        assertEquals(GamePackets.CREATE_ROOM_FAILED, 0x07);
+        assertEquals(GamePackets.SERVER_RESPONSE_GIFT_ITEM, 0x6A);
+        assertEquals(GamePackets.SERVER_SYNC_ACTIVITY, 0xC4);
+        assertEquals(GamePackets.CLIENT_SYNC_ACTIVITY, 0x63);
+    }
 }

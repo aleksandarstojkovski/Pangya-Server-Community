@@ -33,6 +33,10 @@ public final class GamePackets {
     public static final int SERVER_GAME_RESULT = 0x79;
     /** C# {@code SERVER_PAUSE} Versus {@code 0x8B}. */
     public static final int SERVER_PAUSE = 0x8B;
+    /** C# {@code SERVER_SLEEP} / {@code pacote08E}: oid + u8 state. */
+    public static final int SERVER_SLEEP = 0x8E;
+    /** C# {@code SERVER_TEESHOT_READY_ACK} empty Versus {@code 0x90}. */
+    public static final int SERVER_TEESHOT_READY_ACK = 0x90;
     /** C# {@code sendDropItem} / {@code SERVER_PRIZE_LIST}. */
     public static final int SERVER_PRIZE_LIST = 0xCE;
     /** C# {@code requestSendTreasureHunterItem} / {@code SERVER_UPDATE_TREASURE_GIFT_LIST}. */
@@ -52,6 +56,8 @@ public final class GamePackets {
     public static final int SERVER_LOAD_PERCENT = 0xA3;
     public static final int SERVER_TEAM_CHAT = 0xB0;
     public static final int SERVER_GAME_INIT = 0x76;
+    /** C# {@code SERVER_RESPONSE_GIFT_ITEM} / {@code 0x6A}: u32 code + u64 pang + u64 cookie. */
+    public static final int SERVER_RESPONSE_GIFT_ITEM = 0x6A;
     public static final int SERVER_EQUIP_ACK = 0x6B;
     public static final int SERVER_SYNC_SHOT = 0x6E;
     public static final int SERVER_REMAIN_TIME = 0x8D;
@@ -83,6 +89,8 @@ public final class GamePackets {
     /** C# pang spent after shop buy ({@code 0xC8} + remaining + spent). */
     public static final int SERVER_PANG_SPENT = 0xC8;
     public static final int SERVER_COOKIE = 0x96;
+    /** C# {@code SERVER_SYNC_ACTIVITY} / {@code pacote0C4}: oid + u8 type + payload. */
+    public static final int SERVER_SYNC_ACTIVITY = 0xC4;
     public static final int SERVER_MASCOT_SEED = 0x16A;
     /** C# {@code pacote196}: oid + {@code StateCharacterLounge} (4 floats). */
     public static final int SERVER_LOUNGE_STATE = 0x196;
@@ -123,6 +131,8 @@ public final class GamePackets {
     /** C# {@code CLIENT_REQUEST_BANISH} / {@code packet026} {@code requestKickPlayerOfRoom}. */
     public static final int CLIENT_REQUEST_BANISH = 0x26;
     public static final int CLIENT_REQUEST_BUY_ITEM = 0x1D;
+    /** C# {@code CLIENT_REQUEST_GIFT_ITEM} / {@code packet01F} {@code requestGiftItemShop}. */
+    public static final int CLIENT_REQUEST_GIFT_ITEM = 0x1F;
     /** C# {@code CLIENT_REQ_CHARACTER_STAT_IN_CHATROOM} → {@code pacote196}. */
     public static final int CLIENT_LOUNGE_STATE = 0xEB;
     public static final int CLIENT_REQUEST_EQUIP_ITEM = 0x20;
@@ -139,6 +149,12 @@ public final class GamePackets {
     public static final int CLIENT_PAUSE = 0x30;
     /** C# {@code CLIENT_HOLE_STAT} / {@code packet031} {@code requestFinishHoleData}. */
     public static final int CLIENT_HOLE_STAT = 0x31;
+    /** C# {@code CLIENT_SLEEP} / {@code packet032} {@code requestChangePlayerStateAFKRoom}. */
+    public static final int CLIENT_SLEEP = 0x32;
+    /** C# {@code CLIENT_TEESHOT_READY} / {@code packet034} {@code requestFinishCharIntro}. */
+    public static final int CLIENT_TEESHOT_READY = 0x34;
+    /** C# {@code CLIENT_END_STROKE_GAME} / {@code packet037} {@code requestLastPlayerFinishVersus}. */
+    public static final int CLIENT_END_STROKE_GAME = 0x37;
     public static final int CLIENT_UPDATE_MACRO = 0x69;
     public static final int CLIENT_REQUEST_SERVER_LIST = 0x43;
     public static final int CLIENT_REQUEST_RANK = 0x47;
@@ -148,6 +164,8 @@ public final class GamePackets {
     public static final int CLIENT_ALLOW_WHISPER = 0x55;
     /** C# {@code CLIENT_REQUEST_SERVER_TIME} / {@code packet05C}. */
     public static final int CLIENT_REQUEST_SERVER_TIME = 0x5C;
+    /** C# {@code CLIENT_SYNC_ACTIVITY} / {@code packet063} {@code requestPlayerLocationRoom}. */
+    public static final int CLIENT_SYNC_ACTIVITY = 0x63;
     public static final int CLIENT_INVITE = 0xBA;
 
     public static final int ACK_LOGIN_OK = 0;
@@ -182,6 +200,10 @@ public final class GamePackets {
     public static final int MACRO_BYTES = 64;
     public static final int PLAYER_INFO_DUMP_COUNT = 12;
     public static final int PLAYER_TEAM_BIT = 1;
+    /** C# {@code PlayerRoomInfo.state_flag.away} bit 2. */
+    public static final int PLAYER_AWAY_BIT = 1 << 2;
+    /** C# {@code PlayerLobbyInfo.state_flag.away} bit 0 of {@code ucByte}. */
+    public static final int PLAYER_LOBBY_AWAY_BIT = 1;
     /** C# {@code PlayerRoomInfo.state_flag.master}. */
     public static final int PLAYER_MASTER_BIT = 1 << 3;
     /** C# {@code RoomInfo.state_flag} when the master is GM. */
@@ -296,6 +318,19 @@ public final class GamePackets {
     public static final int PAUSE_PAUSE = 1;
     /** C# Versus max successful pauses before the request is rejected. */
     public static final int VERSUS_PAUSE_MAX = 3;
+    /** C# {@code TPLAYER_ACTION} lounge / room motion types. */
+    public static final int ACTION_ROTATION = 0;
+    public static final int ACTION_MOTION_ROOM = 1;
+    public static final int ACTION_LOUNGER_LOC = 4;
+    public static final int ACTION_LOUNGER_STATE = 5;
+    public static final int ACTION_MOVE = 6;
+    public static final int ACTION_MOTION_LOUNGER = 7;
+    public static final int ACTION_ACK_PLAYER = 8;
+    /** C# unknown type throws; Java ignores it. */
+    public static final int ACTION_UNK_NULL = 9;
+    public static final int ACTION_ANIMATION_WITH_EFFECTS = 10;
+    /** C# {@code PlayerRoomInfo.stLocation.ToArray}: 3 floats. */
+    public static final int LOCATION_BYTES = 12;
     /** C# {@code requestBuyItemShop} {@code 0x68} option codes. */
     public static final int BUY_FAIL_INIT = 1;
     public static final int BUY_FAIL_PRICE = 2;
@@ -1236,6 +1271,33 @@ public final class GamePackets {
         return new PacketWriter().opcode(SERVER_PAUSE).i32(oid).u8(opt).toBytes();
     }
 
+    /** C# {@code pacote08E}: i32 oid + u8 state. */
+    public static byte[] sleep(int oid, int state) {
+        return new PacketWriter().opcode(SERVER_SLEEP).i32(oid).u8(state).toBytes();
+    }
+
+    /** C# empty Versus {@code 0x90} after every player sends {@code 0x34}. */
+    public static byte[] teeshotReady() {
+        return new PacketWriter().opcode(SERVER_TEESHOT_READY_ACK).toBytes();
+    }
+
+    /** C# {@code PlayerRoomInfo.stLocation.ToArray}: x z r. */
+    public static byte[] location(float x, float z, float r) {
+        return new PacketWriter().f32(x).f32(z).f32(r).toBytes();
+    }
+
+    /**
+     * C# {@code pacote0C4}: oid + {@code TPLAYER_ACTION} + type payload.
+     */
+    public static byte[] syncActivity(int oid, int type, byte[] payload) {
+        return new PacketWriter()
+                .opcode(SERVER_SYNC_ACTIVITY)
+                .i32(oid)
+                .u8(type)
+                .bytes(payload)
+                .toBytes();
+    }
+
     /**
      * C# {@code updateFinishHole} {@code 0x6D}: oid + hole + shots + score + pang +
      * bonus + option (1 finished / 0 not).
@@ -1271,6 +1333,18 @@ public final class GamePackets {
     /** C# {@code 0x68} option 0 + remaining pang + cookie. */
     public static byte[] buyOk(long pang, long cookie) {
         return new PacketWriter().opcode(SERVER_BUY_ACK).u32(0).u64(pang).u64(cookie).toBytes();
+    }
+
+    /**
+     * C# gift {@code 0x6A}: u32 code + remaining pang + cookie (always present).
+     */
+    public static byte[] giftFailed(int code, long pang, long cookie) {
+        return new PacketWriter()
+                .opcode(SERVER_RESPONSE_GIFT_ITEM)
+                .u32(code)
+                .u64(pang)
+                .u64(cookie)
+                .toBytes();
     }
 
     /**
@@ -1890,6 +1964,84 @@ public final class GamePackets {
     /** C# CLIENT {@code 0x30}: u8 opt (0 resume / 1 pause). */
     public static byte[] clientPause(int opt) {
         return new PacketWriter().opcode(CLIENT_PAUSE).u8(opt).toBytes();
+    }
+
+    /** C# CLIENT {@code 0x32}: u8 AFK state. */
+    public static byte[] clientSleep(int state) {
+        return new PacketWriter().opcode(CLIENT_SLEEP).u8(state).toBytes();
+    }
+
+    /** C# CLIENT {@code 0x34}: empty body. */
+    public static byte[] clientTeeshotReady() {
+        return new PacketWriter().opcode(CLIENT_TEESHOT_READY).toBytes();
+    }
+
+    /** C# CLIENT {@code 0x37}: empty body. */
+    public static byte[] clientEndStroke() {
+        return new PacketWriter().opcode(CLIENT_END_STROKE_GAME).toBytes();
+    }
+
+    /** C# CLIENT {@code 0x63}: type + remaining payload. */
+    public static byte[] clientSyncActivity(int type, byte[] payload) {
+        return new PacketWriter().opcode(CLIENT_SYNC_ACTIVITY).u8(type).bytes(payload).toBytes();
+    }
+
+    /** C# {@code PLAYER_ACTION_ROTATION}: f32 r. */
+    public static byte[] clientSyncActivityRotation(float r) {
+        return new PacketWriter().opcode(CLIENT_SYNC_ACTIVITY).u8(ACTION_ROTATION).f32(r).toBytes();
+    }
+
+    /** C# lounge loc / move: 3 floats xz r. */
+    public static byte[] clientSyncActivityLocation(int type, float x, float z, float r) {
+        return new PacketWriter()
+                .opcode(CLIENT_SYNC_ACTIVITY)
+                .u8(type)
+                .f32(x)
+                .f32(z)
+                .f32(r)
+                .toBytes();
+    }
+
+    /** C# lounge state / ack-player: u32. */
+    public static byte[] clientSyncActivityState(int type, int state) {
+        return new PacketWriter().opcode(CLIENT_SYNC_ACTIVITY).u8(type).u32(state).toBytes();
+    }
+
+    /**
+     * C# CLIENT {@code 0x1F} with {@code qntd == 0} → gift {@code 0x6A} code 9.
+     */
+    public static byte[] clientGiftEmpty(int uid) {
+        return new PacketWriter()
+                .opcode(CLIENT_REQUEST_GIFT_ITEM)
+                .u16(0)
+                .u32(uid)
+                .pstr("")
+                .u8(0)
+                .u16(0)
+                .toBytes();
+    }
+
+    /**
+     * C# CLIENT {@code 0x1F} with one {@code BuyItem}. Without IFF this fails
+     * {@code initItemFromBuyItem} → {@code 0x6A} code 1.
+     */
+    public static byte[] clientGiftItem(int uid, int typeid, int qntd, int pang, int cookie) {
+        PacketWriter w = new PacketWriter()
+                .opcode(CLIENT_REQUEST_GIFT_ITEM)
+                .u16(0)
+                .u32(uid)
+                .pstr("")
+                .u8(0)
+                .u16(1);
+        w.i32(0);
+        w.u32(typeid);
+        w.i16(0);
+        w.i16(0);
+        w.u32(qntd);
+        w.u32(pang);
+        w.u32(cookie);
+        w.zero(13);
+        return w.toBytes();
     }
 
     /** C# CLIENT {@code 0x0B}: u8 type + i32 id/typeid. */

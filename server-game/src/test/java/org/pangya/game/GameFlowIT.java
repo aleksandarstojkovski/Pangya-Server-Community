@@ -360,6 +360,24 @@ class GameFlowIT {
             PacketReader resumed = awaitOpcode(guest, GamePackets.SERVER_PAUSE);
             resumed.i32();
             assertEquals(GamePackets.PAUSE_RESUME, resumed.u8());
+
+            host.sendPlain(GamePackets.clientTeeshotReady());
+            guest.sendPlain(GamePackets.clientTeeshotReady());
+            PacketReader teeshot = awaitOpcode(host, GamePackets.SERVER_TEESHOT_READY_ACK);
+            assertEquals(0, teeshot.remaining());
+            PacketReader guestTeeshot = awaitOpcode(guest, GamePackets.SERVER_TEESHOT_READY_ACK);
+            assertEquals(0, guestTeeshot.remaining());
+
+            host.sendPlain(GamePackets.clientEndStroke());
+            PacketReader prizes = awaitOpcode(host, GamePackets.SERVER_PRIZE_LIST);
+            assertEquals(0, prizes.u8());
+            assertEquals(0, prizes.u16());
+            awaitOpcode(host, GamePackets.SERVER_GAME_RESULT);
+            awaitOpcode(host, GamePackets.SERVER_MY_STATISTICS);
+            awaitOpcode(host, GamePackets.SERVER_UPDATE_TREASURE_GIFT_LIST);
+            awaitOpcode(host, GamePackets.SERVER_PANG_SPENT);
+            PacketReader wait = awaitOpcode(guest, GamePackets.SERVER_ROOM_UPDATE);
+            assertEquals(GamePackets.ROOM_INFO_BYTES, wait.remaining());
         }
     }
 
@@ -489,6 +507,20 @@ class GameFlowIT {
             assertEquals(0, ok.u32());
             assertEquals(99900, ok.u64());
             assertEquals(0, ok.u64());
+
+            client.sendPlain(GamePackets.clientGiftEmpty(10002));
+            PacketReader giftEmpty = awaitOpcode(client, GamePackets.SERVER_RESPONSE_GIFT_ITEM);
+            assertEquals(GamePackets.BUY_FAIL_EMPTY, giftEmpty.u32());
+            assertEquals(99900, giftEmpty.u64());
+            assertEquals(0, giftEmpty.u64());
+
+            client.sendPlain(GamePackets.clientGiftItem(
+                    10002, GamePackets.TYPEID_SHOP_PANG_ITEM, 1, GamePackets.SHOP_PANG_PRICE, 0));
+            PacketReader giftInit = awaitOpcode(client, GamePackets.SERVER_RESPONSE_GIFT_ITEM);
+            assertEquals(GamePackets.BUY_FAIL_INIT, giftInit.u32());
+            assertEquals(99900, giftInit.u64());
+            assertEquals(0, giftInit.u64());
+
             inventory.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_SHOP_PANG_ITEM);
             inventory.setPangCookie(10001, 100000, 0);
         }
@@ -522,6 +554,26 @@ class GameFlowIT {
             assertEquals(1.0f, state.f32());
             assertEquals(1.0f, state.f32());
             assertEquals(1.0f, state.f32());
+
+            client.sendPlain(GamePackets.clientSyncActivityLocation(
+                    GamePackets.ACTION_LOUNGER_LOC, 10.0f, 20.0f, 1.5f));
+            PacketReader loc = awaitOpcode(client, GamePackets.SERVER_SYNC_ACTIVITY);
+            assertTrue(loc.i32() > 0);
+            assertEquals(GamePackets.ACTION_LOUNGER_LOC, loc.u8());
+            assertEquals(10.0f, loc.f32());
+            assertEquals(20.0f, loc.f32());
+            assertEquals(1.5f, loc.f32());
+
+            client.sendPlain(GamePackets.clientSyncActivityRotation(2.0f));
+            PacketReader rot = awaitOpcode(client, GamePackets.SERVER_SYNC_ACTIVITY);
+            rot.i32();
+            assertEquals(GamePackets.ACTION_ROTATION, rot.u8());
+            assertEquals(2.0f, rot.f32());
+
+            client.sendPlain(GamePackets.clientSleep(1));
+            PacketReader sleep = awaitOpcode(client, GamePackets.SERVER_SLEEP);
+            assertTrue(sleep.i32() > 0);
+            assertEquals(1, sleep.u8());
         }
     }
 

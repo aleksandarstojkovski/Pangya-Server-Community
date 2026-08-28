@@ -25,6 +25,8 @@ final class GameRoom {
     volatile GameCourse course;
     /** C# Versus {@code m_count_pause}; max {@link GamePackets#VERSUS_PAUSE_MAX}. */
     volatile int pauseCount;
+    /** C# Versus {@code finish_char_intro}; cleared when all players have sent {@code 0x34}. */
+    final ConcurrentHashMap<Integer, Boolean> charIntro = new ConcurrentHashMap<>();
 
     GameRoom(GamePackets.CreateRoom req, int numero, int masterUid, int ratePang, int rateExp, int channelId) {
         this.tipo = req.tipo();
@@ -184,6 +186,7 @@ final class GameRoom {
         info.numPlayer = players.size();
         shots.remove(session.oid());
         playerInfos.remove(session.oid());
+        charIntro.remove(session.oid());
     }
 
     /**
@@ -227,6 +230,18 @@ final class GameRoom {
 
     synchronized List<Session> snapshot() {
         return List.copyOf(players);
+    }
+
+    /**
+     * C# Versus {@code setFinishCharIntroAndCheckAllFinishCharIntroAndClear}.
+     */
+    synchronized boolean markCharIntro(Session session) {
+        charIntro.put(session.oid(), Boolean.TRUE);
+        return charIntro.size() >= players.size();
+    }
+
+    synchronized void clearCharIntro() {
+        charIntro.clear();
     }
 
     void broadcast(byte[] packet) {

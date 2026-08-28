@@ -21,4 +21,14 @@ public final class PlayerContext {
     public volatile int place;
     /** C# {@code PlayerInfo.whisper}: 1 on (default), 0 blocks incoming PM. */
     public volatile int whisper = 1;
+    /** C# {@code PlayerInfo.location} lounge xz r. */
+    public volatile float locX;
+    public volatile float locZ;
+    public volatile float locR;
+    /** C# {@code PlayerInfo.state} lounge pose. */
+    public volatile int loungeState;
+    /** C# {@code PlayerInfo.state_lounge} icon. */
+    public volatile int stateLounge;
+    /** C# {@code PlayerRoomInfo.state_flag.away} / lobby bit 0. */
+    public volatile int away;
 }
