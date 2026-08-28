@@ -997,7 +997,7 @@ class GameFlowIT {
                 keys.putGameKey(10001, 20202, gameKey);
                 loginToChannel(client, runtime.port(), "testuser", 10001, loginKey, gameKey);
 
-                client.sendPlain(GamePackets.clientCreatePractice("cutin", ""));
+                client.sendPlain(GamePackets.clientCreatePractice("cutin", "secret"));
                 assertEquals(0, awaitOpcode(client, GamePackets.SERVER_ROOM_ENTER_RESULT).i16());
                 client.sendPlain(GamePackets.clientStartGame());
                 awaitOpcode(client, GamePackets.SERVER_START_GAME_FLAG);
