@@ -21,13 +21,20 @@ public final class AuthS2s {
     public static final int REPLY_TO_OTHER = 0x07;
 
     /** Auth→child opcodes ({@code unit_auth_server_connect.init_Packets}). */
+    public static final int AUTH_SHUTDOWN = 0x02;
+    public static final int AUTH_BROADCAST_NOTICE = 0x03;
+    public static final int AUTH_BROADCAST_TICKER = 0x04;
+    public static final int AUTH_BROADCAST_CUBE_WIN_RARE = 0x05;
     public static final int AUTH_DISCONNECT_PLAYER = 0x06;
+    /** Auth→child: {@code requestConfirmDisconnectPlayer} (other server ack). */
+    public static final int AUTH_CONFIRM_DISCONNECT = 0x07;
+    public static final int AUTH_NEW_MAIL = 0x08;
+    public static final int AUTH_NEW_RATE = 0x09;
+    public static final int AUTH_RELOAD_SYSTEM = 0x0A;
     /** Auth→child: {@code requestInfoPlayerOnline}. */
     public static final int AUTH_INFO_PLAYER_ONLINE = 0x0B;
     /** Auth→child: {@code requestConfirmSendInfoPlayerOnline}. */
     public static final int AUTH_CONFIRM_PLAYER_INFO = 0x0C;
-    /** Auth→child: {@code requestConfirmDisconnectPlayer} (other server ack). */
-    public static final int AUTH_CONFIRM_DISCONNECT = 0x07;
     /** Auth→child: {@code requestSendCommandToOtherServer}. */
     public static final int SEND_COMMAND_TO_OTHER = 0x0D;
 
@@ -164,6 +171,22 @@ public final class AuthS2s {
 
     public record AuthConfirmPlayerInfo(
             int reqServerUid, int option, long uid, String id, String ip) {}
+
+    public record AuthNewMailRequest(long playerUid, int mailId) {}
+
+    public record AuthNewRateRequest(int tipo, long qntd) {}
+
+    public static AuthNewMailRequest readAuthNewMail(PacketReader reader) {
+        long uid = reader.u32() & 0xffff_ffffL;
+        int mailId = reader.i32();
+        return new AuthNewMailRequest(uid, mailId);
+    }
+
+    public static AuthNewRateRequest readAuthNewRate(PacketReader reader) {
+        int tipo = reader.u32();
+        long qntd = reader.u32() & 0xffff_ffffL;
+        return new AuthNewRateRequest(tipo, qntd);
+    }
 
     public record RegisterRequest(
             int tipo, int uid, String name, String key, String clientVersion, int packetVersion) {}

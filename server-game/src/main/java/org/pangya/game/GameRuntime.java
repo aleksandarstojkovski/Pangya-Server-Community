@@ -55,7 +55,7 @@ public final class GameRuntime implements AutoCloseable {
         if (config.authEnabled()) {
             this.auth = new AuthServerConnector(config, repo::generateAuthServerKey);
             outbound = this.auth;
-            this.authHandler = new GameAuthHandler(config, repo, sessions, outbound);
+            this.authHandler = new GameAuthHandler(config, repo, sessions, outbound, handler);
             this.auth.setAuthInboundListener(authHandler::onAuthPacket);
             this.auth.start();
         } else {
@@ -66,7 +66,7 @@ public final class GameRuntime implements AutoCloseable {
                         @Override
                         public void sendInfoPlayerOnline(int reqServerUid, AuthS2s.AuthServerPlayerInfo info) {}
                     };
-            this.authHandler = new GameAuthHandler(config, repo, sessions, outbound);
+            this.authHandler = new GameAuthHandler(config, repo, sessions, outbound, handler);
         }
         this.netty = new PangyaNettyServer(ServerKind.GAME, sessions, handler::onPacket);
         this.netty.bind(config.port());

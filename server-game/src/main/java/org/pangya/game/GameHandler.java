@@ -50,6 +50,10 @@ public final class GameHandler {
     private final ConcurrentHashMap<Integer, GameRoom> rooms = new ConcurrentHashMap<>();
     /** C# {@code BroadcastManager} ticker queue; count × {@link GamePackets#TICKER_WAIT_MS}. */
     private final List<String> tickers = new ArrayList<>();
+    /** Live rates updated by Auth {@code 0x09}; new rooms inherit these. */
+    private volatile int liveRatePang;
+    private volatile int liveRateExp;
+    private volatile int liveGrandPrixEvent;
     /** C# {@code PlayerMailBox} / {@code MailBoxManager.sendMessage} in-memory store. */
     private final MailBoxStore mailboxes = new MailBoxStore();
     /** C# {@code Tools.Sanitize} SQL-keyword blacklist (OrdinalIgnoreCase). */
@@ -73,6 +77,9 @@ public final class GameHandler {
         this.redis = redis;
         this.sessions = sessions;
         this.channels = List.copyOf(channels);
+        this.liveRatePang = config.ratePang();
+        this.liveRateExp = config.rateExp();
+        this.liveGrandPrixEvent = config.rateGrandPrixEvent();
     }
 
     public static List<GamePackets.ChannelInfo> loadChannels(AppConfig config) {
@@ -529,7 +536,7 @@ public final class GameHandler {
         }
         int number = nextRoom.getAndIncrement() & 0xffff;
         PlayerContext pi = session.player();
-        GameRoom created = new GameRoom(room, number, (int) pi.uid, config.ratePang(), config.rateExp(), pi.channelId);
+        GameRoom created = new GameRoom(room, number, (int) pi.uid, liveRatePang, liveRateExp, pi.channelId);
         created.addPlayer(session);
         created.putPlayerInfo(session, makePlayerInfo(session, created));
         rooms.put(number, created);
@@ -6692,7 +6699,7 @@ public final class GameHandler {
                     gp.rule());
             int number = nextRoom.getAndIncrement() & 0xffff;
             GameRoom room = new GameRoom(
-                    request, number, (int) pi.uid, config.ratePang(), config.rateExp(), pi.channelId);
+                    request, number, (int) pi.uid, liveRatePang, liveRateExp, pi.channelId);
             room.grandPrixTypeid = typeid;
             if (!room.addPlayer(session)) {
                 session.send(GamePackets.sysAck(
@@ -8094,5 +8101,82 @@ public final class GameHandler {
 
     private static byte[] concat(byte[] a, byte[] b) {
         return PacketIo.concat(a, b);
+    }
+
+    /** C# {@code GameService.authCmdBroadcastNotice}. */
+    void authBroadcastNotice(String notice) {
+        if (notice == null || notice.isEmpty()) {
+            return;
+        }
+        broadcastAll(GamePackets.authGmNotice(notice));
+    }
+
+    /** C# {@code GameService.authCmdBroadcastTicker}. */
+    void authBroadcastTicker(String nickname, String msg) {
+        if (msg == null || msg.isEmpty()) {
+            return;
+        }
+        synchronized (tickers) {
+            tickers.add(msg);
+        }
+        broadcastAll(GamePackets.tickerMsg(nickname, msg));
+    }
+
+    /** C# {@code GameService.authCmdBroadcastCubeWinRare}. */
+    void authBroadcastCubeWinRare(String msg, int option) {
+        if (msg == null || msg.isEmpty()) {
+            return;
+        }
+        broadcastAll(GamePackets.authCubeWinRareNotice(option, msg));
+    }
+
+    /** C# {@code GameService.authCmdNewMailArrivedMailBox}. */
+    void authNewMailArrived(long playerUid, int mailId) {
+        if (playerUid <= 0) {
+            return;
+        }
+        Session target = sessions.findByUid(playerUid);
+        if (target == null) {
+            return;
+        }
+        mailboxes.addArrived(playerUid, mailId, "Auth", "New mail");
+        List<byte[]> unread = unreadMailBytes(playerUid);
+        if (unread.isEmpty()) {
+            log.warn("auth new mail uid={} mailId={} but mailbox empty", playerUid, mailId);
+            return;
+        }
+        target.send(GamePackets.newMail(unread));
+    }
+
+    /** C# {@code GameService.updateRateAndEvent} (core rate fields only). */
+    void authNewRate(int tipo, long qntd) {
+        if (qntd == 0 && tipo != 9 && tipo != 10 && tipo != 11 && tipo != 12 && tipo != 13 && tipo != 14 && tipo != 15) {
+            log.warn("auth new rate tipo={} qntd=0 ignored", tipo);
+            return;
+        }
+        switch (tipo) {
+            case 0 -> liveRatePang = (int) qntd;
+            case 1 -> liveRateExp = (int) qntd;
+            case 11 -> liveGrandPrixEvent = (int) qntd;
+            default -> log.debug("auth new rate tipo={} qntd={} (no local handler)", tipo, qntd);
+        }
+        for (GameRoom room : rooms.values()) {
+            if (tipo == 0) {
+                room.info.ratePang = liveRatePang;
+            } else if (tipo == 1) {
+                room.info.rateExp = liveRateExp;
+            }
+        }
+        log.info("auth new rate tipo={} qntd={}", tipo, qntd);
+    }
+
+    /** C# {@code GameService.reloadGlobalSystem} — log-only until IFF/event loaders exist. */
+    void authReloadGlobalSystem(int tipo) {
+        log.info("auth reload global system tipo={}", tipo);
+    }
+
+    /** C# {@code GameService.authCmdShutdown}. */
+    void authShutdown(int timeSec) {
+        log.warn("auth requested shutdown in {} sec", timeSec);
     }
 }

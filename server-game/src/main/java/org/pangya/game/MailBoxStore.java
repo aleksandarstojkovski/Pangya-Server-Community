@@ -36,6 +36,20 @@ final class MailBoxStore {
         return add(toUid, fromId, msg, copy.size(), copy);
     }
 
+    /** C# {@code addNewEmailArrived} stand-in when Auth pushes mail id. */
+    MailEntry addArrived(long toUid, int mailId, String fromId, String msg) {
+        int id = mailId > 0 ? mailId : nextId.getAndIncrement();
+        MailEntry entry = new MailEntry(
+                id,
+                fromId == null ? "Auth" : fromId,
+                msg == null ? "" : msg,
+                LocalDate.now().format(DATE),
+                0,
+                new ArrayList<>());
+        boxes.computeIfAbsent(toUid, uid -> new ArrayList<>()).add(entry);
+        return entry;
+    }
+
     private MailEntry add(long toUid, String fromId, String msg, int itemNum, List<MailAttachment> items) {
         MailEntry entry = new MailEntry(
                 nextId.getAndIncrement(),

@@ -23,17 +23,45 @@ public final class GameAuthHandler {
     private final LoginRepository repo;
     private final SessionManager sessions;
     private final AuthOutbound authOut;
+    private final GameHandler game;
 
-    public GameAuthHandler(AppConfig config, LoginRepository repo, SessionManager sessions, AuthOutbound authOut) {
+    public GameAuthHandler(
+            AppConfig config,
+            LoginRepository repo,
+            SessionManager sessions,
+            AuthOutbound authOut,
+            GameHandler game) {
         this.config = config;
         this.repo = repo;
         this.sessions = sessions;
         this.authOut = authOut;
+        this.game = game;
     }
 
     public void onAuthPacket(int opcode, PacketReader body) {
         switch (opcode) {
+            case AuthS2s.AUTH_SHUTDOWN -> game.authShutdown(body.i32());
+            case AuthS2s.AUTH_BROADCAST_NOTICE -> game.authBroadcastNotice(body.pstr());
+            case AuthS2s.AUTH_BROADCAST_TICKER -> {
+                String nick = body.pstr();
+                String msg = body.remaining() >= 2 ? body.pstr() : "";
+                game.authBroadcastTicker(nick, msg);
+            }
+            case AuthS2s.AUTH_BROADCAST_CUBE_WIN_RARE -> {
+                int option = body.u32();
+                String msg = body.remaining() >= 2 ? body.pstr() : "";
+                game.authBroadcastCubeWinRare(msg, option);
+            }
             case AuthS2s.AUTH_DISCONNECT_PLAYER -> authDisconnectPlayer(body);
+            case AuthS2s.AUTH_NEW_MAIL -> {
+                AuthS2s.AuthNewMailRequest req = AuthS2s.readAuthNewMail(body);
+                game.authNewMailArrived(req.playerUid(), req.mailId());
+            }
+            case AuthS2s.AUTH_NEW_RATE -> {
+                AuthS2s.AuthNewRateRequest req = AuthS2s.readAuthNewRate(body);
+                game.authNewRate(req.tipo(), req.qntd());
+            }
+            case AuthS2s.AUTH_RELOAD_SYSTEM -> game.authReloadGlobalSystem(body.u32());
             case AuthS2s.AUTH_INFO_PLAYER_ONLINE -> authInfoPlayerOnline(body);
             case AuthS2s.AUTH_CONFIRM_PLAYER_INFO -> authConfirmSendInfoPlayerOnline(body);
             default -> log.debug("unhandled auth packet 0x{}", Integer.toHexString(opcode));

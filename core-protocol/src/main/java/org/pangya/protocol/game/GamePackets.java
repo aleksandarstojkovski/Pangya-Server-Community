@@ -412,6 +412,10 @@ public final class GamePackets {
     public static final int SERVER_SPEED_RATE = 0xC7;
     /** C# {@code SERVER_ONELINE_MSG} ticker {@code 0xC9}: nick + msg PStr. */
     public static final int SERVER_ONELINE_MSG = 0xC9;
+    /** C# auth GM notice broadcast {@code 0x42}: PStr notice. */
+    public static final int SERVER_AUTH_GM_NOTICE = 0x42;
+    /** C# auth cube-win-rare notice {@code 0x1D3}: u32 1 + u32 option + PStr. */
+    public static final int SERVER_CUBE_WIN_RARE_NOTICE = 0x1D3;
     /** C# {@code SERVER_ONELINE_QUERY} {@code 0xCA}: u16 count + u32 wait ms. */
     public static final int SERVER_ONELINE_QUERY = 0xCA;
     /** C# {@code SERVER_CHANGE_MASCOT} fail {@code 0xE2}. */
@@ -3385,6 +3389,21 @@ public final class GamePackets {
         return new PacketWriter()
                 .opcode(SERVER_ONELINE_MSG)
                 .pstr(nick == null ? "" : nick)
+                .pstr(msg == null ? "" : msg)
+                .toBytes();
+    }
+
+    /** C# auth {@code 0x42} GM notice. */
+    public static byte[] authGmNotice(String notice) {
+        return new PacketWriter().opcode(SERVER_AUTH_GM_NOTICE).pstr(notice == null ? "" : notice).toBytes();
+    }
+
+    /** C# auth cube-win-rare {@code 0x1D3}. */
+    public static byte[] authCubeWinRareNotice(int option, String msg) {
+        return new PacketWriter()
+                .opcode(SERVER_CUBE_WIN_RARE_NOTICE)
+                .u32(1)
+                .u32(option)
                 .pstr(msg == null ? "" : msg)
                 .toBytes();
     }

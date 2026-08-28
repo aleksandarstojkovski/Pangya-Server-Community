@@ -18,8 +18,15 @@ C# handlers are inline in `AuthServer/AuthServerTcp/AuthServer.cs` and `unit_aut
 | Child→Auth | confirm disconnect | `0x03` | `AuthS2s.confirmDisconnectResponse` → `AuthOutbound.sendConfirmDisconnectPlayer` |
 | Child→Auth | info player request | `0x04` | `AuthS2s.requestInfoPlayerOnline` |
 | Child→Auth | confirm info reply | `0x05` | `AuthS2s.infoPlayerOnlineResponse` |
+| Auth→child | shutdown | `0x02` | `AuthS2s.AUTH_SHUTDOWN` → `GameHandler.authShutdown` |
+| Auth→child | broadcast notice | `0x03` | `AuthS2s.AUTH_BROADCAST_NOTICE` → `GameHandler.authBroadcastNotice` (`0x42`) |
+| Auth→child | broadcast ticker | `0x04` | `AuthS2s.AUTH_BROADCAST_TICKER` → `GameHandler.authBroadcastTicker` (`0xC9`) |
+| Auth→child | cube win rare | `0x05` | `AuthS2s.AUTH_BROADCAST_CUBE_WIN_RARE` → `GameHandler.authBroadcastCubeWinRare` (`0x1D3`) |
 | Auth→child | disconnect player | `0x06` | `AuthS2s.AUTH_DISCONNECT_PLAYER` → child handlers (login confirms only if local) |
 | Auth→child | confirm disconnect ack | `0x07` | `AuthS2s.AUTH_CONFIRM_DISCONNECT` → `LoginHandler.authConfirmDisconnectPlayer` |
+| Auth→child | new mail | `0x08` | `AuthS2s.AUTH_NEW_MAIL` → `GameHandler.authNewMailArrived` (`0x210`) |
+| Auth→child | new rate | `0x09` | `AuthS2s.AUTH_NEW_RATE` → `GameHandler.authNewRate` |
+| Auth→child | reload system | `0x0A` | `AuthS2s.AUTH_RELOAD_SYSTEM` → `GameHandler.authReloadGlobalSystem` |
 | Auth→child | info player online | `0x0B` | `AuthS2s.AUTH_INFO_PLAYER_ONLINE` → Child→Auth `0x05` |
 | Auth→child | confirm player info | `0x0C` | `AuthS2s.AUTH_CONFIRM_PLAYER_INFO` → messenger login / game resend |
 | Auth→child | command to other server | `0x0D` | `AuthS2s.SEND_COMMAND_TO_OTHER` → `onAuthCommand` |

@@ -6195,6 +6195,99 @@ class GameFlowIT {
     }
 
     @Test
+    void authBroadcastTickerSendsOnelineMsg() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config);
+             PangyaFakeClient client = new PangyaFakeClient()) {
+            LoginRepository repo = new JdbiLoginRepository(DatabaseSupport.jdbi(ds));
+            String loginKey = repo.generateAuthKeyLogin(10001);
+            String gameKey = repo.generateAuthKeyGame(10001, 20202);
+            keys.putLoginKey(10001, loginKey);
+            keys.putGameKey(10001, 20202, gameKey);
+            loginToChannel(client, runtime.port(), "testuser", 10001, loginKey, gameKey);
+
+            runtime.authHandler().onAuthPacket(
+                    AuthS2s.AUTH_BROADCAST_TICKER,
+                    new PacketReader(new PacketWriter().pstr("TestNick").pstr("Hello ticker").toBytes()));
+
+            PacketReader ticker = new PacketReader(client.awaitPlain(5, TimeUnit.SECONDS));
+            assertEquals(GamePackets.SERVER_ONELINE_MSG, ticker.opcode());
+            assertEquals("TestNick", ticker.pstr());
+            assertEquals("Hello ticker", ticker.pstr());
+        }
+    }
+
+    @Test
+    void authBroadcastNoticeSendsGmNotice() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config);
+             PangyaFakeClient client = new PangyaFakeClient()) {
+            LoginRepository repo = new JdbiLoginRepository(DatabaseSupport.jdbi(ds));
+            String loginKey = repo.generateAuthKeyLogin(10001);
+            String gameKey = repo.generateAuthKeyGame(10001, 20202);
+            keys.putLoginKey(10001, loginKey);
+            keys.putGameKey(10001, 20202, gameKey);
+            loginToChannel(client, runtime.port(), "testuser", 10001, loginKey, gameKey);
+
+            runtime.authHandler().onAuthPacket(
+                    AuthS2s.AUTH_BROADCAST_NOTICE,
+                    new PacketReader(new PacketWriter().pstr("Server maintenance soon").toBytes()));
+
+            PacketReader notice = new PacketReader(client.awaitPlain(5, TimeUnit.SECONDS));
+            assertEquals(GamePackets.SERVER_AUTH_GM_NOTICE, notice.opcode());
+            assertEquals("Server maintenance soon", notice.pstr());
+        }
+    }
+
+    @Test
+    void authNewMailArrivedNotifiesOnlinePlayer() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config);
+             PangyaFakeClient client = new PangyaFakeClient()) {
+            LoginRepository repo = new JdbiLoginRepository(DatabaseSupport.jdbi(ds));
+            String loginKey = repo.generateAuthKeyLogin(10001);
+            String gameKey = repo.generateAuthKeyGame(10001, 20202);
+            keys.putLoginKey(10001, loginKey);
+            keys.putGameKey(10001, 20202, gameKey);
+            loginToChannel(client, runtime.port(), "testuser", 10001, loginKey, gameKey);
+            drainPending(client, 500);
+
+            runtime.authHandler().onAuthPacket(
+                    AuthS2s.AUTH_NEW_MAIL,
+                    new PacketReader(new PacketWriter().u32(10001).i32(4242).toBytes()));
+
+            PacketReader mail = new PacketReader(client.awaitPlain(5, TimeUnit.SECONDS));
+            assertEquals(GamePackets.SERVER_NEW_MAIL, mail.opcode());
+            assertEquals(0, mail.i32());
+            assertEquals(1, mail.i32());
+        }
+    }
+
+    @Test
     void badGameKeySendsSecurityAck() throws Exception {
         String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
         String user = env("PANGYA_TEST_JDBC_USER", "pangya");
@@ -6279,6 +6372,17 @@ class GameFlowIT {
             }
         }
         throw new IllegalStateException("missing room players option " + option);
+    }
+
+    private static void drainPending(PangyaFakeClient client, long ms) throws InterruptedException {
+        long deadline = System.currentTimeMillis() + ms;
+        while (System.currentTimeMillis() < deadline) {
+            try {
+                client.awaitPlain(50, TimeUnit.MILLISECONDS);
+            } catch (IllegalStateException ignored) {
+                return;
+            }
+        }
     }
 
     private static List<byte[]> collect(PangyaFakeClient client, int n, long timeout, TimeUnit unit)
