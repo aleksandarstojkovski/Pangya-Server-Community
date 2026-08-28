@@ -361,6 +361,14 @@ class GameFlowIT {
             resumed.i32();
             assertEquals(GamePackets.PAUSE_RESUME, resumed.u8());
 
+            host.sendPlain(GamePackets.clientTeamFinishHole(9));
+            host.sendPlain(GamePackets.clientReport());
+            PacketReader reportOk = awaitOpcode(host, GamePackets.SERVER_REPORT);
+            assertEquals(GamePackets.REPORT_OK, reportOk.u8());
+            host.sendPlain(GamePackets.clientReport());
+            PacketReader reportAgain = awaitOpcode(host, GamePackets.SERVER_REPORT);
+            assertEquals(GamePackets.REPORT_ALREADY, reportAgain.u8());
+
             host.sendPlain(GamePackets.clientTeeshotReady());
             guest.sendPlain(GamePackets.clientTeeshotReady());
             PacketReader teeshot = awaitOpcode(host, GamePackets.SERVER_TEESHOT_READY_ACK);
@@ -521,6 +529,10 @@ class GameFlowIT {
             assertEquals(GamePackets.BUY_FAIL_INIT, giftInit.u32());
             assertEquals(99900, giftInit.u64());
             assertEquals(0, giftInit.u64());
+
+            client.sendPlain(GamePackets.clientPayCaddieHoliday(0));
+            PacketReader holiday = awaitOpcode(client, GamePackets.SERVER_REEMPLOY_CADDIE_ACK);
+            assertEquals(GamePackets.CADDIE_HOLIDAY_FAIL, holiday.u8());
 
             inventory.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_SHOP_PANG_ITEM);
             inventory.setPangCookie(10001, 100000, 0);

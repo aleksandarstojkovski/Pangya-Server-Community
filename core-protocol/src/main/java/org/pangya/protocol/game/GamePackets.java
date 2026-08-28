@@ -37,6 +37,10 @@ public final class GamePackets {
     public static final int SERVER_SLEEP = 0x8E;
     /** C# {@code SERVER_TEESHOT_READY_ACK} empty Versus {@code 0x90}. */
     public static final int SERVER_TEESHOT_READY_ACK = 0x90;
+    /** C# {@code SERVER_REEMPLOY_CADDIE_ACK} / {@code 0x93}. */
+    public static final int SERVER_REEMPLOY_CADDIE_ACK = 0x93;
+    /** C# {@code SERVER_REPORT} / {@code 0x94}: u8 0 first report / 1 already. */
+    public static final int SERVER_REPORT = 0x94;
     /** C# {@code sendDropItem} / {@code SERVER_PRIZE_LIST}. */
     public static final int SERVER_PRIZE_LIST = 0xCE;
     /** C# {@code requestSendTreasureHunterItem} / {@code SERVER_UPDATE_TREASURE_GIFT_LIST}. */
@@ -155,6 +159,14 @@ public final class GamePackets {
     public static final int CLIENT_TEESHOT_READY = 0x34;
     /** C# {@code CLIENT_END_STROKE_GAME} / {@code packet037} {@code requestLastPlayerFinishVersus}. */
     public static final int CLIENT_END_STROKE_GAME = 0x37;
+    /** C# {@code CLIENT_TEAM_HOLEIN_PANG} / {@code packet035} {@code requestTeamFinishHole}. */
+    public static final int CLIENT_TEAM_HOLEIN_PANG = 0x35;
+    /** C# {@code CLIENT_ANSWER_GOSTOP} / {@code packet036} {@code requestReplyContinueVersus}. */
+    public static final int CLIENT_ANSWER_GOSTOP = 0x36;
+    /** C# {@code CLIENT_REEMPLOY_CADDIE} / {@code packet039} {@code requestPayCaddieHolyDay}. */
+    public static final int CLIENT_REEMPLOY_CADDIE = 0x39;
+    /** C# {@code CLIENT_REPORT} / {@code packet03A} {@code requestPlayerReportChatGame}. */
+    public static final int CLIENT_REPORT = 0x3A;
     public static final int CLIENT_UPDATE_MACRO = 0x69;
     public static final int CLIENT_REQUEST_SERVER_LIST = 0x43;
     public static final int CLIENT_REQUEST_RANK = 0x47;
@@ -331,6 +343,17 @@ public final class GamePackets {
     public static final int ACTION_ANIMATION_WITH_EFFECTS = 10;
     /** C# {@code PlayerRoomInfo.stLocation.ToArray}: 3 floats. */
     public static final int LOCATION_BYTES = 12;
+    /** C# Versus continue {@code 0x36}: 0 stop / 1 go. */
+    public static final int CONTINUE_STOP = 0;
+    public static final int CONTINUE_GO = 1;
+    /** C# report {@code 0x94}: first report. */
+    public static final int REPORT_OK = 0;
+    /** C# report {@code 0x94}: already reported. */
+    public static final int REPORT_ALREADY = 1;
+    /** C# caddie holiday {@code 0x93} catch. */
+    public static final int CADDIE_HOLIDAY_FAIL = 1;
+    /** C# caddie holiday {@code 0x93} success (needs IFF). */
+    public static final int CADDIE_HOLIDAY_OK = 2;
     /** C# {@code requestBuyItemShop} {@code 0x68} option codes. */
     public static final int BUY_FAIL_INIT = 1;
     public static final int BUY_FAIL_PRICE = 2;
@@ -1281,6 +1304,16 @@ public final class GamePackets {
         return new PacketWriter().opcode(SERVER_TEESHOT_READY_ACK).toBytes();
     }
 
+    /** C# {@code 0x94}: u8 0 first / 1 already. */
+    public static byte[] reportAck(int option) {
+        return new PacketWriter().opcode(SERVER_REPORT).u8(option).toBytes();
+    }
+
+    /** C# holiday fail {@code 0x93} u8 1. Success is u8 2 + id + pang. */
+    public static byte[] caddieHolidayFail() {
+        return new PacketWriter().opcode(SERVER_REEMPLOY_CADDIE_ACK).u8(CADDIE_HOLIDAY_FAIL).toBytes();
+    }
+
     /** C# {@code PlayerRoomInfo.stLocation.ToArray}: x z r. */
     public static byte[] location(float x, float z, float r) {
         return new PacketWriter().f32(x).f32(z).f32(r).toBytes();
@@ -1979,6 +2012,26 @@ public final class GamePackets {
     /** C# CLIENT {@code 0x37}: empty body. */
     public static byte[] clientEndStroke() {
         return new PacketWriter().opcode(CLIENT_END_STROKE_GAME).toBytes();
+    }
+
+    /** C# CLIENT {@code 0x35}: u16 team finish state. No reply. */
+    public static byte[] clientTeamFinishHole(int state) {
+        return new PacketWriter().opcode(CLIENT_TEAM_HOLEIN_PANG).u16(state).toBytes();
+    }
+
+    /** C# CLIENT {@code 0x36}: u8 0 stop / 1 continue. */
+    public static byte[] clientContinueVersus(int opt) {
+        return new PacketWriter().opcode(CLIENT_ANSWER_GOSTOP).u8(opt).toBytes();
+    }
+
+    /** C# CLIENT {@code 0x39}: i32 caddie id. */
+    public static byte[] clientPayCaddieHoliday(int caddieId) {
+        return new PacketWriter().opcode(CLIENT_REEMPLOY_CADDIE).i32(caddieId).toBytes();
+    }
+
+    /** C# CLIENT {@code 0x3A}: empty body. */
+    public static byte[] clientReport() {
+        return new PacketWriter().opcode(CLIENT_REPORT).toBytes();
     }
 
     /** C# CLIENT {@code 0x63}: type + remaining payload. */

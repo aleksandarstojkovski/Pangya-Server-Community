@@ -609,5 +609,29 @@ class GamePacketsTest {
         assertEquals(GamePackets.SERVER_RESPONSE_GIFT_ITEM, 0x6A);
         assertEquals(GamePackets.SERVER_SYNC_ACTIVITY, 0xC4);
         assertEquals(GamePackets.CLIENT_SYNC_ACTIVITY, 0x63);
+
+        PacketReader teamHole = new PacketReader(GamePackets.clientTeamFinishHole(9));
+        assertEquals(GamePackets.CLIENT_TEAM_HOLEIN_PANG, teamHole.opcode());
+        assertEquals(9, teamHole.u16());
+
+        PacketReader cont = new PacketReader(GamePackets.clientContinueVersus(GamePackets.CONTINUE_STOP));
+        assertEquals(GamePackets.CLIENT_ANSWER_GOSTOP, cont.opcode());
+        assertEquals(GamePackets.CONTINUE_STOP, cont.u8());
+
+        PacketReader holiday = new PacketReader(GamePackets.clientPayCaddieHoliday(7));
+        assertEquals(GamePackets.CLIENT_REEMPLOY_CADDIE, holiday.opcode());
+        assertEquals(7, holiday.i32());
+        PacketReader holidayFail = new PacketReader(GamePackets.caddieHolidayFail());
+        assertEquals(GamePackets.SERVER_REEMPLOY_CADDIE_ACK, holidayFail.opcode());
+        assertEquals(GamePackets.CADDIE_HOLIDAY_FAIL, holidayFail.u8());
+
+        PacketReader report = new PacketReader(GamePackets.clientReport());
+        assertEquals(GamePackets.CLIENT_REPORT, report.opcode());
+        assertEquals(0, report.remaining());
+        PacketReader reported = new PacketReader(GamePackets.reportAck(GamePackets.REPORT_OK));
+        assertEquals(GamePackets.SERVER_REPORT, reported.opcode());
+        assertEquals(GamePackets.REPORT_OK, reported.u8());
+        assertEquals(GamePackets.SERVER_REPORT, 0x94);
+        assertEquals(GamePackets.SERVER_REEMPLOY_CADDIE_ACK, 0x93);
     }
 }

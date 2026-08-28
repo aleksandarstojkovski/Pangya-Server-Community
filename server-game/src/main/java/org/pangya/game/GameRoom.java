@@ -27,6 +27,8 @@ final class GameRoom {
     volatile int pauseCount;
     /** C# Versus {@code finish_char_intro}; cleared when all players have sent {@code 0x34}. */
     final ConcurrentHashMap<Integer, Boolean> charIntro = new ConcurrentHashMap<>();
+    /** C# {@code m_player_report_game} UIDs that already sent {@code 0x3A}. */
+    final ConcurrentHashMap<Long, Boolean> reported = new ConcurrentHashMap<>();
 
     GameRoom(GamePackets.CreateRoom req, int numero, int masterUid, int ratePang, int rateExp, int channelId) {
         this.tipo = req.tipo();

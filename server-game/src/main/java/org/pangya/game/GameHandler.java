@@ -120,6 +120,10 @@ public final class GameHandler {
             case GamePackets.CLIENT_SLEEP -> changeSleep(session, reader);
             case GamePackets.CLIENT_TEESHOT_READY -> finishCharIntro(session);
             case GamePackets.CLIENT_END_STROKE_GAME -> lastPlayerFinishVersus(session);
+            case GamePackets.CLIENT_TEAM_HOLEIN_PANG -> teamFinishHole(session, reader);
+            case GamePackets.CLIENT_ANSWER_GOSTOP -> replyContinueVersus(session, reader);
+            case GamePackets.CLIENT_REEMPLOY_CADDIE -> payCaddieHoliday(session, reader);
+            case GamePackets.CLIENT_REPORT -> reportChat(session);
             case GamePackets.CLIENT_ENTER_LOBBY -> enterLobby(session);
             case GamePackets.CLIENT_LEAVE_LOBBY -> leaveLobby(session);
             case GamePackets.CLIENT_CHAT -> chat(session, reader);
@@ -395,6 +399,7 @@ public final class GameHandler {
         room.startMillis = System.currentTimeMillis();
         room.course = new GameCourse(room.info);
         room.clearCharIntro();
+        room.reported.clear();
         room.broadcast(GamePackets.startGameFlag());
         room.broadcast(GamePackets.startGameFlag2());
         room.broadcast(GamePackets.pangRate(room.info.ratePang));
@@ -614,6 +619,68 @@ public final class GameHandler {
         finishGameRoom(room);
     }
 
+    /**
+     * C# {@code packet035} / {@code requestTeamFinishHole}: Match stores u16
+     * finish state (9 putt / 10 chip-in). {@code GameBase} no-op, no reply.
+     */
+    private void teamFinishHole(Session session, PacketReader reader) {
+        GameRoom room = inGameRoom(session);
+        if (room == null) {
+            return;
+        }
+        if (reader.remaining() >= 2) {
+            reader.u16();
+        }
+    }
+
+    /**
+     * C# {@code packet036}: u8 0 stops Versus like {@code 0x37}; u8 1 calls
+     * {@code changeTurn} which needs a turn timer (not invented here).
+     */
+    private void replyContinueVersus(Session session, PacketReader reader) {
+        GameRoom room = inGameRoom(session);
+        if (room == null || reader.remaining() < 1
+                || !GamePackets.usesVersusInitialData(room.tipo)) {
+            return;
+        }
+        int opt = reader.u8();
+        if (opt == GamePackets.CONTINUE_STOP) {
+            sendFinishGameDump(session, room);
+            finishGameRoom(room);
+        }
+    }
+
+    /**
+     * C# {@code packet039}: holiday pay needs IFF {@code valor_mensal}. Catch
+     * always writes {@code 0x93} u8 1.
+     */
+    private void payCaddieHoliday(Session session, PacketReader reader) {
+        if (!session.authorized()) {
+            return;
+        }
+        if (reader.remaining() >= 4) {
+            reader.i32();
+        }
+        session.send(GamePackets.caddieHolidayFail());
+    }
+
+    /**
+     * C# {@code packet03A}: in-game {@code 0x94} u8 0 first time, 1 if already
+     * reported this game.
+     */
+    private void reportChat(Session session) {
+        GameRoom room = inGameRoom(session);
+        if (room == null) {
+            return;
+        }
+        long uid = session.player().uid;
+        if (room.reported.putIfAbsent(uid, Boolean.TRUE) == null) {
+            session.send(GamePackets.reportAck(GamePackets.REPORT_OK));
+        } else {
+            session.send(GamePackets.reportAck(GamePackets.REPORT_ALREADY));
+        }
+    }
+
     private void sendFinishGameDump(Session session, GameRoom room) {
         session.send(GamePackets.prizeList(new int[0]));
         session.send(GamePackets.gameResult(0, room.info.trophy, 0, 2));
@@ -790,6 +857,7 @@ public final class GameHandler {
         room.pauseCount = 0;
         room.shots.clear();
         room.clearCharIntro();
+        room.reported.clear();
         for (Session member : room.snapshot()) {
             GamePackets.PlayerRoomInfo pri = room.playerInfo(member);
             if (pri == null) {
