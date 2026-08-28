@@ -227,6 +227,20 @@ public interface InventoryRepository {
 
     void upsertClubSetIff(int typeid, int tipo, short[] stats, short[] slots);
 
+    void upsertClubSetIff(int typeid, int tipo, short[] stats, short[] slots, int tipoRankS);
+
+    /** C# {@code sIff.findClubSetWorkShopRankExp}: SQL row exists. */
+    boolean clubSetRankExp(int tipo);
+
+    void upsertClubSetRankExp(int tipo);
+
+    void deleteClubSetRankExp(int tipo);
+
+    /** C# {@code CmdUpdateClubSetWorkshop} {@code F_RESET}: C + workshop C/level/rank/recovery, keep mastery. */
+    void resetClubSetWorkshopAndC(long uid, int itemId);
+
+    void setClubSetWorkshop(long uid, int itemId, short[] workshopC, int level, int rank, int recovery);
+
     /** C# {@code CmdUpdateClubSetStats}: warehouse {@code C0}–{@code C4}. */
     void setWarehouseClubC(long uid, int itemId, short[] c);
 
@@ -430,9 +444,9 @@ public interface InventoryRepository {
 
     /**
      * C# IFF {@code ClubSet}: {@code work_shop.tipo}, {@code Stats.getSlot},
-     * {@code SlotStats.getSlot}.
+     * {@code SlotStats.getSlot}, {@code work_shop.tipo_rank_s}.
      */
-    record ClubSetIff(int tipo, short[] stats, short[] slots) {}
+    record ClubSetIff(int tipo, short[] stats, short[] slots, int tipoRankS) {}
 
     /** C# IFF {@code TimeLimitItem}: {@code type}, {@code percent}, {@code time} minutes. */
     record TimeLimitItem(int typeid, int tipo, int percent, int timeMinutes) {}

@@ -775,8 +775,9 @@ public final class GamePackets {
      */
     public static final int CLIENT_WORKSHOP_TRANSFER = 0x16C;
     /**
-     * C# {@code packet16D} club-set reset. Same numeric as
-     * {@link #SERVER_LOCKER_ITEMS}, opposite direction.
+     * C# {@code packet16D} club-set reset. Soft {@code 0x1A000247} / hard
+     * {@code 0x1A00024B}. Success {@code 0x216} then {@code 0x247} u32 0.
+     * Same numeric as {@link #SERVER_LOCKER_ITEMS}, opposite direction.
      */
     public static final int CLIENT_CLUBSET_RESET = 0x16D;
     /** C# {@code packet17F} memorial. Coin 0 → {@code 0x264}. */
@@ -1759,10 +1760,28 @@ public final class GamePackets {
     public static final int WORKSHOP_TRANSFER_PER_CHIP = 300;
     /** C# {@code calcRank == 5} Rank S cannot receive. */
     public static final int WORKSHOP_RANK_S = 5;
-    /** C# club-set reset unknown typeid CHANNEL sys. */
+    /** C# club-set reset unknown typeid / rank_base==-1 CHANNEL sys. */
     public static final int CLUBSET_RESET_ERR = 0x5300506;
     /** C# club-set reset catch else. */
     public static final int CLUBSET_RESET_DEFAULT = 0x5300500;
+    /** C# reset missing warehouse item CHANNEL sys. */
+    public static final int CLUBSET_RESET_ERR_ITEM = 0x5300501;
+    /** C# reset C0&lt;1 CHANNEL sys. */
+    public static final int CLUBSET_RESET_ERR_QNTD = 0x5300502;
+    /** C# reset missing ClubSet CHANNEL sys. */
+    public static final int CLUBSET_RESET_ERR_CLUB = 0x5300503;
+    /** C# reset missing IFF ClubSet CHANNEL sys. */
+    public static final int CLUBSET_RESET_ERR_IFF = 0x5300504;
+    /** C# reset missing rank-up exp CHANNEL sys. */
+    public static final int CLUBSET_RESET_ERR_RANK_EXP = 0x5300505;
+    /** C# reset consume fail CHANNEL sys. */
+    public static final int CLUBSET_RESET_ERR_CONSUME = 0x5300507;
+    /** C# {@code 0x247} success u32 0. */
+    public static final int CLUBSET_RESET_OK = 0;
+    /** C# soft reset item {@code 0x1A000247}. */
+    public static final int TYPEID_CLUBSET_RESET_SOFT = 0x1A000247;
+    /** C# hard reset item {@code 0x1A00024B}. */
+    public static final int TYPEID_CLUBSET_RESET_HARD = 0x1A00024B;
     /** C# memorial coin 0 CHANNEL sys. */
     public static final int MEMORIAL_ERR_COIN = 0x6300301;
     /** C# memorial catch else. */
@@ -3538,6 +3557,64 @@ public final class GamePackets {
         writeWorkshopClubRow(w, srcTypeid, srcId, srcC, srcMastery, srcLevel, srcRank, srcRecovery);
         writeWorkshopClubRow(w, dstTypeid, dstId, dstC, dstMastery, dstLevel, dstRank, dstRecovery);
         return w.toBytes();
+    }
+
+    /**
+     * C# {@code s_calcRank(SlotStats)}: total in {@code [30,60)} else {@code -1}.
+     */
+    public static int workshopSCalcRank(short[] slotStats) {
+        int total = 0;
+        if (slotStats != null) {
+            int n = Math.min(5, slotStats.length);
+            for (int i = 0; i < n; i++) {
+                total += slotStats[i] & 0xffff;
+            }
+        }
+        if (total >= 30 && total < 60) {
+            return (total - 30) / 5;
+        }
+        return -1;
+    }
+
+    /**
+     * C# reset {@code 0x216}: consume type 2, type {@code 0xCC} workshop zeros,
+     * type {@code 0xC9} club C zeros. Count 3.
+     */
+    public static byte[] clubSetResetUpdate(
+            int unix,
+            PapelAward consume,
+            int clubTypeid,
+            int clubId,
+            int mastery) {
+        PacketWriter w = new PacketWriter().opcode(SERVER_DAILY_QUEST_STAMP).u32(unix).u32(3);
+        w.u8(consume.type())
+                .u32(consume.typeid())
+                .i32(consume.id())
+                .u32(consume.flagTime())
+                .i32(consume.qntdAnt())
+                .i32(consume.qntdDep())
+                .i32(consume.qntd())
+                .zero(PAPEL_AWARD_PAD);
+        writeWorkshopClubRow(w, clubTypeid, clubId, new short[5], mastery, 0, 0, 0);
+        w.u8(CHAR_STATS_AWARD_TYPE)
+                .u32(clubTypeid)
+                .i32(clubId)
+                .u32(0)
+                .i32(0)
+                .i32(0)
+                .i32(0)
+                .zero(PAPEL_AWARD_PAD);
+        return w.toBytes();
+    }
+
+    /** C# reset success {@code 0x247} u32 0 + typeid + id. */
+    public static byte[] clubSetResetOk(int typeid, int id) {
+        return new PacketWriter()
+                .opcode(SERVER_CLUBSET_RESET)
+                .u32(CLUBSET_RESET_OK)
+                .u32(typeid)
+                .i32(id)
+                .toBytes();
     }
 
     /** C# transfer success {@code 0x245} u32 0. */

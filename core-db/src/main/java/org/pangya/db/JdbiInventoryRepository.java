@@ -2490,7 +2490,7 @@ public final class JdbiInventoryRepository implements InventoryRepository {
     public Optional<ClubSetIff> clubSetIff(int typeid) {
         return jdbi.withHandle(h -> h.createQuery("""
                         SELECT work_shop_tipo, stats0, stats1, stats2, stats3, stats4,
-                               slot0, slot1, slot2, slot3, slot4
+                               slot0, slot1, slot2, slot3, slot4, tipo_rank_s
                           FROM pangya.iff_clubset
                          WHERE typeid = :typeid
                         """)
@@ -2510,23 +2510,29 @@ public final class JdbiInventoryRepository implements InventoryRepository {
                             rs.getShort("slot2"),
                             rs.getShort("slot3"),
                             rs.getShort("slot4")
-                        }))
+                        },
+                        rs.getInt("tipo_rank_s")))
                 .findOne());
     }
 
     @Override
     public void upsertClubSetIff(int typeid, int tipo, short[] stats, short[] slots) {
+        upsertClubSetIff(typeid, tipo, stats, slots, 0);
+    }
+
+    @Override
+    public void upsertClubSetIff(int typeid, int tipo, short[] stats, short[] slots, int tipoRankS) {
         short[] st = pad5(stats);
         short[] sl = pad5(slots);
         jdbi.useHandle(h -> h.createUpdate("""
                         INSERT INTO pangya.iff_clubset (
                             typeid, work_shop_tipo,
                             stats0, stats1, stats2, stats3, stats4,
-                            slot0, slot1, slot2, slot3, slot4)
+                            slot0, slot1, slot2, slot3, slot4, tipo_rank_s)
                         VALUES (
                             :typeid, :tipo,
                             :s0, :s1, :s2, :s3, :s4,
-                            :l0, :l1, :l2, :l3, :l4)
+                            :l0, :l1, :l2, :l3, :l4, :rank)
                         ON CONFLICT (typeid) DO UPDATE SET
                             work_shop_tipo = EXCLUDED.work_shop_tipo,
                             stats0 = EXCLUDED.stats0, stats1 = EXCLUDED.stats1,
@@ -2534,7 +2540,8 @@ public final class JdbiInventoryRepository implements InventoryRepository {
                             stats4 = EXCLUDED.stats4,
                             slot0 = EXCLUDED.slot0, slot1 = EXCLUDED.slot1,
                             slot2 = EXCLUDED.slot2, slot3 = EXCLUDED.slot3,
-                            slot4 = EXCLUDED.slot4
+                            slot4 = EXCLUDED.slot4,
+                            tipo_rank_s = EXCLUDED.tipo_rank_s
                         """)
                 .bind("typeid", typeid)
                 .bind("tipo", tipo)
@@ -2542,6 +2549,75 @@ public final class JdbiInventoryRepository implements InventoryRepository {
                 .bind("s3", st[3]).bind("s4", st[4])
                 .bind("l0", sl[0]).bind("l1", sl[1]).bind("l2", sl[2])
                 .bind("l3", sl[3]).bind("l4", sl[4])
+                .bind("rank", tipoRankS)
+                .execute());
+    }
+
+    @Override
+    public boolean clubSetRankExp(int tipo) {
+        return jdbi.withHandle(h -> h.createQuery("""
+                        SELECT 1 FROM pangya.iff_clubset_rank_exp WHERE tipo = :tipo
+                        """)
+                .bind("tipo", tipo)
+                .mapTo(Integer.class)
+                .findOne())
+                .isPresent();
+    }
+
+    @Override
+    public void upsertClubSetRankExp(int tipo) {
+        jdbi.useHandle(h -> h.createUpdate("""
+                        INSERT INTO pangya.iff_clubset_rank_exp (tipo)
+                        VALUES (:tipo)
+                        ON CONFLICT (tipo) DO NOTHING
+                        """)
+                .bind("tipo", tipo)
+                .execute());
+    }
+
+    @Override
+    public void deleteClubSetRankExp(int tipo) {
+        jdbi.useHandle(h -> h.createUpdate(
+                        "DELETE FROM pangya.iff_clubset_rank_exp WHERE tipo = :tipo")
+                .bind("tipo", tipo)
+                .execute());
+    }
+
+    @Override
+    public void resetClubSetWorkshopAndC(long uid, int itemId) {
+        jdbi.useHandle(h -> h.createUpdate("""
+                        UPDATE pangya.pangya_item_warehouse
+                           SET "C0" = 0, "C1" = 0, "C2" = 0, "C3" = 0, "C4" = 0,
+                               "ClubSet_WorkShop_C0" = 0, "ClubSet_WorkShop_C1" = 0,
+                               "ClubSet_WorkShop_C2" = 0, "ClubSet_WorkShop_C3" = 0,
+                               "ClubSet_WorkShop_C4" = 0,
+                               "Level" = 0, "Up" = 0, "Recovery_Pts" = 0
+                         WHERE "UID" = :uid AND item_id = :id
+                        """)
+                .bind("uid", uid)
+                .bind("id", itemId)
+                .execute());
+    }
+
+    @Override
+    public void setClubSetWorkshop(
+            long uid, int itemId, short[] workshopC, int level, int rank, int recovery) {
+        short[] c = pad5(workshopC);
+        jdbi.useHandle(h -> h.createUpdate("""
+                        UPDATE pangya.pangya_item_warehouse
+                           SET "ClubSet_WorkShop_C0" = :c0, "ClubSet_WorkShop_C1" = :c1,
+                               "ClubSet_WorkShop_C2" = :c2, "ClubSet_WorkShop_C3" = :c3,
+                               "ClubSet_WorkShop_C4" = :c4,
+                               "Level" = :level, "Up" = :rank, "Recovery_Pts" = :recovery
+                         WHERE "UID" = :uid AND item_id = :id
+                        """)
+                .bind("uid", uid)
+                .bind("id", itemId)
+                .bind("c0", c[0]).bind("c1", c[1]).bind("c2", c[2])
+                .bind("c3", c[3]).bind("c4", c[4])
+                .bind("level", level)
+                .bind("rank", rank)
+                .bind("recovery", recovery)
                 .execute());
     }
 

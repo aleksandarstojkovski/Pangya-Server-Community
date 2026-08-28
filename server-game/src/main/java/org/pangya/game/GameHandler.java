@@ -5207,28 +5207,102 @@ public final class GameHandler {
     }
 
     /**
-     * C# {@code requestClubSetReset}: unknown typeid → {@code 0x247}
-     * {@code shopSys(0x5300506)}.
+     * C# {@code requestClubSetReset}: soft {@code 0x1A000247} / hard
+     * {@code 0x1A00024B}. SQL {@code iff_clubset} SlotStats +
+     * {@code iff_clubset_rank_exp}. Persist consume + C/workshop reset before
+     * {@code 0x216}/{@code 0x247}. Hard also sends {@code 0xC8} (rank[] stand-in
+     * zeros). Catch CHANNEL {@code shopSys}; else full {@code 0x5300500}.
      */
     private void clubSetReset(Session session, PacketReader reader) {
         if (!inChannel(session)) {
             return;
         }
-        if (reader.remaining() < 8) {
+        try {
+            if (reader.remaining() < 8) {
+                session.send(GamePackets.sysAck(
+                        GamePackets.SERVER_CLUBSET_RESET, GamePackets.CLUBSET_RESET_DEFAULT));
+                return;
+            }
+            int typeid = reader.u32();
+            int clubsetId = reader.i32();
+            if (typeid != GamePackets.TYPEID_CLUBSET_RESET_HARD
+                    && typeid != GamePackets.TYPEID_CLUBSET_RESET_SOFT) {
+                session.send(GamePackets.sysAck(
+                        GamePackets.SERVER_CLUBSET_RESET,
+                        GamePackets.shopSys(GamePackets.CLUBSET_RESET_ERR)));
+                return;
+            }
+            long uid = session.player().uid;
+            GamePackets.WarehouseItem resetItem = warehouseByTypeid(uid, typeid);
+            if (resetItem == null) {
+                session.send(GamePackets.sysAck(
+                        GamePackets.SERVER_CLUBSET_RESET,
+                        GamePackets.shopSys(GamePackets.CLUBSET_RESET_ERR_ITEM)));
+                return;
+            }
+            if ((resetItem.c[0] & 0xffff) < 1) {
+                session.send(GamePackets.sysAck(
+                        GamePackets.SERVER_CLUBSET_RESET,
+                        GamePackets.shopSys(GamePackets.CLUBSET_RESET_ERR_QNTD)));
+                return;
+            }
+            GamePackets.WarehouseItem club = warehouseById(uid, clubsetId);
+            if (club == null) {
+                session.send(GamePackets.sysAck(
+                        GamePackets.SERVER_CLUBSET_RESET,
+                        GamePackets.shopSys(GamePackets.CLUBSET_RESET_ERR_CLUB)));
+                return;
+            }
+            Optional<InventoryRepository.ClubSetIff> iff = inventory.clubSetIff(club.typeid);
+            if (iff.isEmpty()) {
+                session.send(GamePackets.sysAck(
+                        GamePackets.SERVER_CLUBSET_RESET,
+                        GamePackets.shopSys(GamePackets.CLUBSET_RESET_ERR_IFF)));
+                return;
+            }
+            InventoryRepository.ClubSetIff clubset = iff.get();
+            int rankBase = GamePackets.workshopSCalcRank(clubset.slots());
+            if (rankBase == -1) {
+                session.send(GamePackets.sysAck(
+                        GamePackets.SERVER_CLUBSET_RESET,
+                        GamePackets.shopSys(GamePackets.CLUBSET_RESET_ERR)));
+                return;
+            }
+            if (!inventory.clubSetRankExp(clubset.tipoRankS())) {
+                session.send(GamePackets.sysAck(
+                        GamePackets.SERVER_CLUBSET_RESET,
+                        GamePackets.shopSys(GamePackets.CLUBSET_RESET_ERR_RANK_EXP)));
+                return;
+            }
+            int ant = resetItem.c[0] & 0xffff;
+            OptionalInt remaining = inventory.consumeWarehouseByTypeid(uid, typeid, 1);
+            if (remaining.isEmpty()) {
+                session.send(GamePackets.sysAck(
+                        GamePackets.SERVER_CLUBSET_RESET,
+                        GamePackets.shopSys(GamePackets.CLUBSET_RESET_ERR_CONSUME)));
+                return;
+            }
+            int mastery = club.workshopMastery;
+            inventory.resetClubSetWorkshopAndC(uid, club.id);
+            if (typeid == GamePackets.TYPEID_CLUBSET_RESET_HARD) {
+                session.send(GamePackets.pangSpent(inventory.pang(uid), 0));
+            }
+            GamePackets.PapelAward consume = new GamePackets.PapelAward(
+                    GamePackets.PAPEL_AWARD_TYPE,
+                    typeid,
+                    resetItem.id,
+                    0,
+                    ant,
+                    remaining.getAsInt(),
+                    -1);
+            session.send(GamePackets.clubSetResetUpdate(
+                    GamePackets.unixNow(), consume, club.typeid, club.id, mastery));
+            session.send(GamePackets.clubSetResetOk(club.typeid, club.id));
+        } catch (RuntimeException e) {
+            log.debug("club set reset failed: {}", e.toString());
             session.send(GamePackets.sysAck(
                     GamePackets.SERVER_CLUBSET_RESET, GamePackets.CLUBSET_RESET_DEFAULT));
-            return;
         }
-        int typeid = reader.u32();
-        reader.i32();
-        if (typeid != 0x1A00024B && typeid != 0x1A000247) {
-            session.send(GamePackets.sysAck(
-                    GamePackets.SERVER_CLUBSET_RESET,
-                    GamePackets.shopSys(GamePackets.CLUBSET_RESET_ERR)));
-            return;
-        }
-        session.send(GamePackets.sysAck(
-                GamePackets.SERVER_CLUBSET_RESET, GamePackets.shopSys(0x5300501)));
     }
 
     /**

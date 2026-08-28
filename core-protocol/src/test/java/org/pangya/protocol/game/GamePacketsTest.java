@@ -1409,10 +1409,60 @@ class GamePacketsTest {
         assertEquals(0, transferUpd.remaining());
         assertEquals(Integer.MAX_VALUE, GamePackets.workshopCalcRank(new short[5]));
         assertEquals(GamePackets.WORKSHOP_RANK_S, GamePackets.workshopCalcRank(new short[] {11, 11, 11, 11, 11}));
+        assertEquals(-1, GamePackets.workshopSCalcRank(new short[5]));
+        assertEquals(0, GamePackets.workshopSCalcRank(new short[] {6, 6, 6, 6, 6}));
         PacketReader reset = new PacketReader(GamePackets.sysAck(
                 GamePackets.SERVER_CLUBSET_RESET, GamePackets.shopSys(GamePackets.CLUBSET_RESET_ERR)));
         assertEquals(GamePackets.SERVER_CLUBSET_RESET, reset.opcode());
         assertEquals(0x0506, reset.u32());
+        PacketReader resetOk = new PacketReader(GamePackets.clubSetResetOk(
+                GamePackets.TYPEID_AIR_KNIGHT, 2));
+        assertEquals(GamePackets.SERVER_CLUBSET_RESET, resetOk.opcode());
+        assertEquals(GamePackets.CLUBSET_RESET_OK, resetOk.u32());
+        assertEquals(GamePackets.TYPEID_AIR_KNIGHT, resetOk.u32());
+        assertEquals(2, resetOk.i32());
+        PacketReader resetUpd = new PacketReader(GamePackets.clubSetResetUpdate(
+                1,
+                new GamePackets.PapelAward(
+                        GamePackets.PAPEL_AWARD_TYPE, GamePackets.TYPEID_CLUBSET_RESET_SOFT, 9, 0, 1, 0, -1),
+                GamePackets.TYPEID_AIR_KNIGHT,
+                2,
+                300));
+        assertEquals(GamePackets.SERVER_DAILY_QUEST_STAMP, resetUpd.opcode());
+        assertEquals(1, resetUpd.u32());
+        assertEquals(3, resetUpd.u32());
+        assertEquals(GamePackets.PAPEL_AWARD_TYPE, resetUpd.u8());
+        assertEquals(GamePackets.TYPEID_CLUBSET_RESET_SOFT, resetUpd.u32());
+        assertEquals(9, resetUpd.i32());
+        assertEquals(0, resetUpd.u32());
+        assertEquals(1, resetUpd.i32());
+        assertEquals(0, resetUpd.i32());
+        assertEquals(-1, resetUpd.i32());
+        resetUpd.readBytes(GamePackets.PAPEL_AWARD_PAD);
+        assertEquals(GamePackets.WORKSHOP_AWARD_TYPE, resetUpd.u8());
+        assertEquals(GamePackets.TYPEID_AIR_KNIGHT, resetUpd.u32());
+        assertEquals(2, resetUpd.i32());
+        assertEquals(0, resetUpd.u32());
+        assertEquals(0, resetUpd.i32());
+        assertEquals(0, resetUpd.i32());
+        assertEquals(0, resetUpd.i32());
+        resetUpd.readBytes(GamePackets.PAPEL_AWARD_PAD);
+        for (int i = 0; i < 5; i++) {
+            assertEquals(0, resetUpd.i16());
+        }
+        assertEquals(300, resetUpd.u32());
+        assertEquals(0, resetUpd.u8());
+        assertEquals(0, resetUpd.u32());
+        assertEquals(0, resetUpd.u32());
+        assertEquals(GamePackets.CHAR_STATS_AWARD_TYPE, resetUpd.u8());
+        assertEquals(GamePackets.TYPEID_AIR_KNIGHT, resetUpd.u32());
+        assertEquals(2, resetUpd.i32());
+        assertEquals(0, resetUpd.u32());
+        assertEquals(0, resetUpd.i32());
+        assertEquals(0, resetUpd.i32());
+        assertEquals(0, resetUpd.i32());
+        resetUpd.readBytes(GamePackets.PAPEL_AWARD_PAD);
+        assertEquals(0, resetUpd.remaining());
         PacketReader memorial = new PacketReader(GamePackets.sysAck(
                 GamePackets.SERVER_MEMORIAL, GamePackets.shopSys(GamePackets.MEMORIAL_ERR_COIN)));
         assertEquals(GamePackets.SERVER_MEMORIAL, memorial.opcode());
@@ -2240,6 +2290,10 @@ class GamePacketsTest {
         assertEquals(GamePackets.CLUB_STATS_DOWN, 2);
         assertEquals(GamePackets.CLUB_STATS_CLUBSET, 1);
         assertEquals(GamePackets.enchantTypeid(GamePackets.CHAR_STATS_POWER, 0), 0x34000000);
+        assertEquals(GamePackets.TYPEID_CLUBSET_RESET_SOFT, 0x1A000247);
+        assertEquals(GamePackets.TYPEID_CLUBSET_RESET_HARD, 0x1A00024B);
+        assertEquals(GamePackets.CLUBSET_RESET_OK, 0);
+        assertEquals(GamePackets.CLUBSET_RESET_ERR_ITEM, 0x5300501);
         assertEquals(GamePackets.SERVER_BUY_ACK, 0x68);
         assertEquals(GamePackets.CREATE_ROOM_FAILED, 0x07);
         assertEquals(GamePackets.SERVER_LAST5, 0x10E);

@@ -360,6 +360,36 @@ class InventoryRepositoryTest {
                 repo.setWarehouseClubC(10001, clubId, new short[5]);
                 repo.deleteClubSetIff(GamePackets.TYPEID_AIR_KNIGHT);
             }
+            repo.deleteClubSetIff(GamePackets.TYPEID_AIR_KNIGHT);
+            repo.deleteClubSetRankExp(0);
+            repo.upsertClubSetIff(
+                    GamePackets.TYPEID_AIR_KNIGHT,
+                    0,
+                    new short[5],
+                    new short[] {6, 6, 6, 6, 6},
+                    0);
+            repo.upsertClubSetRankExp(0);
+            try {
+                assertEquals(0, repo.clubSetIff(GamePackets.TYPEID_AIR_KNIGHT).orElseThrow().tipoRankS());
+                assertTrue(repo.clubSetRankExp(0));
+                repo.setClubSetWorkshop(10001, clubId, new short[] {1, 0, 0, 0, 0}, 2, 1, 5);
+                repo.setWarehouseClubC(10001, clubId, new short[] {1, 0, 0, 0, 0});
+                repo.resetClubSetWorkshopAndC(10001, clubId);
+                var reset = repo.warehouse(10001).stream()
+                        .filter(w -> w.id == clubId)
+                        .findFirst()
+                        .orElseThrow();
+                assertEquals(0, reset.c[0]);
+                assertEquals(0, reset.workshopC[0]);
+                assertEquals(0, reset.workshopLevel);
+                assertEquals(0, reset.workshopRank);
+                assertEquals(0, reset.workshopRecovery);
+            } finally {
+                repo.setWarehouseClubC(10001, clubId, new short[5]);
+                repo.setClubSetWorkshop(10001, clubId, new short[5], 0, 0, 0);
+                repo.deleteClubSetIff(GamePackets.TYPEID_AIR_KNIGHT);
+                repo.deleteClubSetRankExp(0);
+            }
             repo.deletePartIff(GamePackets.TYPEID_RENTAL_PART);
             repo.upsertPartValorRental(GamePackets.TYPEID_RENTAL_PART, 100);
             try {
