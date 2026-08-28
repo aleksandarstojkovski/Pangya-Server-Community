@@ -76,6 +76,25 @@ public final class JdbiLoginRepository implements LoginRepository {
         return loadPlayerInfo(PLAYER_INFO_SELECT + " WHERE a.\"NICK\" = :key", nick);
     }
 
+    @Override
+    public Optional<GuildMembership> guildMembership(long uid) {
+        if (uid <= 0) {
+            return Optional.empty();
+        }
+        return jdbi.withHandle(h -> h.createQuery("""
+                        SELECT gm."GUILD_UID", COALESCE(g."GUILD_NAME", '') AS guild_name
+                          FROM pangya.pangya_guild_member gm
+                          JOIN pangya.pangya_guild g ON g."GUILD_UID" = gm."GUILD_UID"
+                         WHERE gm."MEMBER_UID" = :uid
+                         LIMIT 1
+                        """)
+                .bind("uid", uid)
+                .map((rs, ctx) -> new GuildMembership(
+                        rs.getLong("GUILD_UID"),
+                        rs.getString("guild_name")))
+                .findOne());
+    }
+
     private Optional<PlayerLoginInfo> loadPlayerInfo(String sql, Object key) {
         return jdbi.withHandle(h -> h.createQuery(sql)
                 .bind("key", key)

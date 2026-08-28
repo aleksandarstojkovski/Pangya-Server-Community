@@ -90,4 +90,8 @@ public final class PlayerContext {
     public volatile byte[] channelPlayerInfo;
     /** C# {@code PlayerInfo.m_logout} — logout broadcast sent once. */
     public volatile boolean messengerLogoutSent;
+    /** C# {@code PlayerInfo.guild_uid} for messenger guild chat. */
+    public volatile long guildUid;
+    /** C# {@code PlayerInfo.guild_name} for messenger guild chat. */
+    public volatile String guildName = "";
 }

@@ -18,6 +18,8 @@ public interface FriendRepository {
 
     void updateState(long uid, long friendUid, int stateFlag);
 
+    void updateApelido(long uid, long friendUid, String apelido);
+
     void delete(long uid, long friendUid);
 
     record FriendRow(

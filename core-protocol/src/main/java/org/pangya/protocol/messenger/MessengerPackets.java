@@ -15,12 +15,15 @@ public final class MessengerPackets {
     public static final int CLIENT_REQ_REGISTER_FRIEND = 0x18;
     public static final int CLIENT_REQ_FRIEND_AGREE = 0x19;
     public static final int CLIENT_REQ_FRIEND_BLOCK = 0x1A;
+    public static final int CLIENT_REQ_FRIEND_UNBLOCK = 0x1B;
     public static final int CLIENT_REQ_FRIEND_REMOVE = 0x1C;
     public static final int CLIENT_NOTIFY_LOGOUT = 0x16;
     public static final int CLIENT_REQ_CHECK_NICK = 0x17;
     public static final int CLIENT_NOTIFY_UPDATE_MY_STATUS = 0x1D;
     public static final int CLIENT_REQ_CHAT_FRIEND = 0x1E;
+    public static final int CLIENT_REQ_ASSIGN_APELIDO = 0x1F;
     public static final int CLIENT_REQ_UPDATE_CHANNEL_INFO = 0x23;
+    public static final int CLIENT_REQ_CHAT_GUILD = 0x25;
 
     public static final int SERVER_CONNECT = 0x2E;
     public static final int SERVER_LOGIN_ACK = 0x2F;
@@ -32,10 +35,12 @@ public final class MessengerPackets {
     public static final int SUB_FRIEND_ACCEPTED = 0x10A;
     public static final int SUB_FRIEND_REMOVE = 0x10B;
     public static final int SUB_FRIEND_BLOCK = 0x10C;
+    public static final int SUB_FRIEND_UNBLOCK = 0x10D;
     public static final int SUB_FRIEND_LOGOUT = 0x10F;
     /** C# {@code requestFriendAndGuildMemberList} page sub-id. */
     public static final int SUB_FRIEND_LIST_PAGE = 0x102;
     public static final int SUB_FRIEND_CHAT = 0x113;
+    public static final int SUB_FRIEND_APELIDO = 0x119;
     public static final int SUB_CHECK_NICK = 0x117;
 
     /** C# {@code requestCheckNickname} empty nick. */
@@ -271,6 +276,18 @@ public final class MessengerPackets {
         return new PacketWriter().opcode(CLIENT_REQ_FRIEND_REMOVE).u32(uid).pstr(nickname).toBytes();
     }
 
+    public static byte[] clientUnblockFriend(int uid) {
+        return new PacketWriter().opcode(CLIENT_REQ_FRIEND_UNBLOCK).u32(uid).toBytes();
+    }
+
+    public static byte[] clientAssignApelido(int uid, String apelido) {
+        return new PacketWriter().opcode(CLIENT_REQ_ASSIGN_APELIDO).u32(uid).pstr(apelido).toBytes();
+    }
+
+    public static byte[] clientChatGuild(String msg) {
+        return new PacketWriter().opcode(CLIENT_REQ_CHAT_GUILD).pstr(msg).toBytes();
+    }
+
     public static byte[] clientNotifyLogout() {
         return new PacketWriter().opcode(CLIENT_NOTIFY_LOGOUT).toBytes();
     }
@@ -346,13 +363,22 @@ public final class MessengerPackets {
 
     /** C# chat friend to recipient: sub 0x113 + from uid/nick + msg + u8 0. */
     public static byte[] friendChat(int fromUid, String fromNick, String msg) {
+        return chatPacket(fromUid, fromNick, msg, 0);
+    }
+
+    /** C# guild chat: same sub 0x113 with trailing u8 1. */
+    public static byte[] guildChat(int fromUid, String fromNick, String msg) {
+        return chatPacket(fromUid, fromNick, msg, 1);
+    }
+
+    private static byte[] chatPacket(int fromUid, String fromNick, String msg, int kind) {
         return new PacketWriter()
                 .opcode(SERVER_FRIEND_AND_GUILD_LIST)
                 .u16(SUB_FRIEND_CHAT)
                 .u32(fromUid)
                 .pstr(fromNick == null ? "" : fromNick)
                 .pstr(msg == null ? "" : msg)
-                .u8(0)
+                .u8(kind)
                 .toBytes();
     }
 
@@ -406,6 +432,24 @@ public final class MessengerPackets {
                 .u32(uid)
                 .u32(state)
                 .u8(0)
+                .toBytes();
+    }
+
+    public static byte[] assignApelidoOk(int uid, String apelido) {
+        return new PacketWriter()
+                .opcode(SERVER_FRIEND_AND_GUILD_LIST)
+                .u16(SUB_FRIEND_APELIDO)
+                .u32(0)
+                .u32(uid)
+                .pstr(apelido == null ? "" : apelido)
+                .toBytes();
+    }
+
+    public static byte[] assignApelidoError(int code) {
+        return new PacketWriter()
+                .opcode(SERVER_FRIEND_AND_GUILD_LIST)
+                .u16(SUB_FRIEND_APELIDO)
+                .u32(code)
                 .toBytes();
     }
 

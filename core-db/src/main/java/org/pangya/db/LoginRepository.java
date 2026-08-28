@@ -79,6 +79,11 @@ public interface LoginRepository {
      */
     void applyFirstSet(long uid, int characterId);
 
+    /** C# {@code CmdPlayerInfo} guild fields from {@code ProcGetPlayerInfoMessage}. */
+    Optional<GuildMembership> guildMembership(long uid);
+
+    record GuildMembership(long guildUid, String guildName) {}
+
     record PlayerLoginInfo(
             long uid,
             String id,

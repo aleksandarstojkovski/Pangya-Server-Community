@@ -82,6 +82,20 @@ public final class SessionManager {
         }
     }
 
+    /** C# {@code player_manager.findAllGuildMember}. */
+    public List<Session> findByGuildUid(long guildUid) {
+        if (guildUid <= 0) {
+            return List.of();
+        }
+        List<Session> out = new java.util.ArrayList<>();
+        for (Session session : snapshot()) {
+            if (session.authorized() && session.player().guildUid == guildUid) {
+                out.add(session);
+            }
+        }
+        return out;
+    }
+
     public IpDdosFilter ddos() {
         return ddos;
     }

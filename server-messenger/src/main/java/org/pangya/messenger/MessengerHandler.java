@@ -43,12 +43,15 @@ public final class MessengerHandler {
             case MessengerPackets.CLIENT_REQ_REGISTER_FRIEND -> addFriend(session, reader);
             case MessengerPackets.CLIENT_REQ_FRIEND_AGREE -> agreeFriend(session, reader);
             case MessengerPackets.CLIENT_REQ_FRIEND_BLOCK -> blockFriend(session, reader);
+            case MessengerPackets.CLIENT_REQ_FRIEND_UNBLOCK -> unblockFriend(session, reader);
             case MessengerPackets.CLIENT_REQ_FRIEND_REMOVE -> removeFriend(session, reader);
             case MessengerPackets.CLIENT_NOTIFY_LOGOUT -> notifyLogout(session);
             case MessengerPackets.CLIENT_REQ_CHECK_NICK -> checkNickname(session, reader);
             case MessengerPackets.CLIENT_NOTIFY_UPDATE_MY_STATUS -> updatePlayerState(session, reader);
             case MessengerPackets.CLIENT_REQ_CHAT_FRIEND -> chatFriend(session, reader);
+            case MessengerPackets.CLIENT_REQ_ASSIGN_APELIDO -> assignApelido(session, reader);
             case MessengerPackets.CLIENT_REQ_UPDATE_CHANNEL_INFO -> updateChannelInfo(session, reader);
+            case MessengerPackets.CLIENT_REQ_CHAT_GUILD -> chatGuild(session, reader);
             default -> log.debug("unhandled messenger opcode 0x{}", Integer.toHexString(opcode));
         }
     }
@@ -84,6 +87,12 @@ public final class MessengerHandler {
             pi.messengerState = MessengerPackets.STATE_ONLINE;
             pi.channelPlayerInfo = MessengerPackets.emptyChannelPlayerInfo();
             pi.messengerLogoutSent = false;
+            pi.guildUid = 0;
+            pi.guildName = "";
+            repo.guildMembership(pi.uid).ifPresent(g -> {
+                pi.guildUid = g.guildUid();
+                pi.guildName = g.guildName() == null ? "" : g.guildName();
+            });
             sessions.disconnectOthersWithUid(pi.uid, session);
             session.setAuthorized(true);
             session.send(MessengerPackets.loginOk((int) pi.uid));
@@ -294,6 +303,105 @@ public final class MessengerHandler {
         } catch (RuntimeException e) {
             log.warn("block friend failed: {}", e.toString());
             session.send(MessengerPackets.friendUidAck(MessengerPackets.SUB_FRIEND_BLOCK, 0x5300100, 0));
+        }
+    }
+
+    private void unblockFriend(Session session, PacketReader reader) {
+        if (!session.authorized()) {
+            return;
+        }
+        int uid = reader.u32();
+        try {
+            if (uid == 0) {
+                session.send(MessengerPackets.friendUidAck(MessengerPackets.SUB_FRIEND_UNBLOCK, 0x5300201, 0));
+                return;
+            }
+            var row = friends.find(session.player().uid, uid).orElse(null);
+            if (row == null) {
+                session.send(MessengerPackets.friendUidAck(MessengerPackets.SUB_FRIEND_UNBLOCK, 0x5300202, 0));
+                return;
+            }
+            if ((row.stateFlag() & MessengerPackets.FLAG_BLOCK) == 0) {
+                session.send(MessengerPackets.friendUidAck(MessengerPackets.SUB_FRIEND_UNBLOCK, 0x5300203, 0));
+                return;
+            }
+            Session live = sessions.findByUid(uid);
+            if (live != null && friends.find(uid, session.player().uid).isEmpty()) {
+                session.send(MessengerPackets.friendUidAck(MessengerPackets.SUB_FRIEND_UNBLOCK, 0x5200204, 0));
+                return;
+            }
+            int newState = row.stateFlag() & ~MessengerPackets.FLAG_BLOCK;
+            friends.updateState(session.player().uid, uid, newState);
+            session.send(MessengerPackets.friendUidAck(MessengerPackets.SUB_FRIEND_UNBLOCK, 0, uid));
+            if (live != null) {
+                live.send(MessengerPackets.friendStatus(
+                        (int) session.player().uid,
+                        session.player().messengerState,
+                        channelInfo(session.player())));
+            }
+        } catch (RuntimeException e) {
+            log.warn("unblock friend failed: {}", e.toString());
+            session.send(MessengerPackets.friendUidAck(MessengerPackets.SUB_FRIEND_UNBLOCK, 0x5300200, 0));
+        }
+    }
+
+    private void assignApelido(Session session, PacketReader reader) {
+        if (!session.authorized()) {
+            return;
+        }
+        int uid = reader.u32();
+        String apelido = reader.remaining() >= 2 ? reader.pstr() : "";
+        try {
+            if (uid == 0) {
+                session.send(MessengerPackets.assignApelidoError(0x5200901));
+                return;
+            }
+            if (apelido == null || apelido.isEmpty()) {
+                session.send(MessengerPackets.assignApelidoError(0x5200902));
+                return;
+            }
+            if (apelido.length() >= 11) {
+                session.send(MessengerPackets.assignApelidoError(0x5200903));
+                return;
+            }
+            var row = friends.find(session.player().uid, uid).orElse(null);
+            if (row == null) {
+                session.send(MessengerPackets.assignApelidoError(0x5200903));
+                return;
+            }
+            friends.updateApelido(session.player().uid, uid, apelido);
+            session.send(MessengerPackets.assignApelidoOk(uid, apelido));
+        } catch (RuntimeException e) {
+            log.warn("assign apelido failed: {}", e.toString());
+            session.send(MessengerPackets.assignApelidoError(0x5200900));
+        }
+    }
+
+    private void chatGuild(Session session, PacketReader reader) {
+        if (!session.authorized()) {
+            return;
+        }
+        try {
+            String msg = reader.remaining() >= 2 ? reader.pstr() : "";
+            if (session.player().guildUid == 0) {
+                session.send(MessengerPackets.friendChatError());
+                return;
+            }
+            if (msg == null || msg.isEmpty()) {
+                session.send(MessengerPackets.friendChatError());
+                return;
+            }
+            byte[] packet = MessengerPackets.guildChat(
+                    (int) session.player().uid, session.player().nickname, msg);
+            session.send(packet);
+            for (Session member : sessions.findByGuildUid(session.player().guildUid)) {
+                if (member != session) {
+                    member.send(packet);
+                }
+            }
+        } catch (RuntimeException e) {
+            log.warn("chat guild failed uid={}: {}", session.player().uid, e.toString());
+            session.send(MessengerPackets.friendChatError());
         }
     }
 

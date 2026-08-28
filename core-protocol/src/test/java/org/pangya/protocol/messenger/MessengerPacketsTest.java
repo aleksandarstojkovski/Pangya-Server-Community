@@ -87,5 +87,22 @@ class MessengerPacketsTest {
         PacketReader updateR = new PacketReader(update);
         assertEquals(MessengerPackets.CLIENT_REQ_UPDATE_CHANNEL_INFO, updateR.opcode());
         assertEquals(MessengerPackets.CHANNEL_PLAYER_INFO_BYTES, updateR.remaining());
+
+        byte[] guild = MessengerPackets.guildChat(10001, "TestNick", "guild hi");
+        PacketReader guildR = new PacketReader(guild);
+        assertEquals(MessengerPackets.SERVER_FRIEND_AND_GUILD_LIST, guildR.opcode());
+        assertEquals(MessengerPackets.SUB_FRIEND_CHAT, guildR.u16());
+        assertEquals(10001, guildR.u32());
+        assertEquals("TestNick", guildR.pstr());
+        assertEquals("guild hi", guildR.pstr());
+        assertEquals(1, guildR.u8());
+
+        byte[] alias = MessengerPackets.assignApelidoOk(10002, "Buddy");
+        PacketReader aliasR = new PacketReader(alias);
+        assertEquals(MessengerPackets.SERVER_FRIEND_AND_GUILD_LIST, aliasR.opcode());
+        assertEquals(MessengerPackets.SUB_FRIEND_APELIDO, aliasR.u16());
+        assertEquals(0, aliasR.u32());
+        assertEquals(10002, aliasR.u32());
+        assertEquals("Buddy", aliasR.pstr());
     }
 }

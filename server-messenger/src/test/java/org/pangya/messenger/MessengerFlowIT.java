@@ -248,6 +248,117 @@ class MessengerFlowIT {
     }
 
     @Test
+    void unblockFriendAndAssignApelido() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password)) {
+            var friendRepo = new org.pangya.db.JdbiFriendRepository(DatabaseSupport.jdbi(ds));
+            friendRepo.delete(10001, 10002);
+            friendRepo.delete(10002, 10001);
+            friendRepo.add(10001, new org.pangya.db.FriendRepository.FriendRow(
+                    10002, "TestNick2", "Friend", -1, 0, -1, 0, 0, 0, 255,
+                    MessengerPackets.FLAG_FRIEND));
+            friendRepo.add(10002, new org.pangya.db.FriendRepository.FriendRow(
+                    10001, "TestNick", "Friend", -1, 0, -1, 0, 0, 0, 255,
+                    MessengerPackets.FLAG_FRIEND));
+        }
+
+        try (MessengerRuntime runtime = new MessengerRuntime(new AppConfig(testYaml(jdbc, user, password)));
+             PangyaFakeClient a = new PangyaFakeClient();
+             PangyaFakeClient b = new PangyaFakeClient()) {
+            a.connect("127.0.0.1", runtime.port(), PangyaFakeClient.HelloKind.MESSENGER);
+            a.awaitHello(5, TimeUnit.SECONDS);
+            a.sendPlain(MessengerPackets.clientLogin(10001, "TestNick"));
+            PacketReader loginA = new PacketReader(a.awaitPlain(5, TimeUnit.SECONDS));
+            assertEquals(MessengerPackets.SERVER_LOGIN_ACK, loginA.opcode());
+            assertEquals(0, loginA.u8());
+
+            b.connect("127.0.0.1", runtime.port(), PangyaFakeClient.HelloKind.MESSENGER);
+            b.awaitHello(5, TimeUnit.SECONDS);
+            b.sendPlain(MessengerPackets.clientLogin(10002, "TestNick2"));
+            PacketReader loginB = new PacketReader(b.awaitPlain(5, TimeUnit.SECONDS));
+            assertEquals(MessengerPackets.SERVER_LOGIN_ACK, loginB.opcode());
+            assertEquals(0, loginB.u8());
+
+            a.sendPlain(MessengerPackets.clientBlockFriend(10002));
+            PacketReader blocked = new PacketReader(a.awaitPlain(5, TimeUnit.SECONDS));
+            assertEquals(MessengerPackets.SERVER_FRIEND_AND_GUILD_LIST, blocked.opcode());
+            assertEquals(MessengerPackets.SUB_FRIEND_BLOCK, blocked.u16());
+
+            PacketReader blockedNotify = new PacketReader(b.awaitPlain(5, TimeUnit.SECONDS));
+            assertEquals(MessengerPackets.SERVER_FRIEND_AND_GUILD_LIST, blockedNotify.opcode());
+            assertEquals(MessengerPackets.SUB_FRIEND_LOGOUT, blockedNotify.u16());
+
+            a.sendPlain(MessengerPackets.clientUnblockFriend(10002));
+            PacketReader unblocked = new PacketReader(a.awaitPlain(5, TimeUnit.SECONDS));
+            assertEquals(MessengerPackets.SERVER_FRIEND_AND_GUILD_LIST, unblocked.opcode());
+            assertEquals(MessengerPackets.SUB_FRIEND_UNBLOCK, unblocked.u16());
+            assertEquals(0, unblocked.u32());
+            assertEquals(10002, unblocked.u32());
+
+            PacketReader onlineAgain = new PacketReader(b.awaitPlain(5, TimeUnit.SECONDS));
+            assertEquals(MessengerPackets.SERVER_FRIEND_AND_GUILD_LIST, onlineAgain.opcode());
+            assertEquals(MessengerPackets.SUB_CHANGE_MY_STATUS, onlineAgain.u16());
+            assertEquals(10001, onlineAgain.u32());
+
+            a.sendPlain(MessengerPackets.clientAssignApelido(10002, "Buddy"));
+            PacketReader alias = new PacketReader(a.awaitPlain(5, TimeUnit.SECONDS));
+            assertEquals(MessengerPackets.SERVER_FRIEND_AND_GUILD_LIST, alias.opcode());
+            assertEquals(MessengerPackets.SUB_FRIEND_APELIDO, alias.u16());
+            assertEquals(0, alias.u32());
+            assertEquals(10002, alias.u32());
+            assertEquals("Buddy", alias.pstr());
+        }
+    }
+
+    @Test
+    void guildChatBroadcastsToMembers() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        DatabaseSupport.migrate(jdbc, user, password);
+        seedTestGuild(jdbc, user, password, 9001L, "TestGuild", 10001, 10002);
+
+        try (MessengerRuntime runtime = new MessengerRuntime(new AppConfig(testYaml(jdbc, user, password)));
+             PangyaFakeClient a = new PangyaFakeClient();
+             PangyaFakeClient b = new PangyaFakeClient()) {
+            a.connect("127.0.0.1", runtime.port(), PangyaFakeClient.HelloKind.MESSENGER);
+            a.awaitHello(5, TimeUnit.SECONDS);
+            a.sendPlain(MessengerPackets.clientLogin(10001, "TestNick"));
+            PacketReader loginA = new PacketReader(a.awaitPlain(5, TimeUnit.SECONDS));
+            assertEquals(MessengerPackets.SERVER_LOGIN_ACK, loginA.opcode());
+            assertEquals(0, loginA.u8());
+
+            b.connect("127.0.0.1", runtime.port(), PangyaFakeClient.HelloKind.MESSENGER);
+            b.awaitHello(5, TimeUnit.SECONDS);
+            b.sendPlain(MessengerPackets.clientLogin(10002, "TestNick2"));
+            PacketReader loginB = new PacketReader(b.awaitPlain(5, TimeUnit.SECONDS));
+            assertEquals(MessengerPackets.SERVER_LOGIN_ACK, loginB.opcode());
+            assertEquals(0, loginB.u8());
+
+            a.sendPlain(MessengerPackets.clientChatGuild("hello guild"));
+            PacketReader self = new PacketReader(a.awaitPlain(5, TimeUnit.SECONDS));
+            assertEquals(MessengerPackets.SERVER_FRIEND_AND_GUILD_LIST, self.opcode());
+            assertEquals(MessengerPackets.SUB_FRIEND_CHAT, self.u16());
+            assertEquals(10001, self.u32());
+            assertEquals("TestNick", self.pstr());
+            assertEquals("hello guild", self.pstr());
+            assertEquals(1, self.u8());
+
+            PacketReader peer = new PacketReader(b.awaitPlain(5, TimeUnit.SECONDS));
+            assertEquals(MessengerPackets.SERVER_FRIEND_AND_GUILD_LIST, peer.opcode());
+            assertEquals(MessengerPackets.SUB_FRIEND_CHAT, peer.u16());
+            assertEquals(10001, peer.u32());
+            assertEquals("TestNick", peer.pstr());
+            assertEquals("hello guild", peer.pstr());
+            assertEquals(1, peer.u8());
+        }
+    }
+
+    @Test
     void nickMismatchSendsLoginFail() throws Exception {
         String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
         String user = env("PANGYA_TEST_JDBC_USER", "pangya");
@@ -292,5 +403,54 @@ class MessengerFlowIT {
     private static String env(String name, String fallback) {
         String v = System.getenv(name);
         return (v == null || v.isBlank()) ? fallback : v;
+    }
+
+    private static void seedTestGuild(
+            String jdbc, String user, String password, long guildUid, String guildName, long... members) {
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password)) {
+            var jdbi = DatabaseSupport.jdbi(ds);
+            jdbi.useHandle(h -> {
+                for (long memberUid : members) {
+                    h.createUpdate("DELETE FROM pangya.pangya_guild_member WHERE \"MEMBER_UID\" = :uid")
+                            .bind("uid", memberUid)
+                            .execute();
+                }
+                h.createUpdate("DELETE FROM pangya.pangya_guild WHERE \"GUILD_UID\" = :gid")
+                        .bind("gid", guildUid)
+                        .execute();
+                h.createUpdate("""
+                                INSERT INTO pangya.pangya_guild (
+                                    "GUILD_UID", "GUILD_ID", "GUILD_NAME", "GUILD_LEADER", "GUILD_SUB_MASTER",
+                                    "GUILD_CONDITION_LEVEL", "GUILD_STATE", "GUILD_FLAG", "GUILD_PERMITION_JOIN",
+                                    "GUILD_PANG", "GUILD_POINT", "GUILD_WIN", "GUILD_LOSE", "GUILD_DRAW",
+                                    "GUILD_MARK_IMG", "GUILD_MARK_IMG_IDX", "GUILD_NEW_MARK_IDX",
+                                    "GUILD_NOTICE", "GUILD_INFO", "GUILD_REG_DATE"
+                                ) OVERRIDING SYSTEM VALUE VALUES (
+                                    :gid, 'TG9001', :name, :leader, 0,
+                                    0, 0, 0, 0,
+                                    0, 0, 0, 0, 0,
+                                    '', 0, 0,
+                                    '', '', NOW()
+                                )
+                                """)
+                        .bind("gid", guildUid)
+                        .bind("name", guildName)
+                        .bind("leader", members.length > 0 ? members[0] : 0L)
+                        .execute();
+                for (long memberUid : members) {
+                    h.createUpdate("""
+                                    INSERT INTO pangya.pangya_guild_member (
+                                        "GUILD_UID", "MEMBER_UID", "GUILD_PANG", "GUILD_POINT",
+                                        "MEMBER_FLAG", "MEMBER_STATE_FLAG", "REG_DATE"
+                                    ) VALUES (
+                                        :gid, :uid, 0, 0, 0, 0, NOW()
+                                    )
+                                    """)
+                            .bind("gid", guildUid)
+                            .bind("uid", memberUid)
+                            .execute();
+                }
+            });
+        }
     }
 }

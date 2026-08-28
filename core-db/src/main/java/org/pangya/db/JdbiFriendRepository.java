@@ -106,6 +106,19 @@ public final class JdbiFriendRepository implements FriendRepository {
     }
 
     @Override
+    public void updateApelido(long uid, long friendUid, String apelido) {
+        jdbi.useHandle(h -> h.createUpdate("""
+                        UPDATE pangya.pangya_friend_list
+                           SET apelido = :apelido
+                         WHERE uid = :uid AND uid_friend = :fid
+                        """)
+                .bind("apelido", apelido == null ? "Friend" : apelido)
+                .bind("uid", uid)
+                .bind("fid", friendUid)
+                .execute());
+    }
+
+    @Override
     public void delete(long uid, long friendUid) {
         jdbi.useHandle(h -> h.createUpdate(
                         "DELETE FROM pangya.pangya_friend_list WHERE uid = :uid AND uid_friend = :fid")
