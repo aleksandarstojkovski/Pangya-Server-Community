@@ -4527,7 +4527,8 @@ public final class GameHandler {
      * {@code 0x240} {@code shopSys(0x5300351)}. Success persist workshop then
      * {@code 0x216} type {@code 0xCC} (and type 2 if a card was consumed) then
      * {@code 0x240} u32 0 + stat + id. Catch CHANNEL {@code shopSys}; else full
-     * {@code 0x5300350}. {@code flag_transformar} stays 0 (no {@code 0x241}).
+     * {@code 0x5300350}. {@code flag_transformar==1} with SQL originals may
+     * send empty {@code 0x241} instead of {@code 0x240}.
      */
     private void clubWorkshopRank(Session session, PacketReader reader) {
         if (!inChannel(session)) {
@@ -4687,6 +4688,60 @@ public final class GameHandler {
                         level,
                         rank,
                         recovery));
+            }
+            if (clubset.flagTransformar() == 1) {
+                int[] present = new int[GamePackets.WORKSHOP_TRANSFORM_SPECIALS.length];
+                int n = 0;
+                for (int special : GamePackets.WORKSHOP_TRANSFORM_SPECIALS) {
+                    if (inventory.clubSetOriginalAny(special)) {
+                        present[n++] = special;
+                    }
+                }
+                int[] drawnSpecials = n == 0 ? new int[0] : java.util.Arrays.copyOf(present, n);
+                int drawn = GamePackets.workshopDrawTransformSpecial(drawnSpecials);
+                if (drawn != 0) {
+                    List<InventoryRepository.ClubSetOriginal> originals = inventory.clubSetOriginals(drawn);
+                    if (originals.isEmpty()) {
+                        session.send(GamePackets.clubWorkshopOpcodeFail(
+                                GamePackets.SERVER_CLUB_WORKSHOP_RANK,
+                                GamePackets.shopSys(GamePackets.WORKSHOP_RANK_ERR_ORIGINAL)));
+                        return;
+                    }
+                    if (originals.size() <= rank - 1) {
+                        session.send(GamePackets.clubWorkshopOpcodeFail(
+                                GamePackets.SERVER_CLUB_WORKSHOP_RANK,
+                                GamePackets.shopSys(GamePackets.WORKSHOP_RANK_ERR_ORIGINAL_RANK)));
+                        return;
+                    }
+                    InventoryRepository.ClubSetOriginal match = null;
+                    for (InventoryRepository.ClubSetOriginal el : originals) {
+                        if (GamePackets.workshopSCalcRank(el.slots()) == rank) {
+                            match = el;
+                            break;
+                        }
+                    }
+                    if (match == null) {
+                        session.send(GamePackets.clubWorkshopOpcodeFail(
+                                GamePackets.SERVER_CLUB_WORKSHOP_RANK,
+                                GamePackets.shopSys(GamePackets.WORKSHOP_RANK_ERR_ORIGINAL_MATCH)));
+                        return;
+                    }
+                    boolean owned = false;
+                    for (GamePackets.WarehouseItem w : inventory.warehouse(uid)) {
+                        if (w.typeid == match.typeid()) {
+                            owned = true;
+                            break;
+                        }
+                    }
+                    if (!owned) {
+                        PlayerContext pi = session.player();
+                        pi.workshopXfClubId = club.id;
+                        pi.workshopXfStat = stat;
+                        pi.workshopXfTypeid = match.typeid();
+                        session.send(GamePackets.clubWorkshopTransformDialog());
+                        return;
+                    }
+                }
             }
             session.send(GamePackets.clubWorkshopRankOk(stat, club.id));
         } catch (RuntimeException e) {
@@ -5320,29 +5375,110 @@ public final class GameHandler {
     }
 
     /**
-     * C# {@code requestClubSetWorkShopUpRankTransformConfirm}: no pending
-     * ClubSet → {@code 0x242} {@code shopSys(0x5300451)}.
+     * C# {@code requestClubSetWorkShopUpRankTransformConfirm}. No pending
+     * ClubSet → {@code 0x242} {@code shopSys(0x5300451)}. Success deletes the
+     * source ClubSet, adds {@code cwtc.transform_typeid}, then {@code 0x216}
+     * count 2 type 2 + {@code 0x242} u32 0 + typeid + id. Catch CHANNEL
+     * {@code shopSys}; else full {@code 0x5300450}.
      */
     private void workshopTransformConfirm(Session session) {
         if (!inChannel(session)) {
             return;
         }
-        session.send(GamePackets.sysAck(
-                GamePackets.SERVER_WORKSHOP_TRANSFORM_CONFIRM,
-                GamePackets.shopSys(GamePackets.WORKSHOP_TRANSFORM_CONFIRM_ERR)));
+        try {
+            PlayerContext pi = session.player();
+            long uid = pi.uid;
+            GamePackets.WarehouseItem club = warehouseById(uid, pi.workshopXfClubId);
+            if (club == null) {
+                session.send(GamePackets.sysAck(
+                        GamePackets.SERVER_WORKSHOP_TRANSFORM_CONFIRM,
+                        GamePackets.shopSys(GamePackets.WORKSHOP_TRANSFORM_CONFIRM_ERR)));
+                return;
+            }
+            if (inventory.clubSetIff(club.typeid).isEmpty()) {
+                session.send(GamePackets.sysAck(
+                        GamePackets.SERVER_WORKSHOP_TRANSFORM_CONFIRM,
+                        GamePackets.shopSys(GamePackets.WORKSHOP_TRANSFORM_CONFIRM_ERR_IFF)));
+                return;
+            }
+            if (inventory.clubSetIff(pi.workshopXfTypeid).isEmpty()) {
+                session.send(GamePackets.sysAck(
+                        GamePackets.SERVER_WORKSHOP_TRANSFORM_CONFIRM,
+                        GamePackets.shopSys(GamePackets.WORKSHOP_TRANSFORM_CONFIRM_ERR_SPECIAL)));
+                return;
+            }
+            if (pi.workshopXfTypeid == 0) {
+                session.send(GamePackets.sysAck(
+                        GamePackets.SERVER_WORKSHOP_TRANSFORM_CONFIRM,
+                        GamePackets.shopSys(GamePackets.WORKSHOP_TRANSFORM_CONFIRM_ERR_INIT)));
+                return;
+            }
+            int oldTypeid = club.typeid;
+            int oldId = club.id;
+            if (!inventory.deleteWarehouseById(uid, oldId)) {
+                session.send(GamePackets.sysAck(
+                        GamePackets.SERVER_WORKSHOP_TRANSFORM_CONFIRM,
+                        GamePackets.shopSys(GamePackets.WORKSHOP_TRANSFORM_CONFIRM_ERR_DELETE)));
+                return;
+            }
+            int newId = inventory.addWarehouseItem(uid, pi.workshopXfTypeid, 1);
+            if (newId <= 0) {
+                session.send(GamePackets.sysAck(
+                        GamePackets.SERVER_WORKSHOP_TRANSFORM_CONFIRM,
+                        GamePackets.shopSys(GamePackets.WORKSHOP_TRANSFORM_CONFIRM_ERR_ADD)));
+                return;
+            }
+            GamePackets.PapelAward consume = new GamePackets.PapelAward(
+                    GamePackets.PAPEL_AWARD_TYPE, oldTypeid, oldId, 0, 0, 0, -1);
+            GamePackets.PapelAward added = new GamePackets.PapelAward(
+                    GamePackets.PAPEL_AWARD_TYPE, pi.workshopXfTypeid, newId, 0, 0, 0, 1);
+            session.send(GamePackets.papelAwards(GamePackets.unixNow(), List.of(consume, added)));
+            session.send(GamePackets.clubWorkshopTransformConfirmOk(pi.workshopXfTypeid, newId));
+        } catch (RuntimeException e) {
+            log.debug("workshop transform confirm failed: {}", e.toString());
+            session.send(GamePackets.sysAck(
+                    GamePackets.SERVER_WORKSHOP_TRANSFORM_CONFIRM,
+                    GamePackets.WORKSHOP_TRANSFORM_CONFIRM_DEFAULT));
+        }
     }
 
     /**
-     * C# {@code requestClubSetWorkShopUpRankTransformCancel}: no pending
-     * ClubSet → {@code 0x243} {@code shopSys(0x5300401)}.
+     * C# {@code requestClubSetWorkShopUpRankTransformCancel}. No pending
+     * ClubSet → {@code 0x243} {@code shopSys(0x5300401)}. Success {@code 0x243}
+     * u32 0 + stat + id. Catch CHANNEL {@code shopSys}; else full {@code 0x5300400}.
      */
     private void workshopTransformCancel(Session session) {
         if (!inChannel(session)) {
             return;
         }
-        session.send(GamePackets.sysAck(
-                GamePackets.SERVER_WORKSHOP_TRANSFORM_CANCEL,
-                GamePackets.shopSys(GamePackets.WORKSHOP_TRANSFORM_CANCEL_ERR)));
+        try {
+            PlayerContext pi = session.player();
+            GamePackets.WarehouseItem club = warehouseById(pi.uid, pi.workshopXfClubId);
+            if (club == null) {
+                session.send(GamePackets.sysAck(
+                        GamePackets.SERVER_WORKSHOP_TRANSFORM_CANCEL,
+                        GamePackets.shopSys(GamePackets.WORKSHOP_TRANSFORM_CANCEL_ERR)));
+                return;
+            }
+            if (inventory.clubSetIff(club.typeid).isEmpty()) {
+                session.send(GamePackets.sysAck(
+                        GamePackets.SERVER_WORKSHOP_TRANSFORM_CANCEL,
+                        GamePackets.shopSys(GamePackets.WORKSHOP_TRANSFORM_CANCEL_ERR_IFF)));
+                return;
+            }
+            if ((pi.workshopXfStat & 0xffffffffL) > 4) {
+                session.send(GamePackets.sysAck(
+                        GamePackets.SERVER_WORKSHOP_TRANSFORM_CANCEL,
+                        GamePackets.shopSys(GamePackets.WORKSHOP_TRANSFORM_CANCEL_ERR_STAT)));
+                return;
+            }
+            session.send(GamePackets.clubWorkshopTransformCancelOk(pi.workshopXfStat, pi.workshopXfClubId));
+        } catch (RuntimeException e) {
+            log.debug("workshop transform cancel failed: {}", e.toString());
+            session.send(GamePackets.sysAck(
+                    GamePackets.SERVER_WORKSHOP_TRANSFORM_CANCEL,
+                    GamePackets.WORKSHOP_TRANSFORM_CANCEL_DEFAULT));
+        }
     }
 
     /**

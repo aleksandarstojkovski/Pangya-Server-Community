@@ -2490,7 +2490,8 @@ public final class JdbiInventoryRepository implements InventoryRepository {
     public Optional<ClubSetIff> clubSetIff(int typeid) {
         return jdbi.withHandle(h -> h.createQuery("""
                         SELECT work_shop_tipo, stats0, stats1, stats2, stats3, stats4,
-                               slot0, slot1, slot2, slot3, slot4, tipo_rank_s, total_recovery
+                               slot0, slot1, slot2, slot3, slot4, tipo_rank_s, total_recovery,
+                               flag_transformar
                           FROM pangya.iff_clubset
                          WHERE typeid = :typeid
                         """)
@@ -2512,7 +2513,8 @@ public final class JdbiInventoryRepository implements InventoryRepository {
                             rs.getShort("slot4")
                         },
                         rs.getInt("tipo_rank_s"),
-                        rs.getInt("total_recovery")))
+                        rs.getInt("total_recovery"),
+                        rs.getInt("flag_transformar")))
                 .findOne());
     }
 
@@ -2529,17 +2531,30 @@ public final class JdbiInventoryRepository implements InventoryRepository {
     @Override
     public void upsertClubSetIff(
             int typeid, int tipo, short[] stats, short[] slots, int tipoRankS, int totalRecovery) {
+        upsertClubSetIff(typeid, tipo, stats, slots, tipoRankS, totalRecovery, 0);
+    }
+
+    @Override
+    public void upsertClubSetIff(
+            int typeid,
+            int tipo,
+            short[] stats,
+            short[] slots,
+            int tipoRankS,
+            int totalRecovery,
+            int flagTransformar) {
         short[] st = pad5(stats);
         short[] sl = pad5(slots);
         jdbi.useHandle(h -> h.createUpdate("""
                         INSERT INTO pangya.iff_clubset (
                             typeid, work_shop_tipo,
                             stats0, stats1, stats2, stats3, stats4,
-                            slot0, slot1, slot2, slot3, slot4, tipo_rank_s, total_recovery)
+                            slot0, slot1, slot2, slot3, slot4, tipo_rank_s, total_recovery,
+                            flag_transformar)
                         VALUES (
                             :typeid, :tipo,
                             :s0, :s1, :s2, :s3, :s4,
-                            :l0, :l1, :l2, :l3, :l4, :rank, :recovery)
+                            :l0, :l1, :l2, :l3, :l4, :rank, :recovery, :flag)
                         ON CONFLICT (typeid) DO UPDATE SET
                             work_shop_tipo = EXCLUDED.work_shop_tipo,
                             stats0 = EXCLUDED.stats0, stats1 = EXCLUDED.stats1,
@@ -2549,7 +2564,8 @@ public final class JdbiInventoryRepository implements InventoryRepository {
                             slot2 = EXCLUDED.slot2, slot3 = EXCLUDED.slot3,
                             slot4 = EXCLUDED.slot4,
                             tipo_rank_s = EXCLUDED.tipo_rank_s,
-                            total_recovery = EXCLUDED.total_recovery
+                            total_recovery = EXCLUDED.total_recovery,
+                            flag_transformar = EXCLUDED.flag_transformar
                         """)
                 .bind("typeid", typeid)
                 .bind("tipo", tipo)
@@ -2559,6 +2575,68 @@ public final class JdbiInventoryRepository implements InventoryRepository {
                 .bind("l3", sl[3]).bind("l4", sl[4])
                 .bind("rank", tipoRankS)
                 .bind("recovery", totalRecovery)
+                .bind("flag", flagTransformar)
+                .execute());
+    }
+
+    @Override
+    public boolean clubSetOriginalAny(int specialTypeid) {
+        return jdbi.withHandle(h -> h.createQuery("""
+                        SELECT 1 FROM pangya.iff_clubset_original
+                         WHERE special_typeid = :special
+                         LIMIT 1
+                        """)
+                .bind("special", specialTypeid)
+                .mapTo(Integer.class)
+                .findOne())
+                .isPresent();
+    }
+
+    @Override
+    public List<ClubSetOriginal> clubSetOriginals(int specialTypeid) {
+        return jdbi.withHandle(h -> h.createQuery("""
+                        SELECT original_typeid, slot0, slot1, slot2, slot3, slot4
+                          FROM pangya.iff_clubset_original
+                         WHERE special_typeid = :special
+                         ORDER BY original_typeid
+                        """)
+                .bind("special", specialTypeid)
+                .map((rs, ctx) -> new ClubSetOriginal(
+                        rs.getInt("original_typeid"),
+                        new short[] {
+                            rs.getShort("slot0"),
+                            rs.getShort("slot1"),
+                            rs.getShort("slot2"),
+                            rs.getShort("slot3"),
+                            rs.getShort("slot4")
+                        }))
+                .list());
+    }
+
+    @Override
+    public void upsertClubSetOriginal(int specialTypeid, int originalTypeid, short[] slots) {
+        short[] sl = pad5(slots);
+        jdbi.useHandle(h -> h.createUpdate("""
+                        INSERT INTO pangya.iff_clubset_original (
+                            special_typeid, original_typeid, slot0, slot1, slot2, slot3, slot4)
+                        VALUES (:special, :original, :l0, :l1, :l2, :l3, :l4)
+                        ON CONFLICT (special_typeid, original_typeid) DO UPDATE SET
+                            slot0 = EXCLUDED.slot0, slot1 = EXCLUDED.slot1,
+                            slot2 = EXCLUDED.slot2, slot3 = EXCLUDED.slot3,
+                            slot4 = EXCLUDED.slot4
+                        """)
+                .bind("special", specialTypeid)
+                .bind("original", originalTypeid)
+                .bind("l0", sl[0]).bind("l1", sl[1]).bind("l2", sl[2])
+                .bind("l3", sl[3]).bind("l4", sl[4])
+                .execute());
+    }
+
+    @Override
+    public void deleteClubSetOriginal(int specialTypeid) {
+        jdbi.useHandle(h -> h.createUpdate(
+                        "DELETE FROM pangya.iff_clubset_original WHERE special_typeid = :special")
+                .bind("special", specialTypeid)
                 .execute());
     }
 

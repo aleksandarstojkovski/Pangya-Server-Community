@@ -78,4 +78,10 @@ public final class PlayerContext {
     public volatile int workshopUpClubId;
     /** C# {@code PlayerInfo.cwlul.stat} pending workshop up-level. */
     public volatile int workshopUpStat;
+    /** C# {@code PlayerInfo.cwtc.clubset_id} pending workshop transform. */
+    public volatile int workshopXfClubId;
+    /** C# {@code PlayerInfo.cwtc.stat} pending workshop transform. */
+    public volatile int workshopXfStat;
+    /** C# {@code PlayerInfo.cwtc.transform_typeid} pending workshop transform. */
+    public volatile int workshopXfTypeid;
 }

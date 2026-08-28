@@ -1456,6 +1456,23 @@ class GamePacketsTest {
         assertEquals(GamePackets.WORKSHOP_RANK_OK, rankOk.u32());
         assertEquals(2, rankOk.u32());
         assertEquals(2, rankOk.i32());
+        PacketReader xfDialog = new PacketReader(GamePackets.clubWorkshopTransformDialog());
+        assertEquals(GamePackets.SERVER_CLUB_WORKSHOP_TRANSFORM, xfDialog.opcode());
+        assertEquals(0, xfDialog.remaining());
+        PacketReader xfConfirmOk = new PacketReader(GamePackets.clubWorkshopTransformConfirmOk(
+                GamePackets.TYPEID_WORKSHOP_TRANSFORM_ORIGINAL, 9));
+        assertEquals(GamePackets.SERVER_WORKSHOP_TRANSFORM_CONFIRM, xfConfirmOk.opcode());
+        assertEquals(GamePackets.WORKSHOP_TRANSFORM_CONFIRM_OK, xfConfirmOk.u32());
+        assertEquals(GamePackets.TYPEID_WORKSHOP_TRANSFORM_ORIGINAL, xfConfirmOk.u32());
+        assertEquals(9, xfConfirmOk.i32());
+        PacketReader xfCancelOk = new PacketReader(GamePackets.clubWorkshopTransformCancelOk(2, 9));
+        assertEquals(GamePackets.SERVER_WORKSHOP_TRANSFORM_CANCEL, xfCancelOk.opcode());
+        assertEquals(GamePackets.WORKSHOP_TRANSFORM_CANCEL_OK, xfCancelOk.u32());
+        assertEquals(2, xfCancelOk.u32());
+        assertEquals(9, xfCancelOk.i32());
+        assertEquals(GamePackets.TYPEID_WINGTROSS_EVO, GamePackets.workshopDrawTransformSpecial(
+                new int[] {GamePackets.TYPEID_WINGTROSS_EVO}));
+        assertEquals(0, GamePackets.workshopDrawTransformSpecial(new int[0]));
         PacketReader ccUpd = new PacketReader(GamePackets.workshopCcUpdate(
                 1, GamePackets.TYPEID_AIR_KNIGHT, 2, new short[] {1, 0, 0, 0, 0}, 300, 0, 0, 1));
         assertEquals(GamePackets.SERVER_DAILY_QUEST_STAMP, ccUpd.opcode());
@@ -1845,6 +1862,7 @@ class GamePacketsTest {
         assertEquals(GamePackets.SERVER_CLUB_WORKSHOP_CONFIRM, 0x23E);
         assertEquals(GamePackets.SERVER_CLUB_WORKSHOP_CANCEL, 0x23F);
         assertEquals(GamePackets.SERVER_CLUB_WORKSHOP_RANK, 0x240);
+        assertEquals(GamePackets.SERVER_CLUB_WORKSHOP_TRANSFORM, 0x241);
         assertEquals(GamePackets.SERVER_ITEM_BUFF, 0x181);
         assertEquals(GamePackets.SERVER_COMET_REFILL, 0x197);
         assertEquals(GamePackets.SERVER_BOX_MAIL, 0x19D);
@@ -2367,6 +2385,9 @@ class GamePacketsTest {
         assertEquals(GamePackets.WORKSHOP_RANK_OK, 0);
         assertEquals(2, GamePackets.workshopRankStat(0));
         assertEquals(GamePackets.WORKSHOP_RANK_ERR_RANK_S, 0x5300362);
+        assertEquals(GamePackets.WORKSHOP_TRANSFORM_CONFIRM_OK, 0);
+        assertEquals(GamePackets.WORKSHOP_TRANSFORM_CANCEL_OK, 0);
+        assertEquals(GamePackets.TYPEID_WINGTROSS_EVO, 0x1000005D);
         assertEquals(GamePackets.WORKSHOP_ERR_MISSING, 0x5300202);
         assertEquals(GamePackets.SERVER_BUY_ACK, 0x68);
         assertEquals(GamePackets.CREATE_ROOM_FAILED, 0x07);

@@ -170,7 +170,7 @@ C#: `GameServer/PangyaEnums/PacketGame.cs` → Java `org.pangya.protocol.game.Ga
 | C | `CLIENT_REQ_POINT_SHOP_TP` | `0x127` | not blocked → `0x1E8` u32 0 + u32 tiki pts (seed 0) |
 | C | `CLIENT_REQ_POINT_SHOP_EXCHANGE_TP` | `0x128` | count 0 → `0x1E9` `shopSys(0x5200905)` |
 | C | `CLIENT_REQ_POINT_SHOP_EXCHANGE_ITEM` | `0x129` | count 0 → `0x1EA` `shopSys(0x5200905)`; opposite SERVER lucky-pouch |
-| C | `CLIENT_CLUBSETWORKSHOP_REQ_UP_RANK` | `0x167` | qntd>0 missing card → `0x240` `shopSys(0x5300351)`; qntd insufficient `shopSys(0x5300532)`; missing club `0x5300353`; no `iff_clubset` `0x5300354`; tipo -1 `0x5300355`; no limit any `0x5300209`; no limit for calcRank+1 `0x5300211`; qntd>4 `0x5300356`; stat capped `0x5300358`; no rank-exp `0x5300359`; mastery `0x5300360`; truncated/else full `0x5300350`. Success persist `C[stat]++` + rank/level/mastery then `0x216` type `0xCC` then `0x240` u32 0 + stat + id. SQL `iff_clubset_rank_exp.rank0`–`rank5`. Mega typeid 0 qntd 1 resta `shopSys(0x5300351)`. `flag_transformar` 0 (no `0x241`) |
+| C | `CLIENT_CLUBSETWORKSHOP_REQ_UP_RANK` | `0x167` | qntd>0 missing card → `0x240` `shopSys(0x5300351)`; qntd insufficient `shopSys(0x5300532)`; missing club `0x5300353`; no `iff_clubset` `0x5300354`; tipo -1 `0x5300355`; no limit any `0x5300209`; no limit for calcRank+1 `0x5300211`; qntd>4 `0x5300356`; stat capped `0x5300358`; no rank-exp `0x5300359`; mastery `0x5300360`; truncated/else full `0x5300350`. Success persist `C[stat]++` + rank/level/mastery then `0x216` type `0xCC` then `0x240` u32 0 + stat + id. `flag_transformar==1` + SQL original (player non owner) → empty `0x241` invece di `0x240`. Mega typeid 0 qntd 1 resta `shopSys(0x5300351)` |
 | C | `CLIENT_USE_ITEM_BUFF` | `0xD8` | typeid 0 → `0x181` `shopSys(0x5500401)`; ITEM+SQL `iff_time_limit_item` success u32 2 + count 1 + typeid + ItemBuff; missing warehouse `shopSys(0x5500402)`; non-ITEM `shopSys(0x5500403)`; no TLI `shopSys(0x5500404)` |
 | C | `CLIENT_COMET_REFILL` | `0xEC` | ITEM+BALL SQL `pangya_comet_refill`; success `0x197` u8 1 + item + ball + u16 C0; else u8 0 + 10 zeros. Opposite locker-add `SERVER_SHOP_BUY` |
 | C | `CLIENT_OPEN_BOX_MAIL` | `0xEF` | typeid 0 → `0x19D` `shopSys(0x6300101)` |
@@ -212,8 +212,8 @@ C#: `GameServer/PangyaEnums/PacketGame.cs` → Java `org.pangya.protocol.game.Ga
 | C | `CLIENT_FINISH_GAME` aliases | `0xCB` / `0x12C` | same as CLIENT `0x06`; not-in-game silent |
 | C | `CLIENT_RING_PAWS_RAINBOW` / power / miracle / paws-set | `0x196`/`0x197`/`0x198`/`0x199` | not-in-room silent; `0x196` opposite `SERVER_LOUNGE_STATE`; `0x197` opposite `SERVER_COMET_REFILL` |
 | C | `CLIENT_GZ_INITIAL` / marker / shot-end / chip-in / GZ first / wing / earcuff / glove / ring-ground / assist / Event Arin | `0x12D`/`0x12E`/`0x12F`/`0x131`/`0x137`/`0x138`/`0x171`/`0x180`/`0x181`/`0x184`/`0x185`/`0x192` | not-in-room CHANNEL catch silent; shot-end success `0x1F7` i32 oid + u8 hole + 87-byte echo; chip-in GZ Practice `0x1F2` empty then finish dump |
-| C | `CLIENT_CLUBSETWORKSHOP_TRANSFORM_CONFIRM` | `0x168` | no pending ClubSet → `0x242` `shopSys(0x5300451)` |
-| C | `CLIENT_CLUBSETWORKSHOP_TRANSFORM_CANCEL` | `0x169` | no pending ClubSet → `0x243` `shopSys(0x5300401)` |
+| C | `CLIENT_CLUBSETWORKSHOP_TRANSFORM_CONFIRM` | `0x168` | no pending ClubSet → `0x242` `shopSys(0x5300451)`; no source IFF `0x5300452`; no transform IFF `0x5300453`; delete fail `0x5300454`; add fail `0x5300456`; else full `0x5300450`. Success delete source + add original then `0x216` count 2 type 2 + `0x242` u32 0 + typeid + id. Opposite `SERVER_MY_ROOM_CHAR` |
+| C | `CLIENT_CLUBSETWORKSHOP_TRANSFORM_CANCEL` | `0x169` | no pending ClubSet → `0x243` `shopSys(0x5300401)`; no IFF `0x5300402`; stat&gt;4 `0x5300403`; else full `0x5300400`. Success `0x243` u32 0 + stat + id |
 | C | `CLIENT_CLUBSETWORKSHOP_RECOVERY` | `0x16B` | typeid 0 → `0x246` `shopSys(0x5300151)`; truncated → full `0x5300150`; C0&lt;1 `shopSys(0x5300152)`; missing ClubSet `shopSys(0x5300153)`; no `iff_clubset` `shopSys(0x5300154)`; tipo -1 `shopSys(0x5300155)`; consume fail `shopSys(0x5300156)`; already recovered `shopSys(0x5300157)`; success `0x216` (type 2 consume + type `0xCC` + workshop 23) then `0x246` u32 0 |
 | C | `CLIENT_CLUBSETWORKSHOP_TRANSFER` | `0x16C` | missing UCIM → `0x245` `shopSys(0x5300104)`; truncated → full `0x5300100`; C0&lt;qntd `shopSys(0x5300105)`; missing ClubSet `shopSys(0x5300101)`; no `iff_clubset` `shopSys(0x5300102)`; dest tipo -1 `shopSys(0x5300103)`; Rank S `shopSys(0x5300108)`; extra chips `shopSys(0x5300106)`; consume fail `shopSys(0x5300107)`; success `0x216` (type 2 + two type `0xCC`) then `0x245` u32 0. Opposite `SERVER_LOCKER_ACCESS`. SlotStats IFF as zeros |
 | C | `CLIENT_CLUBSET_RESET` | `0x16D` | unknown typeid / `s_calcRank==-1` → `0x247` `shopSys(0x5300506)`; missing item `0x5300501`; C0&lt;1 `0x5300502`; missing club `0x5300503`; no `iff_clubset` `0x5300504`; no rank-exp `0x5300505`; consume fail `0x5300507`; truncated → full `0x5300500`. Soft `0x1A000247` / hard `0x1A00024B`: persist then `0x216` count 3 (type 2 + `0xCC` + `0xC9`) then `0x247` u32 0 + typeid + id. Hard also `0xC8` remaining+0 (rank[] stand-in empty). Opposite `SERVER_LOCKER_ITEMS` |
@@ -244,6 +244,7 @@ C#: `GameServer/PangyaEnums/PacketGame.cs` → Java `org.pangya.protocol.game.Ga
 | S | `SERVER_CLUBSETWORKSHOP_CONFIRM` | `0x23E` | u32 sys |
 | S | `SERVER_CLUBSETWORKSHOP_CANCEL` | `0x23F` | u32 sys |
 | S | `SERVER_CLUBSETWORKSHOP_RANK` | `0x240` | fail u32 sys; success u32 0 + u32 stat + i32 id |
+| S | `SERVER_CLUBSETWORKSHOP_TRANSFORM` | `0x241` | empty dialog |
 | S | `SERVER_ITEM_BUFF` | `0x181` | fail u32 sys; success u32 2 + u32 1 + typeid + ItemBuff 65; opposite CLIENT ring-ground |
 | S | `SERVER_COMET_REFILL` | `0x197` | fail u8 0 + 10 zeros; success u8 1 + u32 item + u32 ball + u16 C0. Opposite CLIENT ring-power |
 | S | `SERVER_BOX_MAIL` | `0x19D` | u32 sys |
@@ -261,8 +262,8 @@ C#: `GameServer/PangyaEnums/PacketGame.cs` → Java `org.pangya.protocol.game.Ga
 | S | `SERVER_USE_CARD` | `0x160` | u32 sys |
 | S | `SERVER_EXTEND_RENTAL` | `0x18F` | fail u8 1; success u8 0 + typeid + id after `0xC8` |
 | S | `SERVER_DELETE_RENTAL` | `0x190` | fail u8 1; success u8 0 + typeid + id |
-| S | `SERVER_WORKSHOP_TRANSFORM_CONFIRM` | `0x242` | u32 sys |
-| S | `SERVER_WORKSHOP_TRANSFORM_CANCEL` | `0x243` | u32 sys |
+| S | `SERVER_WORKSHOP_TRANSFORM_CONFIRM` | `0x242` | fail u32 sys; success u32 0 + u32 typeid + i32 id |
+| S | `SERVER_WORKSHOP_TRANSFORM_CANCEL` | `0x243` | fail u32 sys; success u32 0 + u32 stat + i32 id |
 | S | `SERVER_WORKSHOP_TRANSFER` | `0x245` | fail u32 sys; success u32 0 after `0x216`. Opposite CLIENT locker access |
 | S | `SERVER_WORKSHOP_RECOVERY` | `0x246` | fail u32 sys; success u32 0 after `0x216` |
 | S | `SERVER_CLUBSET_RESET` | `0x247` | u32 sys |

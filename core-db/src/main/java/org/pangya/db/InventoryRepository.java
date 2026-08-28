@@ -232,6 +232,24 @@ public interface InventoryRepository {
     void upsertClubSetIff(
             int typeid, int tipo, short[] stats, short[] slots, int tipoRankS, int totalRecovery);
 
+    void upsertClubSetIff(
+            int typeid,
+            int tipo,
+            short[] stats,
+            short[] slots,
+            int tipoRankS,
+            int totalRecovery,
+            int flagTransformar);
+
+    /** C# {@code sIff.findClubSetOriginal}: SQL rows for a lottery special. */
+    boolean clubSetOriginalAny(int specialTypeid);
+
+    List<ClubSetOriginal> clubSetOriginals(int specialTypeid);
+
+    void upsertClubSetOriginal(int specialTypeid, int originalTypeid, short[] slots);
+
+    void deleteClubSetOriginal(int specialTypeid);
+
     /** C# {@code sIff.findItem}: SQL {@code iff_item} row exists. */
     boolean itemIff(int typeid);
 
@@ -483,9 +501,13 @@ public interface InventoryRepository {
     /**
      * C# IFF {@code ClubSet}: {@code work_shop.tipo}, {@code Stats.getSlot},
      * {@code SlotStats.getSlot}, {@code work_shop.tipo_rank_s},
-     * {@code work_shop.total_recovery}.
+     * {@code work_shop.total_recovery}, {@code work_shop.flag_transformar}.
      */
-    record ClubSetIff(int tipo, short[] stats, short[] slots, int tipoRankS, int totalRecovery) {}
+    record ClubSetIff(
+            int tipo, short[] stats, short[] slots, int tipoRankS, int totalRecovery, int flagTransformar) {}
+
+    /** C# {@code findClubSetOriginal} row: original typeid + {@code SlotStats}. */
+    record ClubSetOriginal(int typeid, short[] slots) {}
 
     /** C# IFF {@code TimeLimitItem}: {@code type}, {@code percent}, {@code time} minutes. */
     record TimeLimitItem(int typeid, int tipo, int percent, int timeMinutes) {}

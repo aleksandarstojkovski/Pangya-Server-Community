@@ -189,6 +189,8 @@ public final class GamePackets {
     public static final int SERVER_CLUB_WORKSHOP_CANCEL = 0x23F;
     /** C# workshop rank catch {@code 0x240}. */
     public static final int SERVER_CLUB_WORKSHOP_RANK = 0x240;
+    /** C# transform dialog {@code 0x241} empty after lottery hit. */
+    public static final int SERVER_CLUB_WORKSHOP_TRANSFORM = 0x241;
     /** C# Tiki points {@code 0x1E8}. */
     public static final int SERVER_TIKI_POINTS = 0x1E8;
     /** C# Tiki item→TP {@code 0x1E9}. */
@@ -1582,6 +1584,20 @@ public final class GamePackets {
     public static final int TYPEID_TUTORIAL_PAPEL = 0x1C000000;
     /** C# Air Knight Lucky Set. */
     public static final int TYPEID_AIR_KNIGHT_LUCKY = 0x10000014;
+    /** C# lottery Wingtross Evo-Knight Club Set. */
+    public static final int TYPEID_WINGTROSS_EVO = 0x1000005D;
+    /** C# lottery Giga Yard Totem Pole Club Set. */
+    public static final int TYPEID_GIGA_YARD_TOTEM = 0x1000005E;
+    /** C# lottery Duostar Manapikal Club Set. */
+    public static final int TYPEID_DUOSTAR_MANAPIKAL = 0x1000005F;
+    /** Test-only ClubSet used as workshop transform source (not seeded Air Knight). */
+    public static final int TYPEID_WORKSHOP_TRANSFORM_SRC = 0x10000001;
+    /** Test-only original ClubSet matching rank 1 of {@link #TYPEID_WINGTROSS_EVO}. */
+    public static final int TYPEID_WORKSHOP_TRANSFORM_ORIGINAL = 0x10000020;
+    /** C# transform lottery special typeids. */
+    public static final int[] WORKSHOP_TRANSFORM_SPECIALS = {
+        TYPEID_WINGTROSS_EVO, TYPEID_GIGA_YARD_TOTEM, TYPEID_DUOSTAR_MANAPIKAL
+    };
     /** C# workshop unknown item group CHANNEL sys {@code 0x5300201}. */
     public static final int WORKSHOP_ERR_GROUP = 0x5300201;
     /** C# workshop catch else. */
@@ -1704,6 +1720,12 @@ public final class GamePackets {
     public static final int WORKSHOP_RANK_ERR_UNKNOWN = 0x5300361;
     /** C# workshop rank Rank S {@code rank_s_stat > 4} CHANNEL sys {@code 0x5300362}. */
     public static final int WORKSHOP_RANK_ERR_RANK_S = 0x5300362;
+    /** C# transform {@code findClubSetOriginal} empty CHANNEL sys {@code 0x5300363}. */
+    public static final int WORKSHOP_RANK_ERR_ORIGINAL = 0x5300363;
+    /** C# transform original count &lt;= rank-1 CHANNEL sys {@code 0x5300364}. */
+    public static final int WORKSHOP_RANK_ERR_ORIGINAL_RANK = 0x5300364;
+    /** C# transform no original with {@code s_calcRank==rank} CHANNEL sys {@code 0x5300365}. */
+    public static final int WORKSHOP_RANK_ERR_ORIGINAL_MATCH = 0x5300365;
     /** C# {@code 0x240} success u32 0. */
     public static final int WORKSHOP_RANK_OK = 0;
     /** C# Dolfini make-pass empty CHANNEL sys 1. */
@@ -1772,10 +1794,28 @@ public final class GamePackets {
     public static final int WORKSHOP_TRANSFORM_CONFIRM_ERR = 0x5300451;
     /** C# transform-confirm catch else. */
     public static final int WORKSHOP_TRANSFORM_CONFIRM_DEFAULT = 0x5300450;
+    /** C# transform-confirm {@code findClubSet} source miss CHANNEL sys {@code 0x5300452}. */
+    public static final int WORKSHOP_TRANSFORM_CONFIRM_ERR_IFF = 0x5300452;
+    /** C# transform-confirm special {@code findClubSet} miss CHANNEL sys {@code 0x5300453}. */
+    public static final int WORKSHOP_TRANSFORM_CONFIRM_ERR_SPECIAL = 0x5300453;
+    /** C# transform-confirm delete source fail CHANNEL sys {@code 0x5300454}. */
+    public static final int WORKSHOP_TRANSFORM_CONFIRM_ERR_DELETE = 0x5300454;
+    /** C# transform-confirm {@code initItemFromBuyItem} fail CHANNEL sys {@code 0x5300455}. */
+    public static final int WORKSHOP_TRANSFORM_CONFIRM_ERR_INIT = 0x5300455;
+    /** C# transform-confirm {@code addItem} fail CHANNEL sys {@code 0x5300456}. */
+    public static final int WORKSHOP_TRANSFORM_CONFIRM_ERR_ADD = 0x5300456;
+    /** C# {@code 0x242} success u32 0. */
+    public static final int WORKSHOP_TRANSFORM_CONFIRM_OK = 0;
     /** C# transform-cancel missing ClubSet CHANNEL sys. */
     public static final int WORKSHOP_TRANSFORM_CANCEL_ERR = 0x5300401;
     /** C# transform-cancel catch else. */
     public static final int WORKSHOP_TRANSFORM_CANCEL_DEFAULT = 0x5300400;
+    /** C# transform-cancel {@code findClubSet} miss CHANNEL sys {@code 0x5300402}. */
+    public static final int WORKSHOP_TRANSFORM_CANCEL_ERR_IFF = 0x5300402;
+    /** C# transform-cancel {@code stat > 4} CHANNEL sys {@code 0x5300403}. */
+    public static final int WORKSHOP_TRANSFORM_CANCEL_ERR_STAT = 0x5300403;
+    /** C# {@code 0x243} success u32 0. */
+    public static final int WORKSHOP_TRANSFORM_CANCEL_OK = 0;
     /** C# recovery missing warehouse CHANNEL sys. */
     public static final int WORKSHOP_RECOVERY_ERR = 0x5300151;
     /** C# recovery catch else. */
@@ -3599,6 +3639,25 @@ public final class GamePackets {
     }
 
     /**
+     * Deterministic stand-in for C# transform lottery ({@code 250} each of
+     * {@link #WORKSHOP_TRANSFORM_SPECIALS} vs {@code 750*14} no-transform).
+     * First special present in {@code presentSpecials} wins; none means 0.
+     */
+    public static int workshopDrawTransformSpecial(int[] presentSpecials) {
+        if (presentSpecials == null) {
+            return 0;
+        }
+        for (int special : WORKSHOP_TRANSFORM_SPECIALS) {
+            for (int present : presentSpecials) {
+                if (present == special) {
+                    return special;
+                }
+            }
+        }
+        return 0;
+    }
+
+    /**
      * C# lottery over stats where {@code limit.c[i] > workshop.c[i] + SlotStats[i]}.
      * Empty when no stat is eligible ({@code Lottery.fill_roleta} throws, catch
      * else {@code 0x5300200}). One eligible index is deterministic.
@@ -4025,6 +4084,31 @@ public final class GamePackets {
         return new PacketWriter()
                 .opcode(SERVER_CLUB_WORKSHOP_RANK)
                 .u32(WORKSHOP_RANK_OK)
+                .u32(stat)
+                .i32(clubsetId)
+                .toBytes();
+    }
+
+    /** C# transform dialog {@code 0x241} empty. */
+    public static byte[] clubWorkshopTransformDialog() {
+        return new PacketWriter().opcode(SERVER_CLUB_WORKSHOP_TRANSFORM).toBytes();
+    }
+
+    /** C# transform-confirm success {@code 0x242} u32 0 + u32 typeid + i32 id. */
+    public static byte[] clubWorkshopTransformConfirmOk(int typeid, int clubsetId) {
+        return new PacketWriter()
+                .opcode(SERVER_WORKSHOP_TRANSFORM_CONFIRM)
+                .u32(WORKSHOP_TRANSFORM_CONFIRM_OK)
+                .u32(typeid)
+                .i32(clubsetId)
+                .toBytes();
+    }
+
+    /** C# transform-cancel success {@code 0x243} u32 0 + u32 stat + i32 id. */
+    public static byte[] clubWorkshopTransformCancelOk(int stat, int clubsetId) {
+        return new PacketWriter()
+                .opcode(SERVER_WORKSHOP_TRANSFORM_CANCEL)
+                .u32(WORKSHOP_TRANSFORM_CANCEL_OK)
                 .u32(stat)
                 .i32(clubsetId)
                 .toBytes();

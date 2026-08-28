@@ -2661,6 +2661,135 @@ class GameFlowIT {
     }
 
     @Test
+    void workshopTransformCancelThenConfirm() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config);
+             PangyaFakeClient client = new PangyaFakeClient()) {
+            InventoryRepository inv = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
+            inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_WORKSHOP_TRANSFORM_SRC);
+            inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_WORKSHOP_TRANSFORM_ORIGINAL);
+            int srcId = inv.addWarehouseItem(10001, GamePackets.TYPEID_WORKSHOP_TRANSFORM_SRC, 1);
+            inv.deleteClubSetIff(GamePackets.TYPEID_WORKSHOP_TRANSFORM_SRC);
+            inv.deleteClubSetIff(GamePackets.TYPEID_WORKSHOP_TRANSFORM_ORIGINAL);
+            inv.deleteClubSetLevelUpLimit(1, 1);
+            inv.deleteClubSetRankExp(1);
+            inv.deleteClubSetOriginal(GamePackets.TYPEID_WINGTROSS_EVO);
+            inv.setClubSetWorkshop(10001, srcId, new short[5], 0, 0, 0);
+            inv.setClubSetMasteryPts(10001, srcId, 300);
+            try {
+                LoginRepository repo = new JdbiLoginRepository(DatabaseSupport.jdbi(ds));
+                String loginKey = repo.generateAuthKeyLogin(10001);
+                String gameKey = repo.generateAuthKeyGame(10001, 20202);
+                keys.putLoginKey(10001, loginKey);
+                keys.putGameKey(10001, 20202, gameKey);
+                loginToChannel(client, runtime.port(), "testuser", 10001, loginKey, gameKey);
+
+                inv.upsertClubSetIff(
+                        GamePackets.TYPEID_WORKSHOP_TRANSFORM_SRC,
+                        1,
+                        new short[5],
+                        new short[] {6, 6, 6, 6, 6},
+                        1,
+                        5,
+                        1);
+                inv.upsertClubSetLevelUpLimit(1, 1, new short[] {0, 0, 7, 0, 0});
+                inv.upsertClubSetRankExp(1, new int[] {0, 50, 0, 0, 0, 0});
+                inv.upsertClubSetOriginal(
+                        GamePackets.TYPEID_WINGTROSS_EVO,
+                        GamePackets.TYPEID_WORKSHOP_TRANSFORM_ORIGINAL,
+                        new short[] {7, 7, 7, 7, 7});
+
+                client.sendPlain(GamePackets.clientClubWorkshopRank(0, 0, srcId));
+                PacketReader upd = awaitOpcode(client, GamePackets.SERVER_DAILY_QUEST_STAMP);
+                upd.u32();
+                assertEquals(1, upd.u32());
+                PacketReader dialog = awaitOpcode(client, GamePackets.SERVER_CLUB_WORKSHOP_TRANSFORM);
+                assertEquals(0, dialog.remaining());
+
+                client.sendPlain(GamePackets.clientClubWorkshopEmpty(
+                        GamePackets.CLIENT_WORKSHOP_TRANSFORM_CANCEL));
+                PacketReader cancelOk = awaitOpcode(client, GamePackets.SERVER_WORKSHOP_TRANSFORM_CANCEL);
+                assertEquals(GamePackets.WORKSHOP_TRANSFORM_CANCEL_OK, cancelOk.u32());
+                assertEquals(2, cancelOk.u32());
+                assertEquals(srcId, cancelOk.i32());
+                assertTrue(inv.warehouse(10001).stream().anyMatch(w -> w.id == srcId));
+
+                inv.setClubSetWorkshop(10001, srcId, new short[5], 0, 0, 0);
+                inv.setClubSetMasteryPts(10001, srcId, 300);
+                client.sendPlain(GamePackets.clientClubWorkshopRank(0, 0, srcId));
+                PacketReader upd2 = awaitOpcode(client, GamePackets.SERVER_DAILY_QUEST_STAMP);
+                upd2.u32();
+                assertEquals(1, upd2.u32());
+                PacketReader dialog2 = awaitOpcode(client, GamePackets.SERVER_CLUB_WORKSHOP_TRANSFORM);
+                assertEquals(0, dialog2.remaining());
+
+                client.sendPlain(GamePackets.clientClubWorkshopEmpty(
+                        GamePackets.CLIENT_WORKSHOP_TRANSFORM_CONFIRM));
+                PacketReader missingSpecial = awaitOpcode(
+                        client, GamePackets.SERVER_WORKSHOP_TRANSFORM_CONFIRM);
+                assertEquals(
+                        GamePackets.shopSys(GamePackets.WORKSHOP_TRANSFORM_CONFIRM_ERR_SPECIAL),
+                        missingSpecial.u32());
+
+                inv.upsertClubSetIff(
+                        GamePackets.TYPEID_WORKSHOP_TRANSFORM_ORIGINAL,
+                        1,
+                        new short[5],
+                        new short[] {7, 7, 7, 7, 7});
+                int before = GamePackets.unixNow();
+                client.sendPlain(GamePackets.clientClubWorkshopEmpty(
+                        GamePackets.CLIENT_WORKSHOP_TRANSFORM_CONFIRM));
+                PacketReader awards = awaitOpcode(client, GamePackets.SERVER_DAILY_QUEST_STAMP);
+                int unix = awards.u32();
+                assertTrue(unix >= before - 1 && unix <= GamePackets.unixNow() + 1);
+                assertEquals(2, awards.u32());
+                assertEquals(GamePackets.PAPEL_AWARD_TYPE, awards.u8());
+                assertEquals(GamePackets.TYPEID_WORKSHOP_TRANSFORM_SRC, awards.u32());
+                assertEquals(srcId, awards.i32());
+                assertEquals(0, awards.u32());
+                assertEquals(0, awards.i32());
+                assertEquals(0, awards.i32());
+                assertEquals(-1, awards.i32());
+                awards.readBytes(GamePackets.PAPEL_AWARD_PAD);
+                assertEquals(GamePackets.PAPEL_AWARD_TYPE, awards.u8());
+                assertEquals(GamePackets.TYPEID_WORKSHOP_TRANSFORM_ORIGINAL, awards.u32());
+                int newId = awards.i32();
+                assertEquals(0, awards.u32());
+                assertEquals(0, awards.i32());
+                assertEquals(0, awards.i32());
+                assertEquals(1, awards.i32());
+                awards.readBytes(GamePackets.PAPEL_AWARD_PAD);
+                assertEquals(0, awards.remaining());
+                PacketReader confirmOk = awaitOpcode(client, GamePackets.SERVER_WORKSHOP_TRANSFORM_CONFIRM);
+                assertEquals(GamePackets.WORKSHOP_TRANSFORM_CONFIRM_OK, confirmOk.u32());
+                assertEquals(GamePackets.TYPEID_WORKSHOP_TRANSFORM_ORIGINAL, confirmOk.u32());
+                assertEquals(newId, confirmOk.i32());
+                assertTrue(inv.warehouse(10001).stream().noneMatch(w -> w.id == srcId));
+                assertTrue(inv.warehouse(10001).stream().anyMatch(
+                        w -> w.id == newId && w.typeid == GamePackets.TYPEID_WORKSHOP_TRANSFORM_ORIGINAL));
+                assertTrue(inv.warehouse(10001).stream().anyMatch(
+                        w -> w.typeid == GamePackets.TYPEID_AIR_KNIGHT));
+            } finally {
+                inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_WORKSHOP_TRANSFORM_SRC);
+                inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_WORKSHOP_TRANSFORM_ORIGINAL);
+                inv.deleteClubSetIff(GamePackets.TYPEID_WORKSHOP_TRANSFORM_SRC);
+                inv.deleteClubSetIff(GamePackets.TYPEID_WORKSHOP_TRANSFORM_ORIGINAL);
+                inv.deleteClubSetLevelUpLimit(1, 1);
+                inv.deleteClubSetRankExp(1);
+                inv.deleteClubSetOriginal(GamePackets.TYPEID_WINGTROSS_EVO);
+            }
+        }
+    }
+
+    @Test
     void makeTutorialRookieAcksFlagsAndMailsReward() throws Exception {
         String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
         String user = env("PANGYA_TEST_JDBC_USER", "pangya");

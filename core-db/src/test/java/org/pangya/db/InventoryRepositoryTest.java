@@ -373,6 +373,7 @@ class InventoryRepositoryTest {
             try {
                 assertEquals(0, repo.clubSetIff(GamePackets.TYPEID_AIR_KNIGHT).orElseThrow().tipoRankS());
                 assertEquals(0, repo.clubSetIff(GamePackets.TYPEID_AIR_KNIGHT).orElseThrow().totalRecovery());
+                assertEquals(0, repo.clubSetIff(GamePackets.TYPEID_AIR_KNIGHT).orElseThrow().flagTransformar());
                 assertTrue(repo.clubSetRankExp(0));
                 assertArrayEquals(new int[6], repo.clubSetRankExpRanks(0).orElseThrow());
                 repo.upsertClubSetRankExp(0, new int[] {0, 50, 0, 0, 0, 0});
@@ -406,6 +407,17 @@ class InventoryRepositoryTest {
                 assertTrue(repo.clubSetLevelUpAny(0));
                 assertEquals(7, repo.clubSetLevelUpLimit(0, 0).orElseThrow()[0]);
                 assertEquals(100, repo.clubSetLevelUpProb(0).orElseThrow()[0]);
+                repo.deleteClubSetOriginal(GamePackets.TYPEID_WINGTROSS_EVO);
+                repo.upsertClubSetOriginal(
+                        GamePackets.TYPEID_WINGTROSS_EVO,
+                        GamePackets.TYPEID_WORKSHOP_TRANSFORM_ORIGINAL,
+                        new short[] {7, 7, 7, 7, 7});
+                assertTrue(repo.clubSetOriginalAny(GamePackets.TYPEID_WINGTROSS_EVO));
+                assertEquals(
+                        GamePackets.TYPEID_WORKSHOP_TRANSFORM_ORIGINAL,
+                        repo.clubSetOriginals(GamePackets.TYPEID_WINGTROSS_EVO).get(0).typeid());
+                assertEquals(1, GamePackets.workshopSCalcRank(
+                        repo.clubSetOriginals(GamePackets.TYPEID_WINGTROSS_EVO).get(0).slots()));
                 repo.deleteCardByTypeid(10001, GamePackets.TYPEID_CARD_NORMAL);
                 repo.addCard(10001, GamePackets.TYPEID_CARD_NORMAL, 2);
                 assertEquals(1, repo.consumeCardByTypeid(10001, GamePackets.TYPEID_CARD_NORMAL, 1).orElseThrow());
@@ -415,6 +427,7 @@ class InventoryRepositoryTest {
                 repo.deleteItemIff(GamePackets.TYPEID_SHOP_PANG_ITEM);
                 repo.deleteClubSetLevelUpLimit(0, 0);
                 repo.deleteClubSetLevelUpProb(0);
+                repo.deleteClubSetOriginal(GamePackets.TYPEID_WINGTROSS_EVO);
                 repo.deleteCardByTypeid(10001, GamePackets.TYPEID_CARD_NORMAL);
             }
             repo.deletePartIff(GamePackets.TYPEID_RENTAL_PART);
