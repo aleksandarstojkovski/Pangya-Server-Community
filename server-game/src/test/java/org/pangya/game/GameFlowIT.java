@@ -1791,7 +1791,7 @@ class GameFlowIT {
                 assertEquals(GamePackets.ITEM_BUFF_OK, extend.u32());
                 assertEquals(1, extend.u32());
                 assertEquals(GamePackets.TYPEID_SHOP_PANG_ITEM, extend.u32());
-                for (int i = 0; i < 6; i++) {
+                for (int i = 0; i < 7; i++) {
                     extend.u32();
                 }
                 for (int i = 0; i < 8; i++) {

@@ -5008,6 +5008,13 @@ public final class GameHandler {
                 login = GamePackets.ATTENDANCE_LOGIN_SAME_DAY;
             }
             Instant lastLogin = attendanceToday();
+            inventory.upsertAttendanceReward(uid, new InventoryRepository.AttendanceReward(
+                    counter,
+                    nowTypeid,
+                    nowQntd,
+                    ari.afterTypeid(),
+                    ari.afterQntd(),
+                    lastLogin));
             session.send(GamePackets.attendanceOk(
                     GamePackets.SERVER_ATTENDANCE,
                     login,
@@ -5016,13 +5023,6 @@ public final class GameHandler {
                     ari.afterTypeid(),
                     ari.afterQntd(),
                     counter));
-            inventory.upsertAttendanceReward(uid, new InventoryRepository.AttendanceReward(
-                    counter,
-                    nowTypeid,
-                    nowQntd,
-                    ari.afterTypeid(),
-                    ari.afterQntd(),
-                    lastLogin));
         } catch (RuntimeException e) {
             log.debug("attendance check failed: {}", e.toString());
             session.send(GamePackets.sysAck(
@@ -5065,6 +5065,13 @@ public final class GameHandler {
                 nowQntd = now.get().qntd();
             }
             Instant lastLogin = attendanceToday();
+            inventory.upsertAttendanceReward(uid, new InventoryRepository.AttendanceReward(
+                    ari.counter(),
+                    nowTypeid,
+                    nowQntd,
+                    after.get().typeid(),
+                    after.get().qntd(),
+                    lastLogin));
             session.send(GamePackets.attendanceOk(
                     GamePackets.SERVER_ATTENDANCE_LOGIN,
                     GamePackets.ATTENDANCE_LOGIN_SAME_DAY,
@@ -5073,13 +5080,6 @@ public final class GameHandler {
                     after.get().typeid(),
                     after.get().qntd(),
                     ari.counter()));
-            inventory.upsertAttendanceReward(uid, new InventoryRepository.AttendanceReward(
-                    ari.counter(),
-                    nowTypeid,
-                    nowQntd,
-                    after.get().typeid(),
-                    after.get().qntd(),
-                    lastLogin));
         } catch (RuntimeException e) {
             log.debug("attendance login-count failed: {}", e.toString());
             session.send(GamePackets.sysAck(
