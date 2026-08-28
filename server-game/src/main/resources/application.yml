@@ -1,7 +1,15 @@
 server:
   name: game
+  uid: 20202
+  tipo: 1
   port: 20202
   healthPort: 9202
+  ip: 127.0.0.1
+  maxUser: 2001
+  property: 2048
+  version: GS.Release.852.00
+  clientVersion: "852.00"
+  packetVersion: 2016110200
 database:
   url: jdbc:postgresql://postgres:5432/pangya
   user: pangya
@@ -9,6 +17,7 @@ database:
 redis:
   uri: redis://redis:6379
 auth:
+  enabled: true
   host: auth
   port: 7777
 channels:

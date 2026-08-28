@@ -8,8 +8,8 @@ Questo repo è **solo** la riscrittura Java.
 
 | Campo | Valore |
 |-------|--------|
-| Slice completata | **S0 + S1 + S2** verdi |
-| Prossima | **S3** Game Server core + Practice (room type 18) |
+| Slice completata | **S0 + S1 + S2** verdi; **S3** Game login/channel/Practice stub in corso |
+| Prossima | **S4** Versus, Tourney, GP, inventario completo |
 | Blocked | nessuno |
 | VM | Java 21.0.10, Docker 29.7.2, Compose v5.5.0, 4 CPU / 15 GiB |
 
@@ -143,7 +143,9 @@ Create-user flag C# (`CREATEUSER=1`) **non** portato in S2: account assente → 
 
 ## Inventario Practice (S3)
 
-TBD dopo lettura `Practice.cs`. Se il C# richiede warehouse/character, si implementa il minimo; altrimenti stub esplicito qui.
+C# `LoginTask.sendCompleteData` invia `pacote044` option 0 con `principal()` + warehouse + characters + caddies + mascot + `pacote04D` channel list. **S3 non porta l'inventario**: success è `0x44` byte 0 (senza blob player) + `0x4D` canali da YAML. Practice (`RoomInfo.TIPO = 19`) entra con `0x08` e lascia con `0x130` senza serializzazione completa di `Room.getInfo()`. Un client reale non completa il lobby fino a S4; il fake client verifica gli opcode.
+
+## S3 evidenza
 
 ## Note GC / Netty (S6)
 

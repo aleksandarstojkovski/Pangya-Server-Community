@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Local CI: Gradle tests + docker compose health for the current slice.
-# S2: postgres/redis healthy + protocol/network/db + Auth/Login fake-client tests
+# S3: postgres/redis healthy + protocol/network/db + Auth/Login/Game fake-client tests
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
@@ -23,13 +23,14 @@ for i in $(seq 1 60); do
   sleep 2
 done
 
-echo "== gradle test (S0–S2 modules) =="
+echo "== gradle test (S0–S3 modules) =="
 ./gradlew --no-daemon \
   :core-protocol:test \
   :core-network:test \
   :core-db:test \
   :server-login:test \
-  :server-auth:test
+  :server-auth:test \
+  :server-game:test
 
 echo "== docker compose ps =="
 docker compose ps

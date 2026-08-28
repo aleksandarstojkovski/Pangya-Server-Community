@@ -38,6 +38,10 @@ public interface LoginRepository {
 
     String[] macros(long uid);
 
+    Optional<String> loadAuthKeyLogin(long uid);
+
+    Optional<String> loadAuthKeyGame(long uid, int serverUid);
+
     List<ServerListRow> serverList(int type);
 
     void upsertServer(ServerListRow server);

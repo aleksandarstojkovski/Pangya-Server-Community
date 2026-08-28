@@ -13,4 +13,7 @@ public final class PlayerContext {
     public volatile int loginState;
     public volatile int tipo;
     public volatile String authKeyLogin = "";
+    public volatile int channelId = -1;
+    public volatile int roomNumber = -1;
+    public volatile boolean inPractice;
 }

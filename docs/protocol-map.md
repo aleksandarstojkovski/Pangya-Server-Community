@@ -80,7 +80,17 @@ C#: `GameServer/PangyaEnums/PacketGame.cs` → Java `org.pangya.protocol.game.Ga
 | C | `CLIENT_LEAVE_PRACTICE` | `0x130` | |
 | C | `CLIENT_LEAVE_CHIP_IN_PRACTICE` | `0x131` | |
 
-Room types (`RoomInfo.TIPO` in `pangya_game_st.cs`): STROKE=0, MATCH=1, TOURNEY=4, GUILD_BATTLE=6, PANG_BATTLE=7, APPROCH=10, GRAND_ZODIAC_INT=11, GRAND_ZODIAC_ADV=13, GRAND_ZODIAC_PRACTICE=14, SPECIAL_SHUFFLE_COURSE=17, PRACTICE=18, GRAND_PRIX=19.
+Room types (`RoomInfo.TIPO` in `pangya_game_st.cs`): STROKE=0, MATCH=1, LOUNGE=2, TOURNEY=4, TOURNEY_TEAM=5, GUILD_BATTLE=6, PANG_BATTLE=7, APPROCH=10, GRAND_ZODIAC_INT=11, GRAND_ZODIAC_ADV=13, GRAND_ZODIAC_PRACTICE=14, SPECIAL_SHUFFLE_COURSE=18, **PRACTICE=19**, GRAND_PRIX=20.
+
+Game login CLIENT `0x02` (`GameServer.ReadLoginPacket`): `PStr id`, `uint32 uid`, `uint32 ntreevUID`, `uint16 command`, `PStr authKeyLogin`, `PStr clientVersion`, `uint32 packetVersion` (XOR-encrypted with GUID `{782AE110-2EEF-4c61-B030-A53F17634F7D}`), `uint32 isPcBang`, `PStr authKeyGame`.
+
+Fail `SendLoginAck` writes **uint32** ack. Success `pacote044` writes **byte** option. S3 success is option 0 **without** C# `principal()` player blob (full inventory dump is S4). Then `0x4D` channel list.
+
+`ChannelInfo.ToArray()` is 77 bytes: `WriteStr(name,64)`, int16 max_user, int16 curr_user, byte id, uint32 flag, uint32 flag2. Channel ids are 0-based from YAML order (C# INI `CHANNEL1` → id 0).
+
+`pacote04E`: byte option (1=ok, 2=full, 3=not found). Enter channel: CLIENT `0x04` + byte channel id.
+
+Practice create CLIENT `0x08` with `tipo==19`. S3 `pacote049` stub: int16 0 + uint16 roomNumber + byte tipo. Full `Room.getInfo().ToArray()` is S4. Leave CLIENT `0x130` clears Practice state (C# `Channel.requestLeavePractice`).
 
 ## Ranking
 

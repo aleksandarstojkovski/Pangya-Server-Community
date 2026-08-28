@@ -31,6 +31,8 @@ class LoginRepositoryTest {
             assertEquals(8, loginKey.length());
             String gameKey = repo.generateAuthKeyGame(10001, 20202);
             assertEquals(8, gameKey.length());
+            assertEquals(loginKey, repo.loadAuthKeyLogin(10001).orElseThrow());
+            assertEquals(gameKey, repo.loadAuthKeyGame(10001, 20202).orElseThrow());
             String s2s = repo.generateAuthServerKey(10203);
             assertEquals(16, s2s.length());
             var stored = repo.authServerKey(10203).orElseThrow();

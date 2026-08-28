@@ -3,7 +3,9 @@ package org.pangya.network;
 import org.yaml.snakeyaml.Yaml;
 
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -125,6 +127,21 @@ public final class AppConfig {
             return Boolean.parseBoolean(v);
         }
         return nestedBoolean("auth", "enabled", true);
+    }
+
+    @SuppressWarnings("unchecked")
+    public List<Map<String, Object>> list(String name) {
+        Object s = root.get(name);
+        if (s instanceof List<?> list) {
+            List<Map<String, Object>> out = new ArrayList<>();
+            for (Object o : list) {
+                if (o instanceof Map<?, ?> map) {
+                    out.add((Map<String, Object>) map);
+                }
+            }
+            return out;
+        }
+        return List.of();
     }
 
     @SuppressWarnings("unchecked")

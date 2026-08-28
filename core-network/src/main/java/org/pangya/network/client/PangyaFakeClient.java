@@ -26,26 +26,38 @@ import java.util.concurrent.TimeUnit;
  */
 public final class PangyaFakeClient implements AutoCloseable {
 
+    public enum HelloKind {
+        LOGIN,
+        GAME,
+        AUTH
+    }
+
     private final EventLoopGroup group = new NioEventLoopGroup(1);
     private final BlockingQueue<byte[]> hellos = new ArrayBlockingQueue<>(4);
     private final BlockingQueue<byte[]> plains = new ArrayBlockingQueue<>(32);
     private volatile Channel channel;
     private volatile int key = -1;
-    private volatile boolean loginHello = true;
+    private volatile HelloKind kind = HelloKind.LOGIN;
 
     public PangyaFakeClient connect(String host, int port) throws InterruptedException {
-        return connect(host, port, true);
+        return connect(host, port, HelloKind.LOGIN);
     }
 
+    /** @deprecated use {@link #connect(String, int, HelloKind)} */
+    @Deprecated
     public PangyaFakeClient connect(String host, int port, boolean expectLoginHello) throws InterruptedException {
-        this.loginHello = expectLoginHello;
+        return connect(host, port, expectLoginHello ? HelloKind.LOGIN : HelloKind.AUTH);
+    }
+
+    public PangyaFakeClient connect(String host, int port, HelloKind kind) throws InterruptedException {
+        this.kind = kind;
         Bootstrap b = new Bootstrap();
         b.group(group)
                 .channel(NioSocketChannel.class)
                 .handler(new ChannelInitializer<SocketChannel>() {
                     @Override
                     protected void initChannel(SocketChannel ch) {
-                        if (expectLoginHello) {
+                        if (kind == HelloKind.LOGIN) {
                             ch.pipeline().addLast(new LoginHelloThenFrames());
                         } else {
                             ch.pipeline().addLast(new PangyaServerFrameDecoder());
@@ -62,13 +74,23 @@ public final class PangyaFakeClient implements AutoCloseable {
         if (hello == null) {
             throw new IllegalStateException("no hello");
         }
-        if (loginHello) {
+        if (kind == HelloKind.LOGIN) {
             key = hello[6] & 0xff;
-        } else {
+        } else if (kind == HelloKind.AUTH) {
             byte[] payload = PacketIo.slice(hello, 4, hello.length - 4);
             PacketReader r = new PacketReader(payload);
             r.opcode();
             key = r.u32() & 0xff;
+        } else {
+            byte[] payload = PacketIo.slice(hello, 4, hello.length - 4);
+            PacketReader r = new PacketReader(payload);
+            int opcode = r.opcode();
+            r.u8();
+            r.u8();
+            key = r.u8();
+            if (opcode != 0x3F) {
+                throw new IllegalStateException("expected game hello 0x3F, got 0x" + Integer.toHexString(opcode));
+            }
         }
         return hello;
     }
@@ -141,7 +163,7 @@ public final class PangyaFakeClient implements AutoCloseable {
             byte[] frame = new byte[buf.readableBytes()];
             buf.readBytes(frame);
             buf.release();
-            if (key < 0 && !loginHello) {
+            if (key < 0 && kind != HelloKind.LOGIN) {
                 hellos.offer(frame);
                 return;
             }

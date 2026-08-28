@@ -3,6 +3,8 @@ package org.pangya.network.session;
 import io.netty.channel.Channel;
 import org.pangya.network.ddos.IpDdosFilter;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -35,6 +37,21 @@ public final class SessionManager {
 
     public int size() {
         return byOid.size();
+    }
+
+    public Collection<Session> snapshot() {
+        return List.copyOf(byOid.values());
+    }
+
+    public void disconnectOthersWithUid(long uid, Session keep) {
+        if (uid <= 0) {
+            return;
+        }
+        for (Session other : snapshot()) {
+            if (other != keep && other.player().uid == uid) {
+                other.disconnect();
+            }
+        }
     }
 
     public IpDdosFilter ddos() {

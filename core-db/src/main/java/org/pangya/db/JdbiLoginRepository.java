@@ -276,6 +276,30 @@ public final class JdbiLoginRepository implements LoginRepository {
     }
 
     @Override
+    public Optional<String> loadAuthKeyLogin(long uid) {
+        return jdbi.withHandle(h -> h.createQuery(
+                        "SELECT \"AuthKey\" FROM pangya.authkey_login WHERE \"UID\" = :uid AND valid = 1 LIMIT 1")
+                .bind("uid", uid)
+                .mapTo(String.class)
+                .findOne()
+                .map(JdbiLoginRepository::trim));
+    }
+
+    @Override
+    public Optional<String> loadAuthKeyGame(long uid, int serverUid) {
+        return jdbi.withHandle(h -> h.createQuery("""
+                        SELECT \"AuthKey\" FROM pangya.authkey_game
+                         WHERE \"UID\" = :uid AND \"ServerID\" = :sid AND valid = 1
+                         LIMIT 1
+                        """)
+                .bind("uid", uid)
+                .bind("sid", serverUid)
+                .mapTo(String.class)
+                .findOne()
+                .map(JdbiLoginRepository::trim));
+    }
+
+    @Override
     public List<ServerListRow> serverList(int type) {
         // C# ProcGetServerList: Game/MSN liveness window is 8s; Login/Rank/Auth 11s.
         int windowSec = (type == 1 || type == 3) ? 8 : 11;
