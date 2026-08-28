@@ -227,6 +227,20 @@ public final class JdbiLoginRepository implements LoginRepository {
     }
 
     @Override
+    public int connectedGameServerUid(long uid) {
+        return jdbi.withHandle(h -> h.createQuery(
+                        """
+                        SELECT COALESCE(NULLIF(TRIM(game_server_id), '')::int, 0)
+                          FROM pangya.account
+                         WHERE "UID" = :uid
+                        """)
+                .bind("uid", uid)
+                .mapTo(Integer.class)
+                .findOne()
+                .orElse(0));
+    }
+
+    @Override
     public void registerLogonServer(long uid, int gameServerUid) {
         jdbi.useHandle(h -> h.createUpdate(
                         "UPDATE pangya.account SET game_server_id = :gs WHERE \"UID\" = :uid")

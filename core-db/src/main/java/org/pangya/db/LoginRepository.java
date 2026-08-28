@@ -88,6 +88,9 @@ public interface LoginRepository {
     /** Keeps {@code account.Guild_UID} aligned with guild membership (C# {@code ProcGetFriendAndGuildMemberInfo}). */
     void syncAccountGuildUid(long uid, long guildUid);
 
+    /** C# game server the player is logged into ({@code player_info.server_uid}). */
+    int connectedGameServerUid(long uid);
+
     record GuildMembership(long guildUid, String guildName) {}
 
     record PlayerLoginInfo(

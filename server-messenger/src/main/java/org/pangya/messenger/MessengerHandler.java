@@ -6,6 +6,7 @@ import org.pangya.network.auth.AuthOutbound;
 import org.pangya.network.session.PlayerContext;
 import org.pangya.network.session.Session;
 import org.pangya.network.session.SessionManager;
+import org.pangya.network.auth.AuthOutbound;
 import org.pangya.protocol.auth.AuthS2s;
 import org.pangya.protocol.messenger.MessengerPackets;
 import org.pangya.protocol.packet.PacketReader;
@@ -27,16 +28,26 @@ public final class MessengerHandler {
     private final FriendRepository friends;
     private final SessionManager sessions;
     private final AuthOutbound authOut;
+    private final boolean authRequired;
 
     public MessengerHandler(LoginRepository repo, FriendRepository friends, SessionManager sessions) {
-        this(repo, friends, sessions, (reqServerUid, info) -> {});
+        this(repo, friends, sessions, new AuthOutbound() {
+            @Override
+            public void sendInfoPlayerOnline(int reqServerUid, AuthS2s.AuthServerPlayerInfo info) {}
+        }, false);
     }
 
-    MessengerHandler(LoginRepository repo, FriendRepository friends, SessionManager sessions, AuthOutbound authOut) {
+    MessengerHandler(
+            LoginRepository repo,
+            FriendRepository friends,
+            SessionManager sessions,
+            AuthOutbound authOut,
+            boolean authRequired) {
         this.repo = repo;
         this.friends = friends;
         this.sessions = sessions;
         this.authOut = authOut;
+        this.authRequired = authRequired;
     }
 
     public void onPacket(Session session, byte[] plaintext) {
@@ -124,7 +135,29 @@ public final class MessengerHandler {
                 session.disconnect();
                 return;
             }
-            finishLogin(session, info);
+            applyPendingPlayerInfo(session, info);
+            sessions.disconnectOthersWithUid(info.uid(), session);
+
+            if (authOut.isLive()) {
+                int gameServerUid = session.player().gameServerUid;
+                if (gameServerUid <= 0) {
+                    gameServerUid = repo.connectedGameServerUid(info.uid());
+                    session.player().gameServerUid = gameServerUid;
+                }
+                authOut.requestInfoPlayerOnline(gameServerUid, info.uid());
+                log.debug("messenger login pending auth confirm uid={} gs={}", info.uid(), gameServerUid);
+                return;
+            }
+            if (!authRequired) {
+                confirmLoginOnOtherServer(
+                        session,
+                        0,
+                        AuthS2s.AuthServerPlayerInfo.online(info.uid(), info.id(), session.ip()),
+                        false);
+                return;
+            }
+            session.send(MessengerPackets.loginFail());
+            session.disconnect();
         } catch (RuntimeException e) {
             log.warn("messenger login failed: {}", e.toString());
             session.send(MessengerPackets.loginFail());
@@ -132,21 +165,50 @@ public final class MessengerHandler {
         }
     }
 
-    /** C# {@code confirmLoginOnOtherServer} success path. */
-    private void finishLogin(Session session, LoginRepository.PlayerLoginInfo info) {
+    private void applyPendingPlayerInfo(Session session, LoginRepository.PlayerLoginInfo info) {
         PlayerContext pi = session.player();
         pi.uid = info.uid();
         pi.id = info.id();
         pi.nickname = info.nickname();
         pi.level = info.level();
+        pi.idState = info.idState();
+        pi.gameServerUid = repo.connectedGameServerUid(info.uid());
+    }
+
+    /**
+     * C# {@code confirmLoginOnOtherServer}: friend cache init + authorize + {@code 0x2F}.
+     * GB validates {@code AuthServerPlayerInfo} from auth {@code 0x0C}; JP shortcut skips checks.
+     */
+    private void confirmLoginOnOtherServer(
+            Session session, int reqServerUid, AuthS2s.AuthServerPlayerInfo aspi, boolean validateFromAuth) {
+        PlayerContext pi = session.player();
+        if (validateFromAuth) {
+            if (aspi.uid() != pi.uid
+                    || aspi.option() != 1
+                    || !aspi.id().equals(pi.id)
+                    || !aspi.ip().equals(session.ip())) {
+                log.warn(
+                        "auth confirm login mismatch uid={} reqServer={} option={}",
+                        aspi.uid(),
+                        reqServerUid,
+                        aspi.option());
+                session.send(MessengerPackets.loginFail());
+                session.disconnect();
+                return;
+            }
+        }
+        completeLogin(session);
+        log.info("messenger login nick={} uid={} reqServer={}", pi.nickname, pi.uid, reqServerUid);
+    }
+
+    private void completeLogin(Session session) {
+        PlayerContext pi = session.player();
         pi.messengerState = MessengerPackets.STATE_ONLINE;
         pi.channelPlayerInfo = MessengerPackets.emptyChannelPlayerInfo();
         pi.messengerLogoutSent = false;
         reloadGuild(pi);
-        sessions.disconnectOthersWithUid(pi.uid, session);
         session.setAuthorized(true);
         session.send(MessengerPackets.loginOk((int) pi.uid));
-        log.info("messenger login nick={} uid={}", pi.nickname, pi.uid);
     }
 
     private void authDisconnectPlayer(PacketReader body) {
@@ -163,7 +225,7 @@ public final class MessengerHandler {
     /** C# {@code authCmdInfoPlayerOnline} → {@code sendInfoPlayerOnline}. */
     private void authInfoPlayerOnline(PacketReader body) {
         AuthS2s.AuthInfoPlayerOnlineRequest req = AuthS2s.readAuthInfoPlayerOnline(body);
-        Session target = sessions.findByUid(req.playerUid());
+        Session target = sessions.findByPlayerUid(req.playerUid());
         AuthS2s.AuthServerPlayerInfo info;
         if (target != null) {
             PlayerContext pi = target.player();
@@ -177,7 +239,7 @@ public final class MessengerHandler {
 
     private void authConfirmPlayerInfo(PacketReader body) {
         AuthS2s.AuthConfirmPlayerInfo info = AuthS2s.readAuthConfirmPlayerInfo(body);
-        Session session = sessions.findByUid(info.uid());
+        Session session = sessions.findByPlayerUid(info.uid());
         if (session == null) {
             log.debug("auth confirm login uid={} not connected", info.uid());
             return;
@@ -185,14 +247,11 @@ public final class MessengerHandler {
         if (session.authorized()) {
             return;
         }
-        var player = repo.playerInfo(info.uid()).orElse(null);
-        if (player == null) {
-            session.send(MessengerPackets.loginFail());
-            session.disconnect();
-            return;
-        }
-        finishLogin(session, player);
-        log.info("auth confirmed messenger login uid={} reqServer={}", info.uid(), info.reqServerUid());
+        confirmLoginOnOtherServer(
+                session,
+                info.reqServerUid(),
+                new AuthS2s.AuthServerPlayerInfo(info.uid(), info.id(), info.ip(), info.option()),
+                true);
     }
 
     private void friendList(Session session) {

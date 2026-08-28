@@ -16,8 +16,8 @@ S4 profondità: **173** opcode success 1:1 / **0** opcode solo fail-stub / **0**
 
 | Campo | Valore |
 |-------|--------|
-| Fatto | Auth inbound `0x0B` info-player-online + `0x06`/`0x0C`/`0x0D`; Messenger `0x13` + `canSeeOnline` |
-| Prossimo opcode/file C# | messenger auth-confirm login path, IFF pin/cube/`initComboDef`, capture JP S9 |
+| Fatto | Messenger auth-confirm login + auth inbound `0x0B`/`0x06`/`0x0C`/`0x0D` |
+| Prossimo opcode/file C# | `FriendManager` cache, IFF pin/cube/`initComboDef`, capture JP S9 |
 | Percentuale epic | scheletro **85%** / parità client reale **43%** |
 | VM | Java 21.0.10, Docker 29.7.2, Compose v5.5.0, 4 CPU / 15 GiB |
 

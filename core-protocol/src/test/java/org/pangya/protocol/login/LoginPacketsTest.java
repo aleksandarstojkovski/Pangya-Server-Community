@@ -212,4 +212,14 @@ class LoginPacketsTest {
         assertEquals(10002, off.u32());
         assertEquals(0, off.remaining());
     }
+
+    @Test
+    void authRequestInfoPlayerOnlineUsesOpcode04() {
+        byte[] req = AuthS2s.requestInfoPlayerOnline(20202, 10001);
+        PacketReader r = new PacketReader(req);
+        assertEquals(AuthS2s.INFO_PLAYER, r.opcode());
+        assertEquals(20202, r.u32());
+        assertEquals(10001, r.u32());
+        assertEquals(0, r.remaining());
+    }
 }

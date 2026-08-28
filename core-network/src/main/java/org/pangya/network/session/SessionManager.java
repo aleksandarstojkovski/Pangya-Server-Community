@@ -55,6 +55,19 @@ public final class SessionManager {
         return null;
     }
 
+    /** Pending or authorized messenger login ({@code player_manager.findPlayer}). */
+    public Session findByPlayerUid(long uid) {
+        if (uid <= 0) {
+            return null;
+        }
+        for (Session session : snapshot()) {
+            if (session.player().uid == uid) {
+                return session;
+            }
+        }
+        return null;
+    }
+
     public Session findByNickname(String nickname) {
         if (nickname == null || nickname.isEmpty()) {
             return null;

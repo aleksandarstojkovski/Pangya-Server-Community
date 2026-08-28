@@ -94,4 +94,6 @@ public final class PlayerContext {
     public volatile long guildUid;
     /** C# {@code PlayerInfo.guild_name} for messenger guild chat. */
     public volatile String guildName = "";
+    /** C# {@code player_info.server_uid} — game server player is on. */
+    public volatile int gameServerUid;
 }

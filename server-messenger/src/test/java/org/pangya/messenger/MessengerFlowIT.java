@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 import org.pangya.db.DatabaseSupport;
 import org.pangya.network.AppConfig;
 import org.pangya.network.client.PangyaFakeClient;
+import org.pangya.network.auth.AuthOutbound;
 import org.pangya.protocol.auth.AuthS2s;
 import org.pangya.protocol.messenger.MessengerPackets;
 import org.pangya.protocol.packet.PacketIo;
@@ -441,6 +442,59 @@ class MessengerFlowIT {
     }
 
     @Test
+    void authConfirmLoginCompletesPendingSession() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        DatabaseSupport.migrate(jdbc, user, password);
+        clearGuildMembership(jdbc, user, password, 10001);
+
+        List<Long> requested = new CopyOnWriteArrayList<>();
+        try (MessengerRuntime runtime = new MessengerRuntime(
+                new AppConfig(testYaml(jdbc, user, password)), new AuthOutbound() {
+                    @Override
+                    public boolean isLive() {
+                        return true;
+                    }
+
+                    @Override
+                    public void requestInfoPlayerOnline(int gameServerUid, long playerUid) {
+                        requested.add(playerUid);
+                    }
+
+                    @Override
+                    public void sendInfoPlayerOnline(int reqServerUid, AuthS2s.AuthServerPlayerInfo info) {}
+                });
+             PangyaFakeClient client = new PangyaFakeClient()) {
+            client.connect("127.0.0.1", runtime.port(), PangyaFakeClient.HelloKind.MESSENGER);
+            client.awaitHello(5, TimeUnit.SECONDS);
+            client.sendPlain(MessengerPackets.clientLogin(10001, "TestNick"));
+
+            long deadline = System.currentTimeMillis() + 500;
+            while (System.currentTimeMillis() < deadline) {
+                Thread.sleep(20);
+            }
+            assertEquals(1, requested.size());
+            assertEquals(10001L, requested.get(0).longValue());
+
+            runtime.handler().onAuthPacket(
+                    AuthS2s.AUTH_CONFIRM_PLAYER_INFO,
+                    new PacketReader(new PacketWriter()
+                            .u32(20202)
+                            .i32(1)
+                            .u32(10001)
+                            .pstr("testuser")
+                            .pstr("127.0.0.1")
+                            .toBytes()));
+
+            PacketReader login = new PacketReader(client.awaitPlain(5, TimeUnit.SECONDS));
+            assertEquals(MessengerPackets.SERVER_LOGIN_ACK, login.opcode());
+            assertEquals(0, login.u8());
+            assertEquals(10001, login.u32());
+        }
+    }
+
+    @Test
     void authInfoPlayerOnlineReportsOnlineAndOffline() throws Exception {
         String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
         String user = env("PANGYA_TEST_JDBC_USER", "pangya");
@@ -450,7 +504,12 @@ class MessengerFlowIT {
 
         List<AuthS2s.AuthServerPlayerInfo> sent = new CopyOnWriteArrayList<>();
         try (MessengerRuntime runtime = new MessengerRuntime(
-                new AppConfig(testYaml(jdbc, user, password)), (req, info) -> sent.add(info));
+                new AppConfig(testYaml(jdbc, user, password)), new AuthOutbound() {
+                    @Override
+                    public void sendInfoPlayerOnline(int reqServerUid, AuthS2s.AuthServerPlayerInfo info) {
+                        sent.add(info);
+                    }
+                });
              PangyaFakeClient client = new PangyaFakeClient()) {
             runtime.handler().onAuthPacket(
                     AuthS2s.AUTH_INFO_PLAYER_ONLINE,

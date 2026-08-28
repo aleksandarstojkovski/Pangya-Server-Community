@@ -9,7 +9,9 @@ import org.pangya.db.LoginRepository;
 import org.pangya.network.AppConfig;
 import org.pangya.network.HealthHttp;
 import org.pangya.network.PangyaMetrics;
+import org.pangya.network.auth.AuthOutbound;
 import org.pangya.network.auth.AuthServerConnector;
+import org.pangya.protocol.auth.AuthS2s;
 import org.pangya.network.ddos.IpDdosFilter;
 import org.pangya.protocol.packet.PacketIo;
 import org.pangya.network.netty.PangyaNettyServer;
@@ -41,16 +43,20 @@ public final class MessengerRuntime implements AutoCloseable {
         FriendRepository friends = new JdbiFriendRepository(DatabaseSupport.jdbi(dataSource));
         SessionManager sessions = new SessionManager(new IpDdosFilter());
         org.pangya.network.auth.AuthOutbound outbound;
-        if (config.authEnabled()) {
+        boolean authRequired = config.authEnabled();
+        if (authRequired) {
             this.auth = new AuthServerConnector(config, repo::generateAuthServerKey);
             outbound = this.auth;
-            this.handler = new MessengerHandler(repo, friends, sessions, outbound);
+            this.handler = new MessengerHandler(repo, friends, sessions, outbound, true);
             this.auth.setAuthInboundListener(handler::onAuthPacket);
             this.auth.start();
         } else {
             this.auth = null;
-            outbound = authOutOverride != null ? authOutOverride : (reqServerUid, info) -> {};
-            this.handler = new MessengerHandler(repo, friends, sessions, outbound);
+            outbound = authOutOverride != null ? authOutOverride : new AuthOutbound() {
+                @Override
+                public void sendInfoPlayerOnline(int reqServerUid, AuthS2s.AuthServerPlayerInfo info) {}
+            };
+            this.handler = new MessengerHandler(repo, friends, sessions, outbound, false);
         }
         this.netty = new PangyaNettyServer(
                 ServerKind.MESSENGER, sessions, handler::onPacket, PacketIo.DEFAULT_LOGIN_UID, handler::onDisconnect);

@@ -91,6 +91,15 @@ public final class AuthS2s {
         return new AuthDisconnectRequest(playerUid, serverUid, force);
     }
 
+    /** Child→Auth {@code 0x04}: server uid, player uid. */
+    public static byte[] requestInfoPlayerOnline(int gameServerUid, long playerUid) {
+        return new PacketWriter()
+                .opcode(INFO_PLAYER)
+                .u32(gameServerUid)
+                .u32((int) playerUid)
+                .toBytes();
+    }
+
     /** Auth→child {@code 0x0B}: req server uid, player uid. */
     public static AuthInfoPlayerOnlineRequest readAuthInfoPlayerOnline(PacketReader reader) {
         int reqServerUid = reader.u32();
