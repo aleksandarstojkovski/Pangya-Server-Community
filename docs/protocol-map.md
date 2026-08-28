@@ -152,7 +152,7 @@ C#: `GameServer/PangyaEnums/PacketGame.cs` → Java `org.pangya.protocol.game.Ga
 | C | `CLIENT_REQ_NEW_BONGDARISHOP_PLAY_NORMAL` | `0x14B` | SQL catalog: `0x216` awards + `0xFB` -1/-3 + `0x21B` u32 0 + coupon 0 + balls; funds `shopSys(0x5900102)` |
 | C | `CLIENT_WEB_AUTH_KEY` | `0xFB` | no channel; `0x1AD` i32 1 + PStr 6-char key (empty key writes i16 0) |
 | C | `CLIENT_REQ_CHANGE_GAME_SERVER` | `0x119` | u32 uid; unknown → `0x9F`; known GS → `0x1D4` i32 0 + PStr key |
-| C | `CLIENT_OPEN_TIKI_REPORT` | `0xAB` | ItemManager miss → `0x11A` i32 -1 + 16 zero date bytes |
+| C | `CLIENT_OPEN_TIKI_REPORT` | `0xAB` | i32 warehouse id + i32 ticket id; valida C1*0x800\|C2 e SQL `ticket_report_catalog`, invalida scroll, poi `0x11A` u32 player-count 0 + SYSTEMTIME. Ogni fail i32 -1 + 16 zero |
 | C | `CLIENT_REQ_POINT_SHOP_OPEN` | `0x126` | not blocked → `0x1E7` u32 0 |
 | C | `CLIENT_ITEMSTORAGE_REQ_ACCESS` | `0xCC` | empty/`Sanitize` fail → `0x16C` u32 1; seed empty pass → `0x75` |
 | C | `CLIENT_ITEMSTORAGE_REQ_STATE` | `0xD3` | no channel; `0x170` u32 0 + u32 2 (no pass) |
@@ -232,7 +232,7 @@ C#: `GameServer/PangyaEnums/PacketGame.cs` → Java `org.pangya.protocol.game.Ga
 | S | `SERVER_PAPEL_REMAIN` | `0xFB` | i32 remain + i32 flag; unlimited -1/-3; opposite CLIENT web-key `0xFB` |
 | S | `SERVER_WEB_AUTH_KEY_ACK` | `0x1AD` | i32 option + PStr key (i16 0 if empty) |
 | S | `SERVER_REQ_CHANGE_GAME_SERVER_ACK` | `0x1D4` | i32 option; PStr key only when option 0 |
-| S | `SERVER_OPEN_TIKI_REPORT` | `0x11A` | fail i32 -1 + 16 date zeros |
+| S | `SERVER_OPEN_TIKI_REPORT` | `0x11A` | fail i32 -1 + 16 date zeros; success u32 player count + SYSTEMTIME + player rows |
 | S | `SERVER_REQ_POINT_SHOP_OPEN_ACK` | `0x1E7` | u32 option |
 | S | `SERVER_ITEMSTORAGE_RES_ACCESS` | `0x16C` | u32; opposite CLIENT workshop transfer |
 | S | `SERVER_ITEMSTORAGE_RES_STATE` | `0x170` | u32 0 + u32 isLocker |

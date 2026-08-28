@@ -473,6 +473,9 @@ class InventoryRepositoryTest {
                 assertEquals(2, memorial.rarity());
                 assertEquals(GamePackets.TYPEID_MEMORIAL_REWARD_TEST, memorial.rewardTypeid());
                 assertEquals(3, memorial.qntd());
+                repo.deleteTicketReport(0x1234);
+                repo.upsertTicketReport(0x1234, java.time.Instant.EPOCH);
+                assertEquals(java.time.Instant.EPOCH, repo.ticketReportDate(0x1234).orElseThrow());
                 repo.deleteCardByTypeid(10001, GamePackets.TYPEID_CARD_NORMAL);
                 repo.addCard(10001, GamePackets.TYPEID_CARD_NORMAL, 2);
                 assertEquals(1, repo.consumeCardByTypeid(10001, GamePackets.TYPEID_CARD_NORMAL, 1).orElseThrow());
@@ -488,6 +491,7 @@ class InventoryRepositoryTest {
                 repo.deleteCardIff(GamePackets.TYPEID_CARD_SPECIAL_PANG);
                 repo.deleteCardPackRewards(GamePackets.TYPEID_CARD_PACK_TEST);
                 repo.deleteMemorialRewards(GamePackets.TYPEID_MEMORIAL_COIN_TEST);
+                repo.deleteTicketReport(0x1234);
                 repo.deleteCardByTypeid(10001, GamePackets.TYPEID_CARD_NORMAL);
             }
             repo.deletePartIff(GamePackets.TYPEID_RENTAL_PART);

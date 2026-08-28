@@ -4372,6 +4372,62 @@ class GameFlowIT {
     }
 
     @Test
+    void ticketReportScrollValidatesEncodedIdAndSends11a() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config);
+             PangyaFakeClient client = new PangyaFakeClient()) {
+            InventoryRepository inv = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
+            inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_TICKET_SCROLL_TEST);
+            inv.deleteTicketReport(0x1234);
+            int itemId = inv.addWarehouseItem(10001, GamePackets.TYPEID_TICKET_SCROLL_TEST, 1);
+            DatabaseSupport.jdbi(ds).useHandle(h -> h.createUpdate("""
+                            UPDATE pangya.pangya_item_warehouse
+                               SET "C1" = 2, "C2" = 564
+                             WHERE "UID" = 10001 AND item_id = :id
+                            """)
+                    .bind("id", itemId)
+                    .execute());
+            try {
+                inv.upsertTicketReport(0x1234, java.time.Instant.EPOCH);
+                LoginRepository repo = new JdbiLoginRepository(DatabaseSupport.jdbi(ds));
+                String loginKey = repo.generateAuthKeyLogin(10001);
+                String gameKey = repo.generateAuthKeyGame(10001, 20202);
+                keys.putLoginKey(10001, loginKey);
+                keys.putGameKey(10001, 20202, gameKey);
+                loginToChannel(client, runtime.port(), "testuser", 10001, loginKey, gameKey);
+
+                client.sendPlain(GamePackets.clientOpenTicketReport(itemId, 0x1235));
+                PacketReader wrong = awaitOpcode(client, GamePackets.SERVER_TICKET_REPORT);
+                assertEquals(GamePackets.TICKET_REPORT_ERR, wrong.i32());
+                assertEquals(16, wrong.remaining());
+
+                client.sendPlain(GamePackets.clientOpenTicketReport(itemId, 0x1234));
+                PacketReader ok = awaitOpcode(client, GamePackets.SERVER_TICKET_REPORT);
+                assertEquals(0, ok.u32());
+                assertEquals(1970, ok.u16());
+                assertEquals(1, ok.u16());
+                assertEquals(1, ok.u16());
+                ok.readBytes(10);
+                assertEquals(0, ok.remaining());
+                assertTrue(inv.warehouse(10001).stream().noneMatch(w -> w.id == itemId));
+                assertTrue(inv.warehouse(10001).stream().anyMatch(
+                        w -> w.typeid == GamePackets.TYPEID_AIR_KNIGHT));
+            } finally {
+                inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_TICKET_SCROLL_TEST);
+                inv.deleteTicketReport(0x1234);
+            }
+        }
+    }
+
+    @Test
     void soloGrandZodiacSendsTourneyInit() throws Exception {
         String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
         String user = env("PANGYA_TEST_JDBC_USER", "pangya");

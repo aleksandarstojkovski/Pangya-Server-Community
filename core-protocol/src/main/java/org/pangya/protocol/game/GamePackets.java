@@ -1606,6 +1606,7 @@ public final class GamePackets {
     public static final int TYPEID_BOX_MAIL_REWARD_TEST = 0x1A000302;
     public static final int TYPEID_MEMORIAL_COIN_TEST = 0x1A000310;
     public static final int TYPEID_MEMORIAL_REWARD_TEST = 0x1A000311;
+    public static final int TYPEID_TICKET_SCROLL_TEST = 0x1A000312;
     /** C# transform lottery special typeids. */
     public static final int[] WORKSHOP_TRANSFORM_SPECIALS = {
         TYPEID_WINGTROSS_EVO, TYPEID_GIGA_YARD_TOTEM, TYPEID_DUOSTAR_MANAPIKAL
@@ -4092,6 +4093,15 @@ public final class GamePackets {
      */
     public static byte[] ticketReportFail() {
         return new PacketWriter().opcode(SERVER_TICKET_REPORT).i32(TICKET_REPORT_ERR).zero(16).toBytes();
+    }
+
+    /** C# ticket-report success header for a report with no player rows. */
+    public static byte[] ticketReportOk(Instant date) {
+        return new PacketWriter()
+                .opcode(SERVER_TICKET_REPORT)
+                .u32(0)
+                .systemTime(date)
+                .toBytes();
     }
 
     /** C# Tiki open {@code 0x1E7} u32 option (0 OK). */

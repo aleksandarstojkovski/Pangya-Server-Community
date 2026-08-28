@@ -3941,14 +3941,46 @@ public final class GameHandler {
     }
 
     /**
-     * C# {@code requestOpenTicketReportScroll}: ItemManager miss → {@code 0x11A}
-     * i32 -1 + 16 zero date bytes.
+     * C# {@code requestOpenTicketReportScroll}: validates warehouse id and the
+     * C1/C2 encoded ticket id, loads SQL report date, deletes the scroll, then
+     * sends {@code 0x11A} count 0 + SYSTEMTIME. Every failure is -1 + zero date.
      */
     private void openTicketReport(Session session, PacketReader reader) {
         if (!inChannel(session)) {
             return;
         }
-        session.send(GamePackets.ticketReportFail());
+        try {
+            if (reader.remaining() < 8) {
+                session.send(GamePackets.ticketReportFail());
+                return;
+            }
+            int itemId = reader.i32();
+            int ticketId = reader.i32();
+            if (itemId < 0 || ticketId < 0) {
+                session.send(GamePackets.ticketReportFail());
+                return;
+            }
+            long uid = session.player().uid;
+            GamePackets.WarehouseItem item = warehouseById(uid, itemId);
+            if (item == null) {
+                session.send(GamePackets.ticketReportFail());
+                return;
+            }
+            int expected = (item.c[1] * 0x800) | (item.c[2] & 0xffff);
+            if (expected != ticketId) {
+                session.send(GamePackets.ticketReportFail());
+                return;
+            }
+            Optional<Instant> date = inventory.ticketReportDate(ticketId);
+            if (date.isEmpty() || !inventory.deleteWarehouseById(uid, itemId)) {
+                session.send(GamePackets.ticketReportFail());
+                return;
+            }
+            session.send(GamePackets.ticketReportOk(date.get()));
+        } catch (RuntimeException e) {
+            log.debug("open ticket report failed uid={}: {}", session.player().uid, e.toString());
+            session.send(GamePackets.ticketReportFail());
+        }
     }
 
     /**

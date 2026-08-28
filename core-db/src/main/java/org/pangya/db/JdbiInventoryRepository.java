@@ -2933,6 +2933,36 @@ public final class JdbiInventoryRepository implements InventoryRepository {
     }
 
     @Override
+    public Optional<Instant> ticketReportDate(int ticketId) {
+        return jdbi.withHandle(h -> h.createQuery("""
+                        SELECT report_date FROM pangya.ticket_report_catalog WHERE ticket_id = :id
+                        """)
+                .bind("id", ticketId)
+                .map((rs, ctx) -> rs.getTimestamp("report_date").toInstant())
+                .findOne());
+    }
+
+    @Override
+    public void upsertTicketReport(int ticketId, Instant date) {
+        jdbi.useHandle(h -> h.createUpdate("""
+                        INSERT INTO pangya.ticket_report_catalog (ticket_id, report_date)
+                        VALUES (:id, :date)
+                        ON CONFLICT (ticket_id) DO UPDATE SET report_date = EXCLUDED.report_date
+                        """)
+                .bind("id", ticketId)
+                .bind("date", Timestamp.from(date))
+                .execute());
+    }
+
+    @Override
+    public void deleteTicketReport(int ticketId) {
+        jdbi.useHandle(h -> h.createUpdate(
+                        "DELETE FROM pangya.ticket_report_catalog WHERE ticket_id = :id")
+                .bind("id", ticketId)
+                .execute());
+    }
+
+    @Override
     public OptionalInt consumeCardByTypeid(long uid, int typeid, int qntd) {
         if (qntd <= 0) {
             return OptionalInt.empty();

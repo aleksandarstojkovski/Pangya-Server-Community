@@ -1018,6 +1018,14 @@ class GamePacketsTest {
         assertEquals(GamePackets.SERVER_TICKET_REPORT, ticket.opcode());
         assertEquals(GamePackets.TICKET_REPORT_ERR, ticket.i32());
         assertEquals(16, ticket.remaining());
+        PacketReader ticketOk = new PacketReader(GamePackets.ticketReportOk(java.time.Instant.EPOCH));
+        assertEquals(GamePackets.SERVER_TICKET_REPORT, ticketOk.opcode());
+        assertEquals(0, ticketOk.u32());
+        assertEquals(1970, ticketOk.u16());
+        assertEquals(1, ticketOk.u16());
+        assertEquals(1, ticketOk.u16());
+        ticketOk.readBytes(10);
+        assertEquals(0, ticketOk.remaining());
         PacketReader tiki = new PacketReader(GamePackets.tikiShop(0));
         assertEquals(GamePackets.SERVER_TIKI_SHOP, tiki.opcode());
         assertEquals(0, tiki.u32());

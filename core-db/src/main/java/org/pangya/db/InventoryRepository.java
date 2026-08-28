@@ -297,6 +297,13 @@ public interface InventoryRepository {
 
     void deleteMemorialRewards(int coinTypeid);
 
+    /** C# {@code CmdTicketReportDadosInfo}: report date; players are added in later parity work. */
+    Optional<Instant> ticketReportDate(int ticketId);
+
+    void upsertTicketReport(int ticketId, Instant date);
+
+    void deleteTicketReport(int ticketId);
+
     /**
      * C# {@code ItemManager.removeItem} for cards: consume {@code qntd} from
      * {@code QNTD}. Empty when missing or insufficient. Remaining 0 deletes.
