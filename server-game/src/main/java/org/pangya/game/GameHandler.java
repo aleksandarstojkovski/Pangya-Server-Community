@@ -4876,23 +4876,101 @@ public final class GameHandler {
     }
 
     /**
-     * C# {@code requestOpenBoxMail}: typeid 0 → {@code 0x19D}
-     * {@code shopSys(0x6300101)}.
+     * C# {@code requestOpenBoxMail} generic/default BoxSystem path. SQL
+     * {@code box_mail_catalog} is the deterministic {@code findBox/drawBox}
+     * stand-in. Success consumes one box, optionally adds its opened marker,
+     * mails the reward, then sends {@code 0xA7}, {@code 0xAA}, and {@code 0x19D}.
      */
     private void openBoxMail(Session session, PacketReader reader) {
         if (!inChannel(session)) {
             return;
         }
-        if (reader.remaining() < 4) {
+        try {
+            if (reader.remaining() < 4) {
+                session.send(GamePackets.boxMailFail(GamePackets.BOX_MAIL_ERR_DEFAULT));
+                return;
+            }
+            int typeid = reader.u32();
+            if (typeid == 0) {
+                session.send(GamePackets.boxMailFail(
+                        GamePackets.shopSys(GamePackets.BOX_MAIL_ERR_TYPEID)));
+                return;
+            }
+            long uid = session.player().uid;
+            GamePackets.WarehouseItem box = warehouseByTypeid(uid, typeid);
+            if (box == null) {
+                session.send(GamePackets.boxMailFail(
+                        GamePackets.shopSys(GamePackets.BOX_MAIL_ERR_MISSING)));
+                return;
+            }
+            if ((box.c[0] & 0xffff) < 1) {
+                session.send(GamePackets.boxMailFail(
+                        GamePackets.shopSys(GamePackets.BOX_MAIL_ERR_QNTD)));
+                return;
+            }
+            if (GamePackets.itemGroupIdentify(typeid) != GamePackets.IFF_GROUP_ITEM) {
+                session.send(GamePackets.boxMailFail(
+                        GamePackets.shopSys(GamePackets.BOX_MAIL_ERR_GROUP)));
+                return;
+            }
+            if (!inventory.itemIff(typeid)) {
+                session.send(GamePackets.boxMailFail(
+                        GamePackets.shopSys(GamePackets.BOX_MAIL_ERR_IFF)));
+                return;
+            }
+            Optional<InventoryRepository.BoxMailReward> draw = inventory.boxMailReward(typeid);
+            if (draw.isEmpty()) {
+                session.send(GamePackets.boxMailFail(
+                        GamePackets.shopSys(GamePackets.BOX_MAIL_ERR_SYSTEM)));
+                return;
+            }
+            InventoryRepository.BoxMailReward reward = draw.get();
+            if (reward.rewardTypeid() == 0 || reward.rewardQntd() <= 0) {
+                session.send(GamePackets.boxMailFail(
+                        GamePackets.shopSys(GamePackets.BOX_MAIL_ERR_DRAW)));
+                return;
+            }
+            OptionalInt remaining = inventory.consumeWarehouseByTypeid(uid, typeid, 1);
+            if (remaining.isEmpty()) {
+                session.send(GamePackets.boxMailFail(
+                        GamePackets.shopSys(GamePackets.BOX_MAIL_ERR_CONSUME)));
+                return;
+            }
+            if (reward.openedTypeid() != 0) {
+                GamePackets.WarehouseItem existing = warehouseByTypeid(uid, reward.openedTypeid());
+                int ant = existing == null ? 0 : existing.c[0] & 0xffff;
+                int openedId = inventory.addWarehouseItem(uid, reward.openedTypeid(), 1);
+                if (openedId <= 0) {
+                    session.send(GamePackets.boxMailFail(
+                            GamePackets.shopSys(GamePackets.BOX_MAIL_ERR_OPENED)));
+                    return;
+                }
+                session.send(GamePackets.papelAwards(
+                        GamePackets.unixNow(),
+                        List.of(new GamePackets.PapelAward(
+                                GamePackets.PAPEL_AWARD_TYPE,
+                                reward.openedTypeid(),
+                                openedId,
+                                0,
+                                ant,
+                                ant + 1,
+                                1))));
+            }
+            mailboxes.add(
+                    uid,
+                    GamePackets.MAIL_FROM_ADM,
+                    reward.message(),
+                    List.of(new MailBoxStore.MailAttachment(
+                            reward.rewardTypeid(), reward.rewardQntd())));
+            session.send(GamePackets.boxConsume(typeid, box.id, remaining.getAsInt()));
+            session.send(GamePackets.buyNewItems(
+                    List.of(), inventory.pang(uid), inventory.cookie(uid)));
+            session.send(GamePackets.boxMailOk(
+                    typeid, reward.rewardTypeid(), reward.rewardQntd()));
+        } catch (RuntimeException e) {
+            log.debug("open box mail failed uid={}: {}", session.player().uid, e.toString());
             session.send(GamePackets.boxMailFail(GamePackets.BOX_MAIL_ERR_DEFAULT));
-            return;
         }
-        int typeid = reader.u32();
-        if (typeid == 0) {
-            session.send(GamePackets.boxMailFail(GamePackets.shopSys(GamePackets.BOX_MAIL_ERR_TYPEID)));
-            return;
-        }
-        session.send(GamePackets.boxMailFail(GamePackets.shopSys(0x6300102)));
     }
 
     /**

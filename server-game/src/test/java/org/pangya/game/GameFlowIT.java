@@ -4049,6 +4049,111 @@ class GameFlowIT {
     }
 
     @Test
+    void genericBoxMailConsumesBoxAndMailsReward() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config);
+             PangyaFakeClient client = new PangyaFakeClient()) {
+            InventoryRepository inv = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
+            inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_BOX_MAIL_TEST);
+            inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_BOX_MAIL_OPENED_TEST);
+            inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_BOX_MAIL_REWARD_TEST);
+            inv.deleteItemIff(GamePackets.TYPEID_BOX_MAIL_TEST);
+            inv.deleteBoxMailReward(GamePackets.TYPEID_BOX_MAIL_TEST);
+            int boxId = inv.addWarehouseItem(10001, GamePackets.TYPEID_BOX_MAIL_TEST, 2);
+            try {
+                inv.upsertItemIff(GamePackets.TYPEID_BOX_MAIL_TEST);
+                inv.upsertBoxMailReward(
+                        GamePackets.TYPEID_BOX_MAIL_TEST,
+                        GamePackets.TYPEID_BOX_MAIL_REWARD_TEST,
+                        3,
+                        GamePackets.TYPEID_BOX_MAIL_OPENED_TEST,
+                        "Box reward");
+                LoginRepository repo = new JdbiLoginRepository(DatabaseSupport.jdbi(ds));
+                String loginKey = repo.generateAuthKeyLogin(10001);
+                String gameKey = repo.generateAuthKeyGame(10001, 20202);
+                keys.putLoginKey(10001, loginKey);
+                keys.putGameKey(10001, 20202, gameKey);
+                loginToChannel(client, runtime.port(), "testuser", 10001, loginKey, gameKey);
+
+                client.sendPlain(GamePackets.clientBoxMail(GamePackets.TYPEID_BOX_MAIL_TEST));
+                PacketReader opened = awaitOpcode(client, GamePackets.SERVER_DAILY_QUEST_STAMP);
+                opened.u32();
+                assertEquals(1, opened.u32());
+                assertEquals(GamePackets.PAPEL_AWARD_TYPE, opened.u8());
+                assertEquals(GamePackets.TYPEID_BOX_MAIL_OPENED_TEST, opened.u32());
+                int openedId = opened.i32();
+                assertTrue(openedId > 0);
+                assertEquals(0, opened.u32());
+                assertEquals(0, opened.i32());
+                assertEquals(1, opened.i32());
+                assertEquals(1, opened.i32());
+                opened.readBytes(GamePackets.PAPEL_AWARD_PAD);
+                assertEquals(0, opened.remaining());
+
+                PacketReader consumed = awaitOpcode(client, GamePackets.SERVER_BOX_CONSUME);
+                assertEquals(1, consumed.u8());
+                assertEquals(GamePackets.TYPEID_BOX_MAIL_TEST, consumed.u32());
+                assertEquals(boxId, consumed.i32());
+                assertEquals(1, consumed.u16());
+                PacketReader balance = awaitOpcode(client, GamePackets.SERVER_NEW_ITEM);
+                assertEquals(0, balance.u16());
+                assertEquals(inv.pang(10001), balance.u64());
+                assertEquals(inv.cookie(10001), balance.u64());
+                PacketReader ok = awaitOpcode(client, GamePackets.SERVER_BOX_MAIL);
+                assertEquals(GamePackets.BOX_MAIL_OK, ok.u32());
+                assertEquals(GamePackets.TYPEID_BOX_MAIL_TEST, ok.u32());
+                assertEquals(GamePackets.TYPEID_BOX_MAIL_REWARD_TEST, ok.u32());
+                assertEquals(3, ok.i32());
+
+                client.sendPlain(GamePackets.clientOpenMailBox(1));
+                PacketReader page = awaitOpcode(client, GamePackets.SERVER_MAILBOX);
+                assertEquals(0, page.i32());
+                assertEquals(1, page.i32());
+                assertEquals(1, page.i32());
+                assertEquals(1, page.i32());
+                int mailId = page.i32();
+                assertTrue(mailId > 0);
+                page.readBytes(GamePackets.MAIL_BOX_ENTRY_BYTES - 4);
+                client.sendPlain(GamePackets.clientTakeMail(mailId));
+                PacketReader reward = awaitOpcode(client, GamePackets.SERVER_DAILY_QUEST_STAMP);
+                reward.u32();
+                assertEquals(1, reward.u32());
+                assertEquals(GamePackets.PAPEL_AWARD_TYPE, reward.u8());
+                assertEquals(GamePackets.TYPEID_BOX_MAIL_REWARD_TEST, reward.u32());
+                reward.i32();
+                reward.u32();
+                assertEquals(0, reward.i32());
+                assertEquals(3, reward.i32());
+                assertEquals(3, reward.i32());
+                reward.readBytes(15);
+                assertEquals(0, reward.remaining());
+                assertEquals(0, awaitOpcode(client, GamePackets.SERVER_MAIL_TAKE).u32());
+                assertEquals(3, inv.warehouse(10001).stream()
+                        .filter(w -> w.typeid == GamePackets.TYPEID_BOX_MAIL_REWARD_TEST)
+                        .findFirst()
+                        .orElseThrow()
+                        .c[0]);
+                assertTrue(inv.warehouse(10001).stream().anyMatch(
+                        w -> w.typeid == GamePackets.TYPEID_AIR_KNIGHT));
+            } finally {
+                inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_BOX_MAIL_TEST);
+                inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_BOX_MAIL_OPENED_TEST);
+                inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_BOX_MAIL_REWARD_TEST);
+                inv.deleteItemIff(GamePackets.TYPEID_BOX_MAIL_TEST);
+                inv.deleteBoxMailReward(GamePackets.TYPEID_BOX_MAIL_TEST);
+            }
+        }
+    }
+
+    @Test
     void soloGrandZodiacSendsTourneyInit() throws Exception {
         String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
         String user = env("PANGYA_TEST_JDBC_USER", "pangya");

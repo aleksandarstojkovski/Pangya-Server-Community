@@ -2721,6 +2721,52 @@ public final class JdbiInventoryRepository implements InventoryRepository {
     }
 
     @Override
+    public Optional<BoxMailReward> boxMailReward(int boxTypeid) {
+        return jdbi.withHandle(h -> h.createQuery("""
+                        SELECT box_typeid, reward_typeid, reward_qntd, opened_typeid, message
+                          FROM pangya.box_mail_catalog
+                         WHERE box_typeid = :typeid
+                        """)
+                .bind("typeid", boxTypeid)
+                .map((rs, ctx) -> new BoxMailReward(
+                        rs.getInt("box_typeid"),
+                        rs.getInt("reward_typeid"),
+                        rs.getInt("reward_qntd"),
+                        rs.getInt("opened_typeid"),
+                        rs.getString("message")))
+                .findOne());
+    }
+
+    @Override
+    public void upsertBoxMailReward(
+            int boxTypeid, int rewardTypeid, int rewardQntd, int openedTypeid, String message) {
+        jdbi.useHandle(h -> h.createUpdate("""
+                        INSERT INTO pangya.box_mail_catalog (
+                            box_typeid, reward_typeid, reward_qntd, opened_typeid, message)
+                        VALUES (:box, :reward, :qntd, :opened, :message)
+                        ON CONFLICT (box_typeid) DO UPDATE SET
+                            reward_typeid = EXCLUDED.reward_typeid,
+                            reward_qntd = EXCLUDED.reward_qntd,
+                            opened_typeid = EXCLUDED.opened_typeid,
+                            message = EXCLUDED.message
+                        """)
+                .bind("box", boxTypeid)
+                .bind("reward", rewardTypeid)
+                .bind("qntd", rewardQntd)
+                .bind("opened", openedTypeid)
+                .bind("message", message == null ? "" : message)
+                .execute());
+    }
+
+    @Override
+    public void deleteBoxMailReward(int boxTypeid) {
+        jdbi.useHandle(h -> h.createUpdate(
+                        "DELETE FROM pangya.box_mail_catalog WHERE box_typeid = :typeid")
+                .bind("typeid", boxTypeid)
+                .execute());
+    }
+
+    @Override
     public boolean itemIff(int typeid) {
         return jdbi.withHandle(h -> h.createQuery("""
                         SELECT 1 FROM pangya.iff_item WHERE typeid = :typeid

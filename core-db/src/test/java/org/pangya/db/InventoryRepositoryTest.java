@@ -431,6 +431,17 @@ class InventoryRepositoryTest {
                 assertEquals(1, cutin.condition());
                 assertArrayEquals(new int[] {10, 11, 12, 13}, cutin.imageTypes());
                 assertArrayEquals(new String[] {"char", "bg", "pattern", "text"}, cutin.sprites());
+                repo.deleteBoxMailReward(GamePackets.TYPEID_BOX_MAIL_TEST);
+                repo.upsertBoxMailReward(
+                        GamePackets.TYPEID_BOX_MAIL_TEST,
+                        GamePackets.TYPEID_SHOP_PANG_ITEM,
+                        2,
+                        GamePackets.TYPEID_BOX_MAIL_OPENED_TEST,
+                        "box");
+                var box = repo.boxMailReward(GamePackets.TYPEID_BOX_MAIL_TEST).orElseThrow();
+                assertEquals(GamePackets.TYPEID_SHOP_PANG_ITEM, box.rewardTypeid());
+                assertEquals(2, box.rewardQntd());
+                assertEquals(GamePackets.TYPEID_BOX_MAIL_OPENED_TEST, box.openedTypeid());
                 repo.deleteCardByTypeid(10001, GamePackets.TYPEID_CARD_NORMAL);
                 repo.addCard(10001, GamePackets.TYPEID_CARD_NORMAL, 2);
                 assertEquals(1, repo.consumeCardByTypeid(10001, GamePackets.TYPEID_CARD_NORMAL, 1).orElseThrow());
@@ -442,6 +453,7 @@ class InventoryRepositoryTest {
                 repo.deleteClubSetLevelUpProb(0);
                 repo.deleteClubSetOriginal(GamePackets.TYPEID_WINGTROSS_EVO);
                 repo.deleteCutinIff(GamePackets.TYPEID_CUTIN_SKIN);
+                repo.deleteBoxMailReward(GamePackets.TYPEID_BOX_MAIL_TEST);
                 repo.deleteCardByTypeid(10001, GamePackets.TYPEID_CARD_NORMAL);
             }
             repo.deletePartIff(GamePackets.TYPEID_RENTAL_PART);

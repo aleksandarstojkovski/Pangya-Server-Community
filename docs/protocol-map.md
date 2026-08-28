@@ -173,7 +173,7 @@ C#: `GameServer/PangyaEnums/PacketGame.cs` → Java `org.pangya.protocol.game.Ga
 | C | `CLIENT_CLUBSETWORKSHOP_REQ_UP_RANK` | `0x167` | qntd>0 missing card → `0x240` `shopSys(0x5300351)`; qntd insufficient `shopSys(0x5300532)`; missing club `0x5300353`; no `iff_clubset` `0x5300354`; tipo -1 `0x5300355`; no limit any `0x5300209`; no limit for calcRank+1 `0x5300211`; qntd>4 `0x5300356`; stat capped `0x5300358`; no rank-exp `0x5300359`; mastery `0x5300360`; truncated/else full `0x5300350`. Success persist `C[stat]++` + rank/level/mastery then `0x216` type `0xCC` then `0x240` u32 0 + stat + id. `flag_transformar==1` + SQL original (player non owner) → empty `0x241` invece di `0x240`. Mega typeid 0 qntd 1 resta `shopSys(0x5300351)` |
 | C | `CLIENT_USE_ITEM_BUFF` | `0xD8` | typeid 0 → `0x181` `shopSys(0x5500401)`; ITEM+SQL `iff_time_limit_item` success u32 2 + count 1 + typeid + ItemBuff; missing warehouse `shopSys(0x5500402)`; non-ITEM `shopSys(0x5500403)`; no TLI `shopSys(0x5500404)` |
 | C | `CLIENT_COMET_REFILL` | `0xEC` | ITEM+BALL SQL `pangya_comet_refill`; success `0x197` u8 1 + item + ball + u16 C0; else u8 0 + 10 zeros. Opposite locker-add `SERVER_SHOP_BUY` |
-| C | `CLIENT_OPEN_BOX_MAIL` | `0xEF` | typeid 0 → `0x19D` `shopSys(0x6300101)` |
+| C | `CLIENT_OPEN_BOX_MAIL` | `0xEF` | generic/default SQL `box_mail_catalog`: missing/C0/group/IFF/BoxSystem → `0x6300102`–`0x6300106`; consume fail `0x6300110`; truncated/else full `0x6300100`. Success consume box + optional opened marker `0x216`, mailbox reward, then `0xA7` count 1 + `0xAA` count 0 balances + `0x19D` u32 0 + box + reward + qntd |
 | C | `CLIENT_ITEMSTORAGE_REQ_GET_ITEM` | `0xCD` | empty locker → `0x16D` pages 0 + page 0 + count 0 |
 | C | `CLIENT_ITEMSTORAGE_REQ_GET_PANG` | `0xD5` | `0x172` u64 pang (seed 0) |
 | C | `CLIENT_NOTIFY_NOT_DISPLAY_WHISPER` | `0xDE` | named online player gets `0x40` option 4 + nick |
@@ -247,7 +247,8 @@ C#: `GameServer/PangyaEnums/PacketGame.cs` → Java `org.pangya.protocol.game.Ga
 | S | `SERVER_CLUBSETWORKSHOP_TRANSFORM` | `0x241` | empty dialog |
 | S | `SERVER_ITEM_BUFF` | `0x181` | fail u32 sys; success u32 2 + u32 1 + typeid + ItemBuff 65; opposite CLIENT ring-ground |
 | S | `SERVER_COMET_REFILL` | `0x197` | fail u8 0 + 10 zeros; success u8 1 + u32 item + u32 ball + u16 C0. Opposite CLIENT ring-power |
-| S | `SERVER_BOX_MAIL` | `0x19D` | u32 sys |
+| S | `SERVER_BOX_CONSUME` | `0xA7` | u8 count + box typeid/id/u16 remaining |
+| S | `SERVER_BOX_MAIL` | `0x19D` | fail u32 sys; success u32 0 + box typeid + reward typeid + i32 qntd |
 | S | `SERVER_LOCKER_ITEMS` | `0x16D` | u16 pages + u16 page + u8 count |
 | S | `SERVER_LOCKER_PANG` | `0x172` | u64 pang |
 | S | `SERVER_MY_ROOM` | `0x12B` | u32 option + u32 to_uid |

@@ -258,6 +258,14 @@ public interface InventoryRepository {
 
     void deleteCutinIff(int typeid);
 
+    /** C# {@code sBoxSystem.findBox/drawBox}: deterministic SQL reward row. */
+    Optional<BoxMailReward> boxMailReward(int boxTypeid);
+
+    void upsertBoxMailReward(
+            int boxTypeid, int rewardTypeid, int rewardQntd, int openedTypeid, String message);
+
+    void deleteBoxMailReward(int boxTypeid);
+
     /** C# {@code sIff.findItem}: SQL {@code iff_item} row exists. */
     boolean itemIff(int typeid);
 
@@ -520,6 +528,10 @@ public interface InventoryRepository {
     /** C# {@code CutinInformation}: fields serialized by {@code requestActiveCutin}. */
     record CutinIff(
             int typeid, int sector, int condition, int[] imageTypes, int tempo, String[] sprites) {}
+
+    /** C# {@code ctx_box_item} plus Box opened-typeid/message for mail delivery. */
+    record BoxMailReward(
+            int boxTypeid, int rewardTypeid, int rewardQntd, int openedTypeid, String message) {}
 
     /** C# IFF {@code TimeLimitItem}: {@code type}, {@code percent}, {@code time} minutes. */
     record TimeLimitItem(int typeid, int tipo, int percent, int timeMinutes) {}

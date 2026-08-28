@@ -1169,6 +1169,22 @@ class GamePacketsTest {
                 GamePackets.shopSys(GamePackets.BOX_MAIL_ERR_TYPEID)));
         assertEquals(GamePackets.SERVER_BOX_MAIL, boxMail.opcode());
         assertEquals(0x0101, boxMail.u32());
+        PacketReader boxConsume = new PacketReader(GamePackets.boxConsume(
+                GamePackets.TYPEID_BOX_MAIL_TEST, 9, 1));
+        assertEquals(GamePackets.SERVER_BOX_CONSUME, boxConsume.opcode());
+        assertEquals(1, boxConsume.u8());
+        assertEquals(GamePackets.TYPEID_BOX_MAIL_TEST, boxConsume.u32());
+        assertEquals(9, boxConsume.i32());
+        assertEquals(1, boxConsume.u16());
+        assertEquals(0, boxConsume.remaining());
+        PacketReader boxOk = new PacketReader(GamePackets.boxMailOk(
+                GamePackets.TYPEID_BOX_MAIL_TEST, GamePackets.TYPEID_SHOP_PANG_ITEM, 2));
+        assertEquals(GamePackets.SERVER_BOX_MAIL, boxOk.opcode());
+        assertEquals(GamePackets.BOX_MAIL_OK, boxOk.u32());
+        assertEquals(GamePackets.TYPEID_BOX_MAIL_TEST, boxOk.u32());
+        assertEquals(GamePackets.TYPEID_SHOP_PANG_ITEM, boxOk.u32());
+        assertEquals(2, boxOk.i32());
+        assertEquals(0, boxOk.remaining());
         PacketReader lockerPage = new PacketReader(GamePackets.lockerItems(0, 0, 0));
         assertEquals(GamePackets.SERVER_LOCKER_ITEMS, lockerPage.opcode());
         assertEquals(0, lockerPage.u16());
@@ -2412,6 +2428,9 @@ class GamePacketsTest {
         assertEquals(GamePackets.IFF_GROUP_SKIN, 56);
         assertEquals(GamePackets.itemGroupIdentify(GamePackets.TYPEID_CUTIN_SKIN), 56);
         assertEquals(GamePackets.CUTIN_OK_BODY_BYTES, 193);
+        assertEquals(GamePackets.SERVER_BOX_CONSUME, 0xA7);
+        assertEquals(GamePackets.BOX_MAIL_OK, 0);
+        assertEquals(GamePackets.BOX_MAIL_ERR_SYSTEM, 0x6300106);
         assertEquals(GamePackets.WORKSHOP_ERR_MISSING, 0x5300202);
         assertEquals(GamePackets.SERVER_BUY_ACK, 0x68);
         assertEquals(GamePackets.CREATE_ROOM_FAILED, 0x07);

@@ -395,6 +395,8 @@ public final class GamePackets {
     public static final int SERVER_TIKI_SHOP_EXCHANGE = 0x274;
     /** C# {@code pacote0AA} / {@code SERVER_NEW_ITEM}. */
     public static final int SERVER_NEW_ITEM = 0xAA;
+    /** C# BoxSystem consumed-item summary {@code 0xA7}. */
+    public static final int SERVER_BOX_CONSUME = 0xA7;
     /** C# pang spent after shop buy ({@code 0xC8} + remaining + spent). */
     public static final int SERVER_PANG_SPENT = 0xC8;
     public static final int SERVER_COOKIE = 0x96;
@@ -1596,6 +1598,12 @@ public final class GamePackets {
     public static final int TYPEID_WORKSHOP_TRANSFORM_SRC = 0x10000001;
     /** Test-only original ClubSet matching rank 1 of {@link #TYPEID_WINGTROSS_EVO}. */
     public static final int TYPEID_WORKSHOP_TRANSFORM_ORIGINAL = 0x10000020;
+    /** Test generic ITEM box for SQL BoxSystem stand-in. */
+    public static final int TYPEID_BOX_MAIL_TEST = 0x1A000300;
+    /** Test opened marker for generic box path. */
+    public static final int TYPEID_BOX_MAIL_OPENED_TEST = 0x1A000301;
+    /** Test reward delivered through mailbox by generic box path. */
+    public static final int TYPEID_BOX_MAIL_REWARD_TEST = 0x1A000302;
     /** C# transform lottery special typeids. */
     public static final int[] WORKSHOP_TRANSFORM_SPECIALS = {
         TYPEID_WINGTROSS_EVO, TYPEID_GIGA_YARD_TOTEM, TYPEID_DUOSTAR_MANAPIKAL
@@ -1670,6 +1678,26 @@ public final class GamePackets {
     public static final int BOX_MAIL_ERR_TYPEID = 0x6300101;
     /** C# mail-box catch else. */
     public static final int BOX_MAIL_ERR_DEFAULT = 0x6300100;
+    /** C# mail-box warehouse miss CHANNEL sys. */
+    public static final int BOX_MAIL_ERR_MISSING = 0x6300102;
+    /** C# mail-box C0 &lt; 1 CHANNEL sys. */
+    public static final int BOX_MAIL_ERR_QNTD = 0x6300103;
+    /** C# mail-box non-ITEM CHANNEL sys. */
+    public static final int BOX_MAIL_ERR_GROUP = 0x6300104;
+    /** C# mail-box {@code findItem} miss CHANNEL sys. */
+    public static final int BOX_MAIL_ERR_IFF = 0x6300105;
+    /** C# mail-box BoxSystem miss CHANNEL sys. */
+    public static final int BOX_MAIL_ERR_SYSTEM = 0x6300106;
+    /** C# mail-box draw miss CHANNEL sys. */
+    public static final int BOX_MAIL_ERR_DRAW = 0x6300109;
+    /** C# mail-box consume fail CHANNEL sys. */
+    public static final int BOX_MAIL_ERR_CONSUME = 0x6300110;
+    /** C# mail-box opened-box add fail CHANNEL sys. */
+    public static final int BOX_MAIL_ERR_OPENED = 0x6300112;
+    /** C# mail-box message insert fail CHANNEL sys. */
+    public static final int BOX_MAIL_ERR_MAIL = 0x6300113;
+    /** C# generic box success. */
+    public static final int BOX_MAIL_OK = 0;
     /** C# Tiki exchange count 0 CHANNEL sys {@code 0x5200905}. */
     public static final int TIKI_EXCHANGE_ERR_PTS = 0x5200905;
     /** C# Tiki exchange catch else. */
@@ -4255,6 +4283,28 @@ public final class GamePackets {
     /** C# mail-box catch {@code 0x19D} u32 sys. */
     public static byte[] boxMailFail(int code) {
         return new PacketWriter().opcode(SERVER_BOX_MAIL).u32(code).toBytes();
+    }
+
+    /** C# generic BoxSystem {@code 0xA7}: u8 count + typeid/id/u16 remaining. */
+    public static byte[] boxConsume(int typeid, int id, int remaining) {
+        return new PacketWriter()
+                .opcode(SERVER_BOX_CONSUME)
+                .u8(1)
+                .u32(typeid)
+                .i32(id)
+                .u16(remaining)
+                .toBytes();
+    }
+
+    /** C# generic box-mail success {@code 0x19D}: 0 + box + reward + qntd. */
+    public static byte[] boxMailOk(int boxTypeid, int rewardTypeid, int rewardQntd) {
+        return new PacketWriter()
+                .opcode(SERVER_BOX_MAIL)
+                .u32(BOX_MAIL_OK)
+                .u32(boxTypeid)
+                .u32(rewardTypeid)
+                .i32(rewardQntd)
+                .toBytes();
     }
 
     /**
