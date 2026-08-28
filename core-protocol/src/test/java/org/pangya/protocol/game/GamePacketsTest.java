@@ -201,4 +201,69 @@ class GamePacketsTest {
         assertEquals(0, ok.u32());
         assertEquals(99900, ok.u64());
     }
+
+    @Test
+    void lobbyPacketsMatchCsharpLayouts() {
+        GamePackets.PlayerLobbyInfo info = new GamePackets.PlayerLobbyInfo();
+        info.uid = 10001;
+        info.oid = 1;
+        info.nick = "TestNick";
+        info.level = 1;
+        info.teamPoint = 1000;
+        info.nickDisplay = "@NT_TestNick";
+        assertEquals(GamePackets.PLAYER_LOBBY_INFO_BYTES, info.toArray().length);
+
+        PacketReader users = new PacketReader(GamePackets.lobbyUsers(
+                GamePackets.LOBBY_USER_LIST, List.of(info)));
+        assertEquals(GamePackets.SERVER_USERLIST, users.opcode());
+        assertEquals(GamePackets.LOBBY_USER_LIST, users.u8());
+        assertEquals(1, users.u8());
+        assertEquals(GamePackets.PLAYER_LOBBY_INFO_BYTES, users.remaining());
+        assertEquals(10001, users.u32());
+        assertEquals(1, users.i32());
+        assertEquals(0xFFFF, users.u16());
+
+        GamePackets.RoomInfo room = new GamePackets.RoomInfo();
+        room.name = "VS";
+        room.numero = 1;
+        room.tipoShow = GamePackets.tipoShow(GamePackets.TIPO_STROKE);
+        PacketReader rooms = new PacketReader(GamePackets.roomList(
+                GamePackets.ROOM_LIST_FULL, List.of(room.toArray())));
+        assertEquals(GamePackets.SERVER_ROOMLIST, rooms.opcode());
+        assertEquals(1, rooms.u8());
+        assertEquals(GamePackets.ROOM_LIST_FULL, rooms.u8());
+        assertEquals(-1, rooms.i16());
+        assertEquals(GamePackets.ROOM_INFO_BYTES, rooms.remaining());
+
+        PacketReader emptyRooms = new PacketReader(GamePackets.roomList(
+                GamePackets.ROOM_LIST_FULL, List.of()));
+        assertEquals(GamePackets.SERVER_ROOMLIST, emptyRooms.opcode());
+        assertEquals(0, emptyRooms.u8());
+        assertEquals(0, emptyRooms.u8());
+        assertEquals(-1, emptyRooms.i16());
+        assertEquals(0, emptyRooms.remaining());
+
+        PacketReader chat = new PacketReader(GamePackets.chat(GamePackets.CHAT_NORMAL, "TestNick", "hello"));
+        assertEquals(GamePackets.SERVER_CHAT, chat.opcode());
+        assertEquals(GamePackets.CHAT_NORMAL, chat.u8());
+        assertEquals("TestNick", chat.pstr());
+        assertEquals("hello", chat.pstr());
+
+        PacketReader ready = new PacketReader(GamePackets.readyState(7, 1));
+        assertEquals(GamePackets.SERVER_READY, ready.opcode());
+        assertEquals(7, ready.i32());
+        assertEquals(1, ready.u8());
+        assertEquals(0, GamePackets.enterLobbyAck().length - 2);
+        assertEquals(2, GamePackets.enterLobbyAck().length);
+        assertEquals(2, GamePackets.leaveLobbyAck().length);
+        assertEquals(true, GamePackets.hiddenFromLobby(GamePackets.TIPO_PRACTICE));
+        assertEquals(false, GamePackets.hiddenFromLobby(GamePackets.TIPO_STROKE));
+
+        PacketReader change = new PacketReader(GamePackets.clientChangeRoomCourse(3, 5));
+        assertEquals(GamePackets.CLIENT_CHANGE_ROOM_INFO, change.opcode());
+        assertEquals(3, change.i16());
+        assertEquals(1, change.u8());
+        assertEquals(GamePackets.ROOM_CHANGE_COURSE, change.u8());
+        assertEquals(5, change.u8());
+    }
 }

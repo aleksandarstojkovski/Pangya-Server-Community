@@ -3,6 +3,7 @@ package org.pangya.game;
 import org.junit.jupiter.api.Test;
 import org.pangya.network.AppConfig;
 import org.pangya.protocol.game.GamePackets;
+import org.pangya.protocol.packet.PacketReader;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -36,5 +37,18 @@ class GameHandlerTest {
         assertTrue(GameHandler.keyMatches("ABCD1234", null, "ABCD1234"));
         assertFalse(GameHandler.keyMatches("ABCD1234", "other", "nope"));
         assertFalse(GameHandler.keyMatches("", "ABCD1234", "ABCD1234"));
+    }
+
+    @Test
+    void applyInfoChangeUpdatesCourse() {
+        PacketReader created = new PacketReader(
+                GamePackets.clientCreateRoom(GamePackets.TIPO_STROKE, "VS", ""));
+        created.opcode();
+        GameRoom room = new GameRoom(GamePackets.readCreateRoom(created), 7, 10001, 100, 100, 0);
+        PacketReader change = new PacketReader(GamePackets.clientChangeRoomCourse(7, 5));
+        change.opcode();
+        assertTrue(room.applyInfoChange(change));
+        assertEquals(5, room.info.course);
+        assertEquals(false, room.hiddenFromLobby());
     }
 }

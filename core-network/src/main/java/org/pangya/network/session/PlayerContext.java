@@ -16,4 +16,5 @@ public final class PlayerContext {
     public volatile int channelId = -1;
     public volatile int roomNumber = -1;
     public volatile boolean inPractice;
+    public volatile boolean inLobby;
 }

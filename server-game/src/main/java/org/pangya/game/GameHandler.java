@@ -96,6 +96,12 @@ public final class GameHandler {
             case GamePackets.CLIENT_REQUEST_EQUIP_ITEM -> equipItem(session, reader);
             case GamePackets.CLIENT_REQUEST_BUY_ITEM -> buyItem(session, reader);
             case GamePackets.CLIENT_LOUNGE_STATE -> loungeState(session);
+            case GamePackets.CLIENT_ENTER_LOBBY -> enterLobby(session);
+            case GamePackets.CLIENT_LEAVE_LOBBY -> leaveLobby(session);
+            case GamePackets.CLIENT_CHAT -> chat(session, reader);
+            case GamePackets.CLIENT_SET_READY -> setReady(session, reader);
+            case GamePackets.CLIENT_CHANGE_ROOM_INFO -> changeRoomInfo(session, reader);
+            case GamePackets.CLIENT_KEEPALIVE -> { }
             default -> log.debug("unhandled game opcode 0x{}", Integer.toHexString(opcode));
         }
     }
@@ -281,13 +287,15 @@ public final class GameHandler {
         }
         int number = nextRoom.getAndIncrement() & 0xffff;
         PlayerContext pi = session.player();
-        GameRoom created = new GameRoom(room, number, (int) pi.uid, config.ratePang(), config.rateExp());
+        GameRoom created = new GameRoom(room, number, (int) pi.uid, config.ratePang(), config.rateExp(), pi.channelId);
         created.addPlayer(session);
         created.putPlayerInfo(session, makePlayerInfo(session, created));
         rooms.put(number, created);
         pi.roomNumber = number;
         pi.inPractice = room.tipo() == GamePackets.TIPO_PRACTICE;
         sendRoomEnterPackets(session, created);
+        sendLobbyRoomInfo(created, GamePackets.ROOM_LIST_ADD);
+        sendLobbyPlayerInfo(session, GamePackets.LOBBY_USER_UPDATE);
         log.info("room {} tipo={} uid={}", number, room.tipo(), pi.uid);
     }
 
@@ -315,6 +323,8 @@ public final class GameHandler {
         pi.inPractice = room.tipo == GamePackets.TIPO_PRACTICE;
         room.putPlayerInfo(session, makePlayerInfo(session, room));
         sendRoomEnterPackets(session, room);
+        sendLobbyRoomInfo(room, GamePackets.ROOM_LIST_UPDATE);
+        sendLobbyPlayerInfo(session, GamePackets.LOBBY_USER_UPDATE);
     }
 
     private void startGame(Session session) {
@@ -571,16 +581,24 @@ public final class GameHandler {
             return;
         }
         GameRoom room = rooms.get(pi.roomNumber);
+        boolean destroyed = false;
+        GameRoom leftover = null;
         if (room != null) {
             room.removePlayer(session);
             if (room.info.numPlayer <= 0 || room.info.master == (int) pi.uid) {
                 rooms.remove(pi.roomNumber);
+                destroyed = true;
             }
+            leftover = room;
         } else {
             rooms.remove(pi.roomNumber);
         }
         pi.inPractice = false;
         pi.roomNumber = -1;
+        if (leftover != null) {
+            sendLobbyRoomInfo(leftover, destroyed ? GamePackets.ROOM_LIST_REMOVE : GamePackets.ROOM_LIST_UPDATE);
+        }
+        sendLobbyPlayerInfo(session, GamePackets.LOBBY_USER_UPDATE);
     }
 
     private void leavePractice(Session session) {
@@ -682,6 +700,167 @@ public final class GameHandler {
                 clubset,
                 mascot,
                 cards);
+    }
+
+    private void enterLobby(Session session) {
+        if (!session.authorized() || session.player().channelId < 0) {
+            return;
+        }
+        PlayerContext pi = session.player();
+        if (pi.inLobby) {
+            return;
+        }
+        pi.inLobby = true;
+        GamePackets.PlayerLobbyInfo self = makeLobbyInfo(session);
+        List<GamePackets.PlayerLobbyInfo> lobby = lobbyPlayerInfos(pi.channelId);
+        if (lobby.isEmpty()) {
+            lobby = List.of(self);
+        }
+        session.send(GamePackets.lobbyUsers(GamePackets.LOBBY_USER_CLEAR, List.of(lobby.getFirst())));
+        session.send(GamePackets.lobbyUsers(GamePackets.LOBBY_USER_LIST, lobby));
+        session.send(GamePackets.roomList(GamePackets.ROOM_LIST_FULL, visibleRoomArrays(pi.channelId)));
+        broadcastChannel(pi.channelId, GamePackets.lobbyUsers(GamePackets.LOBBY_USER_JOIN, List.of(self)));
+        session.send(GamePackets.enterLobbyAck());
+    }
+
+    private void leaveLobby(Session session) {
+        if (!session.authorized()) {
+            return;
+        }
+        PlayerContext pi = session.player();
+        if (pi.roomNumber >= 0) {
+            leaveRoom(session);
+        }
+        GamePackets.PlayerLobbyInfo info = makeLobbyInfo(session);
+        pi.inLobby = false;
+        if (pi.channelId >= 0) {
+            broadcastChannel(pi.channelId, GamePackets.lobbyUsers(GamePackets.LOBBY_USER_LEAVE, List.of(info)));
+        }
+        session.send(GamePackets.leaveLobbyAck());
+    }
+
+    private void chat(Session session, PacketReader reader) {
+        if (!session.authorized()) {
+            return;
+        }
+        String nick = reader.remaining() >= 2 ? reader.pstr() : "";
+        String msg = reader.remaining() >= 2 ? reader.pstr() : "";
+        if (nick.isEmpty() || msg.isEmpty()) {
+            return;
+        }
+        PlayerContext pi = session.player();
+        String from = pi.nickname == null || pi.nickname.isEmpty() ? nick : pi.nickname;
+        byte[] packet = GamePackets.chat(GamePackets.CHAT_NORMAL, from, msg);
+        GameRoom room = rooms.get(pi.roomNumber);
+        if (room != null) {
+            room.broadcast(packet);
+        } else if (pi.channelId >= 0) {
+            broadcastChannel(pi.channelId, packet);
+        }
+    }
+
+    private void setReady(Session session, PacketReader reader) {
+        if (!session.authorized() || reader.remaining() < 1) {
+            return;
+        }
+        int ready = reader.u8();
+        GameRoom room = rooms.get(session.player().roomNumber);
+        if (room == null) {
+            return;
+        }
+        GamePackets.PlayerRoomInfo pri = room.playerInfo(session);
+        if (pri == null) {
+            return;
+        }
+        if (ready == 0) {
+            pri.stateFlag |= GamePackets.PLAYER_READY_BIT;
+        } else {
+            pri.stateFlag &= ~GamePackets.PLAYER_READY_BIT;
+        }
+        room.putPlayerInfo(session, pri);
+        room.broadcast(GamePackets.readyState(session.oid(), ready));
+    }
+
+    private void changeRoomInfo(Session session, PacketReader reader) {
+        if (!session.authorized()) {
+            return;
+        }
+        PlayerContext pi = session.player();
+        GameRoom room = rooms.get(pi.roomNumber);
+        if (room == null) {
+            return;
+        }
+        if (room.info.master != (int) pi.uid) {
+            return;
+        }
+        if (!room.applyInfoChange(reader)) {
+            return;
+        }
+        room.broadcast(GamePackets.roomUpdate(room.info));
+        sendLobbyRoomInfo(room, GamePackets.ROOM_LIST_UPDATE);
+    }
+
+    private GamePackets.PlayerLobbyInfo makeLobbyInfo(Session session) {
+        PlayerContext pi = session.player();
+        GamePackets.PlayerLobbyInfo info = new GamePackets.PlayerLobbyInfo();
+        info.uid = (int) pi.uid;
+        info.oid = session.oid();
+        info.salaNumero = pi.roomNumber >= 0 ? pi.roomNumber : 0xFFFF;
+        info.nick = pi.nickname == null ? "" : pi.nickname;
+        info.level = pi.level;
+        info.capability = pi.capability;
+        info.teamPoint = 1000;
+        info.nickDisplay = "@NT_" + info.nick;
+        GamePackets.UserEquip equip = inventory.userEquip(pi.uid);
+        info.title = equip.skinTypeid.length > 5 ? equip.skinTypeid[5] : 0;
+        return info;
+    }
+
+    private List<GamePackets.PlayerLobbyInfo> lobbyPlayerInfos(int channelId) {
+        List<GamePackets.PlayerLobbyInfo> out = new ArrayList<>();
+        for (Session other : sessions.snapshot()) {
+            PlayerContext pi = other.player();
+            if (other.authorized() && pi.inLobby && pi.channelId == channelId) {
+                out.add(makeLobbyInfo(other));
+            }
+        }
+        return out;
+    }
+
+    private List<byte[]> visibleRoomArrays(int channelId) {
+        List<byte[]> out = new ArrayList<>();
+        for (GameRoom room : rooms.values()) {
+            if (room.channelId == channelId && !room.hiddenFromLobby()) {
+                out.add(room.info.toArray());
+            }
+        }
+        return out;
+    }
+
+    private void sendLobbyRoomInfo(GameRoom room, int option) {
+        if (room.hiddenFromLobby()) {
+            return;
+        }
+        broadcastChannel(room.channelId, GamePackets.roomList(option, List.of(room.info.toArray())));
+    }
+
+    private void sendLobbyPlayerInfo(Session session, int option) {
+        PlayerContext pi = session.player();
+        if (!pi.inLobby || pi.channelId < 0) {
+            return;
+        }
+        broadcastChannel(pi.channelId, GamePackets.lobbyUsers(option, List.of(makeLobbyInfo(session))));
+    }
+
+    private void broadcastChannel(int channelId, byte[] packet) {
+        if (channelId < 0) {
+            return;
+        }
+        for (Session other : sessions.snapshot()) {
+            if (other.authorized() && other.player().channelId == channelId) {
+                other.send(packet);
+            }
+        }
     }
 
     private GamePackets.ChannelInfo findChannel(int id) {

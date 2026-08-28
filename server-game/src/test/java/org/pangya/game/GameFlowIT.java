@@ -551,6 +551,78 @@ class GameFlowIT {
         }
     }
 
+    @Test
+    void lobbyChatReadyAndRoomInfoMatchCsharp() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config);
+             PangyaFakeClient host = new PangyaFakeClient();
+             PangyaFakeClient guest = new PangyaFakeClient()) {
+            loginTwoPlayers(ds, keys, host, guest, runtime.port());
+
+            host.sendPlain(GamePackets.clientKeepalive());
+            host.sendPlain(GamePackets.clientEnterLobby());
+            PacketReader clear = awaitOpcode(host, GamePackets.SERVER_USERLIST);
+            assertEquals(GamePackets.LOBBY_USER_CLEAR, clear.u8());
+            assertEquals(1, clear.u8());
+            assertEquals(GamePackets.PLAYER_LOBBY_INFO_BYTES, clear.remaining());
+            assertEquals(10001, clear.u32());
+            clear.i32();
+            assertEquals(0xFFFF, clear.u16());
+
+            PacketReader list = awaitOpcode(host, GamePackets.SERVER_USERLIST);
+            assertEquals(GamePackets.LOBBY_USER_LIST, list.u8());
+            assertEquals(1, list.u8());
+            assertEquals(GamePackets.PLAYER_LOBBY_INFO_BYTES, list.remaining());
+
+            PacketReader rooms = awaitOpcode(host, GamePackets.SERVER_ROOMLIST);
+            assertEquals(0, rooms.u8());
+            assertEquals(GamePackets.ROOM_LIST_FULL, rooms.u8());
+            assertEquals(-1, rooms.i16());
+            assertEquals(0, rooms.remaining());
+
+            PacketReader join = awaitOpcode(host, GamePackets.SERVER_USERLIST);
+            assertEquals(GamePackets.LOBBY_USER_JOIN, join.u8());
+            assertEquals(1, join.u8());
+            PacketReader entered = awaitOpcode(host, GamePackets.SERVER_ENTER_LOBBY);
+            assertEquals(0, entered.remaining());
+
+            host.sendPlain(GamePackets.clientChat("TestNick", "hello lobby"));
+            PacketReader chat = awaitOpcode(host, GamePackets.SERVER_CHAT);
+            assertEquals(GamePackets.CHAT_NORMAL, chat.u8());
+            assertEquals("TestNick", chat.pstr());
+            assertEquals("hello lobby", chat.pstr());
+
+            host.sendPlain(GamePackets.clientLeaveLobby());
+            awaitOpcode(host, GamePackets.SERVER_LEAVE_LOBBY);
+
+            host.sendPlain(GamePackets.clientCreateRoom(GamePackets.TIPO_STROKE, "VS-L", ""));
+            PacketReader created = awaitOpcode(host, GamePackets.SERVER_ROOM_ENTER_RESULT);
+            assertEquals(0, created.i16());
+            int numero = roomNumberFromInfo(created.readBytes(GamePackets.ROOM_INFO_BYTES));
+            guest.sendPlain(GamePackets.clientJoinRoom(numero, ""));
+            assertEquals(0, awaitOpcode(guest, GamePackets.SERVER_ROOM_ENTER_RESULT).i16());
+
+            guest.sendPlain(GamePackets.clientSetReady(1));
+            PacketReader ready = awaitOpcode(host, GamePackets.SERVER_READY);
+            assertTrue(ready.i32() > 0);
+            assertEquals(1, ready.u8());
+
+            host.sendPlain(GamePackets.clientChangeRoomCourse(numero, 5));
+            PacketReader updated = awaitOpcode(host, GamePackets.SERVER_ROOM_UPDATE);
+            assertEquals(-1, updated.i16());
+            assertEquals(GamePackets.tipoShow(GamePackets.TIPO_STROKE), updated.u8());
+            assertEquals(5, updated.u8());
+        }
+    }
+
     private static void loginTwoPlayers(
             javax.sql.DataSource ds,
             SessionKeyStore keys,

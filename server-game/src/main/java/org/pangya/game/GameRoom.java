@@ -2,6 +2,7 @@ package org.pangya.game;
 
 import org.pangya.network.session.Session;
 import org.pangya.protocol.game.GamePackets;
+import org.pangya.protocol.packet.PacketReader;
 
 import java.security.SecureRandom;
 import java.util.ArrayList;
@@ -14,7 +15,8 @@ final class GameRoom {
     private static final SecureRandom RNG = new SecureRandom();
 
     final GamePackets.RoomInfo info = new GamePackets.RoomInfo();
-    final int tipo;
+    int tipo;
+    final int channelId;
     final List<Session> players = new ArrayList<>();
     final ConcurrentHashMap<Integer, GamePackets.PlayerRoomInfo> playerInfos = new ConcurrentHashMap<>();
     final ConcurrentHashMap<Integer, PlayerShot> shots = new ConcurrentHashMap<>();
@@ -22,8 +24,9 @@ final class GameRoom {
     volatile long startMillis;
     volatile GameCourse course;
 
-    GameRoom(GamePackets.CreateRoom req, int numero, int masterUid, int ratePang, int rateExp) {
+    GameRoom(GamePackets.CreateRoom req, int numero, int masterUid, int ratePang, int rateExp, int channelId) {
         this.tipo = req.tipo();
+        this.channelId = channelId;
         info.numero = numero;
         info.maxPlayer = req.maxPlayer();
         info.numPlayer = 0;
@@ -54,6 +57,91 @@ final class GameRoom {
         } else {
             info.senhaFlag = 1;
         }
+    }
+
+    boolean hiddenFromLobby() {
+        return GamePackets.hiddenFromLobby(tipo);
+    }
+
+    /**
+     * C# {@code room.requestChangeInfoRoom}. Returns true when every change was applied.
+     */
+    synchronized boolean applyInfoChange(PacketReader reader) {
+        if (reader.remaining() < 3) {
+            return false;
+        }
+        reader.i16();
+        int numInfo = reader.u8();
+        if (numInfo <= 0) {
+            return false;
+        }
+        for (int i = 0; i < numInfo; i++) {
+            if (reader.remaining() < 1) {
+                return false;
+            }
+            int type = reader.u8();
+            switch (type) {
+                case GamePackets.ROOM_CHANGE_NAME -> {
+                    String title = reader.pstr();
+                    if (hiddenFromLobby()) {
+                        info.name = "Single Player Practice Mode";
+                    } else {
+                        info.name = title == null ? "" : title;
+                    }
+                }
+                case GamePackets.ROOM_CHANGE_PASSWORD -> {
+                    String pwd = reader.pstr();
+                    if (pwd == null) {
+                        pwd = "";
+                    }
+                    info.password = pwd;
+                    info.senhaFlag = pwd.isEmpty() ? 1 : 0;
+                }
+                case GamePackets.ROOM_CHANGE_TIPO -> {
+                    int next = reader.u8();
+                    if (next >= 0 && next <= GamePackets.TIPO_MAX) {
+                        tipo = next;
+                        info.tipoShow = GamePackets.tipoShow(tipo);
+                        info.tipoEx = GamePackets.tipoEx(tipo);
+                    }
+                }
+                case GamePackets.ROOM_CHANGE_COURSE -> info.course = reader.u8();
+                case GamePackets.ROOM_CHANGE_HOLES -> info.holes = reader.u8();
+                case GamePackets.ROOM_CHANGE_MODO -> info.modo = reader.u8();
+                case GamePackets.ROOM_CHANGE_TIME_VS -> {
+                    int seconds = reader.u16();
+                    if (seconds > 0) {
+                        info.timeVs = seconds * 1000;
+                    }
+                }
+                case GamePackets.ROOM_CHANGE_MAX_PLAYER -> {
+                    int max = reader.u8();
+                    if (max > players.size()) {
+                        info.maxPlayer = max;
+                    }
+                }
+                case GamePackets.ROOM_CHANGE_TIME_30S -> {
+                    int minutes = reader.u8();
+                    if (minutes > 0) {
+                        info.time30s = minutes * 60_000;
+                    }
+                }
+                case GamePackets.ROOM_CHANGE_STATE_FLAG -> info.stateFlag = reader.u8();
+                case GamePackets.ROOM_CHANGE_GALLERY -> {
+                    int gallery = reader.u8();
+                    info.galleryNum = gallery;
+                    info.thirtyS = gallery;
+                }
+                case GamePackets.ROOM_CHANGE_HOLE_REPEAT -> info.holeRepeat = reader.u8();
+                case GamePackets.ROOM_CHANGE_FIXED_HOLE -> info.fixedHole = reader.u32();
+                case GamePackets.ROOM_CHANGE_ARTEFATO -> info.artefato = reader.u32();
+                case GamePackets.ROOM_CHANGE_NATURAL -> info.natural = reader.u32();
+                default -> {
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 
     synchronized boolean addPlayer(Session session) {

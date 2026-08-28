@@ -30,6 +30,12 @@ public final class GamePackets {
     public static final int SERVER_WEATHER = 0x9E;
     public static final int SERVER_END_SHOT = 0xCC;
     public static final int SERVER_BUY_ACK = 0x68;
+    public static final int SERVER_CHAT = 0x40;
+    public static final int SERVER_USERLIST = 0x46;
+    public static final int SERVER_ROOMLIST = 0x47;
+    public static final int SERVER_READY = 0x78;
+    public static final int SERVER_ENTER_LOBBY = 0xF5;
+    public static final int SERVER_LEAVE_LOBBY = 0xF6;
     /** C# {@code pacote0AA} / {@code SERVER_NEW_ITEM}. */
     public static final int SERVER_NEW_ITEM = 0xAA;
     /** C# pang spent after shop buy ({@code 0xC8} + remaining + spent). */
@@ -43,9 +49,12 @@ public final class GamePackets {
     public static final int SERVER_START_GAME_FAIL = 0x253;
 
     public static final int CLIENT_REQUEST_LOGIN = 0x02;
+    public static final int CLIENT_CHAT = 0x03;
     public static final int CLIENT_ENTER_CHANNEL = 0x04;
     public static final int CLIENT_REQUEST_CREATE_ROOM = 0x08;
     public static final int CLIENT_REQUEST_JOIN_ROOM = 0x09;
+    public static final int CLIENT_CHANGE_ROOM_INFO = 0x0A;
+    public static final int CLIENT_SET_READY = 0x0D;
     public static final int CLIENT_REQUEST_START_GAME = 0x0E;
     public static final int CLIENT_EXIT_ROOM = 0x0F;
     public static final int CLIENT_LOAD_OK = 0x11;
@@ -58,6 +67,9 @@ public final class GamePackets {
     public static final int CLIENT_LOUNGE_STATE = 0xEB;
     public static final int CLIENT_REQUEST_EQUIP_ITEM = 0x20;
     public static final int CLIENT_LEAVE_PRACTICE = 0x130;
+    public static final int CLIENT_ENTER_LOBBY = 0x81;
+    public static final int CLIENT_LEAVE_LOBBY = 0x82;
+    public static final int CLIENT_KEEPALIVE = 0x01;
 
     public static final int ACK_LOGIN_OK = 0;
     public static final int ACK_LOGIN_FAIL = 1;
@@ -72,6 +84,38 @@ public final class GamePackets {
 
     /** C# {@code TGAME_CREATE_RESULT.CREATE_GAME_CREATE_FAILED}. */
     public static final int CREATE_ROOM_FAILED = 0x07;
+
+    /** C# {@code PlayerLobbyInfo.ToArray} (uid…sDisplayID 128). */
+    public static final int PLAYER_LOBBY_INFO_BYTES = 200;
+    /** C# {@code PlayerRoomInfo.uFlag.ready} bit. */
+    public static final int PLAYER_READY_BIT = 1 << 9;
+    public static final int CHAT_NORMAL = 0;
+    public static final int CHAT_NOTICE = 7;
+    public static final int CHAT_GM = 0x80;
+    public static final int LOBBY_USER_JOIN = 1;
+    public static final int LOBBY_USER_LEAVE = 2;
+    public static final int LOBBY_USER_UPDATE = 3;
+    public static final int LOBBY_USER_CLEAR = 4;
+    public static final int LOBBY_USER_LIST = 5;
+    public static final int ROOM_LIST_FULL = 0;
+    public static final int ROOM_LIST_ADD = 1;
+    public static final int ROOM_LIST_REMOVE = 2;
+    public static final int ROOM_LIST_UPDATE = 3;
+    public static final int ROOM_CHANGE_NAME = 0;
+    public static final int ROOM_CHANGE_PASSWORD = 1;
+    public static final int ROOM_CHANGE_TIPO = 2;
+    public static final int ROOM_CHANGE_COURSE = 3;
+    public static final int ROOM_CHANGE_HOLES = 4;
+    public static final int ROOM_CHANGE_MODO = 5;
+    public static final int ROOM_CHANGE_TIME_VS = 6;
+    public static final int ROOM_CHANGE_MAX_PLAYER = 7;
+    public static final int ROOM_CHANGE_TIME_30S = 8;
+    public static final int ROOM_CHANGE_STATE_FLAG = 9;
+    public static final int ROOM_CHANGE_GALLERY = 10;
+    public static final int ROOM_CHANGE_HOLE_REPEAT = 11;
+    public static final int ROOM_CHANGE_FIXED_HOLE = 12;
+    public static final int ROOM_CHANGE_ARTEFATO = 13;
+    public static final int ROOM_CHANGE_NATURAL = 14;
 
     /** C# {@code GameServer.Version_Decrypt} GUID. XOR is involutive. */
     private static final String PACKET_VER_KEY = "{782AE110-2EEF-4c61-B030-A53F17634F7D}";
@@ -411,6 +455,52 @@ public final class GamePackets {
             byte[] body = w.toBytes();
             if (body.length != WAREHOUSE_ITEM_BYTES) {
                 throw new IllegalStateException("WarehouseItem size " + body.length);
+            }
+            return body;
+        }
+    }
+
+    /**
+     * C# {@code PlayerLobbyInfo} — 200 bytes. {@code Channel.makePlayerInfo} /
+     * {@code makePlayerLobbyInfo}.
+     */
+    public static final class PlayerLobbyInfo {
+        public int uid;
+        public int oid;
+        public int salaNumero = 0xFFFF;
+        public String nick = "";
+        public int level;
+        public int capability;
+        public int title;
+        public int teamPoint;
+        public int state;
+        public int guildUid;
+        public int guildMarkIndex;
+        public String guildMarkName = "";
+        public int flagVisibleGm;
+        public int uidChanneling;
+        public String nickDisplay = "";
+
+        public byte[] toArray() {
+            PacketWriter w = new PacketWriter();
+            w.u32(uid);
+            w.i32(oid);
+            w.u16(salaNumero);
+            w.fixedStr(nick, 22);
+            w.u8(level);
+            w.i32(flagVisibleGm == 0 ? 0 : capability);
+            w.u32(title);
+            w.u32(teamPoint);
+            w.u8(state);
+            w.i32(guildUid);
+            w.u32(guildMarkIndex);
+            w.fixedStr(guildMarkName, 12);
+            w.i16(flagVisibleGm);
+            w.u32(uidChanneling);
+            w.fixedStr(nickDisplay, 128);
+            byte[] body = w.toBytes();
+            if (body.length != PLAYER_LOBBY_INFO_BYTES) {
+                throw new IllegalStateException("PlayerLobbyInfo size " + body.length);
             }
             return body;
         }
@@ -979,6 +1069,69 @@ public final class GamePackets {
     }
 
     /**
+     * C# {@code packet_func.pacote046} — lobby player list / join / leave / clear.
+     */
+    public static byte[] lobbyUsers(int option, List<PlayerLobbyInfo> players) {
+        PacketWriter w = new PacketWriter().opcode(SERVER_USERLIST);
+        w.u8(option);
+        w.u8(players.size());
+        for (PlayerLobbyInfo p : players) {
+            w.bytes(p.toArray());
+        }
+        return w.toBytes();
+    }
+
+    /**
+     * C# {@code packet_func.pacote047} — lobby room list.
+     * Count is {@code option == 0 ? rooms.size() : 1} (C# {@code PacketMaker::makeRoomList}).
+     */
+    public static byte[] roomList(int option, List<byte[]> rooms) {
+        PacketWriter w = new PacketWriter().opcode(SERVER_ROOMLIST);
+        int count = option == ROOM_LIST_FULL ? rooms.size() : 1;
+        w.u8(count);
+        w.u8(option);
+        w.i16(-1);
+        for (byte[] room : rooms) {
+            w.bytes(room);
+        }
+        return w.toBytes();
+    }
+
+    /**
+     * C# {@code packet_func.pacote040} — chat.
+     */
+    public static byte[] chat(int option, String nick, String msg) {
+        return new PacketWriter()
+                .opcode(SERVER_CHAT)
+                .u8(option)
+                .pstr(nick == null ? "" : nick)
+                .pstr(msg == null ? "" : msg)
+                .toBytes();
+    }
+
+    /**
+     * C# {@code packet_func.pacote078} — ready state for one player.
+     */
+    public static byte[] readyState(int oid, int ready) {
+        return new PacketWriter().opcode(SERVER_READY).i32(oid).u8(ready).toBytes();
+    }
+
+    /** C# {@code packet_func.pacote0F5} — empty. */
+    public static byte[] enterLobbyAck() {
+        return new PacketWriter().opcode(SERVER_ENTER_LOBBY).toBytes();
+    }
+
+    /** C# {@code packet_func.pacote0F6} — empty. */
+    public static byte[] leaveLobbyAck() {
+        return new PacketWriter().opcode(SERVER_LEAVE_LOBBY).toBytes();
+    }
+
+    /** C# {@code RoomManager.getRoomsInfo}: Practice / GZ Practice stay off the lobby list. */
+    public static boolean hiddenFromLobby(int tipo) {
+        return tipo == TIPO_PRACTICE || tipo == TIPO_GRAND_ZODIAC_PRACTICE;
+    }
+
+    /**
      * C# {@code pacote196}: oid + {@code StateCharacterLounge} defaults (all 1.0f).
      */
     public static byte[] loungeState(int oid) {
@@ -1038,6 +1191,41 @@ public final class GamePackets {
                 .opcode(CLIENT_REQUEST_JOIN_ROOM)
                 .i16(numero)
                 .pstr(password == null ? "" : password)
+                .toBytes();
+    }
+
+    public static byte[] clientEnterLobby() {
+        return new PacketWriter().opcode(CLIENT_ENTER_LOBBY).toBytes();
+    }
+
+    public static byte[] clientLeaveLobby() {
+        return new PacketWriter().opcode(CLIENT_LEAVE_LOBBY).toBytes();
+    }
+
+    public static byte[] clientChat(String nick, String msg) {
+        return new PacketWriter()
+                .opcode(CLIENT_CHAT)
+                .pstr(nick == null ? "" : nick)
+                .pstr(msg == null ? "" : msg)
+                .toBytes();
+    }
+
+    public static byte[] clientSetReady(int ready) {
+        return new PacketWriter().opcode(CLIENT_SET_READY).u8(ready).toBytes();
+    }
+
+    public static byte[] clientKeepalive() {
+        return new PacketWriter().opcode(CLIENT_KEEPALIVE).toBytes();
+    }
+
+    /** C# CLIENT {@code 0x0A}: i16 roomId, u8 count, then (type u8 + value)×count. */
+    public static byte[] clientChangeRoomCourse(int roomId, int course) {
+        return new PacketWriter()
+                .opcode(CLIENT_CHANGE_ROOM_INFO)
+                .i16(roomId)
+                .u8(1)
+                .u8(ROOM_CHANGE_COURSE)
+                .u8(course)
                 .toBytes();
     }
 
