@@ -211,7 +211,7 @@ public final class GameHandler {
             case GamePackets.CLIENT_OPEN_CARD_PACK -> openCardPack(session, reader);
             case GamePackets.CLIENT_EXTEND_RENTAL -> extendRental(session, reader);
             case GamePackets.CLIENT_DELETE_RENTAL -> deleteRental(session, reader);
-            case GamePackets.CLIENT_CUTIN -> { }
+            case GamePackets.CLIENT_CUTIN -> activeCutin(session, reader);
             case GamePackets.CLIENT_UCC_LOAD -> { }
             case GamePackets.CLIENT_UCC -> handleUcc(session, reader);
             case GamePackets.CLIENT_UCC_WEB_KEY -> uccWebKey(session, reader);
@@ -226,7 +226,7 @@ public final class GameHandler {
             case GamePackets.CLIENT_GZ_INITIAL -> { }
             case GamePackets.CLIENT_MARKER -> markerOnCourse(session, reader);
             case GamePackets.CLIENT_SHOT_END -> shotEnd(session, reader);
-            case GamePackets.CLIENT_LEAVE_CHIP_IN -> { }
+            case GamePackets.CLIENT_LEAVE_CHIP_IN -> leaveChipIn(session);
             case GamePackets.CLIENT_GZ_FIRST_HOLE -> { }
             case GamePackets.CLIENT_WING -> activeWing(session, reader);
             case GamePackets.CLIENT_EARCUFF -> activeEarcuff(session, reader);
@@ -5359,6 +5359,49 @@ public final class GameHandler {
             return;
         }
         room.broadcast(GamePackets.shotEnd(oid, hole, body));
+    }
+
+    /**
+     * C# Versus/Tourney {@code requestActiveCutin} {@code 0x18D}. Not-in-room /
+     * not-in-game is silent. Grand Zodiac sends u8 0 + u16 3. Without IFF
+     * {@code findCutinInfomation} Tourney/Versus catch writes u8 0 + u16 1.
+     */
+    private void activeCutin(Session session, PacketReader reader) {
+        if (!inChannel(session)) {
+            return;
+        }
+        GameRoom room = rooms.get(session.player().roomNumber);
+        if (room == null || !room.inGame) {
+            return;
+        }
+        if (reader.remaining() < GamePackets.CUTIN_BODY_BYTES) {
+            session.send(GamePackets.cutinFail(GamePackets.CUTIN_ERR));
+            return;
+        }
+        reader.readBytes(GamePackets.CUTIN_BODY_BYTES);
+        if (GamePackets.usesGrandZodiac(room.tipo)) {
+            session.send(GamePackets.cutinFail(GamePackets.CUTIN_GZ_DISABLED));
+            return;
+        }
+        session.send(GamePackets.cutinFail(GamePackets.CUTIN_ERR));
+    }
+
+    /**
+     * C# {@code requestLeaveChipInPractice}: GZ Practice {@code finish_game(2)}
+     * sends empty {@code 0x1F2} then the finish dump. Wrong tipo / not-in-game
+     * ROOM catch is silent.
+     */
+    private void leaveChipIn(Session session) {
+        if (!inChannel(session)) {
+            return;
+        }
+        GameRoom room = rooms.get(session.player().roomNumber);
+        if (room == null || !room.inGame || room.tipo != GamePackets.TIPO_GRAND_ZODIAC_PRACTICE) {
+            return;
+        }
+        session.send(GamePackets.gzEndGame());
+        sendFinishGameDump(session, room);
+        finishGameRoom(room);
     }
 
     /**

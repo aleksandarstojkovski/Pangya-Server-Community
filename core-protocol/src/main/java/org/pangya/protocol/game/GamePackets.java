@@ -182,6 +182,18 @@ public final class GamePackets {
     public static final int SERVER_USE_CARD = 0x160;
     /** C# extend-rental catch {@code 0x18F} u8 1. */
     public static final int SERVER_EXTEND_RENTAL = 0x18F;
+    /**
+     * C# cutin {@code 0x18D}: u8 0 + u16 1 fail, u8 0 + u16 3 GZ disabled,
+     * or u8 1 + CutinInformation on IFF hit. Same numeric as
+     * {@link #CLIENT_TIKI_SHOP_EXCHANGE}, opposite direction.
+     */
+    public static final int SERVER_CUTIN = 0x18D;
+    /** C# cutin catch error u16. */
+    public static final int CUTIN_ERR = 1;
+    /** C# Grand Zodiac cutin disabled u16. */
+    public static final int CUTIN_GZ_DISABLED = 3;
+    /** C# {@code stActiveCutin} body: u32 uid + u32 tipo + u16 opt + u32 char + u8. */
+    public static final int CUTIN_BODY_BYTES = 15;
     /** C# delete-rental catch {@code 0x190} u8 1. */
     public static final int SERVER_DELETE_RENTAL = 0x190;
     /** C# workshop transform-confirm catch {@code 0x242}. */
@@ -210,6 +222,10 @@ public final class GamePackets {
     public static final int SERVER_WORKSHOP_EVENT = 0x24E;
     /** C# {@code requestClubWorkShopEventCount} {@code 0x24B}: i32 0 + 16 subcodes. */
     public static final int SERVER_WORKSHOP_EVENT_COUNT = 0x24B;
+    /**
+     * C# Chip-in Practice / Grand Zodiac {@code 0x1F2} empty end-game.
+     */
+    public static final int SERVER_GZ_END_GAME = 0x1F2;
     /**
      * C# Versus/Tourney {@code requestShotEndData} {@code 0x1F7}: i32 oid +
      * u8 hole + {@code ShotEndLocationData.ToArray()} (87 bytes). Fail is
@@ -684,7 +700,13 @@ public final class GamePackets {
     public static final int CLIENT_LOCKER_MODE = 0xD2;
     /** C# {@code packet0D4} Dolfini update pang. Opt 0 over-withdraw → {@code 0x171}. */
     public static final int CLIENT_LOCKER_UPDATE_PANG = 0xD4;
-    /** C# {@code packet0E5} cutin. Not-in-room CHANNEL catch is silent. */
+    /**
+     * C# {@code packet0E5} {@code requestActiveCutin}. Not-in-room /
+     * not-in-game CHANNEL/ROOM catch is silent. In-game Tourney/Versus catch
+     * sends {@link #SERVER_CUTIN} u8 0 + u16 {@link #CUTIN_ERR}. Grand Zodiac
+     * sends u8 0 + u16 {@link #CUTIN_GZ_DISABLED}. Success needs IFF
+     * {@code findCutinInfomation}.
+     */
     public static final int CLIENT_CUTIN = 0xE5;
     /** C# {@code packet0E6} extend rental. Catch always {@code 0x18F} u8 1. */
     public static final int CLIENT_EXTEND_RENTAL = 0xE6;
@@ -752,7 +774,11 @@ public final class GamePackets {
      * broadcast {@link #SERVER_SHOT_END}.
      */
     public static final int CLIENT_SHOT_END = 0x12F;
-    /** C# {@code packet131} leave chip-in. Not-in-room silent. */
+    /**
+     * C# {@code packet131} {@code requestLeaveChipInPractice}. Not-in-room /
+     * not-in-game / wrong tipo ROOM catch is silent. GZ Practice in-game
+     * sends {@link #SERVER_GZ_END_GAME} then the finish dump.
+     */
     public static final int CLIENT_LEAVE_CHIP_IN = 0x131;
     /** C# {@code packet137} GZ first hole. Not-in-room silent. */
     public static final int CLIENT_GZ_FIRST_HOLE = 0x137;
@@ -3438,6 +3464,33 @@ public final class GamePackets {
         return new PacketWriter().opcode(CLIENT_SHOT_END).bytes(location).toBytes();
     }
 
+    /**
+     * C# cutin catch {@code 0x18D}: u8 0 + u16 error (1) or GZ disabled (3).
+     */
+    public static byte[] cutinFail(int code) {
+        return new PacketWriter().opcode(SERVER_CUTIN).u8(0).u16(code).toBytes();
+    }
+
+    /** C# Chip-in / GZ {@code 0x1F2} empty. */
+    public static byte[] gzEndGame() {
+        return new PacketWriter().opcode(SERVER_GZ_END_GAME).toBytes();
+    }
+
+    /**
+     * C# CLIENT {@code 0xE5} {@code stActiveCutin}: uid + tipo + opt + char +
+     * active.
+     */
+    public static byte[] clientCutin(int uid, int tipo, int opt, int charTypeid, int active) {
+        return new PacketWriter()
+                .opcode(CLIENT_CUTIN)
+                .u32(uid)
+                .u32(tipo)
+                .u16(opt)
+                .u32(charTypeid)
+                .u8(active)
+                .toBytes();
+    }
+
     /** C# Versus marker {@code 0x1F8}: i32 oid + 3× f32. */
     public static byte[] markerOnCourse(int oid, float x, float y, float z) {
         return new PacketWriter()
@@ -4297,6 +4350,13 @@ public final class GamePackets {
     /** C# modes that extend {@code VersusBase} (Stroke / Match / Pang Battle). */
     public static boolean usesVersusInitialData(int tipo) {
         return tipo == TIPO_STROKE || tipo == TIPO_MATCH || tipo == TIPO_PANG_BATTLE;
+    }
+
+    /** C# modes that extend {@code GrandZodiacBase}. */
+    public static boolean usesGrandZodiac(int tipo) {
+        return tipo == TIPO_GRAND_ZODIAC_INT
+                || tipo == TIPO_GRAND_ZODIAC_ADV
+                || tipo == TIPO_GRAND_ZODIAC_PRACTICE;
     }
 
     /**

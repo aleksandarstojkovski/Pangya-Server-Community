@@ -955,6 +955,15 @@ class GameFlowIT {
             assertShotEnd(hostAck, hostOid, 1, hostBody);
             PacketReader guestAck = awaitOpcode(guest, GamePackets.SERVER_SHOT_END);
             assertShotEnd(guestAck, hostOid, 1, hostBody);
+            host.sendPlain(GamePackets.clientEmpty(GamePackets.CLIENT_LEAVE_CHIP_IN));
+            host.sendPlain(GamePackets.clientEmpty(GamePackets.CLIENT_CUTIN));
+            PacketReader cutinTrunc = awaitOpcode(host, GamePackets.SERVER_CUTIN);
+            assertEquals(0, cutinTrunc.u8());
+            assertEquals(GamePackets.CUTIN_ERR, cutinTrunc.u16());
+            host.sendPlain(GamePackets.clientCutin(10001, 1, 0, 0x04000000, 1));
+            PacketReader cutin = awaitOpcode(host, GamePackets.SERVER_CUTIN);
+            assertEquals(0, cutin.u8());
+            assertEquals(GamePackets.CUTIN_ERR, cutin.u16());
         }
     }
 
@@ -1994,6 +2003,50 @@ class GameFlowIT {
             PacketReader course = awaitOpcode(client, GamePackets.SERVER_COURSE);
             assertEquals(0, course.u8());
             assertEquals(GamePackets.TIPO_GRAND_ZODIAC_INT, course.u8());
+            client.sendPlain(GamePackets.clientEmpty(GamePackets.CLIENT_CUTIN));
+            PacketReader cutinTrunc = awaitOpcode(client, GamePackets.SERVER_CUTIN);
+            assertEquals(0, cutinTrunc.u8());
+            assertEquals(GamePackets.CUTIN_ERR, cutinTrunc.u16());
+            client.sendPlain(GamePackets.clientCutin(10001, 1, 0, 0x04000000, 1));
+            PacketReader cutinGz = awaitOpcode(client, GamePackets.SERVER_CUTIN);
+            assertEquals(0, cutinGz.u8());
+            assertEquals(GamePackets.CUTIN_GZ_DISABLED, cutinGz.u16());
+        }
+    }
+
+    @Test
+    void chipInPracticeLeaveSendsEndGame() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config);
+             PangyaFakeClient client = new PangyaFakeClient()) {
+            LoginRepository repo = new JdbiLoginRepository(DatabaseSupport.jdbi(ds));
+            String loginKey = repo.generateAuthKeyLogin(10001);
+            String gameKey = repo.generateAuthKeyGame(10001, 20202);
+            keys.putLoginKey(10001, loginKey);
+            keys.putGameKey(10001, 20202, gameKey);
+            loginToChannel(client, runtime.port(), "testuser", 10001, loginKey, gameKey);
+            client.sendPlain(GamePackets.clientCreateRoom(
+                    GamePackets.TIPO_GRAND_ZODIAC_PRACTICE, "CHIP", ""));
+            assertEquals(0, awaitOpcode(client, GamePackets.SERVER_ROOM_ENTER_RESULT).i16());
+            client.sendPlain(GamePackets.clientStartGame());
+            awaitOpcode(client, GamePackets.SERVER_START_GAME_FLAG);
+            awaitOpcode(client, GamePackets.SERVER_START_GAME_FLAG2);
+            awaitOpcode(client, GamePackets.SERVER_PANG_RATE);
+            awaitOpcode(client, GamePackets.SERVER_GAME_INIT);
+            awaitOpcode(client, GamePackets.SERVER_COURSE);
+            client.sendPlain(GamePackets.clientEmpty(GamePackets.CLIENT_LEAVE_CHIP_IN));
+            PacketReader end = awaitOpcode(client, GamePackets.SERVER_GZ_END_GAME);
+            assertEquals(0, end.remaining());
+            PacketReader prize = awaitOpcode(client, GamePackets.SERVER_PRIZE_LIST);
+            assertEquals(0, prize.u8());
         }
     }
 
