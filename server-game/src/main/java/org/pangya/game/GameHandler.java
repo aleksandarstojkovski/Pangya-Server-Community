@@ -158,6 +158,8 @@ public final class GameHandler {
             case GamePackets.CLIENT_SHOP_BUY -> buySaleShop(session, reader);
             case GamePackets.CLIENT_PAPEL_SHOP -> openPapelShop(session);
             case GamePackets.CLIENT_PAPEL_PLAY -> playPapelShop(session);
+            case GamePackets.CLIENT_TIKI_SHOP -> openTikiShop(session);
+            case GamePackets.CLIENT_CHANGE_GAME_SERVER -> changeGameServer(session, reader);
             case GamePackets.CLIENT_ENTER_SHOP -> enterShop(session);
             case GamePackets.CLIENT_OPEN_MAILBOX -> openMailBox(session, reader);
             case GamePackets.CLIENT_OPEN_MAIL -> openMail(session, reader);
@@ -186,6 +188,18 @@ public final class GameHandler {
             case GamePackets.CLIENT_JOIN_GALLERY -> enterSpyRoom(session, reader);
             case GamePackets.CLIENT_GM_COMMAND -> commonCmdGm(session, reader);
             case GamePackets.CLIENT_REQUEST_KICK -> { }
+            case GamePackets.CLIENT_USE_TICKET_REPORT -> useTicketReport(session);
+            case GamePackets.CLIENT_OPEN_TICKET_REPORT -> openTicketReport(session, reader);
+            case GamePackets.CLIENT_COMPLETE_QUEST -> makeTutorial(session, reader);
+            case GamePackets.CLIENT_OPEN_LUCKY_POUCH -> openLuckyPouch(session, reader);
+            case GamePackets.CLIENT_UPDATE_PLACE -> updatePlace(session, reader);
+            case GamePackets.CLIENT_LOCKER_ACCESS -> lockerAccess(session, reader);
+            case GamePackets.CLIENT_LOCKER_STATE -> lockerState(session);
+            case GamePackets.CLIENT_HEARTBEAT -> { }
+            case GamePackets.CLIENT_WEB_AUTH_KEY -> webAuthKey(session);
+            case GamePackets.CLIENT_ACTIVE_PAWS -> activePaws(session);
+            case GamePackets.CLIENT_ACTIVE_RING -> activeRing(session);
+            case GamePackets.CLIENT_CLUB_WORKSHOP_LEVEL -> clubWorkshopLevel(session, reader);
             case GamePackets.CLIENT_ENTER_LOBBY -> enterLobby(session);
             case GamePackets.CLIENT_LEAVE_LOBBY -> leaveLobby(session);
             case GamePackets.CLIENT_CHAT -> chat(session, reader);
@@ -1075,6 +1089,16 @@ public final class GameHandler {
             return;
         }
         session.send(GamePackets.papelPlayFail(GamePackets.shopSys(GamePackets.PAPEL_PLAY_ERR_BALLS)));
+    }
+
+    /**
+     * C# {@code requestOpenLegacyTikiShop}: seed not blocked → {@code 0x1E7} u32 0.
+     */
+    private void openTikiShop(Session session) {
+        if (!inChannel(session)) {
+            return;
+        }
+        session.send(GamePackets.tikiShop(0));
     }
 
     /** C# {@code packet140}: {@code 0x20E} two zeros. */
@@ -2372,11 +2396,43 @@ public final class GameHandler {
         if (!session.authorized()) {
             return;
         }
+        sendGameAndChannelList(session);
+    }
+
+    private void sendGameAndChannelList(Session session) {
         List<byte[]> servers = new ArrayList<>();
         for (LoginRepository.ServerListRow row : repo.serverList(GamePackets.SERVER_TYPE_GAME)) {
             servers.add(toServerInfo(row).toArray());
         }
         session.send(GamePackets.serverAndChannelList(servers, channels));
+    }
+
+    /**
+     * C# {@code requestChangeServer}: unknown uid resends {@code pacote09F};
+     * known GS → {@code pacote1D4} option 0 + PStr game key.
+     */
+    private void changeGameServer(Session session, PacketReader reader) {
+        if (!session.authorized()) {
+            return;
+        }
+        if (reader.remaining() < 4) {
+            sendGameAndChannelList(session);
+            return;
+        }
+        int serverUid = reader.u32();
+        boolean known = repo.serverList(GamePackets.SERVER_TYPE_GAME).stream()
+                .anyMatch(s -> s.uid() == serverUid);
+        if (!known) {
+            sendGameAndChannelList(session);
+            return;
+        }
+        String key = repo.generateAuthKeyGame(session.player().uid, serverUid);
+        try {
+            redis.putGameKey(session.player().uid, serverUid, key);
+        } catch (RuntimeException e) {
+            log.warn("redis game key failed uid={}: {}", session.player().uid, e.toString());
+        }
+        session.send(GamePackets.changeGameServer(GamePackets.CHANGE_GS_OK, key));
     }
 
     /**
@@ -2728,6 +2784,157 @@ public final class GameHandler {
      * C# {@code requestActiveAutoCommand}: not-in-room CHANNEL catch is silent.
      */
     private void activeAutoCommand(Session session) {
+        if (!inChannel(session)) {
+            return;
+        }
+    }
+
+    /**
+     * C# {@code packet0FB}: {@code pacote1AD} option 1 + PStr key; catch option 0
+     * + i16 0.
+     */
+    private void webAuthKey(Session session) {
+        if (!session.authorized()) {
+            return;
+        }
+        try {
+            session.send(GamePackets.webAuthKey(GamePackets.WEB_KEY_OK, repo.generateWebKey(session.player().uid)));
+        } catch (RuntimeException e) {
+            session.send(GamePackets.webAuthKey(GamePackets.WEB_KEY_FAIL, ""));
+        }
+    }
+
+    /**
+     * C# {@code requestOpenTicketReportScroll}: ItemManager miss → {@code 0x11A}
+     * i32 -1 + 16 zero date bytes.
+     */
+    private void openTicketReport(Session session, PacketReader reader) {
+        if (!inChannel(session)) {
+            return;
+        }
+        session.send(GamePackets.ticketReportFail());
+    }
+
+    /**
+     * C# {@code requestUseTicketReport}: not-in-room CHANNEL catch is silent.
+     */
+    private void useTicketReport(Session session) {
+        if (!inChannel(session)) {
+            return;
+        }
+    }
+
+    /**
+     * C# {@code requestMakeTutorial}: unknown tipo → {@code 0x44} u8 {@code 0xE2}
+     * + {@code shopSys(0x5300552)}.
+     */
+    private void makeTutorial(Session session, PacketReader reader) {
+        if (!inChannel(session)) {
+            return;
+        }
+        if (reader.remaining() < 6) {
+            session.send(GamePackets.tutorialFail(GamePackets.TUTORIAL_ERR_DEFAULT));
+            return;
+        }
+        reader.u8();
+        int tipo = reader.u8();
+        reader.u32();
+        if (tipo != 0 && tipo != 1 && tipo != 2) {
+            session.send(GamePackets.tutorialFail(GamePackets.shopSys(GamePackets.TUTORIAL_ERR_TIPO)));
+        }
+    }
+
+    /**
+     * C# {@code requestOpenBoxMyRoom}: catch always {@code 0x129} u8 1 + 12 zeros.
+     */
+    private void openLuckyPouch(Session session, PacketReader reader) {
+        if (!inChannel(session)) {
+            return;
+        }
+        session.send(GamePackets.luckyPouchFail());
+    }
+
+    /**
+     * C# {@code packet0C1}: ReadSByte {@code place}. No reply.
+     */
+    private void updatePlace(Session session, PacketReader reader) {
+        if (!session.authorized() || reader.remaining() < 1) {
+            return;
+        }
+        session.player().place = (byte) reader.u8();
+    }
+
+    /**
+     * C# {@code requestCheckDolfiniLockerPass}: empty → sys 1; seed has no pass
+     * so a non-empty 1–4 char pass is {@code 0x75}.
+     */
+    private void lockerAccess(Session session, PacketReader reader) {
+        if (!inChannel(session)) {
+            return;
+        }
+        if (reader.remaining() < 2) {
+            session.send(GamePackets.lockerAccess(GamePackets.LOCKER_ERR_DEFAULT));
+            return;
+        }
+        String pass = reader.pstr();
+        if (pass == null || pass.isEmpty() || !mailSanitize(pass)) {
+            session.send(GamePackets.lockerAccess(GamePackets.LOCKER_ERR_EMPTY));
+            return;
+        }
+        if (pass.length() > 4) {
+            session.send(GamePackets.lockerAccess(GamePackets.shopSys(5100152)));
+            return;
+        }
+        session.send(GamePackets.lockerAccess(GamePackets.LOCKER_ERR_WRONG));
+    }
+
+    /**
+     * C# {@code packet0D3}: {@code 0x170} option 0 + {@code isLocker()}. Empty
+     * pass is 2.
+     */
+    private void lockerState(Session session) {
+        if (!session.authorized()) {
+            return;
+        }
+        session.send(GamePackets.lockerState(GamePackets.LOCKER_STATE_NO_PASS));
+    }
+
+    /**
+     * C# {@code requestClubSetWorkShopUpLevel}: unknown IFF group →
+     * {@code 0x23D} {@code shopSys(0x5300201)}.
+     */
+    private void clubWorkshopLevel(Session session, PacketReader reader) {
+        if (!inChannel(session)) {
+            return;
+        }
+        if (reader.remaining() < 10) {
+            session.send(GamePackets.clubWorkshopFail(GamePackets.WORKSHOP_ERR_DEFAULT));
+            return;
+        }
+        int typeid = reader.u32();
+        reader.u16();
+        reader.i32();
+        int group = GamePackets.itemGroupIdentify(typeid);
+        if (group != GamePackets.IFF_GROUP_ITEM) {
+            session.send(GamePackets.clubWorkshopFail(GamePackets.shopSys(GamePackets.WORKSHOP_ERR_GROUP)));
+            return;
+        }
+        session.send(GamePackets.clubWorkshopFail(GamePackets.shopSys(0x5300202)));
+    }
+
+    /**
+     * C# {@code requestActivePaws}: not-in-room CHANNEL catch is silent.
+     */
+    private void activePaws(Session session) {
+        if (!inChannel(session)) {
+            return;
+        }
+    }
+
+    /**
+     * C# {@code requestActiveRing}: not-in-room CHANNEL catch is silent.
+     */
+    private void activeRing(Session session) {
         if (!inChannel(session)) {
             return;
         }

@@ -102,8 +102,22 @@ public final class GamePackets {
     public static final int SERVER_GACHA_COUPON = 0x102;
     /** C# {@code pacote113} intrusion (enter tourney after start). */
     public static final int SERVER_INTRUSION = 0x113;
-    /** C# {@code pacote10E} last-5 players. */
-    public static final int SERVER_LAST5 = 0x10E;
+    /** C# {@code SERVER_OPEN_TIKI_REPORT} fail {@code 0x11A}. */
+    public static final int SERVER_TICKET_REPORT = 0x11A;
+    /** C# lucky-pouch fail {@code 0x129}. Opposite direction from CLIENT tiki {@code 0x129}. */
+    public static final int SERVER_LUCKY_POUCH = 0x129;
+    /** C# {@code SERVER_ITEMSTORAGE_RES_ACCESS} {@code 0x16C}. */
+    public static final int SERVER_LOCKER_ACCESS = 0x16C;
+    /** C# {@code SERVER_ITEMSTORAGE_RES_STATE} {@code 0x170}. */
+    public static final int SERVER_LOCKER_STATE = 0x170;
+    /** C# {@code SERVER_WEB_AUTH_KEY_ACK} {@code 0x1AD}. */
+    public static final int SERVER_WEB_AUTH_KEY = 0x1AD;
+    /** C# {@code SERVER_REQ_CHANGE_GAME_SERVER_ACK} {@code 0x1D4}. */
+    public static final int SERVER_CHANGE_GAME_SERVER = 0x1D4;
+    /** C# {@code SERVER_REQ_POINT_SHOP_OPEN_ACK} {@code 0x1E7}. */
+    public static final int SERVER_TIKI_SHOP = 0x1E7;
+    /** C# {@code SERVER_CLUBSETWORKSHOP_REQ_UP_LEVEL_ACK} {@code 0x23D}. */
+    public static final int SERVER_CLUB_WORKSHOP_LEVEL = 0x23D;
     /** C# {@code pacote0AA} / {@code SERVER_NEW_ITEM}. */
     public static final int SERVER_NEW_ITEM = 0xAA;
     /** C# pang spent after shop buy ({@code 0xC8} + remaining + spent). */
@@ -331,10 +345,35 @@ public final class GamePackets {
      * Same numeric as {@link #SERVER_RANK_ADDRESS}, opposite direction.
      */
     public static final int CLIENT_REQUEST_PANG_INFO = 0xA2;
+    /**
+     * C# {@code CLIENT_USE_TIKI_REPORT} / {@code packet0AA}. Same numeric as
+     * {@link #SERVER_NEW_ITEM}, opposite direction. Not-in-room catch is silent.
+     */
+    public static final int CLIENT_USE_TICKET_REPORT = 0xAA;
+    /** C# {@code CLIENT_OPEN_TIKI_REPORT} / {@code packet0AB}. */
+    public static final int CLIENT_OPEN_TICKET_REPORT = 0xAB;
+    /** C# {@code CLIENT_COMPLETE_QUEST} / {@code packet0AE} tutorial. */
+    public static final int CLIENT_COMPLETE_QUEST = 0xAE;
+    /** C# {@code CLIENT_OPEN_LUCKY_POUCH} / {@code packet0B2}. */
+    public static final int CLIENT_OPEN_LUCKY_POUCH = 0xB2;
+    /** C# {@code CLIENT_REQUEST_UPDATE_USER_PLACE} / {@code packet0C1}. */
+    public static final int CLIENT_UPDATE_PLACE = 0xC1;
+    /** C# {@code CLIENT_ITEMSTORAGE_REQ_ACCESS} / {@code packet0CC}. */
+    public static final int CLIENT_LOCKER_ACCESS = 0xCC;
+    /** C# {@code CLIENT_ITEMSTORAGE_REQ_STATE} / {@code packet0D3}. */
+    public static final int CLIENT_LOCKER_STATE = 0xD3;
+    /** C# {@code CLIENT_HEARTBEAT} / {@code packet0F4}. No reply. */
+    public static final int CLIENT_HEARTBEAT = 0xF4;
+    /** C# {@code CLIENT_WEB_AUTH_KEY} / {@code packet0FB}. */
+    public static final int CLIENT_WEB_AUTH_KEY = 0xFB;
     /** C# {@code packet140} {@code requestEnterShop}. */
     public static final int CLIENT_ENTER_SHOP = 0x140;
     /** C# {@code CLIENT_REQ_NEW_BONGDARISHOP_PLAY_NORMAL} / {@code packet14B}. */
     public static final int CLIENT_PAPEL_PLAY = 0x14B;
+    /** C# {@code CLIENT_REQ_CHANGE_GAME_SERVER} / {@code packet119}. */
+    public static final int CLIENT_CHANGE_GAME_SERVER = 0x119;
+    /** C# {@code CLIENT_REQ_POINT_SHOP_OPEN} / {@code packet126} legacy Tiki. */
+    public static final int CLIENT_TIKI_SHOP = 0x126;
     /** C# {@code packet143} {@code requestOpenMailBox}. */
     public static final int CLIENT_OPEN_MAILBOX = 0x143;
     /** C# {@code packet144} {@code requestInfoMail}. */
@@ -381,6 +420,12 @@ public final class GamePackets {
     public static final int CLIENT_ACTIVE_AUTO_COMMAND = 0x156;
     /** C# {@code packet157} achievement GUI. */
     public static final int CLIENT_ACHIEVEMENT = 0x157;
+    /** C# {@code CLIENT_ACTIVE_PAWS_EFFECT} / {@code packet15C}. Not-in-room silent. */
+    public static final int CLIENT_ACTIVE_PAWS = 0x15C;
+    /** C# {@code CLIENT_ACTIVE_RING_EFFECT} / {@code packet15D}. Not-in-room silent. */
+    public static final int CLIENT_ACTIVE_RING = 0x15D;
+    /** C# {@code CLIENT_CLUBSETWORKSHOP_REQ_UP_LEVEL} / {@code packet164}. */
+    public static final int CLIENT_CLUB_WORKSHOP_LEVEL = 0x164;
     /** C# {@code packet158} {@code requestCadieCauldronExchange}. */
     public static final int CLIENT_CADIE = 0x158;
     public static final int CLIENT_UPDATE_MACRO = 0x69;
@@ -732,6 +777,34 @@ public final class GamePackets {
     public static final int SERVER_TYPE_MSN = 3;
     /** C# {@code TYPE_SERVER.RANK}. */
     public static final int SERVER_TYPE_RANK = 4;
+    /**
+     * C# tutorial catch else {@code 0x5300550} on {@code 0x44} u8 {@code 0xE2}.
+     */
+    public static final int TUTORIAL_ERR_DEFAULT = 0x5300550;
+    /** C# tutorial unknown tipo CHANNEL sys {@code 0x5300552}. */
+    public static final int TUTORIAL_ERR_TIPO = 0x5300552;
+    /** C# workshop unknown item group CHANNEL sys {@code 0x5300201}. */
+    public static final int WORKSHOP_ERR_GROUP = 0x5300201;
+    /** C# workshop catch else. */
+    public static final int WORKSHOP_ERR_DEFAULT = 0x5300200;
+    /** C# locker empty-pass CHANNEL sys 1. */
+    public static final int LOCKER_ERR_EMPTY = 1;
+    /** C# locker wrong pass {@code 0x75}. */
+    public static final int LOCKER_ERR_WRONG = 0x75;
+    /** C# locker catch else {@code 5100150}. */
+    public static final int LOCKER_ERR_DEFAULT = 5100150;
+    /** C# {@code DolfiniLocker.isLocker} empty pass. */
+    public static final int LOCKER_STATE_NO_PASS = 2;
+    /** C# ticket-report catch {@code 0x11A} i32 -1. */
+    public static final int TICKET_REPORT_ERR = -1;
+    /** C# lucky-pouch catch {@code 0x129} u8 1. */
+    public static final int LUCKY_POUCH_ERR = 1;
+    /** C# {@code pacote1AD} success option. */
+    public static final int WEB_KEY_OK = 1;
+    /** C# {@code pacote1AD} fail option. */
+    public static final int WEB_KEY_FAIL = 0;
+    /** C# {@code pacote1D4} success option. */
+    public static final int CHANGE_GS_OK = 0;
     /** C# {@code IFF_GROUP.ITEM}. {@code (typeid & 0xFC000000) >> 26}. */
     public static final int IFF_GROUP_ITEM = 6;
     /** C# {@code WriteSByte(-1)} on delete-item fail. */
@@ -1898,6 +1971,71 @@ public final class GamePackets {
             w.bytes(server);
         }
         return w.toBytes();
+    }
+
+    /**
+     * C# {@code pacote1AD}: i32 option + PStr key, or i16 0 when the key is empty.
+     */
+    public static byte[] webAuthKey(int option, String key) {
+        PacketWriter w = new PacketWriter().opcode(SERVER_WEB_AUTH_KEY).i32(option);
+        if (key == null || key.isEmpty()) {
+            w.i16(0);
+        } else {
+            w.pstr(key);
+        }
+        return w.toBytes();
+    }
+
+    /**
+     * C# {@code pacote1D4}: i32 option; PStr key only when option 0 and key non-empty.
+     */
+    public static byte[] changeGameServer(int option, String key) {
+        PacketWriter w = new PacketWriter().opcode(SERVER_CHANGE_GAME_SERVER).i32(option);
+        if (option == CHANGE_GS_OK && key != null && !key.isEmpty()) {
+            w.pstr(key);
+        }
+        return w.toBytes();
+    }
+
+    /**
+     * C# ticket-report catch {@code 0x11A}: i32 -1 + 16 zero date bytes.
+     */
+    public static byte[] ticketReportFail() {
+        return new PacketWriter().opcode(SERVER_TICKET_REPORT).i32(TICKET_REPORT_ERR).zero(16).toBytes();
+    }
+
+    /** C# Tiki open {@code 0x1E7} u32 option (0 OK). */
+    public static byte[] tikiShop(int option) {
+        return new PacketWriter().opcode(SERVER_TIKI_SHOP).u32(option).toBytes();
+    }
+
+    /** C# locker access {@code 0x16C} u32. */
+    public static byte[] lockerAccess(int code) {
+        return new PacketWriter().opcode(SERVER_LOCKER_ACCESS).u32(code).toBytes();
+    }
+
+    /** C# locker state {@code 0x170}: u32 0 + u32 isLocker. */
+    public static byte[] lockerState(int check) {
+        return new PacketWriter().opcode(SERVER_LOCKER_STATE).u32(0).u32(check).toBytes();
+    }
+
+    /** C# workshop catch {@code 0x23D} u32 sys. */
+    public static byte[] clubWorkshopFail(int code) {
+        return new PacketWriter().opcode(SERVER_CLUB_WORKSHOP_LEVEL).u32(code).toBytes();
+    }
+
+    /**
+     * C# lucky-pouch catch {@code 0x129}: u8 1 + 12 zero bytes.
+     */
+    public static byte[] luckyPouchFail() {
+        return new PacketWriter().opcode(SERVER_LUCKY_POUCH).u8(LUCKY_POUCH_ERR).zero(12).toBytes();
+    }
+
+    /**
+     * C# tutorial catch {@code 0x44} u8 {@code 0xE2} + u32 sys (same marker as gacha).
+     */
+    public static byte[] tutorialFail(int code) {
+        return new PacketWriter().opcode(SERVER_LOGIN_ACK).u8(GACHA_ERR_MARKER).u32(code).toBytes();
     }
 
     /** C# {@code 0x20E}: two int32 zeros. */
@@ -3111,6 +3249,83 @@ public final class GamePackets {
     /** C# CLIENT {@code 0x61} empty (log only). */
     public static byte[] clientRequestKick() {
         return new PacketWriter().opcode(CLIENT_REQUEST_KICK).toBytes();
+    }
+
+    /** C# CLIENT {@code 0xFB} empty. */
+    public static byte[] clientWebAuthKey() {
+        return new PacketWriter().opcode(CLIENT_WEB_AUTH_KEY).toBytes();
+    }
+
+    /** C# CLIENT {@code 0x119}: u32 server uid. */
+    public static byte[] clientChangeGameServer(int serverUid) {
+        return new PacketWriter().opcode(CLIENT_CHANGE_GAME_SERVER).u32(serverUid).toBytes();
+    }
+
+    /** C# CLIENT {@code 0xAB}: i32 item id + i32 scroll id. */
+    public static byte[] clientOpenTicketReport(int itemId, int scrollId) {
+        return new PacketWriter().opcode(CLIENT_OPEN_TICKET_REPORT).i32(itemId).i32(scrollId).toBytes();
+    }
+
+    /** C# CLIENT {@code 0x126} empty. */
+    public static byte[] clientTikiShop() {
+        return new PacketWriter().opcode(CLIENT_TIKI_SHOP).toBytes();
+    }
+
+    /** C# CLIENT {@code 0xCC}: PStr pass. */
+    public static byte[] clientLockerAccess(String pass) {
+        return new PacketWriter().opcode(CLIENT_LOCKER_ACCESS).pstr(pass == null ? "" : pass).toBytes();
+    }
+
+    /** C# CLIENT {@code 0xD3} empty. */
+    public static byte[] clientLockerState() {
+        return new PacketWriter().opcode(CLIENT_LOCKER_STATE).toBytes();
+    }
+
+    /** C# CLIENT {@code 0x164}: u32 typeid + u16 qntd + i32 clubset id. */
+    public static byte[] clientClubWorkshopLevel(int typeid, int qntd, int clubsetId) {
+        return new PacketWriter()
+                .opcode(CLIENT_CLUB_WORKSHOP_LEVEL)
+                .u32(typeid)
+                .u16(qntd)
+                .i32(clubsetId)
+                .toBytes();
+    }
+
+    /** C# CLIENT {@code 0xB2}: u32 box typeid. */
+    public static byte[] clientLuckyPouch(int typeid) {
+        return new PacketWriter().opcode(CLIENT_OPEN_LUCKY_POUCH).u32(typeid).toBytes();
+    }
+
+    /**
+     * C# CLIENT {@code 0xAE}: u16 tipo union + u32 value. Byte1 is {@code tipo}.
+     */
+    public static byte[] clientCompleteQuest(int tipo, int value) {
+        return new PacketWriter().opcode(CLIENT_COMPLETE_QUEST).u8(0).u8(tipo).u32(value).toBytes();
+    }
+
+    /** C# CLIENT {@code 0xF4} empty. */
+    public static byte[] clientHeartbeat() {
+        return new PacketWriter().opcode(CLIENT_HEARTBEAT).toBytes();
+    }
+
+    /** C# CLIENT {@code 0xC1}: sbyte place. */
+    public static byte[] clientUpdatePlace(int place) {
+        return new PacketWriter().opcode(CLIENT_UPDATE_PLACE).u8(place).toBytes();
+    }
+
+    /** C# CLIENT {@code 0xAA} empty. */
+    public static byte[] clientUseTicketReport() {
+        return new PacketWriter().opcode(CLIENT_USE_TICKET_REPORT).toBytes();
+    }
+
+    /** C# CLIENT {@code 0x15C} empty. */
+    public static byte[] clientActivePaws() {
+        return new PacketWriter().opcode(CLIENT_ACTIVE_PAWS).toBytes();
+    }
+
+    /** C# CLIENT {@code 0x15D} empty. */
+    public static byte[] clientActiveRing() {
+        return new PacketWriter().opcode(CLIENT_ACTIVE_RING).toBytes();
     }
 
     /** C# CLIENT {@code 0x63}: type + remaining payload. */

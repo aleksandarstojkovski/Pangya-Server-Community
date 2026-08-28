@@ -1310,6 +1310,63 @@ class GameFlowIT {
             host.sendPlain(GamePackets.clientRequestKick());
             host.sendPlain(GamePackets.clientPangInfo());
 
+            host.sendPlain(GamePackets.clientWebAuthKey());
+            PacketReader webKeyPkt = awaitOpcode(host, GamePackets.SERVER_WEB_AUTH_KEY);
+            assertEquals(GamePackets.WEB_KEY_OK, webKeyPkt.i32());
+            String webKey = webKeyPkt.pstr();
+            assertEquals(6, webKey.length());
+            assertEquals(0, webKeyPkt.remaining());
+
+            host.sendPlain(GamePackets.clientChangeGameServer(99999));
+            PacketReader gsUnknown = awaitOpcode(host, GamePackets.SERVER_SERVER_LIST);
+            assertTrue(gsUnknown.u8() >= 1);
+
+            host.sendPlain(GamePackets.clientChangeGameServer(20202));
+            PacketReader gsSwitch = awaitOpcode(host, GamePackets.SERVER_CHANGE_GAME_SERVER);
+            assertEquals(GamePackets.CHANGE_GS_OK, gsSwitch.i32());
+            assertFalse(gsSwitch.pstr().isEmpty());
+
+            host.sendPlain(GamePackets.clientOpenTicketReport(0, 0));
+            PacketReader ticketFail = awaitOpcode(host, GamePackets.SERVER_TICKET_REPORT);
+            assertEquals(GamePackets.TICKET_REPORT_ERR, ticketFail.i32());
+            assertEquals(16, ticketFail.remaining());
+
+            host.sendPlain(GamePackets.clientTikiShop());
+            PacketReader tikiOpen = awaitOpcode(host, GamePackets.SERVER_TIKI_SHOP);
+            assertEquals(0, tikiOpen.u32());
+
+            host.sendPlain(GamePackets.clientLockerAccess(""));
+            PacketReader lockerEmpty = awaitOpcode(host, GamePackets.SERVER_LOCKER_ACCESS);
+            assertEquals(GamePackets.LOCKER_ERR_EMPTY, lockerEmpty.u32());
+            host.sendPlain(GamePackets.clientLockerAccess("1234"));
+            PacketReader lockerWrong = awaitOpcode(host, GamePackets.SERVER_LOCKER_ACCESS);
+            assertEquals(GamePackets.LOCKER_ERR_WRONG, lockerWrong.u32());
+
+            host.sendPlain(GamePackets.clientLockerState());
+            PacketReader lockerSt = awaitOpcode(host, GamePackets.SERVER_LOCKER_STATE);
+            assertEquals(0, lockerSt.u32());
+            assertEquals(GamePackets.LOCKER_STATE_NO_PASS, lockerSt.u32());
+
+            host.sendPlain(GamePackets.clientClubWorkshopLevel(0, 1, 0));
+            PacketReader workshopFail = awaitOpcode(host, GamePackets.SERVER_CLUB_WORKSHOP_LEVEL);
+            assertEquals(GamePackets.shopSys(GamePackets.WORKSHOP_ERR_GROUP), workshopFail.u32());
+
+            host.sendPlain(GamePackets.clientLuckyPouch(0));
+            PacketReader pouchFail = awaitOpcode(host, GamePackets.SERVER_LUCKY_POUCH);
+            assertEquals(GamePackets.LUCKY_POUCH_ERR, pouchFail.u8());
+            assertEquals(12, pouchFail.remaining());
+
+            host.sendPlain(GamePackets.clientCompleteQuest(99, 0));
+            PacketReader tutoFail = awaitOpcode(host, GamePackets.SERVER_LOGIN_ACK);
+            assertEquals(GamePackets.GACHA_ERR_MARKER, tutoFail.u8());
+            assertEquals(GamePackets.shopSys(GamePackets.TUTORIAL_ERR_TIPO), tutoFail.u32());
+
+            host.sendPlain(GamePackets.clientHeartbeat());
+            host.sendPlain(GamePackets.clientUpdatePlace(1));
+            host.sendPlain(GamePackets.clientUseTicketReport());
+            host.sendPlain(GamePackets.clientActivePaws());
+            host.sendPlain(GamePackets.clientActiveRing());
+
             host.sendPlain(GamePackets.clientDeleteItem(1, 1));
             PacketReader deleted = awaitOpcode(host, GamePackets.SERVER_DELETE_ITEM);
             assertEquals(GamePackets.DELETE_ITEM_FAIL, deleted.u8());

@@ -8,8 +8,8 @@ Questo repo è **solo** la riscrittura Java.
 
 | Campo | Valore |
 |-------|--------|
-| Slice completata | **S0–S6** packet paths: shop, messenger, lounge, GZ/SSC, lobby, chat, whisper, cookie, ready, change-room, player info `0x2F`, macros, GS list, rank, team, room detail, invite, leave+master `0x7C`, kick `0x26`, nick lookup `0xA1`, in-game camera/club/power/typing/drop, Versus load `0xA3`, whisper `0x55`, Match team chat `0xB0`, mailbox, last-5, daily quest `0x151`–`0x154`, delete-item fail `0xC5`, other-channel `0x83`, Cadie/Lolo fail, messenger list `0x8B`→`0xFC`, gacha `0x9E`→`0x102`, club-stats fail `0x4B`→`0xA5`, intrusion fail `0x9D`→`0x113`, Papel-play fail `0x14B`→`0x21B` |
-| Prossima | IFF cubes/pins/`initComboDef`; remaining C# `init_Packets` (UCC, club workshop, Cadie/Lolo success, GM visible `0x8F`, spy success…); real JP client captures |
+| Slice completata | **S0–S6** packet paths: shop, messenger, lounge, GZ/SSC, lobby, chat, whisper, cookie, ready, change-room, player info `0x2F`, macros, GS list, rank, team, room detail, invite, leave+master `0x7C`, kick `0x26`, nick lookup `0xA1`, in-game camera/club/power/typing/drop, Versus load `0xA3`, whisper `0x55`, Match team chat `0xB0`, mailbox, last-5, daily quest `0x151`–`0x154`, delete-item fail `0xC5`, other-channel `0x83`, Cadie/Lolo fail, messenger list `0x8B`→`0xFC`, gacha `0x9E`→`0x102`, club-stats fail `0x4B`→`0xA5`, intrusion fail `0x9D`→`0x113`, Papel-play fail `0x14B`→`0x21B`, web-key `0xFB`→`0x1AD`, change-GS `0x119`→`0x1D4`/`0x9F`, ticket-report fail `0xAB`→`0x11A`, Tiki open `0x126`→`0x1E7`, locker `0xCC`/`0xD3`, workshop fail `0x164`→`0x23D`, lucky-pouch fail `0xB2`→`0x129`, tutorial fail `0xAE`→`0x44` |
+| Prossima | IFF cubes/pins/`initComboDef`; remaining C# `init_Packets` (UCC, Dolfini rest, club workshop confirm, Cadie/Lolo success, GM visible `0x8F`, spy success…); real JP client captures |
 | Blocked | IFF files absent (live pin/cube coords, IFF shop prices beyond SQL catalog, `initComboDef` parts) |
 | VM | Java 21.0.10, Docker 29.7.2, Compose v5.5.0, 4 CPU / 15 GiB |
 
