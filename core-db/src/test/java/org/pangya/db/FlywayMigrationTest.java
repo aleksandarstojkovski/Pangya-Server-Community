@@ -207,6 +207,17 @@ class FlywayMigrationTest {
                             .mapTo(Integer.class)
                             .one());
             assertEquals(0, tikiValues);
+            int tikiNewCols = jdbi.withHandle(h ->
+                    h.createQuery("""
+                            select count(*) from information_schema.columns
+                             where table_schema = 'pangya'
+                               and table_name = 'legacy_tiki_item_value'
+                               and column_name in (
+                                   'tiki_pang','mileage','bonus_min','bonus_max','bonus_prob')
+                            """)
+                            .mapTo(Integer.class)
+                            .one());
+            assertEquals(5, tikiNewCols);
             assertTrue(accounts >= 1);
         }
     }

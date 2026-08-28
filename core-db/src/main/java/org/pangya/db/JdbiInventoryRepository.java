@@ -3131,6 +3131,48 @@ public final class JdbiInventoryRepository implements InventoryRepository {
     }
 
     @Override
+    public Optional<TikiNewValue> tikiNewValue(int typeid) {
+        return jdbi.withHandle(h -> h.createQuery("""
+                        SELECT typeid, tiki_pang, mileage, bonus_min, bonus_max, bonus_prob
+                          FROM pangya.legacy_tiki_item_value
+                         WHERE typeid = :typeid
+                        """)
+                .bind("typeid", typeid)
+                .map((rs, ctx) -> new TikiNewValue(
+                        rs.getInt("typeid"),
+                        rs.getLong("tiki_pang"),
+                        rs.getInt("mileage"),
+                        rs.getInt("bonus_min"),
+                        rs.getInt("bonus_max"),
+                        rs.getInt("bonus_prob")))
+                .findOne());
+    }
+
+    @Override
+    public void upsertTikiNewValue(
+            int typeid, long pang, int mileage, int bonusMin, int bonusMax, int bonusProb) {
+        jdbi.useHandle(h -> h.createUpdate("""
+                        INSERT INTO pangya.legacy_tiki_item_value (
+                            typeid, item_count, points, tiki_pang, mileage,
+                            bonus_min, bonus_max, bonus_prob)
+                        VALUES (:typeid, 1, 1, :pang, :mileage, :min, :max, :prob)
+                        ON CONFLICT (typeid) DO UPDATE SET
+                            tiki_pang = EXCLUDED.tiki_pang,
+                            mileage = EXCLUDED.mileage,
+                            bonus_min = EXCLUDED.bonus_min,
+                            bonus_max = EXCLUDED.bonus_max,
+                            bonus_prob = EXCLUDED.bonus_prob
+                        """)
+                .bind("typeid", typeid)
+                .bind("pang", pang)
+                .bind("mileage", mileage)
+                .bind("min", bonusMin)
+                .bind("max", bonusMax)
+                .bind("prob", bonusProb)
+                .execute());
+    }
+
+    @Override
     public OptionalInt consumeCardByTypeid(long uid, int typeid, int qntd) {
         if (qntd <= 0) {
             return OptionalInt.empty();

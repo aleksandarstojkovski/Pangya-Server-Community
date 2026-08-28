@@ -6789,35 +6789,142 @@ public final class GameHandler {
     }
 
     /**
-     * C# {@code requestTikiShopExchangeItem}: count 0/{@code >5} → {@code 0x274}
-     * {@code shopSys(5200451)}.
+     * C# {@code requestTikiShopExchangeItem}. SQL common-item Tiki metadata
+     * replaces IFF. Preserves the C# 8-byte precheck followed by 12-byte reads,
+     * no-bonus lottery outcome, mileage rollover, Pang charge, {@code 0x216},
+     * and {@code 0x274}.
      */
     private void tikiShopExchange(Session session, PacketReader reader) {
         if (!inChannel(session)) {
             return;
         }
-        if (reader.remaining() < 4) {
+        try {
+            if (reader.remaining() < 4) {
+                session.send(GamePackets.sysAck(
+                        GamePackets.SERVER_TIKI_SHOP_EXCHANGE,
+                        GamePackets.TIKI_SHOP_EXCHANGE_ERR_DEFAULT));
+                return;
+            }
+            int count = reader.u32();
+            if (count == 0 || count > 5) {
+                session.send(GamePackets.sysAck(
+                        GamePackets.SERVER_TIKI_SHOP_EXCHANGE,
+                        GamePackets.shopSys(GamePackets.TIKI_SHOP_EXCHANGE_ERR_COUNT)));
+                return;
+            }
+            if (reader.remaining() < count * GamePackets.TIKI_SHOP_EXCHANGE_ITEM_CHECK_BYTES) {
+                session.send(GamePackets.sysAck(
+                        GamePackets.SERVER_TIKI_SHOP_EXCHANGE,
+                        GamePackets.shopSys(GamePackets.TIKI_SHOP_EXCHANGE_ERR_TRUNCATED)));
+                return;
+            }
+            record Request(
+                    GamePackets.WarehouseItem item,
+                    InventoryRepository.TikiNewValue value,
+                    int qntd) {}
+            long uid = session.player().uid;
+            List<Request> requests = new ArrayList<>();
+            long pangCost = 0;
+            int earnedMileage = 0;
+            for (int i = 0; i < count; i++) {
+                int typeid = reader.u32();
+                int id = reader.i32();
+                int qntd = reader.u32();
+                GamePackets.WarehouseItem item = warehouseById(uid, id);
+                Optional<InventoryRepository.TikiNewValue> value = inventory.tikiNewValue(typeid);
+                if (item == null || item.typeid != typeid || qntd <= 0 || value.isEmpty()) {
+                    session.send(GamePackets.sysAck(
+                            GamePackets.SERVER_TIKI_SHOP_EXCHANGE,
+                            GamePackets.shopSys(GamePackets.TIKI_SHOP_EXCHANGE_ERR_ITEM)));
+                    return;
+                }
+                pangCost += value.get().pang();
+                earnedMileage += value.get().mileage() * qntd;
+                requests.add(new Request(item, value.get(), qntd));
+            }
+            long pang = inventory.pang(uid);
+            if (pang < pangCost) {
+                session.send(GamePackets.sysAck(
+                        GamePackets.SERVER_TIKI_SHOP_EXCHANGE,
+                        GamePackets.TIKI_SHOP_EXCHANGE_ERR_DEFAULT));
+                return;
+            }
+            List<GamePackets.PapelAward> updates = new ArrayList<>();
+            for (Request request : requests) {
+                int ant = request.item().c[0] & 0xffff;
+                OptionalInt remaining = inventory.consumeWarehouseByTypeid(
+                        uid, request.item().typeid, request.qntd());
+                if (remaining.isEmpty()) {
+                    session.send(GamePackets.sysAck(
+                            GamePackets.SERVER_TIKI_SHOP_EXCHANGE,
+                            GamePackets.shopSys(GamePackets.TIKI_SHOP_EXCHANGE_ERR_CONSUME)));
+                    return;
+                }
+                updates.add(new GamePackets.PapelAward(
+                        GamePackets.PAPEL_AWARD_TYPE,
+                        request.item().typeid,
+                        request.item().id,
+                        0,
+                        ant,
+                        remaining.getAsInt(),
+                        -request.qntd()));
+            }
+            GamePackets.WarehouseItem mileageItem =
+                    warehouseByTypeid(uid, GamePackets.TYPEID_MILEAGE_POINT);
+            int mileageBefore = mileageItem == null ? 0 : mileageItem.c[0] & 0xffff;
+            int totalMileage = mileageBefore + earnedMileage;
+            int tikiPoints = totalMileage > 1000 ? totalMileage / 1000 : 0;
+            int mileageAfter = totalMileage % 1000;
+            int mileageDelta = mileageAfter - mileageBefore;
+            if (mileageDelta != 0) {
+                int mileageId;
+                if (mileageDelta > 0) {
+                    mileageId = inventory.addWarehouseItem(
+                            uid, GamePackets.TYPEID_MILEAGE_POINT, mileageDelta);
+                } else {
+                    OptionalInt left = inventory.consumeWarehouseByTypeid(
+                            uid, GamePackets.TYPEID_MILEAGE_POINT, -mileageDelta);
+                    if (left.isEmpty()) {
+                        session.send(GamePackets.sysAck(
+                                GamePackets.SERVER_TIKI_SHOP_EXCHANGE,
+                                GamePackets.shopSys(GamePackets.TIKI_SHOP_EXCHANGE_ERR_ADD)));
+                        return;
+                    }
+                    mileageId = mileageItem.id;
+                }
+                updates.add(new GamePackets.PapelAward(
+                        GamePackets.PAPEL_AWARD_TYPE,
+                        GamePackets.TYPEID_MILEAGE_POINT,
+                        mileageId,
+                        0,
+                        mileageBefore,
+                        mileageAfter,
+                        mileageDelta));
+            }
+            if (tikiPoints > 0) {
+                GamePackets.WarehouseItem tikiItem =
+                        warehouseByTypeid(uid, GamePackets.TYPEID_TIKI_POINT);
+                int before = tikiItem == null ? 0 : tikiItem.c[0] & 0xffff;
+                int id = inventory.addWarehouseItem(uid, GamePackets.TYPEID_TIKI_POINT, tikiPoints);
+                updates.add(new GamePackets.PapelAward(
+                        GamePackets.PAPEL_AWARD_TYPE,
+                        GamePackets.TYPEID_TIKI_POINT,
+                        id,
+                        0,
+                        before,
+                        before + tikiPoints,
+                        tikiPoints));
+            }
+            inventory.setPangCookie(uid, pang - pangCost, inventory.cookie(uid));
+            session.send(GamePackets.pangSpent(pang - pangCost, pangCost));
+            session.send(GamePackets.papelAwards(GamePackets.unixNow(), updates));
+            session.send(GamePackets.tikiShopExchangeOk(earnedMileage, 0));
+        } catch (RuntimeException e) {
+            log.debug("new Tiki exchange failed uid={}: {}", session.player().uid, e.toString());
             session.send(GamePackets.sysAck(
                     GamePackets.SERVER_TIKI_SHOP_EXCHANGE,
                     GamePackets.TIKI_SHOP_EXCHANGE_ERR_DEFAULT));
-            return;
         }
-        int count = reader.u32();
-        if (count == 0 || count > 5) {
-            session.send(GamePackets.sysAck(
-                    GamePackets.SERVER_TIKI_SHOP_EXCHANGE,
-                    GamePackets.shopSys(GamePackets.TIKI_SHOP_EXCHANGE_ERR_COUNT)));
-            return;
-        }
-        if (reader.remaining() < count * GamePackets.TIKI_SHOP_EXCHANGE_ITEM_CHECK_BYTES) {
-            session.send(GamePackets.sysAck(
-                    GamePackets.SERVER_TIKI_SHOP_EXCHANGE,
-                    GamePackets.shopSys(GamePackets.TIKI_SHOP_EXCHANGE_ERR_TRUNCATED)));
-            return;
-        }
-        session.send(GamePackets.sysAck(
-                GamePackets.SERVER_TIKI_SHOP_EXCHANGE,
-                GamePackets.shopSys(GamePackets.TIKI_SHOP_EXCHANGE_ERR_ITEM)));
     }
 
     /**

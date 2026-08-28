@@ -4494,12 +4494,19 @@ class GameFlowIT {
             InventoryRepository inv = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
             inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_TIKI_VALUE_TEST);
             inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_TIKI_REWARD_TEST);
+            inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_TIKI_NEW_TEST);
+            inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_MILEAGE_POINT);
+            inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_TIKI_POINT);
             inv.deleteTikiItemValue(GamePackets.TYPEID_TIKI_VALUE_TEST);
+            inv.deleteTikiItemValue(GamePackets.TYPEID_TIKI_NEW_TEST);
             inv.deleteTikiPointShopItem(GamePackets.TYPEID_TIKI_REWARD_TEST);
             inv.setLegacyTikiPoints(10001, 0);
+            inv.setPangCookie(10001, 100000, 0);
             int valueId = inv.addWarehouseItem(10001, GamePackets.TYPEID_TIKI_VALUE_TEST, 4);
+            int newId = inv.addWarehouseItem(10001, GamePackets.TYPEID_TIKI_NEW_TEST, 2);
             try {
                 inv.upsertTikiItemValue(GamePackets.TYPEID_TIKI_VALUE_TEST, 2, 10);
+                inv.upsertTikiNewValue(GamePackets.TYPEID_TIKI_NEW_TEST, 100, 600, 0, 0, 0);
                 inv.upsertTikiPointShopItem(GamePackets.TYPEID_TIKI_REWARD_TEST, 3, 5);
                 LoginRepository repo = new JdbiLoginRepository(DatabaseSupport.jdbi(ds));
                 String loginKey = repo.generateAuthKeyLogin(10001);
@@ -4538,14 +4545,42 @@ class GameFlowIT {
                         .findFirst()
                         .orElseThrow()
                         .c[0]);
+
+                client.sendPlain(GamePackets.clientTikiShopExchange(
+                        GamePackets.TYPEID_TIKI_NEW_TEST, newId, 2));
+                PacketReader pang = awaitOpcode(client, GamePackets.SERVER_PANG_SPENT);
+                assertEquals(99900, pang.u64());
+                assertEquals(100, pang.u64());
+                PacketReader tikiUpdate = awaitOpcode(client, GamePackets.SERVER_DAILY_QUEST_STAMP);
+                tikiUpdate.u32();
+                assertEquals(3, tikiUpdate.u32());
+                PacketReader newTiki = awaitOpcode(client, GamePackets.SERVER_TIKI_SHOP_EXCHANGE);
+                assertEquals(GamePackets.TIKI_SHOP_EXCHANGE_OK, newTiki.u32());
+                assertEquals(1200, newTiki.u32());
+                assertEquals(0, newTiki.u32());
+                assertEquals(200, inv.warehouse(10001).stream()
+                        .filter(w -> w.typeid == GamePackets.TYPEID_MILEAGE_POINT)
+                        .findFirst()
+                        .orElseThrow()
+                        .c[0]);
+                assertEquals(1, inv.warehouse(10001).stream()
+                        .filter(w -> w.typeid == GamePackets.TYPEID_TIKI_POINT)
+                        .findFirst()
+                        .orElseThrow()
+                        .c[0]);
                 assertTrue(inv.warehouse(10001).stream().anyMatch(
                         w -> w.typeid == GamePackets.TYPEID_AIR_KNIGHT));
             } finally {
                 inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_TIKI_VALUE_TEST);
                 inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_TIKI_REWARD_TEST);
+                inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_TIKI_NEW_TEST);
+                inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_MILEAGE_POINT);
+                inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_TIKI_POINT);
                 inv.deleteTikiItemValue(GamePackets.TYPEID_TIKI_VALUE_TEST);
+                inv.deleteTikiItemValue(GamePackets.TYPEID_TIKI_NEW_TEST);
                 inv.deleteTikiPointShopItem(GamePackets.TYPEID_TIKI_REWARD_TEST);
                 inv.setLegacyTikiPoints(10001, 0);
+                inv.setPangCookie(10001, 100000, 0);
             }
         }
     }

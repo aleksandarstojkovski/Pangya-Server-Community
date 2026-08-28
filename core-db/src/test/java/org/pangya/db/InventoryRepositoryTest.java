@@ -493,6 +493,11 @@ class InventoryRepositoryTest {
                 assertEquals(
                         20,
                         repo.tikiPointShopItem(GamePackets.TYPEID_TIKI_REWARD_TEST).orElseThrow().points());
+                repo.deleteTikiItemValue(GamePackets.TYPEID_TIKI_NEW_TEST);
+                repo.upsertTikiNewValue(GamePackets.TYPEID_TIKI_NEW_TEST, 100, 600, 0, 0, 0);
+                var tikiNew = repo.tikiNewValue(GamePackets.TYPEID_TIKI_NEW_TEST).orElseThrow();
+                assertEquals(100, tikiNew.pang());
+                assertEquals(600, tikiNew.mileage());
                 repo.deleteCardByTypeid(10001, GamePackets.TYPEID_CARD_NORMAL);
                 repo.addCard(10001, GamePackets.TYPEID_CARD_NORMAL, 2);
                 assertEquals(1, repo.consumeCardByTypeid(10001, GamePackets.TYPEID_CARD_NORMAL, 1).orElseThrow());
@@ -513,6 +518,7 @@ class InventoryRepositoryTest {
                 repo.setLegacyTikiPoints(10001, 0);
                 repo.deleteTikiItemValue(GamePackets.TYPEID_TIKI_VALUE_TEST);
                 repo.deleteTikiPointShopItem(GamePackets.TYPEID_TIKI_REWARD_TEST);
+                repo.deleteTikiItemValue(GamePackets.TYPEID_TIKI_NEW_TEST);
                 repo.deleteCardByTypeid(10001, GamePackets.TYPEID_CARD_NORMAL);
             }
             repo.deletePartIff(GamePackets.TYPEID_RENTAL_PART);

@@ -1610,6 +1610,7 @@ public final class GamePackets {
     public static final int TYPEID_GP_EVENT_TEST = 0x6C100001;
     public static final int TYPEID_TIKI_VALUE_TEST = 0x1A000320;
     public static final int TYPEID_TIKI_REWARD_TEST = 0x1A000321;
+    public static final int TYPEID_TIKI_NEW_TEST = 0x1A000322;
     /** C# transform lottery special typeids. */
     public static final int[] WORKSHOP_TRANSFORM_SPECIALS = {
         TYPEID_WINGTROSS_EVO, TYPEID_GIGA_YARD_TOTEM, TYPEID_DUOSTAR_MANAPIKAL
@@ -2141,6 +2142,13 @@ public final class GamePackets {
     public static final int TIKI_SHOP_EXCHANGE_ERR_DEFAULT = 0x5200900;
     /** C# truncated check uses 8 bytes per item even though {@code ToRead} is 12. */
     public static final int TIKI_SHOP_EXCHANGE_ITEM_CHECK_BYTES = 8;
+    public static final int TIKI_SHOP_EXCHANGE_ITEM_BYTES = 12;
+    public static final int TIKI_SHOP_EXCHANGE_ERR_IFF = 0x5200902;
+    public static final int TIKI_SHOP_EXCHANGE_ERR_CONSUME = 0x5200903;
+    public static final int TIKI_SHOP_EXCHANGE_ERR_ADD = 0x5200904;
+    public static final int TIKI_SHOP_EXCHANGE_OK = 0;
+    public static final int TYPEID_MILEAGE_POINT = 0x1A0002A7;
+    public static final int TYPEID_TIKI_POINT = 0x1A0002A6;
     /** C# {@code CardEquip}/{@code CardRemove} {@code ToRead} is 5×u32. */
     public static final int CARD_EQUIP_BYTES = 20;
     /** C# My Room deny option. */
@@ -4257,6 +4265,16 @@ public final class GamePackets {
     /** C# legacy Tiki exchange success: u32 0 + remaining legacy TP. */
     public static byte[] tikiExchangeOk(int opcode, long points) {
         return new PacketWriter().opcode(opcode).u32(TIKI_EXCHANGE_OK).u32((int) points).toBytes();
+    }
+
+    /** C# new Tiki {@code 0x274}: u32 0 + earned mileage + bonus. */
+    public static byte[] tikiShopExchangeOk(int mileage, int bonus) {
+        return new PacketWriter()
+                .opcode(SERVER_TIKI_SHOP_EXCHANGE)
+                .u32(TIKI_SHOP_EXCHANGE_OK)
+                .u32(mileage)
+                .u32(bonus)
+                .toBytes();
     }
 
     /** C# workshop confirm/cancel/rank catch u32 sys. */
@@ -6878,6 +6896,16 @@ public final class GamePackets {
     /** C# CLIENT {@code 0x18D}: u32 count. */
     public static byte[] clientTikiShopCount(int count) {
         return new PacketWriter().opcode(CLIENT_TIKI_SHOP_EXCHANGE).u32(count).toBytes();
+    }
+
+    public static byte[] clientTikiShopExchange(int typeid, int id, int qntd) {
+        return new PacketWriter()
+                .opcode(CLIENT_TIKI_SHOP_EXCHANGE)
+                .u32(1)
+                .u32(typeid)
+                .i32(id)
+                .u32(qntd)
+                .toBytes();
     }
 
     /** C# CLIENT {@code 0xE5}/{@code 0xFE} empty. */

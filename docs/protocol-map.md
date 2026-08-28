@@ -208,7 +208,7 @@ C#: `GameServer/PangyaEnums/PacketGame.cs` → Java `org.pangya.protocol.game.Ga
 | C | `CLIENT_CHAR_CARD_EQUIP` | `0x18A` | IFF miss → `0x271` `shopSys(0x5200757)`; truncated → full `0x5200750`; success `0x216` (consume + type `0xCB` price/slot) then `0x271` u32 0 + card typeid |
 | C | `CLIENT_CHAR_CARD_PATCHER` | `0x18B` | missing Club Patcher → `0x272` `shopSys(0x5200810)`; truncated → full `0x5200800`; success `0x216` (patcher+card consume + type `0xCB`) then `0x272` u32 0 + card typeid |
 | C | `CLIENT_CHAR_CARD_REMOVE` | `0x18C` | missing char → `0x273` `shopSys(0x5200851)`; truncated → full `0x5200850`; success `0x216` then `0x273` u32 0 + card typeid |
-| C | `CLIENT_TIKI_SHOP_EXCHANGE` | `0x18D` | distinct from CLIENT `0x129`; count 0/`>5` → `0x274` `shopSys(5200451)`; remaining `< count*8` → `shopSys(5200452)`; truncated ReadUInt32 → full `0x5200900` |
+| C | `CLIENT_TIKI_SHOP_EXCHANGE` | `0x18D` | distinct from CLIENT `0x129`; u32 count, C# precheck count*8 then reads 12-byte typeid/id/qntd rows. SQL tiki pang/mileage metadata; consume, no-bonus mileage rollover into `0x1A0002A7`/Tiki point `0x1A0002A6`, Pang charge, then `0xC8` + `0x216` + `0x274` u32 0 + mileage + bonus. count/truncated/item/consume/add errors `5200451`/`5200452`/`0x52000901`/`0x5200903`/`0x5200904`; else full `0x5200900` |
 | C | `CLIENT_FINISH_GAME` aliases | `0xCB` / `0x12C` | same as CLIENT `0x06`; not-in-game silent |
 | C | `CLIENT_RING_PAWS_RAINBOW` / power / miracle / paws-set | `0x196`/`0x197`/`0x198`/`0x199` | not-in-room silent; `0x196` opposite `SERVER_LOUNGE_STATE`; `0x197` opposite `SERVER_COMET_REFILL` |
 | C | `CLIENT_GZ_INITIAL` / marker / shot-end / chip-in / GZ first / wing / earcuff / glove / ring-ground / assist / Event Arin | `0x12D`/`0x12E`/`0x12F`/`0x131`/`0x137`/`0x138`/`0x171`/`0x180`/`0x181`/`0x184`/`0x185`/`0x192` | not-in-room CHANNEL catch silent; shot-end success `0x1F7` i32 oid + u8 hole + 87-byte echo; chip-in GZ Practice `0x1F2` empty then finish dump |
@@ -285,7 +285,7 @@ C#: `GameServer/PangyaEnums/PacketGame.cs` → Java `org.pangya.protocol.game.Ga
 | S | `SERVER_CHAR_CARD_EQUIP` | `0x271` | fail u32 error; success u32 0 + u32 card typeid |
 | S | `SERVER_CHAR_CARD_PATCHER` | `0x272` | fail u32 error; success u32 0 + u32 card typeid |
 | S | `SERVER_CHAR_CARD_REMOVE` | `0x273` | fail u32 error; success u32 0 + u32 card typeid |
-| S | `SERVER_TIKI_SHOP_EXCHANGE` | `0x274` | u32 error |
+| S | `SERVER_TIKI_SHOP_EXCHANGE` | `0x274` | fail u32 error; success u32 0 + earned mileage + bonus |
 | S | `SERVER_CUTIN` | `0x18D` | fail u8 0 + u16 error; success u8 1 + CutinInformation fields (193-byte body); opposite CLIENT Tiki exchange |
 | S | `SERVER_DELETE_ITEM` | `0xC5` | fail sbyte -1; success u8 1 + u32 typeid + u32 qntd + i32 id |
 | S | `SERVER_DAILY_QUEST_STAMP` | `0x216` | unix + count; take-mail type 2 uses empty UCC PStr + status + seq + 5 zeros (15), not Papel 25-byte pad. Opposite C# `pacote216` item-update |

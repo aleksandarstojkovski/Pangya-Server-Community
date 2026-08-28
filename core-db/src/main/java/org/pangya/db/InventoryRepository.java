@@ -329,6 +329,11 @@ public interface InventoryRepository {
 
     void deleteTikiPointShopItem(int typeid);
 
+    Optional<TikiNewValue> tikiNewValue(int typeid);
+
+    void upsertTikiNewValue(
+            int typeid, long pang, int mileage, int bonusMin, int bonusMax, int bonusProb);
+
     /**
      * C# {@code ItemManager.removeItem} for cards: consume {@code qntd} from
      * {@code QNTD}. Empty when missing or insufficient. Remaining 0 deletes.
@@ -607,6 +612,9 @@ public interface InventoryRepository {
     record TikiItemValue(int typeid, int itemCount, int points) {}
 
     record TikiPointShopItem(int typeid, int quantity, int points) {}
+
+    record TikiNewValue(
+            int typeid, long pang, int mileage, int bonusMin, int bonusMax, int bonusProb) {}
 
     /** C# IFF {@code TimeLimitItem}: {@code type}, {@code percent}, {@code time} minutes. */
     record TimeLimitItem(int typeid, int tipo, int percent, int timeMinutes) {}

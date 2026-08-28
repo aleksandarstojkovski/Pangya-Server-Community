@@ -1107,6 +1107,18 @@ class GamePacketsTest {
         assertEquals(GamePackets.TYPEID_TIKI_REWARD_TEST, tikiBuy.u32());
         assertEquals(2, tikiBuy.i32());
         assertEquals(999, tikiBuy.u32());
+        PacketReader tikiNew = new PacketReader(GamePackets.clientTikiShopExchange(
+                GamePackets.TYPEID_TIKI_NEW_TEST, 9, 2));
+        assertEquals(GamePackets.CLIENT_TIKI_SHOP_EXCHANGE, tikiNew.opcode());
+        assertEquals(1, tikiNew.u32());
+        assertEquals(GamePackets.TYPEID_TIKI_NEW_TEST, tikiNew.u32());
+        assertEquals(9, tikiNew.i32());
+        assertEquals(2, tikiNew.u32());
+        PacketReader tikiNewOk = new PacketReader(GamePackets.tikiShopExchangeOk(1200, 0));
+        assertEquals(GamePackets.SERVER_TIKI_SHOP_EXCHANGE, tikiNewOk.opcode());
+        assertEquals(GamePackets.TIKI_SHOP_EXCHANGE_OK, tikiNewOk.u32());
+        assertEquals(1200, tikiNewOk.u32());
+        assertEquals(0, tikiNewOk.u32());
         PacketReader confirm = new PacketReader(GamePackets.clubWorkshopOpcodeFail(
                 GamePackets.SERVER_CLUB_WORKSHOP_CONFIRM,
                 GamePackets.shopSys(GamePackets.WORKSHOP_CONFIRM_ERR)));
@@ -2508,6 +2520,10 @@ class GamePacketsTest {
         assertEquals(GamePackets.TIKI_EXCHANGE_ITEM_BYTES, 16);
         assertEquals(GamePackets.TIKI_EXCHANGE_TP_BYTES, 12);
         assertEquals(GamePackets.TIKI_EXCHANGE_OK, 0);
+        assertEquals(GamePackets.TIKI_SHOP_EXCHANGE_ITEM_CHECK_BYTES, 8);
+        assertEquals(GamePackets.TIKI_SHOP_EXCHANGE_ITEM_BYTES, 12);
+        assertEquals(GamePackets.TYPEID_MILEAGE_POINT, 0x1A0002A7);
+        assertEquals(GamePackets.TYPEID_TIKI_POINT, 0x1A0002A6);
         assertEquals(GamePackets.WORKSHOP_ERR_MISSING, 0x5300202);
         assertEquals(GamePackets.SERVER_BUY_ACK, 0x68);
         assertEquals(GamePackets.CREATE_ROOM_FAILED, 0x07);
