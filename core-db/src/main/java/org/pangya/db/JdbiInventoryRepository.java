@@ -507,6 +507,159 @@ public final class JdbiInventoryRepository implements InventoryRepository {
     }
 
     @Override
+    public PersonalShopMove transferPersonalShop(
+            long sellerUid, long buyerUid, int itemId, int typeid, int qntd, long unitPang) {
+        return jdbi.inTransaction(h -> {
+            GamePackets.WarehouseItem seller = h.createQuery("""
+                            SELECT item_id, typeid, "C0", "C1", "C2", "C3", "C4", "Purchase", flag, "ItemType",
+                                   "ClubSet_WorkShop_C0", "ClubSet_WorkShop_C1", "ClubSet_WorkShop_C2",
+                                   "ClubSet_WorkShop_C3", "ClubSet_WorkShop_C4"
+                              FROM pangya.pangya_item_warehouse
+                             WHERE "UID" = :uid AND item_id = :id AND valid = 1
+                            """)
+                    .bind("uid", sellerUid)
+                    .bind("id", itemId)
+                    .map((rs, ctx) -> mapWarehouse(rs))
+                    .findOne()
+                    .orElse(null);
+            if (seller == null || seller.typeid != typeid || (seller.c[0] & 0xffff) < qntd) {
+                throw new IllegalStateException("personal-shop transfer missing seller item");
+            }
+            long sellerPang = h.createQuery("SELECT COALESCE(\"Pang\", 0) FROM pangya.user_info WHERE \"UID\" = :uid")
+                    .bind("uid", sellerUid)
+                    .mapTo(Long.class)
+                    .findOne()
+                    .orElse(0L);
+            long buyerPang = h.createQuery("SELECT COALESCE(\"Pang\", 0) FROM pangya.user_info WHERE \"UID\" = :uid")
+                    .bind("uid", buyerUid)
+                    .mapTo(Long.class)
+                    .findOne()
+                    .orElse(0L);
+            long cost = unitPang * qntd;
+            if (buyerPang < cost) {
+                throw new IllegalStateException("personal-shop funds");
+            }
+            long gain = GamePackets.shopSellerGain(cost);
+            int remain = (seller.c[0] & 0xffff) - qntd;
+            if (remain == 0) {
+                h.createUpdate("""
+                                DELETE FROM pangya.pangya_item_warehouse
+                                 WHERE "UID" = :uid AND item_id = :id
+                                """)
+                        .bind("uid", sellerUid)
+                        .bind("id", itemId)
+                        .execute();
+            } else {
+                h.createUpdate("""
+                                UPDATE pangya.pangya_item_warehouse
+                                   SET "C0" = :c0
+                                 WHERE "UID" = :uid AND item_id = :id
+                                """)
+                        .bind("c0", remain)
+                        .bind("uid", sellerUid)
+                        .bind("id", itemId)
+                        .execute();
+            }
+            GamePackets.WarehouseItem buyer = h.createQuery("""
+                            SELECT item_id, typeid, "C0", "C1", "C2", "C3", "C4", "Purchase", flag, "ItemType",
+                                   "ClubSet_WorkShop_C0", "ClubSet_WorkShop_C1", "ClubSet_WorkShop_C2",
+                                   "ClubSet_WorkShop_C3", "ClubSet_WorkShop_C4"
+                              FROM pangya.pangya_item_warehouse
+                             WHERE "UID" = :uid AND typeid = :typeid AND valid = 1
+                             ORDER BY item_id
+                             LIMIT 1
+                            """)
+                    .bind("uid", buyerUid)
+                    .bind("typeid", typeid)
+                    .map((rs, ctx) -> mapWarehouse(rs))
+                    .findOne()
+                    .orElse(null);
+            if (buyer != null) {
+                int next = (buyer.c[0] & 0xffff) + qntd;
+                h.createUpdate("""
+                                UPDATE pangya.pangya_item_warehouse
+                                   SET "C0" = :c0
+                                 WHERE "UID" = :uid AND item_id = :id
+                                """)
+                        .bind("c0", next)
+                        .bind("uid", buyerUid)
+                        .bind("id", buyer.id)
+                        .execute();
+                buyer.c[0] = (short) qntd;
+            } else {
+                int newId = h.createQuery("""
+                                INSERT INTO pangya.pangya_item_warehouse (
+                                    "UID", typeid, valid, "Gift_flag", flag,
+                                    "C0", "C1", "C2", "C3", "C4", "Purchase", "ItemType",
+                                    "ClubSet_WorkShop_Flag", "ClubSet_WorkShop_C0", "ClubSet_WorkShop_C1",
+                                    "ClubSet_WorkShop_C2", "ClubSet_WorkShop_C3", "ClubSet_WorkShop_C4",
+                                    "Mastery_Pts", "Recovery_Pts", "Level", "Up",
+                                    "Total_Mastery_Pts", "Mastery_Gasto"
+                                ) VALUES (
+                                    :uid, :typeid, 1, 0, 5,
+                                    :qntd, 0, 0, 0, 0, 1, 2,
+                                    0, 0, 0, 0, 0, 0,
+                                    0, 0, 0, 0, 0, 0
+                                )
+                                RETURNING item_id
+                                """)
+                        .bind("uid", buyerUid)
+                        .bind("typeid", typeid)
+                        .bind("qntd", qntd)
+                        .mapTo(Integer.class)
+                        .one();
+                buyer = new GamePackets.WarehouseItem();
+                buyer.id = newId;
+                buyer.typeid = typeid;
+                buyer.c[0] = (short) qntd;
+                buyer.flag = 5;
+                buyer.purchase = 1;
+                buyer.type = 2;
+            }
+            seller.c[0] = (short) qntd;
+            long sellerAfter = sellerPang + gain;
+            long buyerAfter = buyerPang - cost;
+            h.createUpdate("""
+                            UPDATE pangya.user_info
+                               SET "Pang" = :pang
+                             WHERE "UID" = :uid
+                            """)
+                    .bind("pang", sellerAfter)
+                    .bind("uid", sellerUid)
+                    .execute();
+            h.createUpdate("""
+                            UPDATE pangya.user_info
+                               SET "Pang" = :pang
+                             WHERE "UID" = :uid
+                            """)
+                    .bind("pang", buyerAfter)
+                    .bind("uid", buyerUid)
+                    .execute();
+            return new PersonalShopMove(seller, buyer, sellerAfter, buyerAfter, gain);
+        });
+    }
+
+    private static GamePackets.WarehouseItem mapWarehouse(java.sql.ResultSet rs) throws java.sql.SQLException {
+        GamePackets.WarehouseItem w = new GamePackets.WarehouseItem();
+        w.id = rs.getInt("item_id");
+        w.typeid = rs.getInt("typeid");
+        w.c[0] = rs.getShort("C0");
+        w.c[1] = rs.getShort("C1");
+        w.c[2] = rs.getShort("C2");
+        w.c[3] = rs.getShort("C3");
+        w.c[4] = rs.getShort("C4");
+        w.purchase = rs.getInt("Purchase");
+        w.flag = rs.getInt("flag");
+        w.type = rs.getInt("ItemType");
+        w.workshopC[0] = rs.getShort("ClubSet_WorkShop_C0");
+        w.workshopC[1] = rs.getShort("ClubSet_WorkShop_C1");
+        w.workshopC[2] = rs.getShort("ClubSet_WorkShop_C2");
+        w.workshopC[3] = rs.getShort("ClubSet_WorkShop_C3");
+        w.workshopC[4] = rs.getShort("ClubSet_WorkShop_C4");
+        return w;
+    }
+
+    @Override
     public void setPangCookie(long uid, long pang, long cookie) {
         jdbi.useHandle(h -> h.createUpdate("""
                         UPDATE pangya.user_info

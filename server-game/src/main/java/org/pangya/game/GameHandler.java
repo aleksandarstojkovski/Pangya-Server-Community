@@ -1142,8 +1142,9 @@ public final class GameHandler {
     }
 
     /**
-     * C# {@code packet07C}: u32 count + items. Item sale needs IFF; Java fails
-     * {@code 0xEB} after the count check.
+     * C# {@code packet07C}: u32 count + {@code PersonalShopItem}×count.
+     * IFF {@code findCommomItem} / {@code can_send_mail_and_personal_shop} is
+     * {@code shop_catalog}. Success {@code 0xEB} u32 1 + nick 22 + uid + items.
      */
     private void openSaleShopItems(Session session, PacketReader reader) {
         GameRoom room = playerRoom(session);
@@ -1159,24 +1160,126 @@ public final class GameHandler {
             session.send(GamePackets.shopItemsFail(GamePackets.shopSys(GamePackets.SHOP_ERR_OPEN_NONE)));
             return;
         }
-        session.send(GamePackets.shopItemsFail(GamePackets.SHOP_ERR_OPEN_DEFAULT));
+        List<GamePackets.WarehouseItem> warehouse = inventory.warehouse(session.player().uid);
+        List<GamePackets.PersonalShopItem> listed = new ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            if (reader.remaining() < GamePackets.PERSONAL_SHOP_ITEM_BYTES) {
+                session.send(GamePackets.shopItemsFail(GamePackets.SHOP_ERR_OPEN_DEFAULT));
+                return;
+            }
+            GamePackets.PersonalShopItem item = GamePackets.readPersonalShopItem(reader);
+            if (!personalShopItemListable(warehouse, item)) {
+                session.send(GamePackets.shopItemsFail(GamePackets.SHOP_ERR_OPEN_DEFAULT));
+                return;
+            }
+            listed.add(item);
+        }
+        if (!room.listShopItems(session.player().uid, listed)) {
+            session.send(GamePackets.shopItemsFail(GamePackets.shopSys(GamePackets.SHOP_ERR_OPEN_NONE)));
+            return;
+        }
+        session.send(GamePackets.shopItemsOk(session.player().nickname, (int) session.player().uid, listed));
     }
 
     /**
-     * C# {@code packet07D}: u32 owner + item. Without IFF, missing shop is
-     * {@code 0xEC} sys; otherwise default 5200550.
+     * C# {@code PersonalShop.pushItem} + warehouse qntd. IFF stand-in is
+     * {@code shop_catalog}; Java lists {@code IFF_GROUP.ITEM} only.
+     */
+    private boolean personalShopItemListable(
+            List<GamePackets.WarehouseItem> warehouse, GamePackets.PersonalShopItem item) {
+        if (item.typeid == 0 || item.qntd <= 0) {
+            return false;
+        }
+        if (GamePackets.itemGroupIdentify(item.typeid) != GamePackets.IFF_GROUP_ITEM) {
+            return false;
+        }
+        if (inventory.shopItem(item.typeid).isEmpty()) {
+            return false;
+        }
+        if (item.pang < GamePackets.SHOP_ITEM_MIN_PRICE
+                || item.pang > GamePackets.SHOP_ITEM_MAX_PRICE
+                || item.pang > GamePackets.SHOP_PANG_ABUSE) {
+            return false;
+        }
+        int have = 0;
+        boolean owned = false;
+        for (GamePackets.WarehouseItem row : warehouse) {
+            if (row.typeid == item.typeid) {
+                owned = true;
+                have = row.c[0] & 0xffff;
+                break;
+            }
+        }
+        return owned && item.qntd <= have;
+    }
+
+    /**
+     * C# {@code packet07D}: u32 owner + item. Missing shop is {@code 0xEC}
+     * sys {@code 5200552}; truncated {@code ToRead} and buy errors are
+     * {@code 5200550}. Success {@code 0xEC} to both, {@code 0xED} to owner+
+     * viewers, seller {@code 0x40} option 7.
      */
     private void buySaleShop(Session session, PacketReader reader) {
         GameRoom room = playerRoom(session);
         if (room == null) {
             return;
         }
-        long owner = reader.remaining() >= 4 ? reader.u32Unsigned() : 0;
-        if (room.shops.get(owner) == null) {
+        long ownerUid = reader.remaining() >= 4 ? reader.u32Unsigned() : 0;
+        if (reader.remaining() < GamePackets.PERSONAL_SHOP_ITEM_BYTES) {
+            session.send(GamePackets.shopBuyFail(GamePackets.SHOP_ERR_BUY_DEFAULT));
+            return;
+        }
+        GamePackets.PersonalShopItem buy = GamePackets.readPersonalShopItem(reader);
+        if (room.shops.get(ownerUid) == null) {
             session.send(GamePackets.shopBuyFail(GamePackets.shopSys(GamePackets.SHOP_ERR_BUY_NONE)));
             return;
         }
-        session.send(GamePackets.shopBuyFail(GamePackets.SHOP_ERR_BUY_DEFAULT));
+        Session owner = room.findByUid(ownerUid);
+        GamePackets.PersonalShopItem listed = room.findListedItem(ownerUid, buy.id);
+        if (owner == null
+                || ownerUid == session.player().uid
+                || !room.shopIsOpen(ownerUid)
+                || !room.shopHasViewer(ownerUid, session.player().uid)
+                || listed == null
+                || buy.qntd <= 0
+                || buy.qntd > GamePackets.SHOP_BUY_QNTD_MAX
+                || buy.qntd > listed.qntd
+                || inventory.shopItem(listed.typeid).isEmpty()) {
+            session.send(GamePackets.shopBuyFail(GamePackets.SHOP_ERR_BUY_DEFAULT));
+            return;
+        }
+        long cost = listed.pang * (long) buy.qntd;
+        if (inventory.pang(session.player().uid) < cost) {
+            session.send(GamePackets.shopBuyFail(GamePackets.SHOP_ERR_BUY_DEFAULT));
+            return;
+        }
+        InventoryRepository.PersonalShopMove move;
+        try {
+            move = inventory.transferPersonalShop(
+                    ownerUid, session.player().uid, listed.id, listed.typeid, buy.qntd, listed.pang);
+        } catch (RuntimeException e) {
+            log.debug("personal-shop transfer failed owner={} buyer={}", ownerUid, session.player().uid, e);
+            session.send(GamePackets.shopBuyFail(GamePackets.SHOP_ERR_BUY_DEFAULT));
+            return;
+        }
+        int remainCount = room.consumeListedItem(ownerUid, listed.id, buy.qntd);
+        room.addPangSale(ownerUid, move.sellerGain());
+        GamePackets.PersonalShopItem buyerItem = buy.copy();
+        buyerItem.id = move.buyerPacket().id;
+        int remainFlag = remainCount == 0 ? GamePackets.SHOP_SOLD_EMPTY : GamePackets.SHOP_SOLD_REMAIN;
+        owner.send(GamePackets.shopBuyOk(
+                1, move.sellerGain(), buy, GamePackets.SHOP_GROUP_ITEM_BYTE, move.sellerPacket().toArray()));
+        session.send(GamePackets.shopBuyOk(
+                0,
+                move.buyerPangAfter(),
+                buyerItem,
+                GamePackets.SHOP_GROUP_ITEM_BYTE,
+                move.buyerPacket().toArray()));
+        byte[] sold = GamePackets.shopSold(owner.player().nickname, (int) ownerUid, buy, remainFlag);
+        for (Session target : room.shopSoldTargets(ownerUid)) {
+            target.send(sold);
+        }
+        owner.send(GamePackets.chat(GamePackets.CHAT_NOTICE, GamePackets.SHOP_SALE_NICK, GamePackets.SHOP_SALE_MSG));
     }
 
     /** C# {@code packet098}: {@code 0x10B} u32 0 + i64 daily limit. */

@@ -809,6 +809,110 @@ class GameFlowIT {
     }
 
     @Test
+    void personalShopListsAndSellsPangItem() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config);
+             PangyaFakeClient host = new PangyaFakeClient();
+             PangyaFakeClient guest = new PangyaFakeClient()) {
+            var inventory = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
+            inventory.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_SHOP_PANG_ITEM);
+            inventory.deleteWarehouseByTypeid(10002, GamePackets.TYPEID_SHOP_PANG_ITEM);
+            inventory.setPangCookie(10001, 100000, 0);
+            inventory.setPangCookie(10002, 100000, 0);
+            try {
+                var stock = inventory.buyShopItem(
+                        10001, GamePackets.TYPEID_SHOP_PANG_ITEM, 1, GamePackets.SHOP_PANG_PRICE, 0);
+                assertEquals(0, stock.code());
+                inventory.setPangCookie(10001, 100000, 0);
+                loginTwoPlayers(ds, keys, host, guest, runtime.port());
+
+                host.sendPlain(GamePackets.clientCreateRoom(GamePackets.TIPO_LOUNGE, "LG", ""));
+                PacketReader created = awaitOpcode(host, GamePackets.SERVER_ROOM_ENTER_RESULT);
+                assertEquals(0, created.i16());
+                int numero = roomNumberFromInfo(created.readBytes(GamePackets.ROOM_INFO_BYTES));
+                guest.sendPlain(GamePackets.clientJoinRoom(numero, ""));
+                assertEquals(0, awaitOpcode(guest, GamePackets.SERVER_ROOM_ENTER_RESULT).i16());
+
+                host.sendPlain(GamePackets.clientShopOpenEdit());
+                PacketReader opened = awaitOpcode(host, GamePackets.SERVER_SHOP_EDIT);
+                assertEquals(GamePackets.SHOP_OK, opened.u32());
+                host.sendPlain(GamePackets.clientShopName("MyShop"));
+                PacketReader named = awaitOpcode(host, GamePackets.SERVER_SHOP_NAME);
+                assertEquals(GamePackets.SHOP_OK, named.u32());
+
+                GamePackets.PersonalShopItem listed = new GamePackets.PersonalShopItem();
+                listed.index = 1;
+                listed.typeid = GamePackets.TYPEID_SHOP_PANG_ITEM;
+                listed.id = stock.itemId();
+                listed.qntd = 1;
+                listed.pang = 1000;
+                host.sendPlain(GamePackets.clientShopOpenItems(List.of(listed)));
+                PacketReader items = awaitOpcode(host, GamePackets.SERVER_SHOP_ITEMS);
+                assertEquals(GamePackets.SHOP_OK, items.u32());
+                assertEquals("TestNick", items.fixedStr(GamePackets.SHOP_NICK_BYTES));
+                assertEquals(10001, items.u32());
+                assertEquals(1, items.u32());
+
+                guest.sendPlain(GamePackets.clientShopView(10001));
+                PacketReader view = awaitOpcode(guest, GamePackets.SERVER_SHOP_VIEW);
+                assertEquals(GamePackets.SHOP_OK, view.u32());
+                assertEquals("TestNick", view.fixedStr(GamePackets.SHOP_NICK_BYTES));
+                assertEquals("MyShop", view.pstr());
+                assertEquals(10001, view.u32());
+                assertEquals(1, view.u32());
+
+                guest.sendPlain(GamePackets.clientShopBuy(10001, listed));
+                PacketReader buyerOk = awaitOpcode(guest, GamePackets.SERVER_SHOP_BUY);
+                assertEquals(GamePackets.SHOP_OK, buyerOk.u32());
+                assertEquals(0, buyerOk.u8());
+                assertEquals(99000, buyerOk.u64());
+                buyerOk.readBytes(GamePackets.PERSONAL_SHOP_ITEM_BYTES);
+                assertEquals(GamePackets.SHOP_GROUP_ITEM_BYTE, buyerOk.u8());
+                assertEquals(GamePackets.WAREHOUSE_ITEM_BYTES, buyerOk.remaining());
+                PacketReader soldGuest = awaitOpcode(guest, GamePackets.SERVER_SHOP_SOLD);
+                assertEquals("TestNick", soldGuest.pstr());
+                assertEquals(10001, soldGuest.u32());
+                soldGuest.readBytes(GamePackets.PERSONAL_SHOP_ITEM_BYTES);
+                assertEquals(GamePackets.SHOP_SOLD_EMPTY, soldGuest.i32());
+
+                PacketReader sellerOk = awaitOpcode(host, GamePackets.SERVER_SHOP_BUY);
+                assertEquals(GamePackets.SHOP_OK, sellerOk.u32());
+                assertEquals(1, sellerOk.u8());
+                assertEquals(950, sellerOk.u64());
+                PacketReader soldHost = awaitOpcode(host, GamePackets.SERVER_SHOP_SOLD);
+                assertEquals("TestNick", soldHost.pstr());
+                assertEquals(10001, soldHost.u32());
+                soldHost.readBytes(GamePackets.PERSONAL_SHOP_ITEM_BYTES);
+                assertEquals(GamePackets.SHOP_SOLD_EMPTY, soldHost.i32());
+                PacketReader notice = awaitOpcode(host, GamePackets.SERVER_CHAT);
+                assertEquals(GamePackets.CHAT_NOTICE, notice.u8());
+                assertEquals(GamePackets.SHOP_SALE_NICK, notice.pstr());
+                assertEquals(GamePackets.SHOP_SALE_MSG, notice.pstr());
+
+                assertEquals(100950, inventory.pang(10001));
+                assertEquals(99000, inventory.pang(10002));
+                assertFalse(inventory.warehouse(10001).stream()
+                        .anyMatch(w -> w.typeid == GamePackets.TYPEID_SHOP_PANG_ITEM));
+                assertTrue(inventory.warehouse(10002).stream()
+                        .anyMatch(w -> w.typeid == GamePackets.TYPEID_SHOP_PANG_ITEM));
+            } finally {
+                inventory.setPangCookie(10001, 100000, 0);
+                inventory.setPangCookie(10002, 100000, 0);
+                inventory.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_SHOP_PANG_ITEM);
+                inventory.deleteWarehouseByTypeid(10002, GamePackets.TYPEID_SHOP_PANG_ITEM);
+            }
+        }
+    }
+
+    @Test
     void mailboxOpenSendDeleteMatchCsharp() throws Exception {
         String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
         String user = env("PANGYA_TEST_JDBC_USER", "pangya");

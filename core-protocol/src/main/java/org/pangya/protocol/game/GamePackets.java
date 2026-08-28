@@ -277,6 +277,8 @@ public final class GamePackets {
     public static final int SERVER_SHOP_ITEMS = 0xEB;
     /** C# personal-shop {@code 0xEC} buy. */
     public static final int SERVER_SHOP_BUY = 0xEC;
+    /** C# personal-shop sold notify {@code 0xED}. */
+    public static final int SERVER_SHOP_SOLD = 0xED;
     /** C# {@code SERVER_OPEN_PAPEL_SHOP} {@code 0x10B}. */
     public static final int SERVER_PAPEL_SHOP = 0x10B;
     /** C# Papel-play result {@code 0x21B}. */
@@ -991,6 +993,8 @@ public final class GamePackets {
     public static final int SHOP_ERR_PANG_DEFAULT = 5200350;
     public static final int SHOP_ERR_PANG_NONE = 5200351;
     public static final int SHOP_ERR_VIEW_DEFAULT = 5200450;
+    /** C# visit-limit remap {@code PERSONAL_SHOP_MANAGER} sys {@code 5200453}. */
+    public static final int SHOP_ERR_VIEW_LIMIT = 5200453;
     public static final int SHOP_ERR_VIEW_NONE = 5200452;
     public static final int SHOP_ERR_CLOSE_VIEW_DEFAULT = 5200500;
     public static final int SHOP_ERR_CLOSE_VIEW_NONE = 5200502;
@@ -999,6 +1003,31 @@ public final class GamePackets {
     public static final int SHOP_ERR_OPEN_NONE = 5200252;
     public static final int SHOP_ERR_BUY_DEFAULT = 5200550;
     public static final int SHOP_ERR_BUY_NONE = 5200552;
+    /** C# {@code TradeItem.ToArray} 168 bytes. */
+    public static final int TRADE_ITEM_BYTES = 168;
+    /** C# {@code PersonalShopItem}: u32 index + {@link #TRADE_ITEM_BYTES}. */
+    public static final int PERSONAL_SHOP_ITEM_BYTES = 172;
+    /** JP {@code personal_config.ini} {@code ITEM_MIN_PRICE}. */
+    public static final int SHOP_ITEM_MIN_PRICE = 1;
+    /** JP {@code personal_config.ini} {@code ITEM_MAX_PRICE}. */
+    public static final int SHOP_ITEM_MAX_PRICE = 20_000_000;
+    /** C# {@code Math.Round(cost * 0.95f)} seller share. */
+    public static final float SHOP_SALE_RATE = 0.95f;
+    /** C# {@code IFF_GROUP.ITEM} → buy packet group byte 1. */
+    public static final int SHOP_GROUP_ITEM_BYTE = 1;
+    /** C# sold notice nick {@code @INI3}. */
+    public static final String SHOP_SALE_NICK = "@INI3";
+    /** C# sold notice body. */
+    public static final String SHOP_SALE_MSG = "\\c0xff00ff00\\cParabéns, sua venda foi um sucesso!.";
+    public static final int SHOP_VISIT_LIMIT = 15;
+    /** C# buy {@code qntd} upper bound. */
+    public static final int SHOP_BUY_QNTD_MAX = 30000;
+    /** C# {@code 0xED} i32 when the shop vector is empty after the sale. */
+    public static final int SHOP_SOLD_EMPTY = 3;
+    /** C# {@code 0xED} i32 when listed items remain. */
+    public static final int SHOP_SOLD_REMAIN = 1;
+    /** C# open-shop {@code pang > 2000000000} abuse check. */
+    public static final long SHOP_PANG_ABUSE = 2_000_000_000L;
     /** C# {@code NUM_OF_EMAIL_PER_PAGE}. */
     public static final int MAIL_PER_PAGE = 20;
     /** C# {@code LIMIT_OF_UNREAD_EMAIL}. */
@@ -2416,6 +2445,72 @@ public final class GamePackets {
         return new PacketWriter().opcode(SERVER_SHOP_BUY).u32(code).toBytes();
     }
 
+    /**
+     * C# open-shop success {@code 0xEB}: u32 1 + nick 22 + uid + count + items.
+     */
+    public static byte[] shopItemsOk(String nick, int uid, List<PersonalShopItem> items) {
+        PacketWriter w = new PacketWriter()
+                .opcode(SERVER_SHOP_ITEMS)
+                .u32(SHOP_OK)
+                .fixedStr(nick == null ? "" : nick, SHOP_NICK_BYTES)
+                .u32(uid)
+                .u32(items.size());
+        for (PersonalShopItem item : items) {
+            w.bytes(item.toArray());
+        }
+        return w.toBytes();
+    }
+
+    /**
+     * C# view-shop success {@code 0xE6}: u32 1 + nick 22 + PStr name + uid + items.
+     */
+    public static byte[] shopViewOk(String nick, String name, int uid, List<PersonalShopItem> items) {
+        PacketWriter w = new PacketWriter()
+                .opcode(SERVER_SHOP_VIEW)
+                .u32(SHOP_OK)
+                .fixedStr(nick == null ? "" : nick, SHOP_NICK_BYTES)
+                .pstr(name == null ? "" : name)
+                .u32(uid)
+                .u32(items.size());
+        for (PersonalShopItem item : items) {
+            w.bytes(item.toArray());
+        }
+        return w.toBytes();
+    }
+
+    /**
+     * C# buy {@code 0xEC}: u32 1 + u8 remove + u64 pang + {@code PersonalShopItem}
+     * + group byte + {@code WarehouseItemEx} 196.
+     */
+    public static byte[] shopBuyOk(int remove, long pang, PersonalShopItem item, int group, byte[] warehouse) {
+        return new PacketWriter()
+                .opcode(SERVER_SHOP_BUY)
+                .u32(SHOP_OK)
+                .u8(remove)
+                .u64(pang)
+                .bytes(item.toArray())
+                .u8(group)
+                .bytes(warehouse)
+                .toBytes();
+    }
+
+    /**
+     * C# sold {@code 0xED}: PStr nick + uid + item + i32 (3 empty / 1 remain).
+     */
+    public static byte[] shopSold(String nick, int uid, PersonalShopItem item, int remain) {
+        return new PacketWriter()
+                .opcode(SERVER_SHOP_SOLD)
+                .pstr(nick == null ? "" : nick)
+                .u32(uid)
+                .bytes(item.toArray())
+                .i32(remain)
+                .toBytes();
+    }
+
+    public static long shopSellerGain(long cost) {
+        return Math.round(cost * SHOP_SALE_RATE);
+    }
+
     /** C# {@code 0x10B}: u32 0 + i64 daily limit. */
     public static byte[] papelShopOk(long limit) {
         return new PacketWriter().opcode(SERVER_PAPEL_SHOP).u32(0).i64(limit).toBytes();
@@ -3703,8 +3798,24 @@ public final class GamePackets {
         return new PacketWriter().opcode(CLIENT_SHOP_OPEN_ITEMS).u32(count).toBytes();
     }
 
+    public static byte[] clientShopOpenItems(List<PersonalShopItem> items) {
+        PacketWriter w = new PacketWriter().opcode(CLIENT_SHOP_OPEN_ITEMS).u32(items.size());
+        for (PersonalShopItem item : items) {
+            w.bytes(item.toArray());
+        }
+        return w.toBytes();
+    }
+
     public static byte[] clientShopBuy(int ownerUid) {
         return new PacketWriter().opcode(CLIENT_SHOP_BUY).u32(ownerUid).toBytes();
+    }
+
+    public static byte[] clientShopBuy(int ownerUid, PersonalShopItem item) {
+        return new PacketWriter()
+                .opcode(CLIENT_SHOP_BUY)
+                .u32(ownerUid)
+                .bytes(item.toArray())
+                .toBytes();
     }
 
     public static byte[] clientPapelShop() {
@@ -4352,6 +4463,83 @@ public final class GamePackets {
         int tempo = r.i16();
         int gp = r.remaining() >= 1 ? r.u8() : 0;
         return new ShotSync(oid, x, y, z, state, bunker, unknown, pang, bonus, display, shot, tempo, gp);
+    }
+
+    public static PersonalShopItem readPersonalShopItem(PacketReader reader) {
+        PersonalShopItem item = new PersonalShopItem();
+        item.index = reader.u32();
+        item.typeid = reader.u32();
+        item.id = reader.i32();
+        item.qntd = reader.i32();
+        reader.readBytes(3);
+        item.pang = reader.u64();
+        reader.u32();
+        for (int i = 0; i < 5; i++) {
+            item.c[i] = (short) reader.u16();
+        }
+        reader.u16();
+        reader.fixedStr(9);
+        reader.i16();
+        reader.u8();
+        reader.readBytes(16 + 16 + 16);
+        reader.u16();
+        reader.u16();
+        reader.u16();
+        reader.fixedStr(41);
+        reader.fixedStr(22);
+        return item;
+    }
+
+    /**
+     * C# {@code PersonalShopItem}: u32 index + {@code TradeItem} 168.
+     */
+    public static final class PersonalShopItem {
+        public int index;
+        public int typeid;
+        public int id;
+        public int qntd;
+        public long pang;
+        public short[] c = new short[5];
+
+        public PersonalShopItem copy() {
+            PersonalShopItem out = new PersonalShopItem();
+            out.index = index;
+            out.typeid = typeid;
+            out.id = id;
+            out.qntd = qntd;
+            out.pang = pang;
+            out.c = c.clone();
+            return out;
+        }
+
+        public byte[] toArray() {
+            PacketWriter w = new PacketWriter();
+            w.u32(index);
+            w.u32(typeid);
+            w.i32(id);
+            w.i32(qntd);
+            w.zero(3);
+            w.u64(pang);
+            w.u32(0);
+            for (short v : c) {
+                w.u16(v);
+            }
+            w.u16(0);
+            w.zero(9);
+            w.i16(0);
+            w.u8(0);
+            w.zero(16 + 16 + 16);
+            w.u16(0);
+            w.u16(0);
+            w.u16(0);
+            w.zero(41);
+            w.zero(22);
+            byte[] body = w.toBytes();
+            if (body.length != PERSONAL_SHOP_ITEM_BYTES) {
+                throw new IllegalStateException("PersonalShopItem size " + body.length);
+            }
+            return body;
+        }
     }
 
     public record BuyItem(int id, int typeid, int time, int itemType, int qntd, int pang, int cookie) {}

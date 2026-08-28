@@ -48,6 +48,13 @@ public interface InventoryRepository {
      */
     ShopBuyResult giftShopItem(long uid, int typeid, int qntd, int clientPang, int clientCookie);
 
+    /**
+     * C# {@code ItemManager.transferItem} for IFF ITEM: move warehouse C0 and pang
+     * (seller gets {@link GamePackets#shopSellerGain}).
+     */
+    PersonalShopMove transferPersonalShop(
+            long sellerUid, long buyerUid, int itemId, int typeid, int qntd, long unitPang);
+
     void setPangCookie(long uid, long pang, long cookie);
 
     void setLevel(long uid, int level);
@@ -70,4 +77,11 @@ public interface InventoryRepository {
             return new ShopBuyResult(code, 0, 0, 0, 0, 0, 0, 0);
         }
     }
+
+    record PersonalShopMove(
+            GamePackets.WarehouseItem sellerPacket,
+            GamePackets.WarehouseItem buyerPacket,
+            long sellerPangAfter,
+            long buyerPangAfter,
+            long sellerGain) {}
 }

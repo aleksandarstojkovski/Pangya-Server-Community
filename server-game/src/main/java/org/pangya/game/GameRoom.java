@@ -320,6 +320,9 @@ final class GameRoom {
         volatile String name = "";
         volatile int visitCount;
         volatile long pangSale;
+        /** C# {@code STATE.OPEN} after a successful item listing. */
+        volatile boolean open;
+        final List<GamePackets.PersonalShopItem> items = new ArrayList<>();
         final ConcurrentHashMap<Long, Boolean> viewers = new ConcurrentHashMap<>();
 
         PersonalShop(long ownerUid, String ownerNick) {
@@ -395,12 +398,104 @@ final class GameRoom {
         return GamePackets.shopPangOk(shop.pangSale);
     }
 
-    byte[] viewShop(Session session, long ownerUid) {
+    synchronized byte[] viewShop(Session session, long ownerUid) {
         PersonalShop shop = shops.get(ownerUid);
         if (shop == null) {
             return GamePackets.shopViewFail(GamePackets.shopSys(GamePackets.SHOP_ERR_VIEW_NONE));
         }
-        return GamePackets.shopViewFail(GamePackets.SHOP_ERR_VIEW_DEFAULT);
+        if (!shop.open || shop.items.isEmpty()) {
+            return GamePackets.shopViewFail(GamePackets.SHOP_ERR_VIEW_DEFAULT);
+        }
+        long uid = session.player().uid;
+        if (shop.viewers.containsKey(uid)) {
+            return GamePackets.shopViewFail(GamePackets.SHOP_ERR_VIEW_DEFAULT);
+        }
+        if (shop.viewers.size() >= GamePackets.SHOP_VISIT_LIMIT) {
+            return GamePackets.shopViewFail(GamePackets.shopSys(GamePackets.SHOP_ERR_VIEW_LIMIT));
+        }
+        shop.viewers.put(uid, Boolean.TRUE);
+        shop.visitCount++;
+        return GamePackets.shopViewOk(shop.ownerNick, shop.name, (int) shop.ownerUid, List.copyOf(shop.items));
+    }
+
+    synchronized boolean listShopItems(long uid, List<GamePackets.PersonalShopItem> items) {
+        PersonalShop shop = shops.get(uid);
+        if (shop == null) {
+            return false;
+        }
+        shop.items.clear();
+        for (GamePackets.PersonalShopItem item : items) {
+            shop.items.add(item.copy());
+        }
+        shop.open = true;
+        return true;
+    }
+
+    synchronized boolean shopIsOpen(long ownerUid) {
+        PersonalShop shop = shops.get(ownerUid);
+        return shop != null && shop.open;
+    }
+
+    synchronized boolean shopHasViewer(long ownerUid, long uid) {
+        PersonalShop shop = shops.get(ownerUid);
+        return shop != null && shop.viewers.containsKey(uid);
+    }
+
+    synchronized GamePackets.PersonalShopItem findListedItem(long ownerUid, int itemId) {
+        PersonalShop shop = shops.get(ownerUid);
+        if (shop == null || itemId <= 0) {
+            return null;
+        }
+        for (GamePackets.PersonalShopItem item : shop.items) {
+            if (item.id == itemId) {
+                return item;
+            }
+        }
+        return null;
+    }
+
+    synchronized int consumeListedItem(long ownerUid, int itemId, int qntd) {
+        PersonalShop shop = shops.get(ownerUid);
+        if (shop == null) {
+            return 0;
+        }
+        shop.items.removeIf(item -> {
+            if (item.id != itemId) {
+                return false;
+            }
+            if (item.qntd <= qntd) {
+                return true;
+            }
+            item.qntd -= qntd;
+            return false;
+        });
+        return shop.items.size();
+    }
+
+    synchronized void addPangSale(long ownerUid, long gain) {
+        PersonalShop shop = shops.get(ownerUid);
+        if (shop != null) {
+            shop.pangSale += gain;
+        }
+    }
+
+    synchronized List<Session> shopSoldTargets(long ownerUid) {
+        List<Session> out = new ArrayList<>();
+        Session owner = findByUid(ownerUid);
+        if (owner != null) {
+            out.add(owner);
+        }
+        PersonalShop shop = shops.get(ownerUid);
+        if (shop == null) {
+            return out;
+        }
+        for (Long uid : shop.viewers.keySet()) {
+            Session viewer = findByUid(uid);
+            if (viewer != null && viewer != owner) {
+                out.add(viewer);
+            }
+        }
+        return out;
     }
 
     byte[] closeViewShop(Session session, long ownerUid) {

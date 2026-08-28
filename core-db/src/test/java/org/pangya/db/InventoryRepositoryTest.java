@@ -67,9 +67,33 @@ class InventoryRepositoryTest {
             assertFalse(repo.warehouse(10001).stream().anyMatch(w -> w.typeid == GamePackets.TYPEID_SHOP_PANG_ITEM));
             var giftMissing = repo.giftShopItem(10001, 0x7FFF0001, 1, 1, 0);
             assertEquals(GamePackets.BUY_FAIL_NOT_BUYABLE, giftMissing.code());
+            repo.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_SHOP_PANG_ITEM);
+            repo.deleteWarehouseByTypeid(10002, GamePackets.TYPEID_SHOP_PANG_ITEM);
+            repo.setPangCookie(10001, 100000, 0);
+            repo.setPangCookie(10002, 100000, 0);
+            var stock = repo.buyShopItem(
+                    10001, GamePackets.TYPEID_SHOP_PANG_ITEM, 1, GamePackets.SHOP_PANG_PRICE, 0);
+            assertEquals(0, stock.code());
+            repo.setPangCookie(10001, 100000, 0);
+            var moved = repo.transferPersonalShop(
+                    10001, 10002, stock.itemId(), GamePackets.TYPEID_SHOP_PANG_ITEM, 1, 1000);
+            assertEquals(950, moved.sellerGain());
+            assertEquals(100950, moved.sellerPangAfter());
+            assertEquals(99000, moved.buyerPangAfter());
+            assertEquals(1, moved.sellerPacket().c[0]);
+            assertEquals(1, moved.buyerPacket().c[0]);
+            assertEquals(100950, repo.pang(10001));
+            assertEquals(99000, repo.pang(10002));
+            assertFalse(repo.warehouse(10001).stream()
+                    .anyMatch(w -> w.typeid == GamePackets.TYPEID_SHOP_PANG_ITEM));
+            assertTrue(repo.warehouse(10002).stream()
+                    .anyMatch(w -> w.typeid == GamePackets.TYPEID_SHOP_PANG_ITEM));
             repo.setLevel(10001, GamePackets.GIFT_MIN_LEVEL);
             repo.setLevel(10001, 1);
             repo.setPangCookie(10001, 100000, 0);
+            repo.setPangCookie(10002, 100000, 0);
+            repo.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_SHOP_PANG_ITEM);
+            repo.deleteWarehouseByTypeid(10002, GamePackets.TYPEID_SHOP_PANG_ITEM);
         }
     }
 
