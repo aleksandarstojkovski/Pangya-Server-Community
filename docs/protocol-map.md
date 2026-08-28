@@ -58,7 +58,12 @@ SERVER_LOGIN `0x01` success (`pacote001` option=0, **JP**):
 `byte 0`, `PStr id`, `uint32 uid`, `uint32 cap`, `byte 1`, `int32 0`, `byte 1`, `int32 5`, `SYSTEMTIME`, `PStr acess_code` (web key), `uint64 0`, `PStr nickname`.
 Then `0x10` was already sent (auth key login), then `0x02` GS list, `0x09` messenger list, `0x06` macros (9×64-byte `WriteStr`).
 
-JP `requestLogin` hashes MD5 then **overwrites with plaintext** `result.password` — Java stores/compares the client string as sent. Option 7 block time uses **360** hours when remaining < 1h. `pacote00F` adds uint32 0, uint32 5, `formatDateLocal(0)`, acess_code.
+JP `pacote00F` adds uint32 0, uint32 5, `formatDateLocal(0)`, acess_code.
+
+First-set (after option `0xD8`):
+- CLIENT `0x07` PStr nick → `pacote00E` int32 `NICK_CHECK` (0 success + PStr nick; 2 in use; 3 invalid; 5 GM/ADM unless cap≥4; 8 space; 9 same as ID; 12 + uint32 error).
+- CLIENT `0x06` PStr nick → `UPDATE account.NICK`, `FIRST_LOGIN=1`; if `FIRST_SET=0` send option `0xD9`, else success login.
+- CLIENT `0x08` uint32 typeid, u8 hair, u8 shirts. IFF `findCharacter` is skipped (no IFF files); Java accepts IFF group CHARACTER (`typeid >>> 26 == 1`), hair ≤ 9, shirts == 0. Insert `pangya_character_information`, `ProcFirstSet` essentials (Air Knight + default ball + pang/cookie), `pacote011` uint16 0, then success login. Fail: `pacote011` then `pacote00E` option 12 + 500051.
 
 `ServerInfo.ToArray()` is 92 bytes: `WriteStr(nome,40)`, int32 uid/max/curr, `WriteStr(ip,18)`, int32 port, uint32 property, int32 angelic, uint16 event_flag, int16 event_map/app_rate/scratch_rate/img_no.
 
@@ -84,7 +89,7 @@ Room types (`RoomInfo.TIPO` in `pangya_game_st.cs`): STROKE=0, MATCH=1, LOUNGE=2
 
 Game login CLIENT `0x02` (`GameServer.ReadLoginPacket`): `PStr id`, `uint32 uid`, `uint32 ntreevUID`, `uint16 command`, `PStr authKeyLogin`, `PStr clientVersion`, `uint32 packetVersion` (XOR-encrypted with GUID `{782AE110-2EEF-4c61-B030-A53F17634F7D}`), `uint32 isPcBang`, `PStr authKeyGame`.
 
-Fail `SendLoginAck` writes **uint32** ack. Success `pacote044` option 0 + JP `principal()` (PStr clientVersion only, MemberInfoEx **299**, UserInfo **265**, no 277-byte pad). Then warehouse `0x73` (196-byte items from `pangya_item_warehouse`), characters `0x70` (513-byte `CharacterInfo` from `pangya_character_information`), caddies `0x71`, equip `0x72` (116 bytes from `pangya_user_equip`), mascots `0xE1`, `0x4D` channel list, then `sendCompleteData` tail (`0x102`, `0x131` Treasure Hunter 21 maps, live `0x21D`/`0x21E` from `pangya_counter_item`/`pangya_achievement`/`pangya_quest`, `0x144`…`0x1B1`). Seeded accounts have empty achievement rows so those packets are still three uint32 zeros.
+Fail `SendLoginAck` writes **uint32** ack. Success `pacote044` option 0 + JP `principal()` (PStr clientVersion only, MemberInfoEx **299**, UserInfo **265**, no 277-byte pad). Then **JP `sendCompleteData` order**: characters `0x70` (513-byte `CharacterInfo` from `pangya_character_information`), caddies `0x71`, warehouse `0x73` (196-byte items from `pangya_item_warehouse`), mascots `0xE1`, equip `0x72` (116 bytes from `pangya_user_equip`), `0x4D` channel list, then tail (`0x102`, `0x131` Treasure Hunter 21 maps, live `0x21D`/`0x21E` from `pangya_counter_item`/`pangya_achievement`/`pangya_quest`, **`0xF1` option 0**, empty **`0x135`**, `0x144`… two `0x25D`; JP does **not** send GB `0x1B1`). Seeded accounts have empty achievement rows so those packets are still three uint32 zeros.
 
 `ChannelInfo.ToArray()` is 77 bytes: `WriteStr(name,64)`, int16 max_user, int16 curr_user, byte id, uint32 flag, uint32 flag2. Channel ids are 0-based from YAML order (C# INI `CHANNEL1` → id 0).
 

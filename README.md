@@ -24,7 +24,7 @@ Health endpoints: Auth `9077/health`, Login `9103`, Game `9202`, Ranking `9474`,
 
 S3/S4/S5: Auth (7777), Login (10203), Game (20202), Ranking (4774) and Messenger (30201) speak the JP Season 9 cipher (`JP.R7.983.00` / packet `2017110200`). Game login dumps JP `principal()` + live warehouse/character from Postgres (seed Nuri + Air Knight). Create-room sends C# `Room.getInfo().ToArray()` (210 bytes). Practice can start (`0x230`/`0x231`/`0x77`); Versus with one player is rejected (`0x253`). Prometheus `/metrics` is on every health port.
 
-Dev login (Flyway V3): user `testuser` / password `testpass`.
+Dev login (Flyway V3): user `testuser` / password `testpass`. First-set (Flyway V7): `newuser` / `testpass`.
 
 ## Verify
 

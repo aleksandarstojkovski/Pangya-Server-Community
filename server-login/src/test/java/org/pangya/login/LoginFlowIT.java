@@ -5,6 +5,7 @@ import org.pangya.db.DatabaseSupport;
 import org.pangya.network.AppConfig;
 import org.pangya.network.client.PangyaFakeClient;
 import org.pangya.network.redis.SessionKeyStore;
+import org.pangya.protocol.game.GamePackets;
 import org.pangya.protocol.login.LoginPackets;
 import org.pangya.protocol.packet.PacketIo;
 import org.pangya.protocol.packet.PacketReader;
@@ -104,6 +105,90 @@ class LoginFlowIT {
             PacketReader r = new PacketReader(pkt);
             assertEquals(LoginPackets.SERVER_LOGIN, r.opcode());
             assertEquals(LoginPackets.OPT_BAD_ID_OR_PASS, r.u8());
+        }
+    }
+
+    @Test
+    void firstLoginCompletesNickAndCharacter() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redis = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password)) {
+            DatabaseSupport.jdbi(ds).useHandle(h -> {
+                h.execute("DELETE FROM pangya.pangya_item_warehouse WHERE \"UID\" = 10003");
+                h.execute("DELETE FROM pangya.pangya_character_information WHERE \"UID\" = 10003");
+                h.execute("DELETE FROM pangya.pangya_user_equip WHERE \"UID\" = 10003");
+                h.execute("UPDATE pangya.user_info SET \"Pang\" = 0, \"Cookie\" = 0 WHERE \"UID\" = 10003");
+                h.execute("""
+                        UPDATE pangya.account
+                           SET "FIRST_LOGIN" = 0, "FIRST_SET" = 0, "NICK" = '', "Event" = 0, "IDState" = 0
+                         WHERE "UID" = 10003
+                        """);
+            });
+        }
+
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redis));
+        try (LoginRuntime runtime = new LoginRuntime(config);
+             PangyaFakeClient client = new PangyaFakeClient()) {
+            client.connect("127.0.0.1", runtime.port());
+            assertNotNull(client.awaitHello(5, TimeUnit.SECONDS));
+            client.sendPlain(LoginPackets.clientConnect("newuser", "testpass", "00:11:22:33:44:55"));
+            List<byte[]> first = collect(client, 2, 5, TimeUnit.SECONDS);
+            assertEquals(2, first.size());
+            assertEquals(LoginPackets.SERVER_TUTORIAL, new PacketReader(first.get(0)).opcode());
+            PacketReader firstLogin = new PacketReader(first.get(1));
+            assertEquals(LoginPackets.SERVER_LOGIN, firstLogin.opcode());
+            assertEquals(LoginPackets.OPT_FIRST_LOGIN, firstLogin.u8());
+
+            client.sendPlain(LoginPackets.clientConfirmNick("newuser"));
+            PacketReader sameId = new PacketReader(client.awaitPlain(5, TimeUnit.SECONDS));
+            assertEquals(LoginPackets.SERVER_CHECK_NICK, sameId.opcode());
+            assertEquals(LoginPackets.NICK_SAME_AS_ID, sameId.i32());
+
+            client.sendPlain(LoginPackets.clientConfirmNick("TestNick"));
+            PacketReader inUse = new PacketReader(client.awaitPlain(5, TimeUnit.SECONDS));
+            assertEquals(LoginPackets.NICK_IN_USE, inUse.i32());
+
+            client.sendPlain(LoginPackets.clientConfirmNick("FreshNick"));
+            PacketReader ok = new PacketReader(client.awaitPlain(5, TimeUnit.SECONDS));
+            assertEquals(LoginPackets.NICK_OK, ok.i32());
+            assertEquals("FreshNick", ok.pstr());
+
+            client.sendPlain(LoginPackets.clientSetNick("FreshNick"));
+            PacketReader firstSet = new PacketReader(client.awaitPlain(5, TimeUnit.SECONDS));
+            assertEquals(LoginPackets.SERVER_LOGIN, firstSet.opcode());
+            assertEquals(LoginPackets.OPT_FIRST_SET, firstSet.u8());
+
+            client.sendPlain(LoginPackets.clientSetCharacter(GamePackets.TYPEID_NURI, 3, 1));
+            PacketReader badSave = new PacketReader(client.awaitPlain(5, TimeUnit.SECONDS));
+            assertEquals(LoginPackets.SERVER_CHARACTER_SAVE, badSave.opcode());
+            PacketReader badCode = new PacketReader(client.awaitPlain(5, TimeUnit.SECONDS));
+            assertEquals(LoginPackets.SERVER_CHECK_NICK, badCode.opcode());
+            assertEquals(LoginPackets.NICK_CODE_ERROR, badCode.i32());
+            assertEquals(LoginPackets.FIRST_SET_CHAR_ERROR, badCode.u32());
+
+            client.sendPlain(LoginPackets.clientSetCharacter(GamePackets.TYPEID_NURI, 3, 0));
+            PacketReader saved = new PacketReader(client.awaitPlain(5, TimeUnit.SECONDS));
+            assertEquals(LoginPackets.SERVER_CHARACTER_SAVE, saved.opcode());
+            assertEquals(0, saved.u16());
+            List<byte[]> success = collect(client, 5, 5, TimeUnit.SECONDS);
+            assertEquals(5, success.size(), "expected 0x10, 0x01, 0x02, 0x09, 0x06");
+            PacketReader login = new PacketReader(success.get(1));
+            assertEquals(LoginPackets.SERVER_LOGIN, login.opcode());
+            assertEquals(0, login.u8());
+            assertEquals("newuser", login.pstr());
+            assertEquals(10003, login.u32());
+            login.u32();
+            login.u8();
+            login.u32();
+            login.u8();
+            login.u32();
+            login.readBytes(16);
+            login.pstr();
+            login.u64();
+            assertEquals("FreshNick", login.pstr());
         }
     }
 

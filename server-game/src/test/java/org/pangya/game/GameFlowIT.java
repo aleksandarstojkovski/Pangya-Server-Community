@@ -54,31 +54,32 @@ class GameFlowIT {
                 int wireVersion = GamePackets.xorPacketVersion(GamePackets.JP_PACKET_VERSION);
                 client.sendPlain(GamePackets.clientLogin(
                         "testuser", 10001, loginKey, GamePackets.JP_CLIENT_VERSION, wireVersion, gameKey));
-                List<byte[]> loginPkts = collect(client, 26, 8, TimeUnit.SECONDS);
-                assertEquals(26, loginPkts.size(), "expected principal + inventory + channel + sendCompleteData tail");
+                List<byte[]> loginPkts = collect(client, GamePackets.LOGIN_DUMP_PACKET_COUNT, 8, TimeUnit.SECONDS);
+                assertEquals(GamePackets.LOGIN_DUMP_PACKET_COUNT, loginPkts.size(),
+                        "expected JP sendCompleteData prefix + tail");
 
                 PacketReader ack = new PacketReader(loginPkts.get(0));
                 assertEquals(GamePackets.SERVER_LOGIN_ACK, ack.opcode());
                 assertEquals(GamePackets.ACK_LOGIN_OK, ack.u8());
                 assertEquals(GamePackets.PRINCIPAL_PAYLOAD_BYTES, ack.remaining());
 
-                PacketReader warehouse = new PacketReader(loginPkts.get(1));
-                assertEquals(0x73, warehouse.opcode());
-                assertEquals(2, warehouse.u16());
-                assertEquals(2, warehouse.u16());
-                assertEquals(2 * GamePackets.WAREHOUSE_ITEM_BYTES, warehouse.remaining());
-
-                PacketReader chars = new PacketReader(loginPkts.get(2));
+                PacketReader chars = new PacketReader(loginPkts.get(1));
                 assertEquals(0x70, chars.opcode());
                 assertEquals(1, chars.i16());
                 assertEquals(1, chars.i16());
                 assertEquals(GamePackets.CHARACTER_INFO_BYTES, chars.remaining());
 
-                assertEquals(0x71, new PacketReader(loginPkts.get(3)).opcode());
-                PacketReader equip = new PacketReader(loginPkts.get(4));
+                assertEquals(0x71, new PacketReader(loginPkts.get(2)).opcode());
+                PacketReader warehouse = new PacketReader(loginPkts.get(3));
+                assertEquals(0x73, warehouse.opcode());
+                assertEquals(2, warehouse.u16());
+                assertEquals(2, warehouse.u16());
+                assertEquals(2 * GamePackets.WAREHOUSE_ITEM_BYTES, warehouse.remaining());
+
+                assertEquals(0xE1, new PacketReader(loginPkts.get(4)).opcode());
+                PacketReader equip = new PacketReader(loginPkts.get(5));
                 assertEquals(0x72, equip.opcode());
                 assertEquals(GamePackets.USER_EQUIP_BYTES, equip.remaining());
-                assertEquals(0xE1, new PacketReader(loginPkts.get(5)).opcode());
 
                 PacketReader channels = new PacketReader(loginPkts.get(6));
                 assertEquals(GamePackets.SERVER_CHANNEL_LIST, channels.opcode());
@@ -219,10 +220,12 @@ class GameFlowIT {
                         GamePackets.JP_CLIENT_VERSION,
                         GamePackets.xorPacketVersion(GamePackets.JP_PACKET_VERSION),
                         gameKey2));
-                List<byte[]> again = collect(client, 26, 8, TimeUnit.SECONDS);
+                List<byte[]> again = collect(client, GamePackets.LOGIN_DUMP_PACKET_COUNT, 8, TimeUnit.SECONDS);
                 assertEquals(GamePackets.SERVER_LOGIN_ACK, new PacketReader(again.get(0)).opcode());
+                assertEquals(0x70, new PacketReader(again.get(1)).opcode());
                 assertEquals(GamePackets.SERVER_CHANNEL_LIST, new PacketReader(again.get(6)).opcode());
-                assertEquals(0x1B1, new PacketReader(again.get(25)).opcode());
+                assertEquals(0xF1, new PacketReader(again.get(11)).opcode());
+                assertEquals(0x25D, new PacketReader(again.get(26)).opcode());
             }
         }
     }
@@ -290,8 +293,8 @@ class GameFlowIT {
         client.awaitHello(5, TimeUnit.SECONDS);
         client.sendPlain(GamePackets.clientLogin(
                 id, uid, loginKey, GamePackets.JP_CLIENT_VERSION, GamePackets.xorPacketVersion(GamePackets.JP_PACKET_VERSION), gameKey));
-        List<byte[]> loginPkts = collect(client, 26, 8, TimeUnit.SECONDS);
-        assertEquals(26, loginPkts.size());
+        List<byte[]> loginPkts = collect(client, GamePackets.LOGIN_DUMP_PACKET_COUNT, 8, TimeUnit.SECONDS);
+        assertEquals(GamePackets.LOGIN_DUMP_PACKET_COUNT, loginPkts.size());
         client.sendPlain(GamePackets.clientEnterChannel(0));
         PacketReader entered = awaitOpcode(client, GamePackets.SERVER_CHANNEL_ENTER_ACK);
         assertEquals(GamePackets.CHANNEL_ENTER_OK, entered.u8());

@@ -1,6 +1,7 @@
 package org.pangya.db;
 
 import org.jdbi.v3.core.Jdbi;
+import org.pangya.protocol.game.GamePackets;
 
 import java.security.SecureRandom;
 import java.time.OffsetDateTime;
@@ -427,6 +428,178 @@ public final class JdbiLoginRepository implements LoginRepository {
                         .bind("emap", (int) server.eventMap())
                         .execute();
             }
+        });
+    }
+
+    @Override
+    public boolean nickInUse(String nick) {
+        if (nick == null || nick.isBlank()) {
+            return false;
+        }
+        return jdbi.withHandle(h -> h.createQuery(
+                        "SELECT 1 FROM pangya.account WHERE \"NICK\" = :nick LIMIT 1")
+                .bind("nick", nick)
+                .mapTo(Integer.class)
+                .findOne()
+                .isPresent());
+    }
+
+    @Override
+    public void saveNick(long uid, String nick) {
+        jdbi.useHandle(h -> h.createUpdate(
+                        "UPDATE pangya.account SET \"NICK\" = :nick WHERE \"UID\" = :uid")
+                .bind("nick", nick)
+                .bind("uid", uid)
+                .execute());
+    }
+
+    @Override
+    public void markFirstLogin(long uid) {
+        jdbi.useHandle(h -> h.createUpdate(
+                        "UPDATE pangya.account SET \"FIRST_LOGIN\" = 1 WHERE \"UID\" = :uid")
+                .bind("uid", uid)
+                .execute());
+    }
+
+    @Override
+    public int insertCharacter(long uid, int typeid, int hair, int shirts) {
+        return jdbi.withHandle(h -> h.createQuery("""
+                        INSERT INTO pangya.pangya_character_information (
+                            typeid, "UID",
+                            parts_1, parts_2, parts_3, parts_4, parts_5, parts_6, parts_7, parts_8,
+                            parts_9, parts_10, parts_11, parts_12, parts_13, parts_14, parts_15, parts_16,
+                            parts_17, parts_18, parts_19, parts_20, parts_21, parts_22, parts_23, parts_24,
+                            default_hair, default_shirts, gift_flag,
+                            "PCL0", "PCL1", "PCL2", "PCL3", "PCL4", "Purchase",
+                            auxparts_1, auxparts_2, auxparts_3, auxparts_4, auxparts_5,
+                            "CutIn_1", "CutIn_2", "CutIn_3", "CutIn_4", "Mastery"
+                        ) VALUES (
+                            :typeid, :uid,
+                            0, 0, 0, 0, 0, 0, 0, 0,
+                            0, 0, 0, 0, 0, 0, 0, 0,
+                            0, 0, 0, 0, 0, 0, 0, 0,
+                            :hair, :shirts, 0,
+                            0, 0, 0, 0, 0, 0,
+                            0, 0, 0, 0, 0,
+                            0, 0, 0, 0, 0
+                        )
+                        RETURNING item_id
+                        """)
+                .bind("typeid", typeid)
+                .bind("uid", uid)
+                .bind("hair", hair)
+                .bind("shirts", shirts)
+                .mapTo(Integer.class)
+                .one());
+    }
+
+    @Override
+    public void applyFirstSet(long uid, int characterId) {
+        jdbi.useTransaction(h -> {
+            Integer clubId = h.createQuery("""
+                            SELECT item_id FROM pangya.pangya_item_warehouse
+                             WHERE "UID" = :uid AND typeid = :typeid LIMIT 1
+                            """)
+                    .bind("uid", uid)
+                    .bind("typeid", GamePackets.TYPEID_AIR_KNIGHT)
+                    .mapTo(Integer.class)
+                    .findOne()
+                    .orElse(null);
+            if (clubId == null) {
+                clubId = h.createQuery("""
+                                INSERT INTO pangya.pangya_item_warehouse (
+                                    "UID", typeid, valid, "Gift_flag", flag,
+                                    "C0", "C1", "C2", "C3", "C4", "Purchase", "ItemType",
+                                    "ClubSet_WorkShop_Flag", "ClubSet_WorkShop_C0", "ClubSet_WorkShop_C1",
+                                    "ClubSet_WorkShop_C2", "ClubSet_WorkShop_C3", "ClubSet_WorkShop_C4",
+                                    "Mastery_Pts", "Recovery_Pts", "Level", "Up",
+                                    "Total_Mastery_Pts", "Mastery_Gasto"
+                                ) VALUES (
+                                    :uid, :typeid, 1, 0, 0,
+                                    0, 0, 0, 0, 0, 0, 2,
+                                    0, 0, 0, 0, 0, 0,
+                                    0, 0, 0, 0, 0, 0
+                                )
+                                RETURNING item_id
+                                """)
+                        .bind("uid", uid)
+                        .bind("typeid", GamePackets.TYPEID_AIR_KNIGHT)
+                        .mapTo(Integer.class)
+                        .one();
+            }
+            int ballExists = h.createQuery("""
+                            SELECT count(*) FROM pangya.pangya_item_warehouse
+                             WHERE "UID" = :uid AND typeid = :typeid
+                            """)
+                    .bind("uid", uid)
+                    .bind("typeid", GamePackets.TYPEID_DEFAULT_BALL)
+                    .mapTo(Integer.class)
+                    .one();
+            if (ballExists == 0) {
+                h.createUpdate("""
+                                INSERT INTO pangya.pangya_item_warehouse (
+                                    "UID", typeid, valid, "Gift_flag", flag,
+                                    "C0", "C1", "C2", "C3", "C4", "Purchase", "ItemType",
+                                    "ClubSet_WorkShop_Flag", "ClubSet_WorkShop_C0", "ClubSet_WorkShop_C1",
+                                    "ClubSet_WorkShop_C2", "ClubSet_WorkShop_C3", "ClubSet_WorkShop_C4",
+                                    "Mastery_Pts", "Recovery_Pts", "Level", "Up",
+                                    "Total_Mastery_Pts", "Mastery_Gasto"
+                                ) VALUES (
+                                    :uid, :typeid, 1, 0, 0,
+                                    1, 0, 0, 0, 0, 0, 2,
+                                    0, 0, 0, 0, 0, 0,
+                                    0, 0, 0, 0, 0, 0
+                                )
+                                """)
+                        .bind("uid", uid)
+                        .bind("typeid", GamePackets.TYPEID_DEFAULT_BALL)
+                        .execute();
+            }
+            int equipped = h.createUpdate("""
+                            UPDATE pangya.pangya_user_equip
+                               SET character_id = :cid, club_id = :club, ball_type = :ball
+                             WHERE "UID" = :uid
+                            """)
+                    .bind("cid", characterId)
+                    .bind("club", clubId)
+                    .bind("ball", GamePackets.TYPEID_DEFAULT_BALL)
+                    .bind("uid", uid)
+                    .execute();
+            if (equipped == 0) {
+                h.createUpdate("""
+                                INSERT INTO pangya.pangya_user_equip (
+                                    "UID", caddie_id, character_id, club_id, ball_type,
+                                    item_slot_1, item_slot_2, item_slot_3, item_slot_4, item_slot_5,
+                                    item_slot_6, item_slot_7, item_slot_8, item_slot_9, item_slot_10,
+                                    "Skin_1", "Skin_2", "Skin_3", "Skin_4", "Skin_5", "Skin_6",
+                                    mascot_id, poster_1, poster_2
+                                ) VALUES (
+                                    :uid, 0, :cid, :club, :ball,
+                                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                                    0, 0, 0, 0, 0, 0,
+                                    0, 0, 0
+                                )
+                                """)
+                        .bind("uid", uid)
+                        .bind("cid", characterId)
+                        .bind("club", clubId)
+                        .bind("ball", GamePackets.TYPEID_DEFAULT_BALL)
+                        .execute();
+            }
+            h.createUpdate("""
+                            UPDATE pangya.user_info
+                               SET "Pang" = "Pang" + 100000, "Cookie" = 120
+                             WHERE "UID" = :uid
+                            """)
+                    .bind("uid", uid)
+                    .execute();
+            h.createUpdate("""
+                            UPDATE pangya.account
+                               SET "FIRST_SET" = 1, "Event" = 1, "IDState" = 0
+                             WHERE "UID" = :uid
+                            """)
+                    .bind("uid", uid)
+                    .execute();
         });
     }
 

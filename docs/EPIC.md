@@ -8,9 +8,9 @@ Questo repo è **solo** la riscrittura Java.
 
 | Campo | Valore |
 |-------|--------|
-| Slice completata | **S0–S3** verdi; **S4** Practice hole/shot + Versus `0x76` dump + `pacote048` + parts equip; **S5** rank SQL + friend CRUD + live `0x138A` char |
-| Prossima | **S6** compose 5-server health; IFF shop/cubes |
-| Blocked | IFF files absent (shop buy success, real pin/cube coords) |
+| Slice completata | **S0–S5** verdi; **S4** Practice hole/shot + Versus `0x76` dump + `pacote048` + parts equip; **S5** rank SQL + friend CRUD + live `0x138A` char; **S6** compose 5-server `/health` via host-gateway + JP login dump + first-set 0x06/07/08 |
+| Prossima | IFF shop/cubes; Match/Tourney/Lounge/GP/GZ/SSC completi |
+| Blocked | IFF files absent (shop buy success, real pin/cube coords, `initComboDef` parts) |
 | VM | Java 21.0.10, Docker 29.7.2, Compose v5.5.0, 4 CPU / 15 GiB |
 
 ## Mappa C# → Java
@@ -70,7 +70,7 @@ Dati già estratti in `core-protocol/src/main/resources/org/pangya/protocol/cryp
 **DecryptClient** (`Cipher.cs:16-44`): frame 5 byte; `buffer[4] = private[(key<<8)+source[0]]`; XOR chain da i=8; strip 5 byte. No compress client→server.
 
 **Primo pacchetto raw (non cifrato):**
-- Login: 14 byte hardcoded, key al byte index 6 (`LoginServer.cs:159-161`)
+- Login: JP `makeRaw` opcode 0 + int32 key + int32 server uid (`PacketIo.loginHello`)
 - Game: raw opcode `0x3F` + key + IP (`makeRaw`)
 - Auth (server-to-server): raw `0x00` + uint32 key + int32 server uid
 
@@ -139,15 +139,15 @@ Flusso implementato:
 # BUILD SUCCESSFUL
 ```
 
-Create-user flag C# (`CREATEUSER=1`) **non** portato in S2: account assente → option 6. FIRST_LOGIN/FIRST_SET packet 0xD8/0xD9 implementati ma lo seed è già completo.
+Create-user flag C# (`CREATEUSER=1`) **non** portato in S2: account assente → option 6. FIRST_LOGIN/FIRST_SET packet 0xD8/0xD9: seed `testuser` è già completo; seed V7 `newuser` esercita 0x06/0x07/0x08.
 
 ## Inventario Practice (S3)
 
-C# `LoginTask.sendCompleteData` invia `pacote044` option 0 con JP `principal()` (PStr `JP.R7.983.00` + 12270 byte fissi: MemberInfoEx 299, UserInfo 265, niente pad 277 GB) + warehouse `0x73` + characters `0x70` + caddies `0x71` + equip `0x72` + mascot `0xE1` + `pacote04D` + coda (`0x102`…`0x1B1`). Java carica warehouse/character/caddie/`user_equip`/mascot/card da SQL (seed V4: Nuri `0x4000000`, Air Knight `0x10000000`, ball `0x14000000`). Create-room accetta tutti i `RoomInfo.TIPO` 0–20 e risponde `pacote049` con `Room.getInfo().ToArray()` (210 byte). Start-game `0x0E` manda `0x230`+`0x231`+`0x77` per Practice/GP/GZ; Versus/Tourney a un giocatore fallisce con `0x253` come C#. Hole/shot IFF restano aperti.
+C# `LoginTask.sendCompleteData` invia `pacote044` option 0 con JP `principal()` (PStr `JP.R7.983.00` + 12270 byte fissi: MemberInfoEx 299, UserInfo 265, niente pad 277 GB) poi **ordine JP**: characters `0x70` + caddies `0x71` + warehouse `0x73` + mascot `0xE1` + equip `0x72` + `pacote04D` + coda (`0x102`, `0x131`, counter/achievement, **`0xF1`**, **`0x135`**, `0x144`… due `0x25D`; **niente** GB `0x1B1`). Java carica warehouse/character/caddie/`user_equip`/mascot/card da SQL (seed V4: Nuri `0x4000000`, Air Knight `0x10000000`, ball `0x14000000`). Create-room accetta tutti i `RoomInfo.TIPO` 0–20 e risponde `pacote049` con `Room.getInfo().ToArray()` (210 byte). Start-game `0x0E` manda `0x230`+`0x231`+`0x77` per Practice/GP/GZ; Versus/Tourney a un giocatore fallisce con `0x253` come C#. Hole/shot IFF restano aperti.
 
 ## S3 evidenza (2026-08-28)
 
-`RoomInfo.TIPO.PRACTICE = 19` (SSC = 18). Game hello raw `0x3F`. CLIENT `0x02` valida auth keys Redis+SQL e `Version_Decrypt` (XOR GUID). Success: `0x44` + JP `principal()` + warehouse/chars/caddies/equip/mascot + `0x4D`. `0x04` → `0x4E` option 1. Leave `0x130`. Kill sessione: secondo login dopo disconnect.
+`RoomInfo.TIPO.PRACTICE = 19` (SSC = 18). Game hello raw `0x3F`. CLIENT `0x02` valida auth keys Redis+SQL e `Version_Decrypt` (XOR GUID). Success: `0x44` + JP `principal()` + **JP inventory order** chars/caddies/warehouse/mascot/equip + `0x4D`. `0x04` → `0x4E` option 1. Leave `0x130`. Kill sessione: secondo login dopo disconnect.
 
 ```
 ./gradlew --no-daemon :core-protocol:test :core-network:test :core-db:test :server-login:test :server-auth:test :server-game:test
@@ -173,7 +173,7 @@ C# `LoginTask.sendCompleteData` invia `pacote044` option 0 con JP `principal()` 
 # BUILD SUCCESSFUL
 ```
 
-Hole/shot IFF cubes (live pin/cube coords from client IFF), IFF shop catalog (`0xAA`/`0x68` success), e `docker compose up --build` health dei 5 processi Java restano aperti fino a verifica S6. Practice `0x76`/`0x52`/`0x1A`/`0x1B`/`0x1C`, Versus 2p `0x76` dump, `pacote048`/`0x4A`, equip `0x20` type 0/1/3/5/8, ranking SQL + live CharacterInfo, e friend CRUD sono nel fake-client.
+Hole/shot IFF cubes (live pin/cube coords from client IFF), IFF shop catalog (`0xAA`/`0x68` success) restano aperti. Compose 5-server: Java services usano `host.docker.internal` verso le porte pubblicate (il bridge nested-Docker/vfs non instrada container-to-container). Practice `0x76`/`0x52`/`0x1A`/`0x1B`/`0x1C`, Versus 2p `0x76` dump, `pacote048`/`0x4A`, equip `0x20` type 0/1/3/5/8, ranking SQL + live CharacterInfo, friend CRUD, Login first-set `0x06`/`0x07`/`0x08` sono nel fake-client.
 
 ## Note GC / Netty (S6)
 

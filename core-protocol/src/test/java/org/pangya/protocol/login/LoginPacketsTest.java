@@ -159,4 +159,34 @@ class LoginPacketsTest {
         assertEquals(LoginPackets.DEFAULT_ACCESS_CODE, r.pstr());
         assertEquals(0, r.remaining());
     }
+
+    @Test
+    void pacote00ESuccessWritesNick() {
+        byte[] pkt = LoginPackets.pacote00E(LoginPackets.NICK_OK, "NewNick");
+        PacketReader r = new PacketReader(pkt);
+        assertEquals(0x0E, r.opcode());
+        assertEquals(0, r.i32());
+        assertEquals("NewNick", r.pstr());
+        assertEquals(0, r.remaining());
+    }
+
+    @Test
+    void pacote00ECodeErrorWritesUint32() {
+        byte[] pkt = LoginPackets.pacote00E(
+                LoginPackets.NICK_CODE_ERROR, "", LoginPackets.FIRST_SET_CHAR_ERROR);
+        PacketReader r = new PacketReader(pkt);
+        assertEquals(0x0E, r.opcode());
+        assertEquals(12, r.i32());
+        assertEquals(LoginPackets.FIRST_SET_CHAR_ERROR, r.u32());
+        assertEquals(0, r.remaining());
+    }
+
+    @Test
+    void pacote011IsUint16Option() {
+        byte[] pkt = LoginPackets.pacote011(0);
+        PacketReader r = new PacketReader(pkt);
+        assertEquals(0x11, r.opcode());
+        assertEquals(0, r.u16());
+        assertEquals(0, r.remaining());
+    }
 }

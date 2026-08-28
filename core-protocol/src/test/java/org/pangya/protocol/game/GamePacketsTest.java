@@ -94,9 +94,14 @@ class GamePacketsTest {
         assertEquals(GamePackets.TIPO_TOURNEY, GamePackets.tipoShow(GamePackets.TIPO_PRACTICE));
         assertEquals(19, GamePackets.tipoEx(GamePackets.TIPO_PRACTICE));
         assertEquals(255, GamePackets.tipoEx(GamePackets.TIPO_STROKE));
+        assertEquals(true, GamePackets.isCharacterTypeid(GamePackets.TYPEID_NURI));
+        assertEquals(false, GamePackets.isCharacterTypeid(GamePackets.TYPEID_AIR_KNIGHT));
         List<byte[]> tail = GamePackets.loginDumpTail(10001, 0, 0, 1);
+        assertEquals(GamePackets.LOGIN_DUMP_TAIL_COUNT, tail.size());
         assertEquals(0x102, new PacketReader(tail.get(0)).opcode());
-        assertEquals(0x1B1, new PacketReader(tail.getLast()).opcode());
+        assertEquals(0xF1, new PacketReader(tail.get(4)).opcode());
+        assertEquals(0x135, new PacketReader(tail.get(5)).opcode());
+        assertEquals(0x25D, new PacketReader(tail.getLast()).opcode());
     }
 
     @Test

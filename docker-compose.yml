@@ -1,3 +1,6 @@
+# Nested Docker (vfs) often cannot route container-to-container on the compose
+# bridge. Java processes reach Postgres/Redis/Auth through published host ports
+# via host.docker.internal (Linux extra_hosts host-gateway).
 services:
   postgres:
     image: postgres:16-alpine
@@ -30,20 +33,23 @@ services:
       context: .
       args:
         MODULE: server-auth
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
     environment:
-      DATABASE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-pangya}
+      DATABASE_URL: jdbc:postgresql://host.docker.internal:5432/${POSTGRES_DB:-pangya}
       DATABASE_USER: ${POSTGRES_USER:-pangya}
       DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-pangya}
-      REDIS_URI: redis://redis:6379
+      REDIS_URI: redis://host.docker.internal:6379
       PANGYA_MIGRATE_ON_START: "true"
     ports:
       - "7777:7777"
       - "9077:9077"
+    restart: on-failure
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9077/health"]
       interval: 10s
@@ -56,17 +62,21 @@ services:
       context: .
       args:
         MODULE: server-login
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       auth:
         condition: service_healthy
     environment:
-      DATABASE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-pangya}
+      DATABASE_URL: jdbc:postgresql://host.docker.internal:5432/${POSTGRES_DB:-pangya}
       DATABASE_USER: ${POSTGRES_USER:-pangya}
       DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-pangya}
-      REDIS_URI: redis://redis:6379
+      REDIS_URI: redis://host.docker.internal:6379
+      PANGYA_AUTH_HOST: host.docker.internal
     ports:
       - "10203:10203"
       - "9103:9103"
+    restart: on-failure
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9103/health"]
       interval: 10s
@@ -79,17 +89,21 @@ services:
       context: .
       args:
         MODULE: server-game
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       auth:
         condition: service_healthy
     environment:
-      DATABASE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-pangya}
+      DATABASE_URL: jdbc:postgresql://host.docker.internal:5432/${POSTGRES_DB:-pangya}
       DATABASE_USER: ${POSTGRES_USER:-pangya}
       DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-pangya}
-      REDIS_URI: redis://redis:6379
+      REDIS_URI: redis://host.docker.internal:6379
+      PANGYA_AUTH_HOST: host.docker.internal
     ports:
       - "20202:20202"
       - "9202:9202"
+    restart: on-failure
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9202/health"]
       interval: 10s
@@ -102,17 +116,21 @@ services:
       context: .
       args:
         MODULE: server-ranking
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       auth:
         condition: service_healthy
     environment:
-      DATABASE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-pangya}
+      DATABASE_URL: jdbc:postgresql://host.docker.internal:5432/${POSTGRES_DB:-pangya}
       DATABASE_USER: ${POSTGRES_USER:-pangya}
       DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-pangya}
-      REDIS_URI: redis://redis:6379
+      REDIS_URI: redis://host.docker.internal:6379
+      PANGYA_AUTH_HOST: host.docker.internal
     ports:
       - "4774:4774"
       - "9474:9474"
+    restart: on-failure
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9474/health"]
       interval: 10s
@@ -125,17 +143,21 @@ services:
       context: .
       args:
         MODULE: server-messenger
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       auth:
         condition: service_healthy
     environment:
-      DATABASE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-pangya}
+      DATABASE_URL: jdbc:postgresql://host.docker.internal:5432/${POSTGRES_DB:-pangya}
       DATABASE_USER: ${POSTGRES_USER:-pangya}
       DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-pangya}
-      REDIS_URI: redis://redis:6379
+      REDIS_URI: redis://host.docker.internal:6379
+      PANGYA_AUTH_HOST: host.docker.internal
     ports:
       - "30201:30201"
       - "9302:9302"
+    restart: on-failure
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9302/health"]
       interval: 10s

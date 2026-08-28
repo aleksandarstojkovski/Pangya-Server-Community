@@ -5,6 +5,7 @@ import org.pangya.network.AppConfig;
 import org.pangya.network.redis.SessionKeyStore;
 import org.pangya.network.session.PlayerContext;
 import org.pangya.network.session.Session;
+import org.pangya.protocol.game.GamePackets;
 import org.pangya.protocol.login.LoginPackets;
 import org.pangya.protocol.login.ServerInfo;
 import org.pangya.protocol.packet.PacketReader;
@@ -22,6 +23,10 @@ public final class LoginHandler {
     private static final Logger log = LoggerFactory.getLogger(LoginHandler.class);
     private static final Pattern INVALID_ID =
             Pattern.compile(".*[\\^$&,\\\\?`´~|\"@#¨'%*!\\\\].*");
+    private static final Pattern NICK_BAD_CHARS =
+            Pattern.compile("[\\^\\$\\?,`´~|\"@#¨'%*!\\\\\\]]");
+    private static final Pattern NICK_STAFF =
+            Pattern.compile(".*GM.*|.*ADM.*", Pattern.CASE_INSENSITIVE);
 
     private final AppConfig config;
     private final LoginRepository repo;
@@ -42,6 +47,9 @@ public final class LoginHandler {
         switch (opcode) {
             case LoginPackets.CLIENT_CONNECT -> requestLogin(session, reader);
             case LoginPackets.CLIENT_SELECT_GS -> selectGameServer(session, reader);
+            case LoginPackets.CLIENT_CONFIRM_SET_NICK -> confirmNick(session, reader);
+            case LoginPackets.CLIENT_SET_NICK -> setNick(session, reader);
+            case LoginPackets.CLIENT_SET_CHARACTER -> setCharacter(session, reader);
             default -> log.debug("unhandled login opcode 0x{}", Integer.toHexString(opcode));
         }
     }
@@ -115,6 +123,77 @@ public final class LoginHandler {
             return;
         }
         successLogin(session);
+    }
+
+    private void confirmNick(Session session, PacketReader reader) {
+        String nick = reader.remaining() >= 2 ? reader.pstr() : "";
+        int check = checkNick(nick, session.player().id, session.player().capability, repo.nickInUse(nick));
+        int error = check == LoginPackets.NICK_CODE_ERROR ? LoginPackets.FIRST_SET_CHAR_ERROR : 0;
+        session.send(LoginPackets.pacote00E(check, nick, error));
+    }
+
+    private void setNick(Session session, PacketReader reader) {
+        if (!session.authorized()) {
+            return;
+        }
+        String nick = reader.remaining() >= 2 ? reader.pstr() : "";
+        PlayerContext pi = session.player();
+        try {
+            repo.saveNick(pi.uid, nick);
+            repo.markFirstLogin(pi.uid);
+            pi.nickname = nick;
+            if (!repo.isFirstSetDone(pi.uid)) {
+                session.send(LoginPackets.pacote001Option(LoginPackets.OPT_FIRST_SET));
+            } else {
+                successLogin(session);
+            }
+        } catch (RuntimeException e) {
+            log.warn("save nick failed uid={}: {}", pi.uid, e.toString());
+            session.send(LoginPackets.pacote00E(LoginPackets.NICK_UNKNOWN_ERROR, nick));
+        }
+    }
+
+    private void setCharacter(Session session, PacketReader reader) {
+        if (!session.authorized()) {
+            return;
+        }
+        PlayerContext pi = session.player();
+        try {
+            int typeid = reader.remaining() >= 4 ? reader.u32() : 0;
+            int hair = reader.remaining() >= 1 ? reader.u8() : 0;
+            int shirts = reader.remaining() >= 1 ? reader.u8() : 0;
+            if (!GamePackets.isCharacterTypeid(typeid) || hair > 9 || shirts != 0) {
+                throw new IllegalArgumentException("invalid first-set character");
+            }
+            int characterId = repo.insertCharacter(pi.uid, typeid, hair, shirts);
+            repo.applyFirstSet(pi.uid, characterId);
+            session.send(LoginPackets.pacote011(0));
+            successLogin(session);
+        } catch (RuntimeException e) {
+            log.warn("first set character failed uid={}: {}", pi.uid, e.toString());
+            session.send(LoginPackets.pacote011(0));
+            session.send(LoginPackets.pacote00E(
+                    LoginPackets.NICK_CODE_ERROR, "", LoginPackets.FIRST_SET_CHAR_ERROR));
+        }
+    }
+
+    static int checkNick(String nick, String id, int capability, boolean inUse) {
+        if (nick != null && id != null && nick.equals(id)) {
+            return LoginPackets.NICK_SAME_AS_ID;
+        }
+        if (capability < 4 && nick != null && NICK_STAFF.matcher(nick).matches()) {
+            return LoginPackets.NICK_BAD_WORD;
+        }
+        if (nick != null && nick.contains(" ")) {
+            return LoginPackets.NICK_EMPTY;
+        }
+        if (nick == null || nick.length() < 4 || NICK_BAD_CHARS.matcher(nick).find()) {
+            return LoginPackets.NICK_INCORRECT;
+        }
+        if (inUse) {
+            return LoginPackets.NICK_IN_USE;
+        }
+        return LoginPackets.NICK_OK;
     }
 
     private void successLogin(Session session) {

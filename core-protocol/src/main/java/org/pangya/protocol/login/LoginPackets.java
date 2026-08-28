@@ -50,6 +50,18 @@ public final class LoginPackets {
     /** JP option 7: less than one hour of block is sent as 360 hours (15 days). */
     public static final int BLOCK_TIME_UNDER_ONE_HOUR = 360;
 
+    /** JP {@code NICK_CHECK} values written as int32 in {@code pacote00E}. */
+    public static final int NICK_OK = 0;
+    public static final int NICK_UNKNOWN_ERROR = 1;
+    public static final int NICK_IN_USE = 2;
+    public static final int NICK_INCORRECT = 3;
+    public static final int NICK_BAD_WORD = 5;
+    public static final int NICK_EMPTY = 8;
+    public static final int NICK_SAME_AS_ID = 9;
+    public static final int NICK_CODE_ERROR = 12;
+    /** C# {@code packet008} catch: {@code pacote00E} option 12 + this code. */
+    public static final int FIRST_SET_CHAR_ERROR = 500051;
+
     private LoginPackets() {}
 
     /**
@@ -150,6 +162,45 @@ public final class LoginPackets {
         return new PacketWriter()
                 .opcode(SERVER_AUTH_KEY_LOGIN)
                 .pstr(authKeyLogin == null ? "" : authKeyLogin)
+                .toBytes();
+    }
+
+    /**
+     * JP {@code pacote00E}: int32 option; option 0 adds PStr nick; option 12 adds uint32 error.
+     */
+    public static byte[] pacote00E(int option, String nick) {
+        return pacote00E(option, nick, 0);
+    }
+
+    public static byte[] pacote00E(int option, String nick, int error) {
+        PacketWriter w = new PacketWriter().opcode(SERVER_CHECK_NICK).i32(option);
+        if (option == NICK_OK) {
+            w.pstr(nick == null ? "" : nick);
+        } else if (option == NICK_CODE_ERROR) {
+            w.u32(error);
+        }
+        return w.toBytes();
+    }
+
+    /** JP {@code pacote011}: uint16 option (0 = character saved). */
+    public static byte[] pacote011(int option) {
+        return new PacketWriter().opcode(SERVER_CHARACTER_SAVE).u16(option).toBytes();
+    }
+
+    public static byte[] clientSetNick(String nick) {
+        return new PacketWriter().opcode(CLIENT_SET_NICK).pstr(nick).toBytes();
+    }
+
+    public static byte[] clientConfirmNick(String nick) {
+        return new PacketWriter().opcode(CLIENT_CONFIRM_SET_NICK).pstr(nick).toBytes();
+    }
+
+    public static byte[] clientSetCharacter(int typeid, int hair, int shirts) {
+        return new PacketWriter()
+                .opcode(CLIENT_SET_CHARACTER)
+                .u32(typeid)
+                .u8(hair)
+                .u8(shirts)
                 .toBytes();
     }
 

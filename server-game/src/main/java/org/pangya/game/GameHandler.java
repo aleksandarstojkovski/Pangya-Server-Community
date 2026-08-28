@@ -199,8 +199,8 @@ public final class GameHandler {
                 log.warn("register game logon failed uid={}: {}", pi.uid, e.toString());
             }
 
-            // C# LoginTask.sendCompleteData: pacote044 principal + warehouse + chars +
-            // caddies + equip + mascots + channel list. Remaining dump packets are S4+.
+            // JP LoginTask.sendCompleteData: 0x44, chars 0x70, caddies 0x71,
+            // warehouse 0x73, mascots 0xE1, equip 0x72, channel 0x4D, then tail.
             session.send(GamePackets.loginOkPrincipal(
                     config.clientVersion(),
                     session.oid(),
@@ -213,11 +213,11 @@ public final class GameHandler {
             var warehouse = inventory.warehouse(pi.uid);
             var characters = inventory.characters(pi.uid);
             var caddies = inventory.caddies(pi.uid);
-            session.send(GamePackets.warehouse(warehouse));
             session.send(GamePackets.characters(characters));
             session.send(GamePackets.caddies(caddies));
-            session.send(GamePackets.userEquip(inventory.userEquip(pi.uid)));
+            session.send(GamePackets.warehouse(warehouse));
             session.send(GamePackets.mascots(inventory.mascots(pi.uid)));
+            session.send(GamePackets.userEquip(inventory.userEquip(pi.uid)));
             session.send(GamePackets.channelList(channels));
             for (byte[] extra : GamePackets.loginDumpTail(
                     (int) pi.uid,

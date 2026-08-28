@@ -49,6 +49,25 @@ public interface LoginRepository {
 
     void upsertServer(ServerListRow server);
 
+    /** True when another account already uses this nick (C# {@code VerifyNick}). */
+    boolean nickInUse(String nick);
+
+    void saveNick(long uid, String nick);
+
+    void markFirstLogin(long uid);
+
+    /**
+     * JP {@code ProcAddCharacter}: insert {@code pangya_character_information} and return item_id.
+     * Parts stay 0 when IFF {@code initComboDef} cannot run.
+     */
+    int insertCharacter(long uid, int typeid, int hair, int shirts);
+
+    /**
+     * JP {@code ProcFirstSet} essentials: Air Knight + default ball, equip them,
+     * {@code FIRST_SET=1}, closed-beta pang/cookie bump.
+     */
+    void applyFirstSet(long uid, int characterId);
+
     record PlayerLoginInfo(
             long uid,
             String id,

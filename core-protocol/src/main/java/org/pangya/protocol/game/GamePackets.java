@@ -124,6 +124,24 @@ public final class GamePackets {
     public static final int TYPEID_NURI = 0x4000000;
     /** IFF BALL << 26. */
     public static final int TYPEID_DEFAULT_BALL = 0x14000000;
+    /** C# {@code IFF_GROUP.CHARACTER}: {@code typeid >>> 26}. */
+    public static final int IFF_GROUP_CHARACTER = 1;
+
+    /**
+     * JP {@code LoginTask.sendCompleteData} prefix after decrypt:
+     * {@code 0x44, 0x70, 0x71, 0x73, 0xE1, 0x72, 0x4D}.
+     */
+    public static final int LOGIN_DUMP_PREFIX_COUNT = 7;
+    /**
+     * JP tail after the channel list: {@code 0x102}…two {@code 0x25D}
+     * (includes {@code 0xF1}/{@code 0x135}, no GB {@code 0x1B1}).
+     */
+    public static final int LOGIN_DUMP_TAIL_COUNT = 20;
+    public static final int LOGIN_DUMP_PACKET_COUNT = LOGIN_DUMP_PREFIX_COUNT + LOGIN_DUMP_TAIL_COUNT;
+
+    public static boolean isCharacterTypeid(int typeid) {
+        return (typeid >>> 26) == IFF_GROUP_CHARACTER;
+    }
 
     private GamePackets() {}
 
@@ -285,6 +303,9 @@ public final class GamePackets {
         out.add(th.toBytes());
         out.add(counters(counterList == null ? List.of() : counterList));
         out.add(achievements(achievementList == null ? List.of() : achievementList));
+        // JP always sends messenger-ready 0xF1 and empty 0x135 before 0x144.
+        out.add(new PacketWriter().opcode(0xF1).u8(0).toBytes());
+        out.add(new PacketWriter().opcode(0x135).toBytes());
         out.add(new PacketWriter().opcode(0x144).u8(0).toBytes());
         out.add(cards(cardList));
         out.add(new PacketWriter().opcode(0x136).toBytes());
@@ -299,13 +320,6 @@ public final class GamePackets {
         out.add(new PacketWriter().opcode(0x158).u8(0).u32(uid).bytes(userInfo(level)).toBytes());
         out.add(new PacketWriter().opcode(0x25D).u8(5).u32(0).u32(0).toBytes());
         out.add(new PacketWriter().opcode(0x25D).u8(0).u32(0).u32(0).toBytes());
-        out.add(new PacketWriter()
-                .opcode(0x1B1)
-                .u64(0x190132DC55L)
-                .u64(0x2211000000L)
-                .zero(13)
-                .u32(0x1100)
-                .toBytes());
         return out;
     }
 

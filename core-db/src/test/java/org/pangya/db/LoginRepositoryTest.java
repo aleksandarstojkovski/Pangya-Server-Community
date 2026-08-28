@@ -41,6 +41,9 @@ class LoginRepositoryTest {
             assertTrue(stored.valid());
             assertEquals(s2s, stored.key());
 
+            assertTrue(repo.nickInUse("TestNick"));
+            assertFalse(repo.nickInUse("UnusedNickZZ"));
+
             LoginRepository.ServerListRow game = new LoginRepository.ServerListRow(
                     "PAPEL", 20202, "127.0.0.1", 20202, 2001, 0, 1,
                     2048, 0, 0, (short) 0, (short) 0, (short) 0, (short) 0,
