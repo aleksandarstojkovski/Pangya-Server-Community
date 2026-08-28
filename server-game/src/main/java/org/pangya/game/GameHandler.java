@@ -4278,23 +4278,78 @@ public final class GameHandler {
     }
 
     /**
-     * C# {@code requestUseItemBuff}: typeid 0 → {@code 0x181}
-     * {@code shopSys(0x5500401)}.
+     * C# {@code requestUseItemBuff} ({@code packet0D8} / {@code 0x181}).
+     * IFF {@code findItem} stands in as ITEM group. SQL {@code iff_time_limit_item}
+     * stands in for {@code findTimeLimitItem}. Success is u32 2 + count 1 + typeid
+     * + {@code ItemBuff.ToArray()}. Catch else is full {@code 0x5500400}.
      */
     private void useItemBuff(Session session, PacketReader reader) {
         if (!inChannel(session)) {
             return;
         }
-        if (reader.remaining() < 4) {
+        try {
+            if (reader.remaining() < 4) {
+                session.send(GamePackets.itemBuffFail(GamePackets.BUFF_ERR_DEFAULT));
+                return;
+            }
+            int typeid = reader.u32();
+            if (typeid == 0) {
+                session.send(GamePackets.itemBuffFail(
+                        GamePackets.shopSys(GamePackets.BUFF_ERR_TYPEID)));
+                return;
+            }
+            if (GamePackets.itemGroupIdentify(typeid) != GamePackets.IFF_GROUP_ITEM) {
+                session.send(GamePackets.itemBuffFail(
+                        GamePackets.shopSys(GamePackets.BUFF_ERR_IFF_ITEM)));
+                return;
+            }
+            long uid = session.player().uid;
+            GamePackets.WarehouseItem item = warehouseByTypeid(uid, typeid);
+            if (item == null) {
+                session.send(GamePackets.itemBuffFail(
+                        GamePackets.shopSys(GamePackets.BUFF_ERR_MISSING)));
+                return;
+            }
+            if ((item.c[0] & 0xffff) < 1) {
+                session.send(GamePackets.itemBuffFail(
+                        GamePackets.shopSys(GamePackets.BUFF_ERR_QNTD)));
+                return;
+            }
+            Optional<InventoryRepository.TimeLimitItem> tli = inventory.timeLimitItem(typeid);
+            if (tli.isEmpty() || tli.get().timeMinutes() <= 0) {
+                session.send(GamePackets.itemBuffFail(
+                        GamePackets.shopSys(GamePackets.BUFF_ERR_IFF_TLI)));
+                return;
+            }
+            if (inventory.consumeWarehouseByTypeid(uid, typeid, 1).isEmpty()) {
+                session.send(GamePackets.itemBuffFail(
+                        GamePackets.shopSys(GamePackets.BUFF_ERR_CONSUME)));
+                return;
+            }
+            InventoryRepository.TimeLimitItem ctx = tli.get();
+            Instant now = Instant.now();
+            Instant useDate;
+            Instant endDate;
+            int tempoSeconds;
+            Optional<InventoryRepository.ItemBuffRow> existing = inventory.itemBuff(uid, typeid);
+            if (existing.isPresent()) {
+                InventoryRepository.ItemBuffRow old = existing.get();
+                useDate = old.useDate();
+                long base = Math.max(now.getEpochSecond(), old.endDate().getEpochSecond());
+                endDate = Instant.ofEpochSecond(base + ctx.timeMinutes() * 60L);
+                tempoSeconds = (int) Math.max(0, endDate.getEpochSecond() - useDate.getEpochSecond());
+                inventory.updateItemBuff(uid, old.index(), typeid, ctx.tipo(), endDate);
+            } else {
+                useDate = now;
+                endDate = now.plusSeconds(ctx.timeMinutes() * 60L);
+                tempoSeconds = ctx.timeMinutes() * 60;
+                inventory.insertItemBuff(uid, typeid, ctx.tipo(), ctx.percent(), useDate, endDate);
+            }
+            session.send(GamePackets.itemBuffOk(typeid, useDate, tempoSeconds, ctx.tipo()));
+        } catch (RuntimeException e) {
+            log.debug("item buff failed: {}", e.toString());
             session.send(GamePackets.itemBuffFail(GamePackets.BUFF_ERR_DEFAULT));
-            return;
         }
-        int typeid = reader.u32();
-        if (typeid == 0) {
-            session.send(GamePackets.itemBuffFail(GamePackets.shopSys(GamePackets.BUFF_ERR_TYPEID)));
-            return;
-        }
-        session.send(GamePackets.itemBuffFail(GamePackets.shopSys(0x5500402)));
     }
 
     /**

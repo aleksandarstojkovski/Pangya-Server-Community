@@ -4,6 +4,7 @@ import org.pangya.protocol.packet.PacketIo;
 import org.pangya.protocol.packet.PacketReader;
 import org.pangya.protocol.packet.PacketWriter;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -192,7 +193,7 @@ public final class GamePackets {
     public static final int SERVER_TIKI_EXCHANGE_TP = 0x1E9;
     /** C# Tiki TP→item {@code 0x1EA}. */
     public static final int SERVER_TIKI_EXCHANGE_ITEM = 0x1EA;
-    /** C# item-buff catch {@code 0x181}. */
+    /** C# item-buff {@code 0x181}: catch u32 sys; success u32 2 + count + ItemBuff. */
     public static final int SERVER_ITEM_BUFF = 0x181;
     /**
      * C# {@code requestCometRefill} {@code 0x197}: success {@code WriteByte(1)}
@@ -981,7 +982,7 @@ public final class GamePackets {
     public static final int CLIENT_LOCKER_ITEMS = 0xCD;
     /** C# {@code packet0D5} Dolfini locker pang. */
     public static final int CLIENT_LOCKER_PANG = 0xD5;
-    /** C# {@code packet0D8} use item buff. */
+    /** C# {@code packet0D8} use item buff. Success {@link #itemBuffOk}; typeid 0 → fail. */
     public static final int CLIENT_ITEM_BUFF = 0xD8;
     /** C# {@code packet0DE} refuse whisper. */
     public static final int CLIENT_REFUSE_WHISPER = 0xDE;
@@ -1595,6 +1596,24 @@ public final class GamePackets {
     public static final int BUFF_ERR_TYPEID = 0x5500401;
     /** C# item-buff catch else. */
     public static final int BUFF_ERR_DEFAULT = 0x5500400;
+    /** C# missing warehouse CHANNEL sys {@code 0x5500402}. */
+    public static final int BUFF_ERR_MISSING = 0x5500402;
+    /** C# {@code findItem} miss CHANNEL sys {@code 0x5500403}. */
+    public static final int BUFF_ERR_IFF_ITEM = 0x5500403;
+    /** C# {@code findTimeLimitItem} miss CHANNEL sys {@code 0x5500404}. */
+    public static final int BUFF_ERR_IFF_TLI = 0x5500404;
+    /** C# C0 &lt; 1 CHANNEL sys {@code 0x5500405}. */
+    public static final int BUFF_ERR_QNTD = 0x5500405;
+    /** C# {@code removeItem} fail CHANNEL sys {@code 0x5500406}. */
+    public static final int BUFF_ERR_CONSUME = 0x5500406;
+    /** C# {@code WriteUInt32(2)} OK add Item Buff. */
+    public static final int ITEM_BUFF_OK = 2;
+    /** C# {@code ItemBuff.use_yn} after use. */
+    public static final int ITEM_BUFF_USE_YN = 1;
+    /** C# {@code PangyaTime_ItemBuff.setTime} divisor {@code 0xFFFF}. */
+    public static final int ITEM_BUFF_TEMPO_MOD = 0xFFFF;
+    /** C# {@code ItemBuff.eTYPE.YAM_AND_GOLD}. */
+    public static final int ITEM_BUFF_TIPO_YAM = 1;
     /** C# mail-box typeid 0 CHANNEL sys. */
     public static final int BOX_MAIL_ERR_TYPEID = 0x6300101;
     /** C# mail-box catch else. */
@@ -3578,6 +3597,30 @@ public final class GamePackets {
     /** C# item-buff catch {@code 0x181} u32 sys. */
     public static byte[] itemBuffFail(int code) {
         return new PacketWriter().opcode(SERVER_ITEM_BUFF).u32(code).toBytes();
+    }
+
+    /**
+     * C# use-item-buff success {@code 0x181}: u32 2 + u32 count 1 + typeid +
+     * {@code ItemBuff.ToArray()} (id 0, {@code percent}/{@code end_date} SQL-only).
+     */
+    public static byte[] itemBuffOk(int typeid, Instant useDate, int tempoSeconds, int tipo) {
+        return new PacketWriter()
+                .opcode(SERVER_ITEM_BUFF)
+                .u32(ITEM_BUFF_OK)
+                .u32(1)
+                .u32(typeid)
+                .u32(0)
+                .u32(typeid)
+                .u32(0)
+                .u32(0)
+                .u32(0)
+                .u32(0)
+                .u32(0)
+                .systemTime(useDate)
+                .itemBuffTempo(tempoSeconds)
+                .u32(tipo)
+                .u8(ITEM_BUFF_USE_YN)
+                .toBytes();
     }
 
     /** C# comet-refill catch {@code 0x197}: u8 0 + 10 zeros. */

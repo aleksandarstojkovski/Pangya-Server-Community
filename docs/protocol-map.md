@@ -171,7 +171,7 @@ C#: `GameServer/PangyaEnums/PacketGame.cs` → Java `org.pangya.protocol.game.Ga
 | C | `CLIENT_CLUBSETWORKSHOP_REQ_UP_LEVEL_CONFIRM` | `0x165` | no pending ClubSet → `0x23E` `shopSys(0x5300301)` |
 | C | `CLIENT_CLUBSETWORKSHOP_REQ_UP_LEVEL_CANCEL` | `0x166` | no pending ClubSet → `0x23F` `shopSys(0x5300251)` |
 | C | `CLIENT_CLUBSETWORKSHOP_REQ_UP_RANK` | `0x167` | qntd>0 missing card → `0x240` `shopSys(0x5300351)` |
-| C | `CLIENT_USE_ITEM_BUFF` | `0xD8` | typeid 0 → `0x181` `shopSys(0x5500401)` |
+| C | `CLIENT_USE_ITEM_BUFF` | `0xD8` | typeid 0 → `0x181` `shopSys(0x5500401)`; ITEM+SQL `iff_time_limit_item` success u32 2 + count 1 + typeid + ItemBuff; missing warehouse `shopSys(0x5500402)`; non-ITEM `shopSys(0x5500403)`; no TLI `shopSys(0x5500404)` |
 | C | `CLIENT_COMET_REFILL` | `0xEC` | ITEM+BALL SQL `pangya_comet_refill`; success `0x197` u8 1 + item + ball + u16 C0; else u8 0 + 10 zeros. Opposite locker-add `SERVER_SHOP_BUY` |
 | C | `CLIENT_OPEN_BOX_MAIL` | `0xEF` | typeid 0 → `0x19D` `shopSys(0x6300101)` |
 | C | `CLIENT_ITEMSTORAGE_REQ_GET_ITEM` | `0xCD` | empty locker → `0x16D` pages 0 + page 0 + count 0 |
@@ -244,7 +244,7 @@ C#: `GameServer/PangyaEnums/PacketGame.cs` → Java `org.pangya.protocol.game.Ga
 | S | `SERVER_CLUBSETWORKSHOP_CONFIRM` | `0x23E` | u32 sys |
 | S | `SERVER_CLUBSETWORKSHOP_CANCEL` | `0x23F` | u32 sys |
 | S | `SERVER_CLUBSETWORKSHOP_RANK` | `0x240` | u32 sys |
-| S | `SERVER_ITEM_BUFF` | `0x181` | u32 sys |
+| S | `SERVER_ITEM_BUFF` | `0x181` | fail u32 sys; success u32 2 + u32 1 + typeid + ItemBuff 65; opposite CLIENT ring-ground |
 | S | `SERVER_COMET_REFILL` | `0x197` | fail u8 0 + 10 zeros; success u8 1 + u32 item + u32 ball + u16 C0. Opposite CLIENT ring-power |
 | S | `SERVER_BOX_MAIL` | `0x19D` | u32 sys |
 | S | `SERVER_LOCKER_ITEMS` | `0x16D` | u16 pages + u16 page + u8 count |

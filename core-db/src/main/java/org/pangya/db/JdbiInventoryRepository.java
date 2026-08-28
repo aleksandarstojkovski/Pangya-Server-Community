@@ -2350,4 +2350,116 @@ public final class JdbiInventoryRepository implements InventoryRepository {
                 .bind("typeid", typeid)
                 .execute());
     }
+
+    @Override
+    public Optional<TimeLimitItem> timeLimitItem(int typeid) {
+        return jdbi.withHandle(h -> h.createQuery("""
+                        SELECT typeid, tipo, percent, time
+                          FROM pangya.iff_time_limit_item
+                         WHERE typeid = :typeid
+                        """)
+                .bind("typeid", typeid)
+                .map((rs, ctx) -> new TimeLimitItem(
+                        rs.getInt("typeid"),
+                        rs.getInt("tipo"),
+                        rs.getInt("percent"),
+                        rs.getInt("time")))
+                .findOne());
+    }
+
+    @Override
+    public void upsertTimeLimitItem(int typeid, int tipo, int percent, int timeMinutes) {
+        jdbi.useHandle(h -> h.createUpdate("""
+                        INSERT INTO pangya.iff_time_limit_item (typeid, tipo, percent, time)
+                        VALUES (:typeid, :tipo, :percent, :time)
+                        ON CONFLICT (typeid) DO UPDATE SET
+                            tipo = EXCLUDED.tipo,
+                            percent = EXCLUDED.percent,
+                            time = EXCLUDED.time
+                        """)
+                .bind("typeid", typeid)
+                .bind("tipo", tipo)
+                .bind("percent", percent)
+                .bind("time", timeMinutes)
+                .execute());
+    }
+
+    @Override
+    public void deleteTimeLimitItem(int typeid) {
+        jdbi.useHandle(h -> h.createUpdate(
+                        "DELETE FROM pangya.iff_time_limit_item WHERE typeid = :typeid")
+                .bind("typeid", typeid)
+                .execute());
+    }
+
+    @Override
+    public Optional<ItemBuffRow> itemBuff(long uid, int typeid) {
+        return jdbi.withHandle(h -> h.createQuery("""
+                        SELECT "index", typeid, reg_date, end_date, tipo, "percent", use_yn
+                          FROM pangya.pangya_item_buff
+                         WHERE uid = :uid AND typeid = :typeid AND use_yn = 1
+                         ORDER BY "index"
+                         LIMIT 1
+                        """)
+                .bind("uid", uid)
+                .bind("typeid", typeid)
+                .map((rs, ctx) -> {
+                    Timestamp reg = rs.getTimestamp("reg_date");
+                    Timestamp end = rs.getTimestamp("end_date");
+                    return new ItemBuffRow(
+                            rs.getLong("index"),
+                            rs.getInt("typeid"),
+                            reg == null ? Instant.EPOCH : reg.toInstant(),
+                            end == null ? Instant.EPOCH : end.toInstant(),
+                            rs.getInt("tipo"),
+                            rs.getInt("percent"),
+                            rs.getInt("use_yn"));
+                })
+                .findOne());
+    }
+
+    @Override
+    public long insertItemBuff(
+            long uid, int typeid, int tipo, int percent, Instant useDate, Instant endDate) {
+        return jdbi.withHandle(h -> h.createQuery("""
+                        INSERT INTO pangya.pangya_item_buff
+                            (uid, typeid, tipo, "percent", reg_date, end_date, use_yn)
+                        VALUES (:uid, :typeid, :tipo, :percent, :reg, :end, 1)
+                        RETURNING "index"
+                        """)
+                .bind("uid", uid)
+                .bind("typeid", typeid)
+                .bind("tipo", tipo)
+                .bind("percent", percent)
+                .bind("reg", Timestamp.from(useDate))
+                .bind("end", Timestamp.from(endDate))
+                .mapTo(Long.class)
+                .one());
+    }
+
+    @Override
+    public void updateItemBuff(long uid, long index, int typeid, int tipo, Instant endDate) {
+        jdbi.useHandle(h -> h.createUpdate("""
+                        UPDATE pangya.pangya_item_buff
+                           SET typeid = :typeid, tipo = :tipo, end_date = :end
+                         WHERE uid = :uid AND "index" = :index
+                        """)
+                .bind("uid", uid)
+                .bind("index", index)
+                .bind("typeid", typeid)
+                .bind("tipo", tipo)
+                .bind("end", Timestamp.from(endDate))
+                .execute());
+    }
+
+    @Override
+    public void deleteItemBuff(long uid, int typeid) {
+        jdbi.useHandle(h -> h.createUpdate("""
+                        DELETE FROM pangya.pangya_item_buff
+                         WHERE uid = :uid AND typeid = :typeid
+                        """)
+                .bind("uid", uid)
+                .bind("typeid", typeid)
+                .execute());
+    }
 }

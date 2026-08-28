@@ -184,6 +184,28 @@ public interface InventoryRepository {
     void deleteAttendanceCatalog(int typeid);
 
     /**
+     * C# {@code sIff.findTimeLimitItem}: SQL {@code iff_time_limit_item} stand-in.
+     */
+    Optional<TimeLimitItem> timeLimitItem(int typeid);
+
+    /** Test helper: insert or replace a TimeLimitItem catalog row. */
+    void upsertTimeLimitItem(int typeid, int tipo, int percent, int timeMinutes);
+
+    void deleteTimeLimitItem(int typeid);
+
+    /** C# {@code PlayerInfo.findItemBuff} by typeid. */
+    Optional<ItemBuffRow> itemBuff(long uid, int typeid);
+
+    /** C# {@code ProcUseItemBuff}: insert and return {@code index}. */
+    long insertItemBuff(
+            long uid, int typeid, int tipo, int percent, Instant useDate, Instant endDate);
+
+    /** C# {@code ProcUpdateItemBuffTime}. */
+    void updateItemBuff(long uid, long index, int typeid, int tipo, Instant endDate);
+
+    void deleteItemBuff(long uid, int typeid);
+
+    /**
      * C# {@code requestLoloCardCompose}: SQL {@code iff_card} stand-in for
      * IFF Card + {@code CardSystem.drawsLoloCardCompose}.
      */
@@ -357,6 +379,19 @@ public interface InventoryRepository {
 
     /** C# {@code AttendanceRewardItemCtx}: catalog draw row. */
     record AttendanceCatalogItem(int typeid, int qntd, int tipo) {}
+
+    /** C# IFF {@code TimeLimitItem}: {@code type}, {@code percent}, {@code time} minutes. */
+    record TimeLimitItem(int typeid, int tipo, int percent, int timeMinutes) {}
+
+    /** C# {@code ItemBuffEx} SQL row ({@code pangya_item_buff}). */
+    record ItemBuffRow(
+            long index,
+            int typeid,
+            Instant useDate,
+            Instant endDate,
+            int tipo,
+            int percent,
+            int useYn) {}
 
     record TutorialFlags(int rookie, int beginner, int advancer) {}
 }

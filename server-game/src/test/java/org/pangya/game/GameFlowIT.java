@@ -1732,6 +1732,97 @@ class GameFlowIT {
     }
 
     @Test
+    void itemBuffConsumesWarehouseAndSendsPacote181() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config);
+             PangyaFakeClient client = new PangyaFakeClient()) {
+            InventoryRepository inv = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
+            try {
+                inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_SHOP_PANG_ITEM);
+                inv.deleteItemBuff(10001, GamePackets.TYPEID_SHOP_PANG_ITEM);
+                inv.upsertTimeLimitItem(
+                        GamePackets.TYPEID_SHOP_PANG_ITEM,
+                        GamePackets.ITEM_BUFF_TIPO_YAM,
+                        10,
+                        1);
+                inv.addWarehouseItem(10001, GamePackets.TYPEID_SHOP_PANG_ITEM, 2);
+                LoginRepository repo = new JdbiLoginRepository(DatabaseSupport.jdbi(ds));
+                String loginKey = repo.generateAuthKeyLogin(10001);
+                String gameKey = repo.generateAuthKeyGame(10001, 20202);
+                keys.putLoginKey(10001, loginKey);
+                keys.putGameKey(10001, 20202, gameKey);
+                loginToChannel(client, runtime.port(), "testuser", 10001, loginKey, gameKey);
+
+                client.sendPlain(GamePackets.clientItemBuff(GamePackets.TYPEID_SHOP_PANG_ITEM));
+                PacketReader first = awaitOpcode(client, GamePackets.SERVER_ITEM_BUFF);
+                assertEquals(GamePackets.ITEM_BUFF_OK, first.u32());
+                assertEquals(1, first.u32());
+                assertEquals(GamePackets.TYPEID_SHOP_PANG_ITEM, first.u32());
+                assertEquals(0, first.u32());
+                assertEquals(GamePackets.TYPEID_SHOP_PANG_ITEM, first.u32());
+                assertEquals(0, first.u32());
+                assertEquals(0, first.u32());
+                assertEquals(0, first.u32());
+                assertEquals(0, first.u32());
+                assertEquals(0, first.u32());
+                assertTrue(first.u16() >= 2026);
+                for (int i = 0; i < 7; i++) {
+                    first.u16();
+                }
+                for (int i = 0; i < 6; i++) {
+                    assertEquals(0, first.u16());
+                }
+                assertEquals(0, first.u16());
+                assertEquals(60, first.u16());
+                assertEquals(GamePackets.ITEM_BUFF_TIPO_YAM, first.u32());
+                assertEquals(GamePackets.ITEM_BUFF_USE_YN, first.u8());
+                assertEquals(0, first.remaining());
+
+                client.sendPlain(GamePackets.clientItemBuff(GamePackets.TYPEID_SHOP_PANG_ITEM));
+                PacketReader extend = awaitOpcode(client, GamePackets.SERVER_ITEM_BUFF);
+                assertEquals(GamePackets.ITEM_BUFF_OK, extend.u32());
+                assertEquals(1, extend.u32());
+                assertEquals(GamePackets.TYPEID_SHOP_PANG_ITEM, extend.u32());
+                for (int i = 0; i < 6; i++) {
+                    extend.u32();
+                }
+                for (int i = 0; i < 8; i++) {
+                    extend.u16();
+                }
+                for (int i = 0; i < 6; i++) {
+                    assertEquals(0, extend.u16());
+                }
+                assertEquals(0, extend.u16());
+                assertEquals(120, extend.u16());
+                assertEquals(GamePackets.ITEM_BUFF_TIPO_YAM, extend.u32());
+                assertEquals(GamePackets.ITEM_BUFF_USE_YN, extend.u8());
+
+                client.sendPlain(GamePackets.clientItemBuff(GamePackets.TYPEID_SHOP_PANG_ITEM));
+                PacketReader missing = awaitOpcode(client, GamePackets.SERVER_ITEM_BUFF);
+                assertEquals(GamePackets.shopSys(GamePackets.BUFF_ERR_MISSING), missing.u32());
+                client.sendPlain(GamePackets.clientItemBuff(GamePackets.TYPEID_DEFAULT_BALL));
+                PacketReader group = awaitOpcode(client, GamePackets.SERVER_ITEM_BUFF);
+                assertEquals(GamePackets.shopSys(GamePackets.BUFF_ERR_IFF_ITEM), group.u32());
+                client.sendPlain(GamePackets.clientItemBuff(0));
+                PacketReader zero = awaitOpcode(client, GamePackets.SERVER_ITEM_BUFF);
+                assertEquals(GamePackets.shopSys(GamePackets.BUFF_ERR_TYPEID), zero.u32());
+            } finally {
+                inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_SHOP_PANG_ITEM);
+                inv.deleteItemBuff(10001, GamePackets.TYPEID_SHOP_PANG_ITEM);
+                inv.deleteTimeLimitItem(GamePackets.TYPEID_SHOP_PANG_ITEM);
+            }
+        }
+    }
+
+    @Test
     void makeTutorialRookieAcksFlagsAndMailsReward() throws Exception {
         String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
         String user = env("PANGYA_TEST_JDBC_USER", "pangya");

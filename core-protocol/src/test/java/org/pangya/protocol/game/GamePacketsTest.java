@@ -1080,6 +1080,43 @@ class GamePacketsTest {
                 GamePackets.shopSys(GamePackets.BUFF_ERR_TYPEID)));
         assertEquals(GamePackets.SERVER_ITEM_BUFF, buff.opcode());
         assertEquals(0x0401, buff.u32());
+        PacketReader buffOk = new PacketReader(GamePackets.itemBuffOk(
+                GamePackets.TYPEID_SHOP_PANG_ITEM,
+                java.time.LocalDate.of(1970, 1, 1)
+                        .atStartOfDay(java.time.ZoneId.systemDefault())
+                        .toInstant(),
+                60,
+                GamePackets.ITEM_BUFF_TIPO_YAM));
+        assertEquals(GamePackets.SERVER_ITEM_BUFF, buffOk.opcode());
+        assertEquals(GamePackets.ITEM_BUFF_OK, buffOk.u32());
+        assertEquals(1, buffOk.u32());
+        assertEquals(GamePackets.TYPEID_SHOP_PANG_ITEM, buffOk.u32());
+        assertEquals(0, buffOk.u32());
+        assertEquals(GamePackets.TYPEID_SHOP_PANG_ITEM, buffOk.u32());
+        assertEquals(0, buffOk.u32());
+        assertEquals(0, buffOk.u32());
+        assertEquals(0, buffOk.u32());
+        assertEquals(0, buffOk.u32());
+        assertEquals(0, buffOk.u32());
+        assertEquals(1970, buffOk.u16());
+        buffOk.u16();
+        buffOk.u16();
+        buffOk.u16();
+        buffOk.u16();
+        buffOk.u16();
+        buffOk.u16();
+        buffOk.u16();
+        assertEquals(0, buffOk.u16());
+        assertEquals(0, buffOk.u16());
+        assertEquals(0, buffOk.u16());
+        assertEquals(0, buffOk.u16());
+        assertEquals(0, buffOk.u16());
+        assertEquals(0, buffOk.u16());
+        assertEquals(0, buffOk.u16());
+        assertEquals(60, buffOk.u16());
+        assertEquals(GamePackets.ITEM_BUFF_TIPO_YAM, buffOk.u32());
+        assertEquals(GamePackets.ITEM_BUFF_USE_YN, buffOk.u8());
+        assertEquals(0, buffOk.remaining());
         PacketReader comet = new PacketReader(GamePackets.cometRefillFail());
         assertEquals(GamePackets.SERVER_COMET_REFILL, comet.opcode());
         assertEquals(0, comet.u8());

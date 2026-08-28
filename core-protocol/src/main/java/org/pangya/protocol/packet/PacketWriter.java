@@ -100,7 +100,12 @@ public final class PacketWriter {
     }
 
     public PacketWriter systemTimeNow() {
-        java.time.ZonedDateTime now = java.time.ZonedDateTime.now(java.time.ZoneId.systemDefault());
+        return systemTime(java.time.Instant.now());
+    }
+
+    /** C# {@code WriteTime(SYSTEMTIME)}: 8 × uint16. */
+    public PacketWriter systemTime(java.time.Instant instant) {
+        java.time.ZonedDateTime now = instant.atZone(java.time.ZoneId.systemDefault());
         u16(now.getYear());
         u16(now.getMonthValue());
         u16(now.getDayOfWeek().getValue() % 7); // C# DayOfWeek: Sunday=0
@@ -109,6 +114,23 @@ public final class PacketWriter {
         u16(now.getMinute());
         u16(now.getSecond());
         u16(now.getNano() / 1_000_000);
+        return this;
+    }
+
+    /**
+     * C# {@code PangyaTime_ItemBuff.setTime}: duration seconds packed into
+     * SYSTEMTIME Second={@code time/0xFFFF}, MilliSecond={@code time%0xFFFF}.
+     */
+    public PacketWriter itemBuffTempo(int seconds) {
+        int t = Math.max(0, seconds);
+        u16(0);
+        u16(0);
+        u16(0);
+        u16(0);
+        u16(0);
+        u16(0);
+        u16((t / 0xFFFF) & 0xffff);
+        u16(t % 0xFFFF);
         return this;
     }
 

@@ -287,6 +287,29 @@ class InventoryRepositoryTest {
                 repo.deleteAttendanceReward(10001);
             }
             assertTrue(repo.attendanceReward(10001).isEmpty());
+            repo.deleteTimeLimitItem(GamePackets.TYPEID_SHOP_PANG_ITEM);
+            repo.upsertTimeLimitItem(
+                    GamePackets.TYPEID_SHOP_PANG_ITEM,
+                    GamePackets.ITEM_BUFF_TIPO_YAM,
+                    10,
+                    1);
+            try {
+                assertEquals(1, repo.timeLimitItem(GamePackets.TYPEID_SHOP_PANG_ITEM).orElseThrow().timeMinutes());
+                repo.deleteItemBuff(10001, GamePackets.TYPEID_SHOP_PANG_ITEM);
+                long idx = repo.insertItemBuff(
+                        10001,
+                        GamePackets.TYPEID_SHOP_PANG_ITEM,
+                        GamePackets.ITEM_BUFF_TIPO_YAM,
+                        10,
+                        java.time.Instant.EPOCH,
+                        java.time.Instant.EPOCH.plusSeconds(60));
+                assertTrue(idx > 0);
+                assertEquals(GamePackets.ITEM_BUFF_TIPO_YAM,
+                        repo.itemBuff(10001, GamePackets.TYPEID_SHOP_PANG_ITEM).orElseThrow().tipo());
+            } finally {
+                repo.deleteItemBuff(10001, GamePackets.TYPEID_SHOP_PANG_ITEM);
+                repo.deleteTimeLimitItem(GamePackets.TYPEID_SHOP_PANG_ITEM);
+            }
             int partTypeid = (GamePackets.IFF_GROUP_PART << 26) | 0x99;
             repo.deleteWarehouseByTypeid(10001, partTypeid);
             int partId = repo.addWarehouseItem(10001, partTypeid, 1);
