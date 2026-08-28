@@ -2267,8 +2267,7 @@ class GameFlowIT {
             assertEquals(GamePackets.TIPO_STROKE, detail.u8());
 
             guest.sendPlain(GamePackets.clientExitRoom());
-            PacketReader left = awaitOpcode(host, GamePackets.SERVER_ROOM_PLAYERS);
-            assertEquals(2, left.u8());
+            PacketReader left = awaitRoomPlayers(host, 2);
             assertEquals(-1, left.i16());
             assertTrue(left.i32() > 0);
             PacketReader exit = awaitOpcode(guest, GamePackets.SERVER_EXIT_ROOM);
@@ -2287,8 +2286,7 @@ class GameFlowIT {
             guest.sendPlain(GamePackets.clientBanish(10001));
             PacketReader kicked = awaitOpcode(host, GamePackets.SERVER_EXIT_ROOM);
             assertEquals(-1, kicked.i16());
-            PacketReader kickedList = awaitOpcode(guest, GamePackets.SERVER_ROOM_PLAYERS);
-            assertEquals(2, kickedList.u8());
+            PacketReader kickedList = awaitRoomPlayers(guest, 2);
             assertEquals(-1, kickedList.i16());
             assertTrue(kickedList.i32() > 0);
         }
@@ -3083,6 +3081,22 @@ class GameFlowIT {
             }
         }
         throw new IllegalStateException("missing opcode 0x" + Integer.toHexString(opcode));
+    }
+
+    /**
+     * {@code 0x48} option after join can still be queued; skip until the
+     * requested option (2 = leave).
+     */
+    private static PacketReader awaitRoomPlayers(PangyaFakeClient client, int option)
+            throws InterruptedException {
+        long deadline = System.currentTimeMillis() + TimeUnit.SECONDS.toMillis(8);
+        while (System.currentTimeMillis() < deadline) {
+            PacketReader r = awaitOpcode(client, GamePackets.SERVER_ROOM_PLAYERS);
+            if (r.u8() == option) {
+                return r;
+            }
+        }
+        throw new IllegalStateException("missing room players option " + option);
     }
 
     private static List<byte[]> collect(PangyaFakeClient client, int n, long timeout, TimeUnit unit)
