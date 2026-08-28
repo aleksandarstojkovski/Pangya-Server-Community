@@ -1324,8 +1324,8 @@ class GameFlowIT {
             host.sendPlain(GamePackets.clientCaddieHolidayNotice(0, 1));
             host.sendPlain(GamePackets.clientInviteRelog(1, 0));
             host.sendPlain(GamePackets.clientRequestCash());
-            PacketReader cookie = new PacketReader(host.awaitPlain(5, TimeUnit.SECONDS));
-            assertEquals(GamePackets.SERVER_COOKIE, cookie.opcode());
+            PacketReader cookiePkt = new PacketReader(host.awaitPlain(5, TimeUnit.SECONDS));
+            assertEquals(GamePackets.SERVER_COOKIE, cookiePkt.opcode());
 
             host.sendPlain(GamePackets.clientEnterOtherChannel(1));
             PacketReader switched = awaitOpcode(host, GamePackets.SERVER_CHANNEL_ENTER_ACK);
