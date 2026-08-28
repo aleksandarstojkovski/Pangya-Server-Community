@@ -88,6 +88,23 @@ class InventoryRepositoryTest {
                     .anyMatch(w -> w.typeid == GamePackets.TYPEID_SHOP_PANG_ITEM));
             assertTrue(repo.warehouse(10002).stream()
                     .anyMatch(w -> w.typeid == GamePackets.TYPEID_SHOP_PANG_ITEM));
+            repo.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_SHOP_PANG_ITEM);
+            repo.deleteWarehouseByTypeid(10002, GamePackets.TYPEID_SHOP_PANG_ITEM);
+            repo.setPangCookie(10001, 0, 0);
+            var papelFunds = repo.playPapel(10001, false);
+            assertEquals(GamePackets.PAPEL_PLAY_ERR_FUNDS, papelFunds.code());
+            repo.setPangCookie(10001, 100000, 0);
+            var papel = repo.playPapel(10001, false);
+            assertEquals(0, papel.code());
+            assertTrue(papel.balls().size() >= GamePackets.PAPEL_MIN_BALL);
+            assertTrue(papel.balls().size() <= GamePackets.PAPEL_MAX_BALL);
+            assertEquals(100000 - GamePackets.PAPEL_PRICE_NORMAL, papel.pang());
+            assertEquals(1, papel.awards().size());
+            assertEquals(GamePackets.TYPEID_SHOP_PANG_ITEM, papel.awards().getFirst().typeid());
+            var big = repo.playPapel(10001, true);
+            assertEquals(0, big.code());
+            assertEquals(GamePackets.PAPEL_BIG_BALLS, big.balls().size());
+            assertEquals(100000 - GamePackets.PAPEL_PRICE_NORMAL - GamePackets.PAPEL_PRICE_BIG, big.pang());
             repo.setLevel(10001, GamePackets.GIFT_MIN_LEVEL);
             repo.setLevel(10001, 1);
             repo.setPangCookie(10001, 100000, 0);

@@ -4,8 +4,12 @@ import org.jdbi.v3.core.Handle;
 import org.jdbi.v3.core.Jdbi;
 import org.pangya.protocol.game.GamePackets;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ThreadLocalRandom;
 
 public final class JdbiInventoryRepository implements InventoryRepository {
 
@@ -681,5 +685,140 @@ public final class JdbiInventoryRepository implements InventoryRepository {
                 .bind("uid", uid)
                 .bind("typeid", typeid)
                 .execute());
+    }
+
+    @Override
+    public PapelPlayResult playPapel(long uid, boolean big) {
+        return jdbi.inTransaction(h -> {
+            List<int[]> catalog = h.createQuery("""
+                            SELECT typeid, probabilidade, tipo
+                              FROM pangya.pangya_papel_shop_item
+                             WHERE active = 1 AND (numero = -1 OR numero = (
+                                   SELECT "Numero" FROM pangya.pangya_papel_shop_config LIMIT 1))
+                            """)
+                    .map((rs, ctx) -> new int[] {
+                            rs.getInt("typeid"), rs.getInt("probabilidade"), rs.getInt("tipo") })
+                    .list();
+            if (catalog.isEmpty()) {
+                return PapelPlayResult.fail(GamePackets.PAPEL_PLAY_ERR_BALLS);
+            }
+            long price = h.createQuery(big
+                            ? "SELECT COALESCE(\"Price_Big\", 0) FROM pangya.pangya_papel_shop_config LIMIT 1"
+                            : "SELECT COALESCE(\"Price_Normal\", 0) FROM pangya.pangya_papel_shop_config LIMIT 1")
+                    .mapTo(Long.class)
+                    .findOne()
+                    .orElse(0L);
+            long pang = h.createQuery("SELECT COALESCE(\"Pang\", 0) FROM pangya.user_info WHERE \"UID\" = :uid")
+                    .bind("uid", uid)
+                    .mapTo(Long.class)
+                    .findOne()
+                    .orElse(0L);
+            long cookie = h.createQuery("SELECT COALESCE(\"Cookie\", 0) FROM pangya.user_info WHERE \"UID\" = :uid")
+                    .bind("uid", uid)
+                    .mapTo(Long.class)
+                    .findOne()
+                    .orElse(0L);
+            if (pang < price) {
+                return PapelPlayResult.fail(GamePackets.PAPEL_PLAY_ERR_FUNDS);
+            }
+            ThreadLocalRandom rng = ThreadLocalRandom.current();
+            int numBall = big ? GamePackets.PAPEL_BIG_BALLS
+                    : GamePackets.PAPEL_MIN_BALL
+                            + rng.nextInt(GamePackets.PAPEL_MAX_BALL - GamePackets.PAPEL_MIN_BALL + 1);
+            int totalProb = 0;
+            for (int[] row : catalog) {
+                totalProb += Math.max(row[1], 1);
+            }
+            List<GamePackets.PapelBall> balls = new ArrayList<>();
+            Map<Integer, Integer> merged = new LinkedHashMap<>();
+            for (int i = 0; i < numBall; i++) {
+                int pick = rng.nextInt(totalProb);
+                int[] chosen = catalog.getFirst();
+                int acc = 0;
+                for (int[] row : catalog) {
+                    acc += Math.max(row[1], 1);
+                    if (pick < acc) {
+                        chosen = row;
+                        break;
+                    }
+                }
+                int qntd = GamePackets.PAPEL_ITEM_MIN_QNTD
+                        + rng.nextInt(GamePackets.PAPEL_ITEM_MAX_QNTD - GamePackets.PAPEL_ITEM_MIN_QNTD + 1);
+                int color = rng.nextInt(GamePackets.PAPEL_COLOR_COUNT);
+                balls.add(new GamePackets.PapelBall(color, chosen[0], 0, qntd, chosen[2]));
+                merged.merge(chosen[0], qntd, Integer::sum);
+            }
+            List<GamePackets.PapelAward> awards = new ArrayList<>();
+            for (Map.Entry<Integer, Integer> entry : merged.entrySet()) {
+                int typeid = entry.getKey();
+                int add = entry.getValue();
+                Integer existingId = h.createQuery("""
+                                SELECT item_id FROM pangya.pangya_item_warehouse
+                                 WHERE "UID" = :uid AND typeid = :typeid AND valid = 1
+                                 ORDER BY item_id
+                                 LIMIT 1
+                                """)
+                        .bind("uid", uid)
+                        .bind("typeid", typeid)
+                        .mapTo(Integer.class)
+                        .findOne()
+                        .orElse(null);
+                int ant;
+                int id;
+                if (existingId == null) {
+                    ant = 0;
+                    id = h.createQuery("""
+                                    INSERT INTO pangya.pangya_item_warehouse (
+                                        "UID", typeid, valid, "Gift_flag", flag,
+                                        "C0", "C1", "C2", "C3", "C4", "Purchase", "ItemType",
+                                        "ClubSet_WorkShop_Flag", "ClubSet_WorkShop_C0", "ClubSet_WorkShop_C1",
+                                        "ClubSet_WorkShop_C2", "ClubSet_WorkShop_C3", "ClubSet_WorkShop_C4",
+                                        "Mastery_Pts", "Recovery_Pts", "Level", "Up",
+                                        "Total_Mastery_Pts", "Mastery_Gasto"
+                                    ) VALUES (
+                                        :uid, :typeid, 1, 0, 0,
+                                        :qntd, 0, 0, 0, 0, 1, 2,
+                                        0, 0, 0, 0, 0, 0,
+                                        0, 0, 0, 0, 0, 0
+                                    )
+                                    RETURNING item_id
+                                    """)
+                            .bind("uid", uid)
+                            .bind("typeid", typeid)
+                            .bind("qntd", add)
+                            .mapTo(Integer.class)
+                            .one();
+                } else {
+                    id = existingId;
+                    ant = h.createQuery("""
+                                    SELECT "C0" FROM pangya.pangya_item_warehouse
+                                     WHERE item_id = :id
+                                    """)
+                            .bind("id", id)
+                            .mapTo(Integer.class)
+                            .one() & 0xffff;
+                    h.createUpdate("""
+                                    UPDATE pangya.pangya_item_warehouse
+                                       SET "C0" = :c0
+                                     WHERE item_id = :id
+                                    """)
+                            .bind("c0", ant + add)
+                            .bind("id", id)
+                            .execute();
+                }
+                awards.add(new GamePackets.PapelAward(
+                        GamePackets.PAPEL_AWARD_TYPE, typeid, id, 0, ant, ant + add, add));
+            }
+            long pangAfter = pang - price;
+            h.createUpdate("""
+                            UPDATE pangya.user_info
+                               SET "Pang" = :pang
+                             WHERE "UID" = :uid
+                            """)
+                    .bind("pang", pangAfter)
+                    .bind("uid", uid)
+                    .execute();
+            return new PapelPlayResult(0, balls, awards, pangAfter, cookie);
+        });
     }
 }

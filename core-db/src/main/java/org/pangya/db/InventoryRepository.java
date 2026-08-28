@@ -61,6 +61,12 @@ public interface InventoryRepository {
 
     void deleteWarehouseByTypeid(long uid, int typeid);
 
+    /**
+     * C# {@code PapelShopSystem.dropBalls} / {@code dropBigBall} then warehouse
+     * add + pang charge. Empty catalog is {@link GamePackets#PAPEL_PLAY_ERR_BALLS}.
+     */
+    PapelPlayResult playPapel(long uid, boolean big);
+
     record ShopItem(int typeid, int pangPrice, int cookiePrice, boolean canOverlap) {}
 
     record ShopBuyResult(
@@ -84,4 +90,16 @@ public interface InventoryRepository {
             long sellerPangAfter,
             long buyerPangAfter,
             long sellerGain) {}
+
+    record PapelPlayResult(
+            int code,
+            List<GamePackets.PapelBall> balls,
+            List<GamePackets.PapelAward> awards,
+            long pang,
+            long cookie) {
+
+        public static PapelPlayResult fail(int code) {
+            return new PapelPlayResult(code, List.of(), List.of(), 0, 0);
+        }
+    }
 }

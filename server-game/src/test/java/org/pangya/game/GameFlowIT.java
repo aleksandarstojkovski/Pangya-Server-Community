@@ -918,6 +918,79 @@ class GameFlowIT {
     }
 
     @Test
+    void papelPlayAwardsItemAndChargesPang() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config);
+             PangyaFakeClient client = new PangyaFakeClient()) {
+            var inventory = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
+            inventory.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_SHOP_PANG_ITEM);
+            inventory.setPangCookie(10001, 0, 0);
+            try {
+                LoginRepository repo = new JdbiLoginRepository(DatabaseSupport.jdbi(ds));
+                String loginKey = repo.generateAuthKeyLogin(10001);
+                String gameKey = repo.generateAuthKeyGame(10001, 20202);
+                keys.putLoginKey(10001, loginKey);
+                keys.putGameKey(10001, 20202, gameKey);
+                loginToChannel(client, runtime.port(), "testuser", 10001, loginKey, gameKey);
+
+                client.sendPlain(GamePackets.clientPapelPlay());
+                PacketReader funds = awaitOpcode(client, GamePackets.SERVER_PAPEL_PLAY);
+                assertEquals(GamePackets.shopSys(GamePackets.PAPEL_PLAY_ERR_FUNDS), funds.u32());
+
+                inventory.setPangCookie(10001, 100000, 0);
+                client.sendPlain(GamePackets.clientPapelPlay());
+                PacketReader awards = awaitOpcode(client, GamePackets.SERVER_DAILY_QUEST_STAMP);
+                assertTrue(awards.u32() > 0);
+                assertEquals(1, awards.u32());
+                assertEquals(GamePackets.PAPEL_AWARD_TYPE, awards.u8());
+                assertEquals(GamePackets.TYPEID_SHOP_PANG_ITEM, awards.u32());
+                assertTrue(awards.i32() > 0);
+                assertEquals(0, awards.u32());
+                assertEquals(0, awards.i32());
+                int dep = awards.i32();
+                int qntd = awards.i32();
+                assertEquals(dep, qntd);
+                assertTrue(qntd >= GamePackets.PAPEL_MIN_BALL && qntd <= GamePackets.PAPEL_MAX_BALL * GamePackets.PAPEL_ITEM_MAX_QNTD);
+                assertEquals(GamePackets.PAPEL_AWARD_PAD, awards.remaining());
+                PacketReader remain = awaitOpcode(client, GamePackets.SERVER_PAPEL_REMAIN);
+                assertEquals(GamePackets.PAPEL_UNLIMITED_REMAIN, remain.i32());
+                assertEquals(GamePackets.PAPEL_UNLIMITED_FLAG, remain.i32());
+                PacketReader play = awaitOpcode(client, GamePackets.SERVER_PAPEL_PLAY);
+                assertEquals(0, play.u32());
+                assertEquals(0, play.i32());
+                int balls = play.u32();
+                assertTrue(balls >= GamePackets.PAPEL_MIN_BALL && balls <= GamePackets.PAPEL_MAX_BALL);
+                for (int i = 0; i < balls; i++) {
+                    int color = play.u32();
+                    assertTrue(color >= 0 && color < GamePackets.PAPEL_COLOR_COUNT);
+                    assertEquals(GamePackets.TYPEID_SHOP_PANG_ITEM, play.u32());
+                    assertEquals(0, play.u32());
+                    int ballQntd = play.u32();
+                    assertTrue(ballQntd >= GamePackets.PAPEL_ITEM_MIN_QNTD
+                            && ballQntd <= GamePackets.PAPEL_ITEM_MAX_QNTD);
+                    assertEquals(GamePackets.PAPEL_TYPE_COMMUN, play.u32());
+                }
+                assertEquals(100000 - GamePackets.PAPEL_PRICE_NORMAL, play.u64());
+                assertEquals(0, play.u64());
+                assertEquals(100000 - GamePackets.PAPEL_PRICE_NORMAL, inventory.pang(10001));
+                assertTrue(inventory.warehouse(10001).stream()
+                        .anyMatch(w -> w.typeid == GamePackets.TYPEID_SHOP_PANG_ITEM));
+            } finally {
+                inventory.setPangCookie(10001, 100000, 0);
+                inventory.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_SHOP_PANG_ITEM);
+            }
+        }
+    }
+
+    @Test
     void mailboxOpenSendDeleteMatchCsharp() throws Exception {
         String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
         String user = env("PANGYA_TEST_JDBC_USER", "pangya");
@@ -1493,7 +1566,10 @@ class GameFlowIT {
 
             host.sendPlain(GamePackets.clientPapelPlay());
             PacketReader papelPlay = awaitOpcode(host, GamePackets.SERVER_PAPEL_PLAY);
-            assertEquals(GamePackets.shopSys(GamePackets.PAPEL_PLAY_ERR_BALLS), papelPlay.u32());
+            assertEquals(0, papelPlay.u32());
+            assertEquals(0, papelPlay.i32());
+            int papelBalls = papelPlay.u32();
+            assertTrue(papelBalls >= GamePackets.PAPEL_MIN_BALL && papelBalls <= GamePackets.PAPEL_MAX_BALL);
 
             host.sendPlain(GamePackets.clientWebLink(70));
             host.sendPlain(GamePackets.clientJoinGallery(99, "x"));
@@ -1726,7 +1802,9 @@ class GameFlowIT {
 
             host.sendPlain(GamePackets.clientEmpty(GamePackets.CLIENT_BIG_PAPEL));
             PacketReader bigPapel = awaitOpcode(host, GamePackets.SERVER_BIG_PAPEL);
-            assertEquals(GamePackets.shopSys(GamePackets.PAPEL_PLAY_ERR_BALLS), bigPapel.u32());
+            assertEquals(0, bigPapel.u32());
+            assertEquals(0, bigPapel.i32());
+            assertEquals(GamePackets.PAPEL_BIG_BALLS, bigPapel.u32());
 
             host.sendPlain(GamePackets.clientCharMastery(0, 0));
             PacketReader mastery = awaitOpcode(host, GamePackets.SERVER_CHAR_MASTERY);
@@ -1815,6 +1893,8 @@ class GameFlowIT {
             PacketReader missing = awaitOpcode(host, GamePackets.SERVER_CHANNEL_ENTER_ACK);
             assertEquals(GamePackets.CHANNEL_NOT_FOUND, missing.u8());
             assertTrue(awaitSessionCount(runtime, 1, 5, TimeUnit.SECONDS));
+            inv.setPangCookie(10001, pang, cookie);
+            inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_SHOP_PANG_ITEM);
         }
     }
 

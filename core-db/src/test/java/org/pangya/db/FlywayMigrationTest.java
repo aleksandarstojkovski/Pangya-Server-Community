@@ -56,6 +56,11 @@ class FlywayMigrationTest {
                             .mapTo(Integer.class)
                             .one());
             assertEquals(1, shop);
+            int papel = jdbi.withHandle(h ->
+                    h.createQuery("select count(*) from pangya.pangya_papel_shop_item where typeid = 436207622")
+                            .mapTo(Integer.class)
+                            .one());
+            assertEquals(1, papel);
             assertTrue(accounts >= 1);
         }
     }

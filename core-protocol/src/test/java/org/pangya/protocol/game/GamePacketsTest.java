@@ -1380,6 +1380,37 @@ class GamePacketsTest {
         assertEquals(GamePackets.CLIENT_SHOP_OPEN_ITEMS, clientOpen.opcode());
         assertEquals(1, clientOpen.u32());
         assertEquals(GamePackets.PERSONAL_SHOP_ITEM_BYTES, clientOpen.remaining());
+        assertEquals(GamePackets.SERVER_PAPEL_REMAIN, 0xFB);
+        assertEquals(GamePackets.CLIENT_WEB_AUTH_KEY, 0xFB);
+        GamePackets.PapelAward award = new GamePackets.PapelAward(
+                GamePackets.PAPEL_AWARD_TYPE, GamePackets.TYPEID_SHOP_PANG_ITEM, 9, 0, 0, 2, 2);
+        PacketReader awards = new PacketReader(GamePackets.papelAwards(1, List.of(award)));
+        assertEquals(GamePackets.SERVER_DAILY_QUEST_STAMP, awards.opcode());
+        assertEquals(1, awards.u32());
+        assertEquals(1, awards.u32());
+        assertEquals(GamePackets.PAPEL_AWARD_TYPE, awards.u8());
+        assertEquals(GamePackets.TYPEID_SHOP_PANG_ITEM, awards.u32());
+        PacketReader remain = new PacketReader(GamePackets.papelRemain(
+                GamePackets.PAPEL_UNLIMITED_REMAIN, GamePackets.PAPEL_UNLIMITED_FLAG));
+        assertEquals(GamePackets.SERVER_PAPEL_REMAIN, remain.opcode());
+        assertEquals(GamePackets.PAPEL_UNLIMITED_REMAIN, remain.i32());
+        assertEquals(GamePackets.PAPEL_UNLIMITED_FLAG, remain.i32());
+        GamePackets.PapelBall ball = new GamePackets.PapelBall(
+                1, GamePackets.TYPEID_SHOP_PANG_ITEM, 0, 2, GamePackets.PAPEL_TYPE_COMMUN);
+        PacketReader playOk = new PacketReader(GamePackets.papelPlayOk(
+                GamePackets.SERVER_PAPEL_PLAY, 0, List.of(ball), 99000, 0));
+        assertEquals(GamePackets.SERVER_PAPEL_PLAY, playOk.opcode());
+        assertEquals(0, playOk.u32());
+        assertEquals(0, playOk.i32());
+        assertEquals(1, playOk.u32());
+        assertEquals(1, playOk.u32());
+        assertEquals(GamePackets.TYPEID_SHOP_PANG_ITEM, playOk.u32());
+        assertEquals(0, playOk.u32());
+        assertEquals(2, playOk.u32());
+        assertEquals(GamePackets.PAPEL_TYPE_COMMUN, playOk.u32());
+        assertEquals(99000, playOk.u64());
+        assertEquals(0, playOk.u64());
+        assertEquals(GamePackets.PAPEL_PRICE_NORMAL, 1000);
         assertEquals(GamePackets.SERVER_BUY_ACK, 0x68);
         assertEquals(GamePackets.CREATE_ROOM_FAILED, 0x07);
         assertEquals(GamePackets.SERVER_LAST5, 0x10E);

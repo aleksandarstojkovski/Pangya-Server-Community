@@ -1291,14 +1291,39 @@ public final class GameHandler {
     }
 
     /**
-     * C# {@code requestPlayPapelShop}: unseeded balls → CHANNEL sys
-     * {@code 0x5900103} written as {@code sys & 0xFFFF}.
+     * C# {@code requestPlayPapelShop}: SQL catalog stand-in for IFF drops.
+     * Empty balls → {@code 0x21B} {@code shopSys(0x5900103)}; success is
+     * {@code 0x216} awards + {@code 0xFB} remain + {@code 0x21B} balls.
      */
     private void playPapelShop(Session session) {
+        playPapel(session, false);
+    }
+
+    /**
+     * C# {@code requestPlayBigPapelShop}: same drops with 10 balls and
+     * {@code 0xC8} remaining pang + 0, then {@code 0x216}/{@code 0xFB}/{@code 0x26C}.
+     */
+    private void playBigPapelShop(Session session) {
+        playPapel(session, true);
+    }
+
+    private void playPapel(Session session, boolean big) {
         if (!inChannel(session)) {
             return;
         }
-        session.send(GamePackets.papelPlayFail(GamePackets.shopSys(GamePackets.PAPEL_PLAY_ERR_BALLS)));
+        int ack = big ? GamePackets.SERVER_BIG_PAPEL : GamePackets.SERVER_PAPEL_PLAY;
+        InventoryRepository.PapelPlayResult result = inventory.playPapel(session.player().uid, big);
+        if (result.code() != 0) {
+            session.send(GamePackets.sysAck(ack, GamePackets.shopSys(result.code())));
+            return;
+        }
+        if (big) {
+            session.send(GamePackets.pangSpent(result.pang(), 0));
+        }
+        session.send(GamePackets.papelAwards(GamePackets.unixNow(), result.awards()));
+        session.send(GamePackets.papelRemain(
+                GamePackets.PAPEL_UNLIMITED_REMAIN, GamePackets.PAPEL_UNLIMITED_FLAG));
+        session.send(GamePackets.papelPlayOk(ack, 0, result.balls(), result.pang(), result.cookie()));
     }
 
     /**
@@ -3889,18 +3914,6 @@ public final class GameHandler {
             }
         }
         return pri;
-    }
-
-    /**
-     * C# {@code requestPlayBigPapelShop}: empty balls → {@code 0x26C}
-     * {@code shopSys(0x5900103)}.
-     */
-    private void playBigPapelShop(Session session) {
-        if (!inChannel(session)) {
-            return;
-        }
-        session.send(GamePackets.sysAck(
-                GamePackets.SERVER_BIG_PAPEL, GamePackets.shopSys(GamePackets.PAPEL_PLAY_ERR_BALLS)));
     }
 
     /**

@@ -283,6 +283,11 @@ public final class GamePackets {
     public static final int SERVER_PAPEL_SHOP = 0x10B;
     /** C# Papel-play result {@code 0x21B}. */
     public static final int SERVER_PAPEL_PLAY = 0x21B;
+    /**
+     * C# {@code SERVER_BS_USABLE_TIMES} {@code 0xFB} after Papel play.
+     * Opposite CLIENT web-key {@code 0xFB}.
+     */
+    public static final int SERVER_PAPEL_REMAIN = 0xFB;
     /** C# {@code SERVER_REQ_ENTER_SHOP_ACK} {@code 0x20E}. */
     public static final int SERVER_ENTER_SHOP = 0x20E;
     /** C# {@code SERVER_YOU_RECEIVED_NEW_MAIL} / {@code pacote210}. */
@@ -1113,6 +1118,31 @@ public final class GamePackets {
     public static final int PAPEL_PLAY_ERR_BALLS = 0x5900103;
     /** C# Papel play catch else. */
     public static final int PAPEL_PLAY_ERR_DEFAULT = 0x5900100;
+    /** C# funds CHANNEL sys {@code 0x5900102}. */
+    public static final int PAPEL_PLAY_ERR_FUNDS = 0x5900102;
+    /** C# {@code Random.Next(PAPEL_SHOP_MIN_BALL, MAX-MIN+1)} → 1–4. */
+    public static final int PAPEL_MIN_BALL = 1;
+    public static final int PAPEL_MAX_BALL = 4;
+    /** C# {@code PAPEL_SHOP_BIG_BALL}. */
+    public static final int PAPEL_BIG_BALLS = 10;
+    /** C# {@code Random.Next(0, 3)} ball color. */
+    public static final int PAPEL_COLOR_COUNT = 3;
+    /** C# {@code Random.Next(1, 4)} non-rare qntd. */
+    public static final int PAPEL_ITEM_MIN_QNTD = 1;
+    public static final int PAPEL_ITEM_MAX_QNTD = 3;
+    /** C# {@code PAPEL_SHOP_TYPE.PST_COMMUN}. */
+    public static final int PAPEL_TYPE_COMMUN = 0;
+    /** C# {@code stItem.type} default from {@code initItemFromBuyItem}. */
+    public static final int PAPEL_AWARD_TYPE = 2;
+    /** C# {@code WriteZero(25)} after the {@code 0x216} qntd. */
+    public static final int PAPEL_AWARD_PAD = 25;
+    /** Seeded {@code pangya_papel_shop_config.Price_Normal}. */
+    public static final int PAPEL_PRICE_NORMAL = 1000;
+    /** Seeded {@code pangya_papel_shop_config.Price_Big}. */
+    public static final int PAPEL_PRICE_BIG = 3000;
+    /** C# unlimited {@code 0xFB} remain / flag. */
+    public static final int PAPEL_UNLIMITED_REMAIN = -1;
+    public static final int PAPEL_UNLIMITED_FLAG = -3;
     /**
      * C# gacha catch else (non-CHANNEL) on {@code 0x44} u8 {@code 0xE2}.
      */
@@ -2523,6 +2553,47 @@ public final class GamePackets {
     public static byte[] papelPlayFail(int code) {
         return new PacketWriter().opcode(SERVER_PAPEL_PLAY).u32(code).toBytes();
     }
+
+    /**
+     * C# {@code pacote216} item update used by Papel: unix + count + rows
+     * (type/typeid/id/flag_time/stat 8/qntd + 25 zeros).
+     */
+    public static byte[] papelAwards(int unix, List<PapelAward> awards) {
+        PacketWriter w = new PacketWriter().opcode(SERVER_DAILY_QUEST_STAMP).u32(unix).u32(awards.size());
+        for (PapelAward award : awards) {
+            w.u8(award.type())
+                    .u32(award.typeid())
+                    .i32(award.id())
+                    .u32(award.flagTime())
+                    .i32(award.qntdAnt())
+                    .i32(award.qntdDep())
+                    .i32(award.qntd())
+                    .zero(PAPEL_AWARD_PAD);
+        }
+        return w.toBytes();
+    }
+
+    /** C# {@code 0xFB} after Papel: remain + flag (unlimited is -1 / -3). */
+    public static byte[] papelRemain(int remain, int flag) {
+        return new PacketWriter().opcode(SERVER_PAPEL_REMAIN).i32(remain).i32(flag).toBytes();
+    }
+
+    /**
+     * C# Papel play {@code 0x21B}/{@code 0x26C}: u32 0 + i32 coupon + count +
+     * balls (color/typeid/id/qntd/tipo) + pang + cookie. Ball warehouse id is
+     * 0 in this C# ({@code ctx_papel_shop_ball.item} is never assigned).
+     */
+    public static byte[] papelPlayOk(int opcode, int couponId, List<PapelBall> balls, long pang, long cookie) {
+        PacketWriter w = new PacketWriter().opcode(opcode).u32(0).i32(couponId).u32(balls.size());
+        for (PapelBall ball : balls) {
+            w.u32(ball.color()).u32(ball.typeid()).u32(ball.id()).u32(ball.qntd()).u32(ball.tipo());
+        }
+        return w.u64(pang).u64(cookie).toBytes();
+    }
+
+    public record PapelBall(int color, int typeid, int id, int qntd, int tipo) {}
+
+    public record PapelAward(int type, int typeid, int id, int flagTime, int qntdAnt, int qntdDep, int qntd) {}
 
     /**
      * C# {@code pacote102}: i32 normal + i32 partial + u64 pang + u64 cookie.
