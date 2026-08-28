@@ -927,6 +927,58 @@ class GamePacketsTest {
         assertEquals(0, cw.u32());
         assertEquals(1, cw.u16());
         assertEquals(7, cw.i32());
+        PacketReader tikiPts = new PacketReader(GamePackets.tikiPoints(0, 0));
+        assertEquals(GamePackets.SERVER_TIKI_POINTS, tikiPts.opcode());
+        assertEquals(0, tikiPts.u32());
+        assertEquals(0, tikiPts.u32());
+        PacketReader tikiTp = new PacketReader(GamePackets.tikiExchangeFail(
+                GamePackets.SERVER_TIKI_EXCHANGE_TP, GamePackets.shopSys(GamePackets.TIKI_EXCHANGE_ERR_PTS)));
+        assertEquals(GamePackets.SERVER_TIKI_EXCHANGE_TP, tikiTp.opcode());
+        assertEquals(0x0905, tikiTp.u32());
+        PacketReader tikiItem = new PacketReader(GamePackets.tikiExchangeFail(
+                GamePackets.SERVER_TIKI_EXCHANGE_ITEM, GamePackets.shopSys(GamePackets.TIKI_EXCHANGE_ERR_PTS)));
+        assertEquals(GamePackets.SERVER_TIKI_EXCHANGE_ITEM, tikiItem.opcode());
+        assertEquals(0x0905, tikiItem.u32());
+        PacketReader confirm = new PacketReader(GamePackets.clubWorkshopOpcodeFail(
+                GamePackets.SERVER_CLUB_WORKSHOP_CONFIRM,
+                GamePackets.shopSys(GamePackets.WORKSHOP_CONFIRM_ERR)));
+        assertEquals(GamePackets.SERVER_CLUB_WORKSHOP_CONFIRM, confirm.opcode());
+        assertEquals(0x0301, confirm.u32());
+        PacketReader cancel = new PacketReader(GamePackets.clubWorkshopOpcodeFail(
+                GamePackets.SERVER_CLUB_WORKSHOP_CANCEL,
+                GamePackets.shopSys(GamePackets.WORKSHOP_CANCEL_ERR)));
+        assertEquals(GamePackets.SERVER_CLUB_WORKSHOP_CANCEL, cancel.opcode());
+        assertEquals(0x0251, cancel.u32());
+        PacketReader rank = new PacketReader(GamePackets.clubWorkshopOpcodeFail(
+                GamePackets.SERVER_CLUB_WORKSHOP_RANK,
+                GamePackets.shopSys(GamePackets.WORKSHOP_RANK_ERR)));
+        assertEquals(GamePackets.SERVER_CLUB_WORKSHOP_RANK, rank.opcode());
+        assertEquals(0x0351, rank.u32());
+        PacketReader buff = new PacketReader(GamePackets.itemBuffFail(
+                GamePackets.shopSys(GamePackets.BUFF_ERR_TYPEID)));
+        assertEquals(GamePackets.SERVER_ITEM_BUFF, buff.opcode());
+        assertEquals(0x0401, buff.u32());
+        PacketReader comet = new PacketReader(GamePackets.cometRefillFail());
+        assertEquals(GamePackets.SERVER_COMET_REFILL, comet.opcode());
+        assertEquals(0, comet.u8());
+        assertEquals(10, comet.remaining());
+        PacketReader boxMail = new PacketReader(GamePackets.boxMailFail(
+                GamePackets.shopSys(GamePackets.BOX_MAIL_ERR_TYPEID)));
+        assertEquals(GamePackets.SERVER_BOX_MAIL, boxMail.opcode());
+        assertEquals(0x0101, boxMail.u32());
+        PacketReader lockerPage = new PacketReader(GamePackets.lockerItems(0, 0, 0));
+        assertEquals(GamePackets.SERVER_LOCKER_ITEMS, lockerPage.opcode());
+        assertEquals(0, lockerPage.u16());
+        assertEquals(0, lockerPage.u16());
+        assertEquals(0, lockerPage.u8());
+        PacketReader lockerPang = new PacketReader(GamePackets.lockerPang(0));
+        assertEquals(GamePackets.SERVER_LOCKER_PANG, lockerPang.opcode());
+        assertEquals(0, lockerPang.u64());
+        PacketReader refuse = new PacketReader(GamePackets.chatRefuseWhisper("TestNick"));
+        assertEquals(GamePackets.SERVER_CHAT, refuse.opcode());
+        assertEquals(GamePackets.CHAT_REFUSE_WHISPER, refuse.u8());
+        assertEquals("TestNick", refuse.pstr());
+        assertEquals(0, refuse.remaining());
         assertEquals(GamePackets.CLIENT_WEB_AUTH_KEY, 0xFB);
         assertEquals(GamePackets.CLIENT_CHANGE_GAME_SERVER, 0x119);
         assertEquals(GamePackets.CLIENT_OPEN_TICKET_REPORT, 0xAB);
@@ -949,6 +1001,30 @@ class GamePacketsTest {
         assertEquals(GamePackets.SERVER_LOCKER_STATE, 0x170);
         assertEquals(GamePackets.SERVER_CLUB_WORKSHOP_LEVEL, 0x23D);
         assertEquals(GamePackets.SERVER_LUCKY_POUCH, 0x129);
+        assertEquals(GamePackets.CLIENT_TIKI_POINTS, 0x127);
+        assertEquals(GamePackets.CLIENT_TIKI_EXCHANGE_TP, 0x128);
+        assertEquals(GamePackets.CLIENT_TIKI_EXCHANGE_ITEM, 0x129);
+        assertEquals(GamePackets.CLIENT_CLUB_WORKSHOP_CONFIRM, 0x165);
+        assertEquals(GamePackets.CLIENT_CLUB_WORKSHOP_CANCEL, 0x166);
+        assertEquals(GamePackets.CLIENT_CLUB_WORKSHOP_RANK, 0x167);
+        assertEquals(GamePackets.CLIENT_ITEM_BUFF, 0xD8);
+        assertEquals(GamePackets.CLIENT_COMET_REFILL, 0xEC);
+        assertEquals(GamePackets.CLIENT_BOX_MAIL, 0xEF);
+        assertEquals(GamePackets.CLIENT_LOCKER_ITEMS, 0xCD);
+        assertEquals(GamePackets.CLIENT_LOCKER_PANG, 0xD5);
+        assertEquals(GamePackets.CLIENT_REFUSE_WHISPER, 0xDE);
+        assertEquals(GamePackets.CLIENT_IDENTITY, 0x41);
+        assertEquals(GamePackets.SERVER_TIKI_POINTS, 0x1E8);
+        assertEquals(GamePackets.SERVER_TIKI_EXCHANGE_TP, 0x1E9);
+        assertEquals(GamePackets.SERVER_TIKI_EXCHANGE_ITEM, 0x1EA);
+        assertEquals(GamePackets.SERVER_CLUB_WORKSHOP_CONFIRM, 0x23E);
+        assertEquals(GamePackets.SERVER_CLUB_WORKSHOP_CANCEL, 0x23F);
+        assertEquals(GamePackets.SERVER_CLUB_WORKSHOP_RANK, 0x240);
+        assertEquals(GamePackets.SERVER_ITEM_BUFF, 0x181);
+        assertEquals(GamePackets.SERVER_COMET_REFILL, 0x197);
+        assertEquals(GamePackets.SERVER_BOX_MAIL, 0x19D);
+        assertEquals(GamePackets.SERVER_LOCKER_ITEMS, 0x16D);
+        assertEquals(GamePackets.SERVER_LOCKER_PANG, 0x172);
         assertEquals(GamePackets.CLIENT_REQUEST_MESSENGER_LIST, 0x8B);
         assertEquals(GamePackets.CLIENT_REFRESH_GACHA, 0x9E);
         assertEquals(GamePackets.CLIENT_ENCHANT, 0x4B);

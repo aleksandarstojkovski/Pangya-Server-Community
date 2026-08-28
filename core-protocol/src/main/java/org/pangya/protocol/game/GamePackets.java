@@ -120,6 +120,28 @@ public final class GamePackets {
     public static final int SERVER_TIKI_SHOP = 0x1E7;
     /** C# {@code SERVER_CLUBSETWORKSHOP_REQ_UP_LEVEL_ACK} {@code 0x23D}. */
     public static final int SERVER_CLUB_WORKSHOP_LEVEL = 0x23D;
+    /** C# workshop confirm catch {@code 0x23E}. */
+    public static final int SERVER_CLUB_WORKSHOP_CONFIRM = 0x23E;
+    /** C# workshop cancel catch {@code 0x23F}. */
+    public static final int SERVER_CLUB_WORKSHOP_CANCEL = 0x23F;
+    /** C# workshop rank catch {@code 0x240}. */
+    public static final int SERVER_CLUB_WORKSHOP_RANK = 0x240;
+    /** C# Tiki points {@code 0x1E8}. */
+    public static final int SERVER_TIKI_POINTS = 0x1E8;
+    /** C# Tiki item→TP {@code 0x1E9}. */
+    public static final int SERVER_TIKI_EXCHANGE_TP = 0x1E9;
+    /** C# Tiki TP→item {@code 0x1EA}. */
+    public static final int SERVER_TIKI_EXCHANGE_ITEM = 0x1EA;
+    /** C# item-buff catch {@code 0x181}. */
+    public static final int SERVER_ITEM_BUFF = 0x181;
+    /** C# comet-refill catch {@code 0x197}. */
+    public static final int SERVER_COMET_REFILL = 0x197;
+    /** C# mail-box catch {@code 0x19D}. */
+    public static final int SERVER_BOX_MAIL = 0x19D;
+    /** C# locker item list {@code 0x16D}. */
+    public static final int SERVER_LOCKER_ITEMS = 0x16D;
+    /** C# locker pang {@code 0x172}. */
+    public static final int SERVER_LOCKER_PANG = 0x172;
     /** C# {@code pacote0AA} / {@code SERVER_NEW_ITEM}. */
     public static final int SERVER_NEW_ITEM = 0xAA;
     /** C# pang spent after shop buy ({@code 0xC8} + remaining + spent). */
@@ -428,6 +450,35 @@ public final class GamePackets {
     public static final int CLIENT_ACTIVE_RING = 0x15D;
     /** C# {@code CLIENT_CLUBSETWORKSHOP_REQ_UP_LEVEL} / {@code packet164}. */
     public static final int CLIENT_CLUB_WORKSHOP_LEVEL = 0x164;
+    /** C# {@code packet165} workshop confirm. Empty pending → {@code 0x23E}. */
+    public static final int CLIENT_CLUB_WORKSHOP_CONFIRM = 0x165;
+    /** C# {@code packet166} workshop cancel. Empty pending → {@code 0x23F}. */
+    public static final int CLIENT_CLUB_WORKSHOP_CANCEL = 0x166;
+    /** C# {@code packet167} workshop rank. Missing card → {@code 0x240}. */
+    public static final int CLIENT_CLUB_WORKSHOP_RANK = 0x167;
+    /** C# {@code packet041} GM identity. Non-GM CHANNEL catch is silent. */
+    public static final int CLIENT_IDENTITY = 0x41;
+    /** C# {@code packet0CD} Dolfini locker item page. */
+    public static final int CLIENT_LOCKER_ITEMS = 0xCD;
+    /** C# {@code packet0D5} Dolfini locker pang. */
+    public static final int CLIENT_LOCKER_PANG = 0xD5;
+    /** C# {@code packet0D8} use item buff. */
+    public static final int CLIENT_ITEM_BUFF = 0xD8;
+    /** C# {@code packet0DE} refuse whisper. */
+    public static final int CLIENT_REFUSE_WHISPER = 0xDE;
+    /** C# {@code packet0EC} comet refill. */
+    public static final int CLIENT_COMET_REFILL = 0xEC;
+    /** C# {@code packet0EF} open box from mail. */
+    public static final int CLIENT_BOX_MAIL = 0xEF;
+    /** C# {@code packet127} Tiki points. */
+    public static final int CLIENT_TIKI_POINTS = 0x127;
+    /** C# {@code packet128} Tiki item→TP. Opposite {@link #SERVER_LUCKY_POUCH}. */
+    public static final int CLIENT_TIKI_EXCHANGE_TP = 0x128;
+    /**
+     * C# {@code packet129} Tiki TP→item. Same numeric value as
+     * {@link #SERVER_LUCKY_POUCH}, opposite direction.
+     */
+    public static final int CLIENT_TIKI_EXCHANGE_ITEM = 0x129;
     /** C# {@code packet158} {@code requestCadieCauldronExchange}. */
     public static final int CLIENT_CADIE = 0x158;
     public static final int CLIENT_UPDATE_MACRO = 0x69;
@@ -465,6 +516,8 @@ public final class GamePackets {
     public static final int PLAYER_READY_BIT = 1 << 9;
     public static final int CHAT_NORMAL = 0;
     public static final int CHAT_NOTICE = 7;
+    /** C# {@code eChatMsg.CHAT_REFUSE_WHISPER}. {@code pacote040} writes nick only. */
+    public static final int CHAT_REFUSE_WHISPER = 4;
     public static final int CHAT_OFFLINE = 6;
     public static final int CHAT_GM = 0x80;
     public static final int WHISPER_FROM = 0;
@@ -807,6 +860,30 @@ public final class GamePackets {
     public static final int WEB_KEY_FAIL = 0;
     /** C# {@code pacote1D4} success option. */
     public static final int CHANGE_GS_OK = 0;
+    /** C# item-buff typeid 0 CHANNEL sys. */
+    public static final int BUFF_ERR_TYPEID = 0x5500401;
+    /** C# item-buff catch else. */
+    public static final int BUFF_ERR_DEFAULT = 0x5500400;
+    /** C# mail-box typeid 0 CHANNEL sys. */
+    public static final int BOX_MAIL_ERR_TYPEID = 0x6300101;
+    /** C# mail-box catch else. */
+    public static final int BOX_MAIL_ERR_DEFAULT = 0x6300100;
+    /** C# Tiki exchange count 0 CHANNEL sys {@code 0x5200905}. */
+    public static final int TIKI_EXCHANGE_ERR_PTS = 0x5200905;
+    /** C# Tiki exchange catch else. */
+    public static final int TIKI_EXCHANGE_ERR_DEFAULT = 1;
+    /** C# workshop confirm missing ClubSet CHANNEL sys. */
+    public static final int WORKSHOP_CONFIRM_ERR = 0x5300301;
+    /** C# workshop confirm catch else. */
+    public static final int WORKSHOP_CONFIRM_DEFAULT = 0x5300300;
+    /** C# workshop cancel missing ClubSet CHANNEL sys. */
+    public static final int WORKSHOP_CANCEL_ERR = 0x5300251;
+    /** C# workshop cancel catch else. */
+    public static final int WORKSHOP_CANCEL_DEFAULT = 0x5300250;
+    /** C# workshop rank missing card CHANNEL sys. */
+    public static final int WORKSHOP_RANK_ERR = 0x5300351;
+    /** C# workshop rank catch else. */
+    public static final int WORKSHOP_RANK_DEFAULT = 0x5300350;
     /** C# {@code IFF_GROUP.ITEM}. {@code (typeid & 0xFC000000) >> 26}. */
     public static final int IFF_GROUP_ITEM = 6;
     /** C# {@code WriteSByte(-1)} on delete-item fail. */
@@ -2040,6 +2117,58 @@ public final class GamePackets {
         return new PacketWriter().opcode(SERVER_LOGIN_ACK).u8(GACHA_ERR_MARKER).u32(code).toBytes();
     }
 
+    /** C# Tiki points {@code 0x1E8}: u32 option + u32 pts. */
+    public static byte[] tikiPoints(int option, int pts) {
+        return new PacketWriter().opcode(SERVER_TIKI_POINTS).u32(option).u32(pts).toBytes();
+    }
+
+    /** C# Tiki exchange fail {@code 0x1E9}/{@code 0x1EA} u32. */
+    public static byte[] tikiExchangeFail(int opcode, int code) {
+        return new PacketWriter().opcode(opcode).u32(code).toBytes();
+    }
+
+    /** C# workshop confirm/cancel/rank catch u32 sys. */
+    public static byte[] clubWorkshopOpcodeFail(int opcode, int code) {
+        return new PacketWriter().opcode(opcode).u32(code).toBytes();
+    }
+
+    /** C# item-buff catch {@code 0x181} u32 sys. */
+    public static byte[] itemBuffFail(int code) {
+        return new PacketWriter().opcode(SERVER_ITEM_BUFF).u32(code).toBytes();
+    }
+
+    /** C# comet-refill catch {@code 0x197}: u8 0 + 10 zeros. */
+    public static byte[] cometRefillFail() {
+        return new PacketWriter().opcode(SERVER_COMET_REFILL).u8(0).zero(10).toBytes();
+    }
+
+    /** C# mail-box catch {@code 0x19D} u32 sys. */
+    public static byte[] boxMailFail(int code) {
+        return new PacketWriter().opcode(SERVER_BOX_MAIL).u32(code).toBytes();
+    }
+
+    /**
+     * C# locker item page {@code 0x16D}: u16 pages + u16 page + u8 count + rows.
+     */
+    public static byte[] lockerItems(int pages, int page, int count) {
+        return new PacketWriter()
+                .opcode(SERVER_LOCKER_ITEMS)
+                .u16(pages)
+                .u16(page)
+                .u8(count)
+                .toBytes();
+    }
+
+    /** C# locker item catch {@code 0x16D} + 5 zeros. */
+    public static byte[] lockerItemsFail() {
+        return new PacketWriter().opcode(SERVER_LOCKER_ITEMS).zero(5).toBytes();
+    }
+
+    /** C# locker pang {@code 0x172} u64. */
+    public static byte[] lockerPang(long pang) {
+        return new PacketWriter().opcode(SERVER_LOCKER_PANG).u64(pang).toBytes();
+    }
+
     /** C# {@code 0x20E}: two int32 zeros. */
     public static byte[] enterShopOk() {
         return new PacketWriter().opcode(SERVER_ENTER_SHOP).u32(0).u32(0).toBytes();
@@ -2260,6 +2389,17 @@ public final class GamePackets {
     /** C# {@code pacote040} option {@code CHAT_OFFLINE} — nick only. */
     public static byte[] chatOffline(String nick) {
         return new PacketWriter().opcode(SERVER_CHAT).u8(CHAT_OFFLINE).pstr(nick == null ? "" : nick).toBytes();
+    }
+
+    /**
+     * C# {@code pacote040} {@code CHAT_REFUSE_WHISPER}: option + nick, no msg.
+     */
+    public static byte[] chatRefuseWhisper(String nick) {
+        return new PacketWriter()
+                .opcode(SERVER_CHAT)
+                .u8(CHAT_REFUSE_WHISPER)
+                .pstr(nick == null ? "" : nick)
+                .toBytes();
     }
 
     /** C# {@code packet_func.pacote0F5} — empty. */
@@ -3328,6 +3468,66 @@ public final class GamePackets {
     /** C# CLIENT {@code 0x15D} empty. */
     public static byte[] clientActiveRing() {
         return new PacketWriter().opcode(CLIENT_ACTIVE_RING).toBytes();
+    }
+
+    /** C# CLIENT {@code 0x127} empty. */
+    public static byte[] clientTikiPoints() {
+        return new PacketWriter().opcode(CLIENT_TIKI_POINTS).toBytes();
+    }
+
+    /** C# CLIENT {@code 0x128}/{@code 0x129}: u8 count. */
+    public static byte[] clientTikiExchange(int opcode, int count) {
+        return new PacketWriter().opcode(opcode).u8(count).toBytes();
+    }
+
+    /** C# CLIENT {@code 0x165}/{@code 0x166} empty. */
+    public static byte[] clientClubWorkshopEmpty(int opcode) {
+        return new PacketWriter().opcode(opcode).toBytes();
+    }
+
+    /** C# CLIENT {@code 0x167}: u32 typeid + u16 qntd + i32 clubset id. */
+    public static byte[] clientClubWorkshopRank(int typeid, int qntd, int clubsetId) {
+        return new PacketWriter()
+                .opcode(CLIENT_CLUB_WORKSHOP_RANK)
+                .u32(typeid)
+                .u16(qntd)
+                .i32(clubsetId)
+                .toBytes();
+    }
+
+    /** C# CLIENT {@code 0xD8}: u32 typeid. */
+    public static byte[] clientItemBuff(int typeid) {
+        return new PacketWriter().opcode(CLIENT_ITEM_BUFF).u32(typeid).toBytes();
+    }
+
+    /** C# CLIENT {@code 0xEC}: u32 item + u32 ball. */
+    public static byte[] clientCometRefill(int itemTypeid, int ballTypeid) {
+        return new PacketWriter().opcode(CLIENT_COMET_REFILL).u32(itemTypeid).u32(ballTypeid).toBytes();
+    }
+
+    /** C# CLIENT {@code 0xEF}: u32 box typeid. */
+    public static byte[] clientBoxMail(int typeid) {
+        return new PacketWriter().opcode(CLIENT_BOX_MAIL).u32(typeid).toBytes();
+    }
+
+    /** C# CLIENT {@code 0xCD}: u32 opt + u16 page. */
+    public static byte[] clientLockerItems(int opt, int page) {
+        return new PacketWriter().opcode(CLIENT_LOCKER_ITEMS).u32(opt).u16(page).toBytes();
+    }
+
+    /** C# CLIENT {@code 0xD5} empty. */
+    public static byte[] clientLockerPang() {
+        return new PacketWriter().opcode(CLIENT_LOCKER_PANG).toBytes();
+    }
+
+    /** C# CLIENT {@code 0xDE}: PStr nick. */
+    public static byte[] clientRefuseWhisper(String nick) {
+        return new PacketWriter().opcode(CLIENT_REFUSE_WHISPER).pstr(nick == null ? "" : nick).toBytes();
+    }
+
+    /** C# CLIENT {@code 0x41}: i32 cap + PStr nick. */
+    public static byte[] clientIdentity(int cap, String nick) {
+        return new PacketWriter().opcode(CLIENT_IDENTITY).i32(cap).pstr(nick == null ? "" : nick).toBytes();
     }
 
     /** C# CLIENT {@code 0x63}: type + remaining payload. */

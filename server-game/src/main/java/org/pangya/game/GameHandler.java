@@ -159,6 +159,9 @@ public final class GameHandler {
             case GamePackets.CLIENT_PAPEL_SHOP -> openPapelShop(session);
             case GamePackets.CLIENT_PAPEL_PLAY -> playPapelShop(session);
             case GamePackets.CLIENT_TIKI_SHOP -> openTikiShop(session);
+            case GamePackets.CLIENT_TIKI_POINTS -> tikiPoints(session);
+            case GamePackets.CLIENT_TIKI_EXCHANGE_TP -> tikiExchangeTp(session, reader);
+            case GamePackets.CLIENT_TIKI_EXCHANGE_ITEM -> tikiExchangeItem(session, reader);
             case GamePackets.CLIENT_CHANGE_GAME_SERVER -> changeGameServer(session, reader);
             case GamePackets.CLIENT_ENTER_SHOP -> enterShop(session);
             case GamePackets.CLIENT_OPEN_MAILBOX -> openMailBox(session, reader);
@@ -195,11 +198,21 @@ public final class GameHandler {
             case GamePackets.CLIENT_UPDATE_PLACE -> updatePlace(session, reader);
             case GamePackets.CLIENT_LOCKER_ACCESS -> lockerAccess(session, reader);
             case GamePackets.CLIENT_LOCKER_STATE -> lockerState(session);
+            case GamePackets.CLIENT_LOCKER_ITEMS -> lockerItems(session, reader);
+            case GamePackets.CLIENT_LOCKER_PANG -> lockerPang(session);
             case GamePackets.CLIENT_HEARTBEAT -> { }
             case GamePackets.CLIENT_WEB_AUTH_KEY -> webAuthKey(session);
             case GamePackets.CLIENT_ACTIVE_PAWS -> activePaws(session);
             case GamePackets.CLIENT_ACTIVE_RING -> activeRing(session);
             case GamePackets.CLIENT_CLUB_WORKSHOP_LEVEL -> clubWorkshopLevel(session, reader);
+            case GamePackets.CLIENT_CLUB_WORKSHOP_CONFIRM -> clubWorkshopConfirm(session);
+            case GamePackets.CLIENT_CLUB_WORKSHOP_CANCEL -> clubWorkshopCancel(session);
+            case GamePackets.CLIENT_CLUB_WORKSHOP_RANK -> clubWorkshopRank(session, reader);
+            case GamePackets.CLIENT_ITEM_BUFF -> useItemBuff(session, reader);
+            case GamePackets.CLIENT_COMET_REFILL -> cometRefill(session, reader);
+            case GamePackets.CLIENT_BOX_MAIL -> openBoxMail(session, reader);
+            case GamePackets.CLIENT_REFUSE_WHISPER -> refuseWhisper(session, reader);
+            case GamePackets.CLIENT_IDENTITY -> execIdentity(session);
             case GamePackets.CLIENT_ENTER_LOBBY -> enterLobby(session);
             case GamePackets.CLIENT_LEAVE_LOBBY -> leaveLobby(session);
             case GamePackets.CLIENT_CHAT -> chat(session, reader);
@@ -1099,6 +1112,46 @@ public final class GameHandler {
             return;
         }
         session.send(GamePackets.tikiShop(0));
+    }
+
+    /**
+     * C# {@code requestPointLegacyTikiShop}: not blocked → {@code 0x1E8} u32 0
+     * + u32 tiki pts (seed 0).
+     */
+    private void tikiPoints(Session session) {
+        if (!inChannel(session)) {
+            return;
+        }
+        session.send(GamePackets.tikiPoints(0, 0));
+    }
+
+    /**
+     * C# {@code requestExchangeTPByItemLegacyTikiShop}: count 0 →
+     * {@code 0x1E9} {@code shopSys(0x5200905)}.
+     */
+    private void tikiExchangeTp(Session session, PacketReader reader) {
+        tikiExchange(session, reader, GamePackets.SERVER_TIKI_EXCHANGE_TP);
+    }
+
+    /**
+     * C# {@code requestExchangeItemByTPLegacyTikiShop}: count 0 →
+     * {@code 0x1EA} {@code shopSys(0x5200905)}.
+     */
+    private void tikiExchangeItem(Session session, PacketReader reader) {
+        tikiExchange(session, reader, GamePackets.SERVER_TIKI_EXCHANGE_ITEM);
+    }
+
+    private void tikiExchange(Session session, PacketReader reader, int opcode) {
+        if (!inChannel(session)) {
+            return;
+        }
+        if (reader.remaining() < 1) {
+            session.send(GamePackets.tikiExchangeFail(opcode, GamePackets.TIKI_EXCHANGE_ERR_DEFAULT));
+            return;
+        }
+        reader.u8();
+        session.send(GamePackets.tikiExchangeFail(
+                opcode, GamePackets.shopSys(GamePackets.TIKI_EXCHANGE_ERR_PTS)));
     }
 
     /** C# {@code packet140}: {@code 0x20E} two zeros. */
@@ -2920,6 +2973,162 @@ public final class GameHandler {
             return;
         }
         session.send(GamePackets.clubWorkshopFail(GamePackets.shopSys(0x5300202)));
+    }
+
+    /**
+     * C# {@code requestClubSetWorkShopUpLevelConfirm}: no pending ClubSet →
+     * {@code 0x23E} {@code shopSys(0x5300301)}.
+     */
+    private void clubWorkshopConfirm(Session session) {
+        if (!inChannel(session)) {
+            return;
+        }
+        session.send(GamePackets.clubWorkshopOpcodeFail(
+                GamePackets.SERVER_CLUB_WORKSHOP_CONFIRM,
+                GamePackets.shopSys(GamePackets.WORKSHOP_CONFIRM_ERR)));
+    }
+
+    /**
+     * C# {@code requestClubSetWorkShopUpLevelCancel}: no pending ClubSet →
+     * {@code 0x23F} {@code shopSys(0x5300251)}.
+     */
+    private void clubWorkshopCancel(Session session) {
+        if (!inChannel(session)) {
+            return;
+        }
+        session.send(GamePackets.clubWorkshopOpcodeFail(
+                GamePackets.SERVER_CLUB_WORKSHOP_CANCEL,
+                GamePackets.shopSys(GamePackets.WORKSHOP_CANCEL_ERR)));
+    }
+
+    /**
+     * C# {@code requestClubSetWorkShopUpRank}: qntd&gt;0 missing card →
+     * {@code 0x240} {@code shopSys(0x5300351)}.
+     */
+    private void clubWorkshopRank(Session session, PacketReader reader) {
+        if (!inChannel(session)) {
+            return;
+        }
+        if (reader.remaining() < 10) {
+            session.send(GamePackets.clubWorkshopOpcodeFail(
+                    GamePackets.SERVER_CLUB_WORKSHOP_RANK, GamePackets.WORKSHOP_RANK_DEFAULT));
+            return;
+        }
+        reader.u32();
+        int qntd = reader.u16();
+        reader.i32();
+        if (qntd > 0) {
+            session.send(GamePackets.clubWorkshopOpcodeFail(
+                    GamePackets.SERVER_CLUB_WORKSHOP_RANK,
+                    GamePackets.shopSys(GamePackets.WORKSHOP_RANK_ERR)));
+            return;
+        }
+        session.send(GamePackets.clubWorkshopOpcodeFail(
+                GamePackets.SERVER_CLUB_WORKSHOP_RANK, GamePackets.WORKSHOP_RANK_DEFAULT));
+    }
+
+    /**
+     * C# {@code requestUseItemBuff}: typeid 0 → {@code 0x181}
+     * {@code shopSys(0x5500401)}.
+     */
+    private void useItemBuff(Session session, PacketReader reader) {
+        if (!inChannel(session)) {
+            return;
+        }
+        if (reader.remaining() < 4) {
+            session.send(GamePackets.itemBuffFail(GamePackets.BUFF_ERR_DEFAULT));
+            return;
+        }
+        int typeid = reader.u32();
+        if (typeid == 0) {
+            session.send(GamePackets.itemBuffFail(GamePackets.shopSys(GamePackets.BUFF_ERR_TYPEID)));
+            return;
+        }
+        session.send(GamePackets.itemBuffFail(GamePackets.shopSys(0x5500402)));
+    }
+
+    /**
+     * C# {@code requestCometRefill}: catch always {@code 0x197} u8 0 + 10 zeros.
+     */
+    private void cometRefill(Session session, PacketReader reader) {
+        if (!inChannel(session)) {
+            return;
+        }
+        session.send(GamePackets.cometRefillFail());
+    }
+
+    /**
+     * C# {@code requestOpenBoxMail}: typeid 0 → {@code 0x19D}
+     * {@code shopSys(0x6300101)}.
+     */
+    private void openBoxMail(Session session, PacketReader reader) {
+        if (!inChannel(session)) {
+            return;
+        }
+        if (reader.remaining() < 4) {
+            session.send(GamePackets.boxMailFail(GamePackets.BOX_MAIL_ERR_DEFAULT));
+            return;
+        }
+        int typeid = reader.u32();
+        if (typeid == 0) {
+            session.send(GamePackets.boxMailFail(GamePackets.shopSys(GamePackets.BOX_MAIL_ERR_TYPEID)));
+            return;
+        }
+        session.send(GamePackets.boxMailFail(GamePackets.shopSys(0x6300102)));
+    }
+
+    /**
+     * C# {@code requestDolfiniLockerItem}: empty locker page 1 →
+     * {@code 0x16D} pages 0 + page 0 + count 0.
+     */
+    private void lockerItems(Session session, PacketReader reader) {
+        if (!inChannel(session)) {
+            return;
+        }
+        if (reader.remaining() < 6) {
+            session.send(GamePackets.lockerItemsFail());
+            return;
+        }
+        reader.u32();
+        reader.u16();
+        session.send(GamePackets.lockerItems(0, 0, 0));
+    }
+
+    /**
+     * C# {@code requestDolfiniLockerPang}: {@code 0x172} u64 pang (seed 0).
+     */
+    private void lockerPang(Session session) {
+        if (!inChannel(session)) {
+            return;
+        }
+        session.send(GamePackets.lockerPang(0));
+    }
+
+    /**
+     * C# {@code requestNotifyNotDisplayPrivateMessageNow}: sends
+     * {@code pacote040} option 4 + nick to the named online player.
+     */
+    private void refuseWhisper(Session session, PacketReader reader) {
+        if (!session.authorized() || reader.remaining() < 2) {
+            return;
+        }
+        String nick = reader.pstr();
+        if (nick == null || nick.isEmpty()) {
+            return;
+        }
+        Session target = sessions.findByNickname(nick);
+        if (target != null && target.authorized()) {
+            target.send(GamePackets.chatRefuseWhisper(nick));
+        }
+    }
+
+    /**
+     * C# {@code requestExecCCGIdentity}: non-GM CHANNEL catch is silent.
+     */
+    private void execIdentity(Session session) {
+        if (!inChannel(session)) {
+            return;
+        }
     }
 
     /**

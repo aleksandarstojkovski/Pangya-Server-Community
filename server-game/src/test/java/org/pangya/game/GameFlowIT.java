@@ -1367,6 +1367,53 @@ class GameFlowIT {
             host.sendPlain(GamePackets.clientActivePaws());
             host.sendPlain(GamePackets.clientActiveRing());
 
+            host.sendPlain(GamePackets.clientTikiPoints());
+            PacketReader tikiPts = awaitOpcode(host, GamePackets.SERVER_TIKI_POINTS);
+            assertEquals(0, tikiPts.u32());
+            assertEquals(0, tikiPts.u32());
+            host.sendPlain(GamePackets.clientTikiExchange(GamePackets.CLIENT_TIKI_EXCHANGE_TP, 0));
+            PacketReader tikiTp = awaitOpcode(host, GamePackets.SERVER_TIKI_EXCHANGE_TP);
+            assertEquals(GamePackets.shopSys(GamePackets.TIKI_EXCHANGE_ERR_PTS), tikiTp.u32());
+            host.sendPlain(GamePackets.clientTikiExchange(GamePackets.CLIENT_TIKI_EXCHANGE_ITEM, 0));
+            PacketReader tikiItem = awaitOpcode(host, GamePackets.SERVER_TIKI_EXCHANGE_ITEM);
+            assertEquals(GamePackets.shopSys(GamePackets.TIKI_EXCHANGE_ERR_PTS), tikiItem.u32());
+
+            host.sendPlain(GamePackets.clientClubWorkshopEmpty(GamePackets.CLIENT_CLUB_WORKSHOP_CONFIRM));
+            PacketReader wsConfirm = awaitOpcode(host, GamePackets.SERVER_CLUB_WORKSHOP_CONFIRM);
+            assertEquals(GamePackets.shopSys(GamePackets.WORKSHOP_CONFIRM_ERR), wsConfirm.u32());
+            host.sendPlain(GamePackets.clientClubWorkshopEmpty(GamePackets.CLIENT_CLUB_WORKSHOP_CANCEL));
+            PacketReader wsCancel = awaitOpcode(host, GamePackets.SERVER_CLUB_WORKSHOP_CANCEL);
+            assertEquals(GamePackets.shopSys(GamePackets.WORKSHOP_CANCEL_ERR), wsCancel.u32());
+            host.sendPlain(GamePackets.clientClubWorkshopRank(0, 1, 0));
+            PacketReader wsRank = awaitOpcode(host, GamePackets.SERVER_CLUB_WORKSHOP_RANK);
+            assertEquals(GamePackets.shopSys(GamePackets.WORKSHOP_RANK_ERR), wsRank.u32());
+
+            host.sendPlain(GamePackets.clientItemBuff(0));
+            PacketReader buffFail = awaitOpcode(host, GamePackets.SERVER_ITEM_BUFF);
+            assertEquals(GamePackets.shopSys(GamePackets.BUFF_ERR_TYPEID), buffFail.u32());
+            host.sendPlain(GamePackets.clientCometRefill(0, 0));
+            PacketReader cometFail = awaitOpcode(host, GamePackets.SERVER_COMET_REFILL);
+            assertEquals(0, cometFail.u8());
+            assertEquals(10, cometFail.remaining());
+            host.sendPlain(GamePackets.clientBoxMail(0));
+            PacketReader boxFail = awaitOpcode(host, GamePackets.SERVER_BOX_MAIL);
+            assertEquals(GamePackets.shopSys(GamePackets.BOX_MAIL_ERR_TYPEID), boxFail.u32());
+
+            host.sendPlain(GamePackets.clientLockerItems(0, 1));
+            PacketReader lockerPage = awaitOpcode(host, GamePackets.SERVER_LOCKER_ITEMS);
+            assertEquals(0, lockerPage.u16());
+            assertEquals(0, lockerPage.u16());
+            assertEquals(0, lockerPage.u8());
+            host.sendPlain(GamePackets.clientLockerPang());
+            PacketReader lockerPang = awaitOpcode(host, GamePackets.SERVER_LOCKER_PANG);
+            assertEquals(0, lockerPang.u64());
+
+            guest.sendPlain(GamePackets.clientRefuseWhisper("TestNick"));
+            PacketReader refuse = awaitOpcode(host, GamePackets.SERVER_CHAT);
+            assertEquals(GamePackets.CHAT_REFUSE_WHISPER, refuse.u8());
+            assertEquals("TestNick", refuse.pstr());
+            host.sendPlain(GamePackets.clientIdentity(-1, "TestNick"));
+
             host.sendPlain(GamePackets.clientDeleteItem(1, 1));
             PacketReader deleted = awaitOpcode(host, GamePackets.SERVER_DELETE_ITEM);
             assertEquals(GamePackets.DELETE_ITEM_FAIL, deleted.u8());
