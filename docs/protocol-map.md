@@ -134,7 +134,7 @@ C#: `GameServer/PangyaEnums/PacketGame.cs` → Java `org.pangya.protocol.game.Ga
 | C | `CLIENT_REWARD_DAILY_QUEST` | `0x153` | empty/zero → `0x227` option 500050 + count 0 |
 | C | `CLIENT_LEAVE_DAILY_QUEST` | `0x154` | empty/zero → `0x228` option 1 only |
 | C | `CLIENT_ACHIEVEMENT` | `0x157` | empty map no packet; short body `0x22C` i32 1 |
-| C | `CLIENT_LOLO` | `0x155` | u64 pang + 3×typeid; no IFF card → `0x22A` sys `0x151` |
+| C | `CLIENT_LOLO` | `0x155` | u64 pang + 3×typeid; no IFF card → `0x22A` sys `0x151`; truncated `<20` → full `0x5400150`; success `0xC8` remaining+spent + `0x216` awards + `0x229` tipo + `0x22A` u32 0 + typeid |
 | C | `CLIENT_CADIE` | `0x158` | count 0/`>4` → `0x22F` sys `5200451&0xFFFF`; truncated/SQL miss `5200452&0xFFFF`; success `0x216` awards + `0x22F` u32 0 + seq + item |
 | C | `CLIENT_REQUEST_MESSENGER_SERVER_LIST` | `0x8B` | `0xFC` u8 count + 92-byte `ServerInfo` (type 3); empty still sends 0 |
 | C | `CLIENT_REQUEST_REFRESH_GACHA_TICKETS` | `0x9E` | `0x102` i32×2 tickets + pang + cookie; catch `0x44` u8 `0xE2` |
@@ -280,7 +280,8 @@ C#: `GameServer/PangyaEnums/PacketGame.cs` → Java `org.pangya.protocol.game.Ga
 | S | `SERVER_DAILY_QUEST_REWARD` | `0x227` | |
 | S | `SERVER_DAILY_QUEST_LEAVE` | `0x228` | |
 | S | `SERVER_ACHIEVEMENT_GUI` | `0x22C` | i32 option |
-| S | `SERVER_LOLO` | `0x22A` | u32 error |
+| S | `SERVER_LOLO_TIPO` | `0x229` | u32 card tipo (NORMAL 0) after compose |
+| S | `SERVER_LOLO` | `0x22A` | fail u32 error; success u32 0 + u32 typeid |
 | S | `SERVER_CADIE` | `0x22F` | u32 0 + seq + receive item on success; u32 error on fail |
 | C | `CLIENT_SHOP_OPEN_ITEMS` | `0x7C` | u32 count + 172-byte `PersonalShopItem`; success `0xEB` u32 1 + nick 22 + uid + items. Count 0/`>10` `shopSys(5200251)`; no shop `shopSys(5200252)`; truncated/IFF/`qntd`/price → full `5200250`. Opposite SERVER master `0x7C` |
 | C | `CLIENT_SHOP_BUY` | `0x7D` | u32 owner + item; missing shop `0xEC` `shopSys(5200552)`; truncated/`ToRead`/buy errors full `5200550`. Success `0xEC` both (u8 1 seller / 0 buyer) + `0xED` + seller `0x40` option 7. Opposite SERVER team `0x7D` |

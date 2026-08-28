@@ -318,7 +318,12 @@ public final class GamePackets {
     public static final int SERVER_ACHIEVEMENT_GUI = 0x22C;
     /** C# Cadie Magic Box fail/success {@code 0x22F}. */
     public static final int SERVER_CADIE = 0x22F;
-    /** C# Lolo Card Compose fail {@code 0x22A}. */
+    /**
+     * C# {@code requestLoloCardCompose} {@code 0x229} card tipo
+     * ({@code SERVER_REQ_LOLO_CARD_COMPOSE_ACK}).
+     */
+    public static final int SERVER_LOLO_TIPO = 0x229;
+    /** C# Lolo Card Compose {@code 0x22A}: fail u32 error / success u32 0 + typeid. */
     public static final int SERVER_LOLO = 0x22A;
     /**
      * C# {@code requestDeleteActiveItem} fail {@code 0xC5} sbyte -1.
@@ -1141,6 +1146,34 @@ public final class GamePackets {
     public static final int LOLO_ERR_IFF = 0x5400151;
     /** C# Lolo catch else. */
     public static final int LOLO_ERR_DEFAULT = 0x5400150;
+    /** C# Lolo {@code CARD_TYPE.T_SECRET}: CHANNEL sys {@code 0x5400152}. */
+    public static final int LOLO_ERR_SECRET = 0x5400152;
+    /** C# Lolo {@code findCardByTypeid} null: CHANNEL sys {@code 0x5400153}. */
+    public static final int LOLO_ERR_OWN = 0x5400153;
+    /** C# Lolo {@code pCi.qntd < 1}: CHANNEL sys {@code 0x5400154}. */
+    public static final int LOLO_ERR_QNTD = 0x5400154;
+    /** C# Lolo client pang ≠ computed: CHANNEL sys {@code 0x5400155}. */
+    public static final int LOLO_ERR_PANG = 0x5400155;
+    /** C# Lolo {@code drawsLoloCardCompose} null: CHANNEL sys {@code 0x5400156}. */
+    public static final int LOLO_ERR_DRAW = 0x5400156;
+    /** C# Lolo {@code removeItem <= 0}: CHANNEL sys {@code 0x5400157}. */
+    public static final int LOLO_ERR_REMOVE = 0x5400157;
+    /** C# {@code LoloCardCompose._typeid} length. */
+    public static final int LOLO_CARD_COUNT = 3;
+    /** C# {@code CARD_TYPE.T_NORMAL} pang per fused card. */
+    public static final int LOLO_PANG_NORMAL = 1000;
+    /** C# {@code CARD_TYPE.T_RARE} pang per fused card. */
+    public static final int LOLO_PANG_RARE = 2000;
+    /** C# {@code CARD_TYPE.T_SUPER_RARE} pang per fused card. */
+    public static final int LOLO_PANG_SUPER_RARE = 5000;
+    /** C# {@code CARD_TYPE.T_NORMAL}. */
+    public static final int CARD_TYPE_NORMAL = 0;
+    /** C# {@code CARD_TYPE.T_RARE}. */
+    public static final int CARD_TYPE_RARE = 1;
+    /** C# {@code CARD_TYPE.T_SUPER_RARE}. */
+    public static final int CARD_TYPE_SUPER_RARE = 2;
+    /** C# {@code CARD_TYPE.T_SECRET}. */
+    public static final int CARD_TYPE_SECRET = 3;
     /**
      * C# Papel play empty {@code dropBalls}: CHANNEL sys {@code 0x5900103}.
      */
@@ -1430,6 +1463,10 @@ public final class GamePackets {
      * C# {@code IFF_GROUP.MASCOT} {@code 16 << 26}: {@code 0x40000000}.
      */
     public static final int TYPEID_MASCOT = 0x40000000;
+    /** C# {@code IFF_GROUP.CARD} {@code 31 << 26 | 1}: {@code 0x7C000001}. */
+    public static final int TYPEID_CARD_NORMAL = 0x7C000001;
+    /** C# {@code IFF_GROUP.CARD}. */
+    public static final int IFF_GROUP_CARD = 31;
     /** C# {@code IFF_GROUP.CHARACTER}: {@code typeid >>> 26}. */
     public static final int IFF_GROUP_CHARACTER = 1;
 
@@ -3369,6 +3406,30 @@ public final class GamePackets {
     /** C# Lolo {@code 0x22A} u32 error. */
     public static byte[] loloFail(int code) {
         return new PacketWriter().opcode(SERVER_LOLO).u32(code).toBytes();
+    }
+
+    /** C# Lolo {@code 0x229} u32 card tipo. */
+    public static byte[] loloTipo(int tipo) {
+        return new PacketWriter().opcode(SERVER_LOLO_TIPO).u32(tipo).toBytes();
+    }
+
+    /** C# Lolo success {@code 0x22A} u32 0 + u32 typeid. */
+    public static byte[] loloOk(int typeid) {
+        return new PacketWriter().opcode(SERVER_LOLO).u32(0).u32(typeid).toBytes();
+    }
+
+    /**
+     * C# Lolo pang per fused card: NORMAL 1000 / RARE 2000 / SUPER_RARE 5000 /
+     * else 1000. Secret is rejected before this runs.
+     */
+    public static int loloPang(int rarity) {
+        if (rarity == CARD_TYPE_RARE) {
+            return LOLO_PANG_RARE;
+        }
+        if (rarity == CARD_TYPE_SUPER_RARE) {
+            return LOLO_PANG_SUPER_RARE;
+        }
+        return LOLO_PANG_NORMAL;
     }
 
     public static byte[] teamState(int oid, int team) {

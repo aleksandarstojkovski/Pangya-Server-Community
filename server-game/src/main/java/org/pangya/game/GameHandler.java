@@ -3038,8 +3038,9 @@ public final class GameHandler {
     }
 
     /**
-     * C# {@code requestLoloCardCompose}: missing IFF card → {@code 0x22A} sys
-     * {@code 0x5400151} low 16 bits.
+     * C# {@code requestLoloCardCompose}: truncated ToRead → full {@code 0x5400150};
+     * CHANNEL codes as {@code shopSys}; success {@code 0xC8}/{@code 0x216}/
+     * {@code 0x229}/{@code 0x22A}.
      */
     private void loloCardCompose(Session session, PacketReader reader) {
         if (!inChannel(session)) {
@@ -3049,11 +3050,26 @@ public final class GameHandler {
             session.send(GamePackets.loloFail(GamePackets.LOLO_ERR_DEFAULT));
             return;
         }
-        reader.u64();
-        reader.u32();
-        reader.u32();
-        reader.u32();
-        session.send(GamePackets.loloFail(GamePackets.shopSys(GamePackets.LOLO_ERR_IFF)));
+        long pang = reader.u64();
+        int t0 = reader.u32();
+        int t1 = reader.u32();
+        int t2 = reader.u32();
+        InventoryRepository.LoloComposeResult result;
+        try {
+            result = inventory.loloCompose(session.player().uid, pang, t0, t1, t2);
+        } catch (RuntimeException e) {
+            log.warn("lolo compose uid={} failed: {}", session.player().uid, e.toString());
+            session.send(GamePackets.loloFail(GamePackets.LOLO_ERR_DEFAULT));
+            return;
+        }
+        if (result.code() != 0) {
+            session.send(GamePackets.loloFail(GamePackets.shopSys(result.code())));
+            return;
+        }
+        session.send(GamePackets.pangSpent(result.pangAfter(), result.pangSpent()));
+        session.send(GamePackets.papelAwards(GamePackets.unixNow(), result.awards()));
+        session.send(GamePackets.loloTipo(result.cardTipo()));
+        session.send(GamePackets.loloOk(result.cardTypeid()));
     }
 
     /**

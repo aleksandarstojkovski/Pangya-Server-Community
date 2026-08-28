@@ -1639,6 +1639,27 @@ class GameFlowIT {
             inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_SHOP_PANG_ITEM);
             inv.setPangCookie(10001, pang, cookie);
 
+            int card = GamePackets.TYPEID_CARD_NORMAL;
+            inv.addCard(10001, card, GamePackets.LOLO_CARD_COUNT);
+            inv.setPangCookie(10001, 100000, 0);
+            int beforeLolo = GamePackets.unixNow();
+            host.sendPlain(GamePackets.clientLolo(
+                    3L * GamePackets.LOLO_PANG_NORMAL, card, card, card));
+            PacketReader loloSpent = awaitOpcode(host, GamePackets.SERVER_PANG_SPENT);
+            assertEquals(100000 - 3L * GamePackets.LOLO_PANG_NORMAL, loloSpent.u64());
+            assertEquals(3L * GamePackets.LOLO_PANG_NORMAL, loloSpent.u64());
+            PacketReader loloAwards = awaitOpcode(host, GamePackets.SERVER_DAILY_QUEST_STAMP);
+            int loloUnix = loloAwards.u32();
+            assertTrue(loloUnix >= beforeLolo - 1 && loloUnix <= GamePackets.unixNow() + 1);
+            assertEquals(2, loloAwards.u32());
+            PacketReader loloTipo = awaitOpcode(host, GamePackets.SERVER_LOLO_TIPO);
+            assertEquals(GamePackets.CARD_TYPE_NORMAL, loloTipo.u32());
+            PacketReader loloOk = awaitOpcode(host, GamePackets.SERVER_LOLO);
+            assertEquals(0, loloOk.u32());
+            assertEquals(card, loloOk.u32());
+            inv.deleteCardByTypeid(10001, card);
+            inv.setPangCookie(10001, pang, cookie);
+
             host.sendPlain(GamePackets.clientRefreshGacha());
             PacketReader gacha = awaitOpcode(host, GamePackets.SERVER_GACHA_COUPON);
             assertEquals(0, gacha.i32());

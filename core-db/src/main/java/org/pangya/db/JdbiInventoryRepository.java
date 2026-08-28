@@ -1080,4 +1080,226 @@ public final class JdbiInventoryRepository implements InventoryRepository {
             return new CadieExchangeResult(0, seq, awards, receiveTypeid, id, add, ant + add, 0);
         });
     }
+
+    @Override
+    public int addCard(long uid, int typeid, int qntd) {
+        return jdbi.inTransaction(h -> {
+            Integer existing = h.createQuery("""
+                            SELECT card_itemid FROM pangya.pangya_card
+                             WHERE "UID" = :uid AND card_typeid = :typeid
+                             ORDER BY card_itemid
+                             LIMIT 1
+                            """)
+                    .bind("uid", uid)
+                    .bind("typeid", typeid)
+                    .mapTo(Integer.class)
+                    .findOne()
+                    .orElse(null);
+            if (existing != null) {
+                h.createUpdate("""
+                                UPDATE pangya.pangya_card
+                                   SET "QNTD" = COALESCE("QNTD", 0) + :qntd
+                                 WHERE card_itemid = :id
+                                """)
+                        .bind("qntd", qntd)
+                        .bind("id", existing)
+                        .execute();
+                return existing;
+            }
+            return h.createQuery("""
+                            INSERT INTO pangya.pangya_card (
+                                "UID", card_typeid, "QNTD", "GET_DT",
+                                "Slot", "Efeito", "Efeito_Qntd", card_type, "USE_YN"
+                            ) VALUES (
+                                :uid, :typeid, :qntd, NOW(),
+                                0, 0, 0, 0, 'N'
+                            )
+                            RETURNING card_itemid
+                            """)
+                    .bind("uid", uid)
+                    .bind("typeid", typeid)
+                    .bind("qntd", qntd)
+                    .mapTo(Integer.class)
+                    .one();
+        });
+    }
+
+    @Override
+    public void deleteCardByTypeid(long uid, int typeid) {
+        jdbi.useHandle(h -> h.createUpdate("""
+                        DELETE FROM pangya.pangya_card
+                         WHERE "UID" = :uid AND card_typeid = :typeid
+                        """)
+                .bind("uid", uid)
+                .bind("typeid", typeid)
+                .execute());
+    }
+
+    @Override
+    public LoloComposeResult loloCompose(long uid, long clientPang, int t0, int t1, int t2) {
+        return jdbi.inTransaction(h -> {
+            int[] typeids = {t0, t1, t2};
+            Map<Integer, Integer> removeById = new LinkedHashMap<>();
+            Map<Integer, Integer> typeidById = new LinkedHashMap<>();
+            Map<Integer, Integer> haveById = new LinkedHashMap<>();
+            long cost = 0;
+            for (int typeid : typeids) {
+                Integer rarity = h.createQuery("""
+                                SELECT rarity FROM pangya.iff_card WHERE typeid = :typeid
+                                """)
+                        .bind("typeid", typeid)
+                        .mapTo(Integer.class)
+                        .findOne()
+                        .orElse(null);
+                if (rarity == null) {
+                    return LoloComposeResult.fail(GamePackets.LOLO_ERR_IFF);
+                }
+                if (rarity == GamePackets.CARD_TYPE_SECRET) {
+                    return LoloComposeResult.fail(GamePackets.LOLO_ERR_SECRET);
+                }
+                int[] owned = h.createQuery("""
+                                SELECT card_itemid, COALESCE("QNTD", 0) AS qntd
+                                  FROM pangya.pangya_card
+                                 WHERE "UID" = :uid AND card_typeid = :typeid
+                                 ORDER BY card_itemid
+                                 LIMIT 1
+                                """)
+                        .bind("uid", uid)
+                        .bind("typeid", typeid)
+                        .map((rs, ctx) -> new int[] {rs.getInt("card_itemid"), rs.getInt("qntd")})
+                        .findOne()
+                        .orElse(null);
+                if (owned == null) {
+                    return LoloComposeResult.fail(GamePackets.LOLO_ERR_OWN);
+                }
+                if (owned[1] < 1) {
+                    return LoloComposeResult.fail(GamePackets.LOLO_ERR_QNTD);
+                }
+                removeById.merge(owned[0], 1, Integer::sum);
+                typeidById.put(owned[0], typeid);
+                haveById.put(owned[0], owned[1]);
+                cost += GamePackets.loloPang(rarity);
+            }
+            if (cost != clientPang) {
+                return LoloComposeResult.fail(GamePackets.LOLO_ERR_PANG);
+            }
+            List<int[]> pool = h.createQuery("""
+                            SELECT typeid, rarity, probabilidade FROM pangya.iff_card
+                            """)
+                    .map((rs, ctx) -> new int[] {
+                            rs.getInt("typeid"), rs.getInt("rarity"), rs.getInt("probabilidade")
+                    })
+                    .list();
+            int total = 0;
+            for (int[] row : pool) {
+                total += Math.max(row[2], 0);
+            }
+            if (total <= 0) {
+                return LoloComposeResult.fail(GamePackets.LOLO_ERR_DRAW);
+            }
+            int pick = ThreadLocalRandom.current().nextInt(total);
+            int drawnTypeid = 0;
+            int drawnTipo = 0;
+            int walk = 0;
+            for (int[] row : pool) {
+                walk += Math.max(row[2], 0);
+                if (pick < walk) {
+                    drawnTypeid = row[0];
+                    drawnTipo = row[1];
+                    break;
+                }
+            }
+            if (drawnTypeid == 0) {
+                return LoloComposeResult.fail(GamePackets.LOLO_ERR_DRAW);
+            }
+            for (Map.Entry<Integer, Integer> e : removeById.entrySet()) {
+                if (haveById.getOrDefault(e.getKey(), 0) < e.getValue()) {
+                    return LoloComposeResult.fail(GamePackets.LOLO_ERR_REMOVE);
+                }
+            }
+            List<GamePackets.PapelAward> awards = new ArrayList<>();
+            for (Map.Entry<Integer, Integer> e : removeById.entrySet()) {
+                int id = e.getKey();
+                int need = e.getValue();
+                int ant = haveById.get(id);
+                int dep = ant - need;
+                h.createUpdate("""
+                                UPDATE pangya.pangya_card
+                                   SET "QNTD" = :qntd
+                                 WHERE card_itemid = :id
+                                """)
+                        .bind("qntd", dep)
+                        .bind("id", id)
+                        .execute();
+                awards.add(new GamePackets.PapelAward(
+                        GamePackets.PAPEL_AWARD_TYPE, typeidById.get(id), id, 0, ant, dep, -need));
+            }
+            Integer existingId = h.createQuery("""
+                            SELECT card_itemid FROM pangya.pangya_card
+                             WHERE "UID" = :uid AND card_typeid = :typeid
+                             ORDER BY card_itemid
+                             LIMIT 1
+                            """)
+                    .bind("uid", uid)
+                    .bind("typeid", drawnTypeid)
+                    .mapTo(Integer.class)
+                    .findOne()
+                    .orElse(null);
+            int ant;
+            int id;
+            if (existingId == null) {
+                ant = 0;
+                id = h.createQuery("""
+                                INSERT INTO pangya.pangya_card (
+                                    "UID", card_typeid, "QNTD", "GET_DT",
+                                    "Slot", "Efeito", "Efeito_Qntd", card_type, "USE_YN"
+                                ) VALUES (
+                                    :uid, :typeid, 1, NOW(),
+                                    0, 0, 0, :tipo, 'N'
+                                )
+                                RETURNING card_itemid
+                                """)
+                        .bind("uid", uid)
+                        .bind("typeid", drawnTypeid)
+                        .bind("tipo", drawnTipo)
+                        .mapTo(Integer.class)
+                        .one();
+            } else {
+                id = existingId;
+                ant = h.createQuery("""
+                                SELECT COALESCE("QNTD", 0) FROM pangya.pangya_card
+                                 WHERE card_itemid = :id
+                                """)
+                        .bind("id", id)
+                        .mapTo(Integer.class)
+                        .one();
+                h.createUpdate("""
+                                UPDATE pangya.pangya_card
+                                   SET "QNTD" = :qntd, card_type = :tipo
+                                 WHERE card_itemid = :id
+                                """)
+                        .bind("qntd", ant + 1)
+                        .bind("tipo", drawnTipo)
+                        .bind("id", id)
+                        .execute();
+            }
+            awards.add(new GamePackets.PapelAward(
+                    GamePackets.PAPEL_AWARD_TYPE, drawnTypeid, id, 0, ant, ant + 1, 1));
+            long pang = h.createQuery("SELECT COALESCE(\"Pang\", 0) FROM pangya.user_info WHERE \"UID\" = :uid")
+                    .bind("uid", uid)
+                    .mapTo(Long.class)
+                    .findOne()
+                    .orElse(0L);
+            long pangAfter = pang - cost;
+            h.createUpdate("""
+                            UPDATE pangya.user_info
+                               SET "Pang" = :pang
+                             WHERE "UID" = :uid
+                            """)
+                    .bind("pang", pangAfter)
+                    .bind("uid", uid)
+                    .execute();
+            return new LoloComposeResult(0, pangAfter, cost, awards, drawnTipo, drawnTypeid);
+        });
+    }
 }

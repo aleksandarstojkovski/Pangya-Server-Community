@@ -888,10 +888,18 @@ class GamePacketsTest {
         PacketReader loloFail = new PacketReader(GamePackets.loloFail(GamePackets.shopSys(GamePackets.LOLO_ERR_IFF)));
         assertEquals(GamePackets.SERVER_LOLO, loloFail.opcode());
         assertEquals(GamePackets.shopSys(GamePackets.LOLO_ERR_IFF), loloFail.u32());
+        PacketReader loloTipo = new PacketReader(GamePackets.loloTipo(GamePackets.CARD_TYPE_NORMAL));
+        assertEquals(GamePackets.SERVER_LOLO_TIPO, loloTipo.opcode());
+        assertEquals(GamePackets.CARD_TYPE_NORMAL, loloTipo.u32());
+        PacketReader loloOk = new PacketReader(GamePackets.loloOk(GamePackets.TYPEID_CARD_NORMAL));
+        assertEquals(GamePackets.SERVER_LOLO, loloOk.opcode());
+        assertEquals(0, loloOk.u32());
+        assertEquals(GamePackets.TYPEID_CARD_NORMAL, loloOk.u32());
         assertEquals(GamePackets.CLIENT_CADIE, 0x158);
         assertEquals(GamePackets.CLIENT_LOLO, 0x155);
         assertEquals(GamePackets.SERVER_CADIE, 0x22F);
         assertEquals(GamePackets.SERVER_LOLO, 0x22A);
+        assertEquals(GamePackets.SERVER_LOLO_TIPO, 0x229);
         PacketReader msnList = new PacketReader(GamePackets.messengerList(List.of()));
         assertEquals(GamePackets.SERVER_MESSENGER_LIST, msnList.opcode());
         assertEquals(0, msnList.u8());
@@ -1449,6 +1457,9 @@ class GamePacketsTest {
         assertEquals(GamePackets.SERVER_TIMEOUT, 0x5C);
         assertEquals(GamePackets.TYPEID_CADDIE_PAPEL, 0x1C000000);
         assertEquals(GamePackets.TYPEID_MASCOT, 0x40000000);
+        assertEquals(GamePackets.TYPEID_CARD_NORMAL, 0x7C000001);
+        assertEquals(GamePackets.LOLO_PANG_NORMAL, 1000);
+        assertEquals(GamePackets.SERVER_LOLO_TIPO, 0x229);
         assertEquals(GamePackets.SERVER_BUY_ACK, 0x68);
         assertEquals(GamePackets.CREATE_ROOM_FAILED, 0x07);
         assertEquals(GamePackets.SERVER_LAST5, 0x10E);

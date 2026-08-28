@@ -142,6 +142,22 @@ class InventoryRepositoryTest {
             repo.setPangCookie(10002, 100000, 0);
             repo.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_SHOP_PANG_ITEM);
             repo.deleteWarehouseByTypeid(10002, GamePackets.TYPEID_SHOP_PANG_ITEM);
+            var loloMiss = repo.loloCompose(10001, 0, 0, 0, 0);
+            assertEquals(GamePackets.LOLO_ERR_IFF, loloMiss.code());
+            int card = GamePackets.TYPEID_CARD_NORMAL;
+            repo.addCard(10001, card, GamePackets.LOLO_CARD_COUNT);
+            repo.setPangCookie(10001, 100000, 0);
+            var lolo = repo.loloCompose(10001, 3L * GamePackets.LOLO_PANG_NORMAL, card, card, card);
+            assertEquals(0, lolo.code());
+            assertEquals(100000 - 3L * GamePackets.LOLO_PANG_NORMAL, lolo.pangAfter());
+            assertEquals(3L * GamePackets.LOLO_PANG_NORMAL, lolo.pangSpent());
+            assertEquals(GamePackets.CARD_TYPE_NORMAL, lolo.cardTipo());
+            assertEquals(card, lolo.cardTypeid());
+            assertEquals(2, lolo.awards().size());
+            assertEquals(1, repo.cards(10001).getFirst().qntd);
+            repo.deleteCardByTypeid(10001, card);
+            assertTrue(repo.cards(10001).isEmpty());
+            repo.setPangCookie(10001, 100000, 0);
         }
     }
 

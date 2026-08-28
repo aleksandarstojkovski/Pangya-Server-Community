@@ -85,6 +85,16 @@ public interface InventoryRepository {
      */
     CadieExchangeResult cadieExchange(long uid, int seq, int requested, int level, int[] typeids, int[] ids);
 
+    int addCard(long uid, int typeid, int qntd);
+
+    void deleteCardByTypeid(long uid, int typeid);
+
+    /**
+     * C# {@code requestLoloCardCompose}: SQL {@code iff_card} stand-in for
+     * IFF Card + {@code CardSystem.drawsLoloCardCompose}.
+     */
+    LoloComposeResult loloCompose(long uid, long clientPang, int t0, int t1, int t2);
+
     record ShopItem(int typeid, int pangPrice, int cookiePrice, boolean canOverlap) {}
 
     record ShopBuyResult(
@@ -147,6 +157,19 @@ public interface InventoryRepository {
 
         public static CadieExchangeResult fail(int code) {
             return new CadieExchangeResult(code, 0, List.of(), 0, 0, 0, 0, 0);
+        }
+    }
+
+    record LoloComposeResult(
+            int code,
+            long pangAfter,
+            long pangSpent,
+            List<GamePackets.PapelAward> awards,
+            int cardTipo,
+            int cardTypeid) {
+
+        public static LoloComposeResult fail(int code) {
+            return new LoloComposeResult(code, 0, 0, List.of(), 0, 0);
         }
     }
 }
