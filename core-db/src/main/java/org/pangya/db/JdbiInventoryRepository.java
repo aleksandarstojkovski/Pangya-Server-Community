@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalInt;
+import java.util.OptionalLong;
 import java.util.concurrent.ThreadLocalRandom;
 
 public final class JdbiInventoryRepository implements InventoryRepository {
@@ -736,6 +737,103 @@ public final class JdbiInventoryRepository implements InventoryRepository {
                     .execute();
             return new LockerPangMoveResult(0, nextPlayer, nextLocker, pang);
         });
+    }
+
+    @Override
+    public OptionalLong addDolfiniLockerItem(long uid, int itemId) {
+        if (itemId <= 0) {
+            return OptionalLong.empty();
+        }
+        return jdbi.inTransaction(h -> {
+            int updated = h.createUpdate("""
+                            UPDATE pangya.pangya_item_warehouse
+                               SET valid = 0
+                             WHERE "UID" = :uid AND item_id = :id AND valid = 1
+                            """)
+                    .bind("uid", uid)
+                    .bind("id", itemId)
+                    .execute();
+            if (updated <= 0) {
+                return OptionalLong.empty();
+            }
+            long idx = h.createQuery("""
+                            INSERT INTO pangya.pangya_dolfini_locker_item (uid, item_id, flag)
+                            VALUES (:uid, :id, 1)
+                            RETURNING idx
+                            """)
+                    .bind("uid", uid)
+                    .bind("id", itemId)
+                    .mapTo(Long.class)
+                    .one();
+            return OptionalLong.of(idx);
+        });
+    }
+
+    @Override
+    public Optional<GamePackets.WarehouseItem> removeDolfiniLockerItem(long uid, long index, int itemId) {
+        if (index <= 0 || itemId <= 0) {
+            return Optional.empty();
+        }
+        return jdbi.inTransaction(h -> {
+            Integer stored = h.createQuery("""
+                            SELECT item_id FROM pangya.pangya_dolfini_locker_item
+                             WHERE uid = :uid AND idx = :idx AND flag = 1
+                            """)
+                    .bind("uid", uid)
+                    .bind("idx", index)
+                    .mapTo(Integer.class)
+                    .findOne()
+                    .orElse(null);
+            if (stored == null || stored != itemId) {
+                return Optional.empty();
+            }
+            h.createUpdate("""
+                            UPDATE pangya.pangya_item_warehouse
+                               SET valid = 1
+                             WHERE "UID" = :uid AND item_id = :id
+                            """)
+                    .bind("uid", uid)
+                    .bind("id", itemId)
+                    .execute();
+            h.createUpdate("""
+                            UPDATE pangya.pangya_dolfini_locker_item
+                               SET flag = 0
+                             WHERE uid = :uid AND idx = :idx
+                            """)
+                    .bind("uid", uid)
+                    .bind("idx", index)
+                    .execute();
+            GamePackets.WarehouseItem item = new GamePackets.WarehouseItem();
+            item.id = itemId;
+            return Optional.of(item);
+        });
+    }
+
+    @Override
+    public OptionalLong dolfiniLockerIndex(long uid, int itemId) {
+        return jdbi.withHandle(h -> h.createQuery("""
+                        SELECT idx FROM pangya.pangya_dolfini_locker_item
+                         WHERE uid = :uid AND item_id = :id AND flag = 1
+                         ORDER BY idx
+                         LIMIT 1
+                        """)
+                .bind("uid", uid)
+                .bind("id", itemId)
+                .mapTo(Long.class)
+                .findOne()
+                .map(OptionalLong::of)
+                .orElseGet(OptionalLong::empty));
+    }
+
+    @Override
+    public void deleteDolfiniLockerByItemId(long uid, int itemId) {
+        jdbi.useHandle(h -> h.createUpdate("""
+                        DELETE FROM pangya.pangya_dolfini_locker_item
+                         WHERE uid = :uid AND item_id = :id
+                        """)
+                .bind("uid", uid)
+                .bind("id", itemId)
+                .execute());
     }
 
     @Override

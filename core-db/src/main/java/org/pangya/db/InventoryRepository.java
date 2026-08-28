@@ -5,6 +5,7 @@ import org.pangya.protocol.game.GamePackets;
 import java.util.List;
 import java.util.Optional;
 import java.util.OptionalInt;
+import java.util.OptionalLong;
 
 /** Game inventory replacing C# {@code CmdWarehouseItem} / {@code CmdCharacterInfo} / {@code CmdCaddieInfo}. */
 public interface InventoryRepository {
@@ -77,6 +78,22 @@ public interface InventoryRepository {
      * {@link GamePackets#LOCKER_PANG_WITHDRAW_ERR}).
      */
     LockerPangMoveResult updateDolfiniLockerPang(long uid, int opt, long pang);
+
+    /**
+     * C# {@code ProcAddItemDolfiniLocker}: {@code valid=0} then insert
+     * {@code pangya_dolfini_locker_item}. Empty when the warehouse row is missing.
+     */
+    OptionalLong addDolfiniLockerItem(long uid, int itemId);
+
+    /**
+     * C# {@code ProcMoveItemDolfiniLocker}: restore {@code valid=1} and
+     * {@code flag=0}. Empty when the locker row is missing.
+     */
+    Optional<GamePackets.WarehouseItem> removeDolfiniLockerItem(long uid, long index, int itemId);
+
+    OptionalLong dolfiniLockerIndex(long uid, int itemId);
+
+    void deleteDolfiniLockerByItemId(long uid, int itemId);
 
     /**
      * C# {@code CmdTutorialInfo} / {@code pangya.tutorial}. Missing row is zeros.

@@ -272,6 +272,19 @@ class InventoryRepositoryTest {
             repo.updateTutorial(10001, 1, 0, 0);
             assertEquals(1, repo.tutorial(10001).rookie());
             repo.updateTutorial(10001, 0, 0, 0);
+            int partTypeid = (GamePackets.IFF_GROUP_PART << 26) | 0x99;
+            repo.deleteWarehouseByTypeid(10001, partTypeid);
+            int partId = repo.addWarehouseItem(10001, partTypeid, 1);
+            try {
+                assertTrue(repo.addDolfiniLockerItem(10001, partId).isPresent());
+                assertTrue(repo.warehouse(10001).stream().noneMatch(w -> w.id == partId));
+                long idx = repo.dolfiniLockerIndex(10001, partId).orElseThrow();
+                assertTrue(repo.removeDolfiniLockerItem(10001, idx, partId).isPresent());
+                assertTrue(repo.warehouse(10001).stream().anyMatch(w -> w.id == partId));
+            } finally {
+                repo.deleteDolfiniLockerByItemId(10001, partId);
+                repo.deleteWarehouseByTypeid(10001, partTypeid);
+            }
         }
     }
 

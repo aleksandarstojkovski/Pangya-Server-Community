@@ -181,8 +181,8 @@ C#: `GameServer/PangyaEnums/PacketGame.cs` → Java `org.pangya.protocol.game.Ga
 | C | `CLIENT_MYROOM_CHECK` | `0xB5` | no channel; seed `allow_enter==0` → `0x12B` u32 0 + to_uid |
 | C | `CLIENT_USE_CARD_SPECIAL` | `0xBD` | typeid 0 → `0x160` `shopSys(0x5500351)` |
 | C | `CLIENT_OPEN_CARD_PACK` | `0xCA` | catch always `0x154` u32 1; opposite `SERVER_ONELINE_QUERY` |
-| C | `CLIENT_ITEMSTORAGE_REQ_ADD_ITEM` | `0xCE` | count 0 → `0x16E` `shopSys(5100404)` |
-| C | `CLIENT_ITEMSTORAGE_REQ_DEL_ITEM` | `0xCF` | truncated → `0x16F` u32 `5100450` |
+| C | `CLIENT_ITEMSTORAGE_REQ_ADD_ITEM` | `0xCE` | PART SQL: `valid=0` + locker_item, `0x139` u16 0 + `0xEC` u8 1 + TradeItem 168 + `0x16E` u32 0 + u64 0 + TradeItem. Count 0 `shopSys(5100404)`; non-PART `shopSys(109)`; missing `shopSys(5100403)`; shop `shopSys(0x5201010)`. No `findPart`/UCC. Opposite attendance `0x16E`. |
+| C | `CLIENT_ITEMSTORAGE_REQ_DEL_ITEM` | `0xCF` | `valid=1`/`flag=0`, `0xEC` u8 0 + pang + TradeItem + u8 3 + warehouse 196 + `0x16F` u32 0 + u64 idx + TradeItem. Truncated `5100450`; missing `shopSys(5100451)`; count 0 `shopSys(5100404)`. |
 | C | `CLIENT_ITEMSTORAGE_REQ_MAKE_PASS` | `0xD0` | empty → `0x176` u32 1 |
 | C | `CLIENT_ITEMSTORAGE_REQ_CHANGE_PASS` | `0xD1` | empty old → `0x174` u32 1 |
 | C | `CLIENT_ITEMSTORAGE_REQ_CHANGE_MODE` | `0xD2` | empty pass → `0x173` `shopSys(5100251)` |
@@ -253,7 +253,8 @@ C#: `GameServer/PangyaEnums/PacketGame.cs` → Java `org.pangya.protocol.game.Ga
 | S | `SERVER_LOCKER_MAKE_PASS` | `0x176` | u32 |
 | S | `SERVER_LOCKER_CHANGE_PASS` | `0x174` | u32 |
 | S | `SERVER_LOCKER_MODE` | `0x173` | u32 |
-| S | `SERVER_LOCKER_ADD` | `0x16E` | u32 sys |
+| S | `SERVER_LOCKER_ADD` | `0x16E` | fail u32 sys; success u32 0 + u64 0 + TradeItem 168. Opposite attendance |
+| S | `SERVER_DELETE_CARD` | `0x139` | locker-add prelude u16 0 |
 | S | `SERVER_LOCKER_REMOVE` | `0x16F` | u32 sys |
 | S | `SERVER_LOCKER_UPDATE_PANG` | `0x171` | u32 sys; opposite CLIENT earcuff |
 | S | `SERVER_OPEN_CARD_PACK` | `0x154` | u32 1; opposite CLIENT daily-quest leave |

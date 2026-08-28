@@ -1441,6 +1441,81 @@ class GameFlowIT {
     }
 
     @Test
+    void dolfiniLockerAddAndRemoveMovesPart() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+        final int partTypeid = (GamePackets.IFF_GROUP_PART << 26) | 0x99;
+
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config);
+             PangyaFakeClient client = new PangyaFakeClient()) {
+            InventoryRepository inv = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
+            int partId = 0;
+            try {
+                inv.deleteWarehouseByTypeid(10001, partTypeid);
+                final int storedId = inv.addWarehouseItem(10001, partTypeid, 1);
+                partId = storedId;
+                LoginRepository repo = new JdbiLoginRepository(DatabaseSupport.jdbi(ds));
+                String loginKey = repo.generateAuthKeyLogin(10001);
+                String gameKey = repo.generateAuthKeyGame(10001, 20202);
+                keys.putLoginKey(10001, loginKey);
+                keys.putGameKey(10001, 20202, gameKey);
+                loginToChannel(client, runtime.port(), "testuser", 10001, loginKey, gameKey);
+
+                client.sendPlain(GamePackets.clientLockerMove(
+                        GamePackets.CLIENT_LOCKER_ADD, 0, partTypeid, storedId, 1));
+                PacketReader prelude = awaitOpcode(client, GamePackets.SERVER_DELETE_CARD);
+                assertEquals(0, prelude.u16());
+                PacketReader moved = awaitOpcode(client, GamePackets.SERVER_SHOP_BUY);
+                assertEquals(1, moved.u32());
+                assertEquals(GamePackets.LOCKER_MOVE_ADD, moved.u8());
+                assertEquals(0, moved.u64());
+                assertEquals(0, moved.u32());
+                assertEquals(partTypeid, moved.u32());
+                assertEquals(storedId, moved.i32());
+                PacketReader addOk = awaitOpcode(client, GamePackets.SERVER_LOCKER_ADD);
+                assertEquals(0, addOk.u32());
+                assertEquals(0, addOk.u64());
+                assertEquals(partTypeid, addOk.u32());
+                assertEquals(storedId, addOk.i32());
+                assertTrue(inv.warehouse(10001).stream().noneMatch(w -> w.id == storedId));
+
+                client.sendPlain(GamePackets.clientLockerMove(
+                        GamePackets.CLIENT_LOCKER_ADD, 0, GamePackets.TYPEID_SHOP_PANG_ITEM, 1, 1));
+                PacketReader group = awaitOpcode(client, GamePackets.SERVER_LOCKER_ADD);
+                assertEquals(GamePackets.shopSys(GamePackets.LOCKER_ADD_ERR_GROUP), group.u32());
+
+                long idx = inv.dolfiniLockerIndex(10001, storedId).orElseThrow();
+                client.sendPlain(GamePackets.clientLockerMove(
+                        GamePackets.CLIENT_LOCKER_REMOVE, idx, partTypeid, storedId, 1));
+                PacketReader back = awaitOpcode(client, GamePackets.SERVER_SHOP_BUY);
+                assertEquals(1, back.u32());
+                assertEquals(GamePackets.LOCKER_MOVE_REMOVE, back.u8());
+                assertEquals(inv.pang(10001), back.u64());
+                assertEquals(0, back.u32());
+                assertEquals(partTypeid, back.u32());
+                assertEquals(storedId, back.i32());
+                PacketReader rmOk = awaitOpcode(client, GamePackets.SERVER_LOCKER_REMOVE);
+                assertEquals(0, rmOk.u32());
+                assertEquals(idx, rmOk.u64());
+                assertEquals(partTypeid, rmOk.u32());
+                assertEquals(storedId, rmOk.i32());
+                assertTrue(inv.warehouse(10001).stream().anyMatch(w -> w.id == storedId));
+            } finally {
+                if (partId > 0) {
+                    inv.deleteDolfiniLockerByItemId(10001, partId);
+                }
+                inv.deleteWarehouseByTypeid(10001, partTypeid);
+            }
+        }
+    }
+
+    @Test
     void makeTutorialRookieAcksFlagsAndMailsReward() throws Exception {
         String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
         String user = env("PANGYA_TEST_JDBC_USER", "pangya");

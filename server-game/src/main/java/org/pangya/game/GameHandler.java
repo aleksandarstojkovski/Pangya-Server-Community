@@ -4459,8 +4459,9 @@ public final class GameHandler {
     }
 
     /**
-     * C# {@code requestAddDolfiniLockerItem}: count 0 → {@code 0x16E}
-     * {@code shopSys(5100404)}.
+     * C# {@code requestAddDolfiniLockerItem}: PART SQL stand-in (no
+     * {@code findPart}/UCC). Success {@code 0x139} u16 0, {@code 0xEC} add,
+     * then {@code 0x16E} u32 0 + u64 0 + TradeItem. Count 0 {@code shopSys(5100404)}.
      */
     private void lockerAdd(Session session, PacketReader reader) {
         if (!inChannel(session)) {
@@ -4478,13 +4479,68 @@ public final class GameHandler {
                     GamePackets.shopSys(GamePackets.LOCKER_ADD_ERR_NONE)));
             return;
         }
-        session.send(GamePackets.sysAck(
-                GamePackets.SERVER_LOCKER_ADD, GamePackets.LOCKER_ADD_ERR_DEFAULT));
+        if (reader.remaining() < (long) count * GamePackets.DOLFINI_LOCKER_ITEM_BYTES) {
+            session.send(GamePackets.sysAck(
+                    GamePackets.SERVER_LOCKER_ADD, GamePackets.LOCKER_ADD_ERR_DEFAULT));
+            return;
+        }
+        try {
+            List<byte[]> trades = new ArrayList<>();
+            for (int i = 0; i < count; i++) {
+                GamePackets.DolfiniLockerItem item = GamePackets.readDolfiniLockerItem(reader);
+                GameRoom room = rooms.get(session.player().roomNumber);
+                if (room != null && room.findListedItem(session.player().uid, item.id()) != null) {
+                    session.send(GamePackets.sysAck(
+                            GamePackets.SERVER_LOCKER_ADD,
+                            GamePackets.shopSys(GamePackets.LOCKER_ADD_ERR_SHOP)));
+                    return;
+                }
+                if (GamePackets.itemGroupIdentify(item.typeid()) != GamePackets.IFF_GROUP_PART) {
+                    session.send(GamePackets.sysAck(
+                            GamePackets.SERVER_LOCKER_ADD,
+                            GamePackets.shopSys(GamePackets.LOCKER_ADD_ERR_GROUP)));
+                    return;
+                }
+                if (lockerPartEquipped(session.player().uid, item.typeid())) {
+                    session.send(GamePackets.sysAck(
+                            GamePackets.SERVER_LOCKER_ADD,
+                            GamePackets.shopSys(GamePackets.LOCKER_ADD_ERR_EQUIPPED)));
+                    return;
+                }
+                GamePackets.WarehouseItem owned = warehouseById(session.player().uid, item.id());
+                if (owned == null || owned.typeid != item.typeid()) {
+                    session.send(GamePackets.sysAck(
+                            GamePackets.SERVER_LOCKER_ADD,
+                            GamePackets.shopSys(GamePackets.LOCKER_ADD_ERR_MISSING)));
+                    return;
+                }
+                if (inventory.addDolfiniLockerItem(session.player().uid, item.id()).isEmpty()) {
+                    continue;
+                }
+                trades.add(item.trade());
+            }
+            if (trades.isEmpty()) {
+                session.send(GamePackets.sysAck(
+                        GamePackets.SERVER_LOCKER_ADD,
+                        GamePackets.shopSys(GamePackets.LOCKER_ADD_ERR_NONE)));
+                return;
+            }
+            session.send(GamePackets.lockerAddPrelude());
+            session.send(GamePackets.lockerMoveAdd(trades));
+            for (byte[] trade : trades) {
+                session.send(GamePackets.lockerAddOk(trade));
+            }
+        } catch (RuntimeException e) {
+            log.debug("locker-add failed uid={}", session.player().uid, e);
+            session.send(GamePackets.sysAck(
+                    GamePackets.SERVER_LOCKER_ADD, GamePackets.LOCKER_ADD_ERR_DEFAULT));
+        }
     }
 
     /**
-     * C# {@code requestRemoveDolfiniLockerItem}: truncated → {@code 0x16F}
-     * else {@code 5100450}.
+     * C# {@code requestRemoveDolfiniLockerItem}: restore warehouse {@code valid=1}.
+     * Success {@code 0xEC} remove then {@code 0x16F} u32 0 + u64 index + TradeItem.
+     * Truncated {@code 5100450}. Count 0 {@code shopSys(5100404)}.
      */
     private void lockerRemove(Session session, PacketReader reader) {
         if (!inChannel(session)) {
@@ -4502,8 +4558,60 @@ public final class GameHandler {
                     GamePackets.shopSys(GamePackets.LOCKER_ADD_ERR_NONE)));
             return;
         }
-        session.send(GamePackets.sysAck(
-                GamePackets.SERVER_LOCKER_REMOVE, GamePackets.LOCKER_REMOVE_ERR_DEFAULT));
+        if (reader.remaining() < (long) count * GamePackets.DOLFINI_LOCKER_ITEM_BYTES) {
+            session.send(GamePackets.sysAck(
+                    GamePackets.SERVER_LOCKER_REMOVE, GamePackets.LOCKER_REMOVE_ERR_DEFAULT));
+            return;
+        }
+        try {
+            List<byte[]> trades = new ArrayList<>();
+            List<byte[]> warehouse = new ArrayList<>();
+            List<Long> indexes = new ArrayList<>();
+            for (int i = 0; i < count; i++) {
+                GamePackets.DolfiniLockerItem item = GamePackets.readDolfiniLockerItem(reader);
+                if (inventory.removeDolfiniLockerItem(
+                        session.player().uid, item.index(), item.id()).isEmpty()) {
+                    session.send(GamePackets.sysAck(
+                            GamePackets.SERVER_LOCKER_REMOVE,
+                            GamePackets.shopSys(GamePackets.LOCKER_REMOVE_ERR_MISSING)));
+                    return;
+                }
+                GamePackets.WarehouseItem restored = new GamePackets.WarehouseItem();
+                restored.id = item.id();
+                restored.typeid = item.typeid();
+                restored.ano = -1;
+                restored.c[0] = 1;
+                restored.purchase = 1;
+                restored.type = 2;
+                restored.workshopLevel = -1;
+                trades.add(item.trade());
+                warehouse.add(restored.toArray());
+                indexes.add(item.index());
+            }
+            session.send(GamePackets.lockerMoveRemove(
+                    inventory.pang(session.player().uid), trades, warehouse));
+            for (int i = 0; i < trades.size(); i++) {
+                session.send(GamePackets.lockerRemoveOk(indexes.get(i), trades.get(i)));
+            }
+        } catch (RuntimeException e) {
+            log.debug("locker-remove failed uid={}", session.player().uid, e);
+            session.send(GamePackets.sysAck(
+                    GamePackets.SERVER_LOCKER_REMOVE, GamePackets.LOCKER_REMOVE_ERR_DEFAULT));
+        }
+    }
+
+    private boolean lockerPartEquipped(long uid, int typeid) {
+        int charTypeid = (GamePackets.IFF_GROUP_CHARACTER << 26) | GamePackets.itemCharIdentify(typeid);
+        int partNum = GamePackets.itemCharPartNumber(typeid);
+        if (partNum < 0 || partNum >= 24) {
+            return false;
+        }
+        for (GamePackets.CharacterInfo character : inventory.characters(uid)) {
+            if (character.typeid == charTypeid && character.partsTypeid[partNum] == typeid) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -5729,6 +5837,15 @@ public final class GameHandler {
     private GamePackets.WarehouseItem warehouseByTypeid(long uid, int typeid) {
         for (GamePackets.WarehouseItem item : inventory.warehouse(uid)) {
             if (item.typeid == typeid) {
+                return item;
+            }
+        }
+        return null;
+    }
+
+    private GamePackets.WarehouseItem warehouseById(long uid, int id) {
+        for (GamePackets.WarehouseItem item : inventory.warehouse(uid)) {
+            if (item.id == id) {
                 return item;
             }
         }

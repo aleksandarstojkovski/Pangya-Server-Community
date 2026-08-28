@@ -212,10 +212,21 @@ public final class GamePackets {
     public static final int SERVER_LOCKER_CHANGE_PASS = 0x174;
     /** C# Dolfini mode-enter {@code 0x173}. */
     public static final int SERVER_LOCKER_MODE = 0x173;
-    /** C# Dolfini add-item catch {@code 0x16E}. */
+    /**
+     * C# Dolfini add-item catch {@code 0x16E}. Success is u32 0 + u64 0 +
+     * {@code TradeItem} 168. Opposite {@link #CLIENT_CHECK_ATTENDANCE}.
+     */
     public static final int SERVER_LOCKER_ADD = 0x16E;
-    /** C# Dolfini remove-item catch {@code 0x16F}. */
+    /**
+     * C# Dolfini remove-item catch {@code 0x16F}. Success is u32 0 + u64 index +
+     * {@code TradeItem} 168.
+     */
     public static final int SERVER_LOCKER_REMOVE = 0x16F;
+    /**
+     * C# locker-add prelude {@code 0x139} u16 0. Same numeric as
+     * {@code SERVER_DELETE_CARD}.
+     */
+    public static final int SERVER_DELETE_CARD = 0x139;
     /** C# Dolfini update-pang catch {@code 0x171}. Opposite CLIENT earcuff {@code 0x171}. */
     public static final int SERVER_LOCKER_UPDATE_PANG = 0x171;
     /**
@@ -1311,6 +1322,8 @@ public final class GamePackets {
     public static final int SHOP_ERR_BUY_NONE = 5200552;
     /** C# {@code TradeItem.ToArray} 168 bytes. */
     public static final int TRADE_ITEM_BYTES = 168;
+    /** C# {@code DolfiniLockerItem}: u64 index + {@link #TRADE_ITEM_BYTES}. */
+    public static final int DOLFINI_LOCKER_ITEM_BYTES = 8 + TRADE_ITEM_BYTES;
     /** C# {@code PersonalShopItem}: u32 index + {@link #TRADE_ITEM_BYTES}. */
     public static final int PERSONAL_SHOP_ITEM_BYTES = 172;
     /** JP {@code personal_config.ini} {@code ITEM_MIN_PRICE}. */
@@ -1610,8 +1623,24 @@ public final class GamePackets {
     public static final int LOCKER_ADD_ERR_NONE = 5100404;
     /** C# Dolfini add catch else. */
     public static final int LOCKER_ADD_ERR_DEFAULT = 5100400;
+    /** C# add non-PART CHANNEL sys 109. */
+    public static final int LOCKER_ADD_ERR_GROUP = 109;
+    /** C# add equipped PART CHANNEL sys. */
+    public static final int LOCKER_ADD_ERR_EQUIPPED = 5100402;
+    /** C# add missing warehouse CHANNEL sys. */
+    public static final int LOCKER_ADD_ERR_MISSING = 5100403;
+    /** C# add item listed in personal shop CHANNEL sys. */
+    public static final int LOCKER_ADD_ERR_SHOP = 0x5201010;
+    /** C# {@code 0xEC} locker add flag. */
+    public static final int LOCKER_MOVE_ADD = 1;
+    /** C# {@code 0xEC} locker remove flag. */
+    public static final int LOCKER_MOVE_REMOVE = 0;
+    /** C# locker-remove {@code 0xEC} group byte before {@code WarehouseItemEx}. */
+    public static final int LOCKER_REMOVE_GROUP = 3;
     /** C# Dolfini remove catch else. */
     public static final int LOCKER_REMOVE_ERR_DEFAULT = 5100450;
+    /** C# remove missing locker item CHANNEL sys. */
+    public static final int LOCKER_REMOVE_ERR_MISSING = 5100451;
     /** C# Dolfini unknown opt CHANNEL sys. */
     public static final int LOCKER_PANG_OPT_ERR = 5100351;
     /** C# Dolfini deposit pang&gt;wallet CHANNEL sys. */
@@ -2227,6 +2256,8 @@ public final class GamePackets {
     public static final class WarehouseItem {
         public int id;
         public int typeid;
+        /** C# {@code WarehouseItem.ano}. Locker-remove constructs {@code -1}. */
+        public int ano;
         public short[] c = new short[5];
         public int purchase;
         public int flag;
@@ -2234,12 +2265,14 @@ public final class GamePackets {
         public long endDate;
         public int type;
         public short[] workshopC = new short[5];
+        /** C# {@code clubset_workshop.level}. Locker-remove constructs {@code -1}. */
+        public int workshopLevel;
 
         public byte[] toArray() {
             PacketWriter w = new PacketWriter();
             w.i32(id);
             w.u32(typeid);
-            w.i32(0);
+            w.i32(ano);
             for (short v : c) {
                 w.i16(v);
             }
@@ -2260,7 +2293,7 @@ public final class GamePackets {
             for (short v : workshopC) {
                 w.i16(v);
             }
-            w.u32(0).u32(0).i32(0).i32(0);
+            w.u32(0).u32(0).i32(workshopLevel).i32(0);
             byte[] body = w.toBytes();
             if (body.length != WAREHOUSE_ITEM_BYTES) {
                 throw new IllegalStateException("WarehouseItem size " + body.length);
@@ -3548,6 +3581,97 @@ public final class GamePackets {
     }
 
     /**
+     * C# locker-add prelude {@code 0x139} u16 0.
+     */
+    public static byte[] lockerAddPrelude() {
+        return new PacketWriter().opcode(SERVER_DELETE_CARD).u16(0).toBytes();
+    }
+
+    /**
+     * C# locker-add {@code 0xEC}: u32 count + u8 1 + u64 0 + u32 0 + TradeItems.
+     */
+    public static byte[] lockerMoveAdd(List<byte[]> trades) {
+        PacketWriter w = new PacketWriter()
+                .opcode(SERVER_SHOP_BUY)
+                .u32(trades.size())
+                .u8(LOCKER_MOVE_ADD)
+                .u64(0)
+                .u32(0);
+        for (byte[] trade : trades) {
+            w.bytes(trade);
+        }
+        return w.toBytes();
+    }
+
+    /**
+     * C# locker-remove {@code 0xEC}: u32 count + u8 0 + u64 pang + u32 0 +
+     * TradeItem + u8 3 + {@code WarehouseItemEx} per row.
+     */
+    public static byte[] lockerMoveRemove(long pang, List<byte[]> trades, List<byte[]> warehouse) {
+        PacketWriter w = new PacketWriter()
+                .opcode(SERVER_SHOP_BUY)
+                .u32(trades.size())
+                .u8(LOCKER_MOVE_REMOVE)
+                .u64(pang)
+                .u32(0);
+        for (int i = 0; i < trades.size(); i++) {
+            w.bytes(trades.get(i)).u8(LOCKER_REMOVE_GROUP).bytes(warehouse.get(i));
+        }
+        return w.toBytes();
+    }
+
+    /**
+     * C# locker-add success {@code 0x16E}: u32 0 + u64 0 + {@code TradeItem}.
+     */
+    public static byte[] lockerAddOk(byte[] trade) {
+        return new PacketWriter().opcode(SERVER_LOCKER_ADD).u32(0).u64(0).bytes(trade).toBytes();
+    }
+
+    /**
+     * C# locker-remove success {@code 0x16F}: u32 0 + u64 index + {@code TradeItem}.
+     */
+    public static byte[] lockerRemoveOk(long index, byte[] trade) {
+        return new PacketWriter().opcode(SERVER_LOCKER_REMOVE).u32(0).u64(index).bytes(trade).toBytes();
+    }
+
+    /**
+     * C# {@code TradeItem.ToArray} 168 with typeid/id/qntd and zero UCC/card.
+     */
+    public static byte[] tradeItem(int typeid, int id, int qntd) {
+        PacketWriter w = new PacketWriter()
+                .u32(typeid)
+                .i32(id)
+                .i32(qntd)
+                .zero(3)
+                .u64(0)
+                .u32(0);
+        for (int i = 0; i < 5; i++) {
+            w.u16(0);
+        }
+        w.u16(0).zero(9).i16(0).u8(0).zero(16 + 16 + 16).u16(0).u16(0).u16(0).zero(41).zero(22);
+        byte[] body = w.toBytes();
+        if (body.length != TRADE_ITEM_BYTES) {
+            throw new IllegalStateException("TradeItem size " + body.length);
+        }
+        return body;
+    }
+
+    public record DolfiniLockerItem(long index, int typeid, int id, int qntd, byte[] trade) {}
+
+    /**
+     * C# {@code DolfiniLockerItem.ToRead}: u64 index + {@code TradeItem} 168.
+     */
+    public static DolfiniLockerItem readDolfiniLockerItem(PacketReader reader) {
+        long index = reader.u64();
+        int typeid = reader.u32();
+        int id = reader.i32();
+        int qntd = reader.i32();
+        byte[] tail = reader.readBytes(TRADE_ITEM_BYTES - 12);
+        byte[] trade = new PacketWriter().u32(typeid).i32(id).i32(qntd).bytes(tail).toBytes();
+        return new DolfiniLockerItem(index, typeid, id, qntd, trade);
+    }
+
+    /**
      * C# My Room check {@code 0x12B}: u32 option + u32 to_uid. Option 1 also
      * appends {@code MyRoomConfig.ToArray()} (108 bytes); seed never takes that
      * path.
@@ -4329,6 +4453,20 @@ public final class GamePackets {
      */
     public static int itemGroupIdentify(int typeid) {
         return (typeid & 0xFC000000) >>> 26;
+    }
+
+    /**
+     * C# {@code getItemCharIdentify}: {@code (typeid & 0x03FF0000) >> 18}.
+     */
+    public static int itemCharIdentify(int typeid) {
+        return (typeid & 0x03FF0000) >>> 18;
+    }
+
+    /**
+     * C# {@code getItemCharPartNumber}: {@code (typeid & 0x0003FF00) >> 13}.
+     */
+    public static int itemCharPartNumber(int typeid) {
+        return (typeid & 0x0003FF00) >>> 13;
     }
 
     /**
@@ -5668,6 +5806,18 @@ public final class GamePackets {
     /** C# CLIENT {@code 0xCE}/{@code 0xCF}: u8 count (0 skips {@code ToRead}). */
     public static byte[] clientLockerCount(int opcode, int count) {
         return new PacketWriter().opcode(opcode).u8(count).toBytes();
+    }
+
+    /**
+     * C# CLIENT {@code 0xCE}/{@code 0xCF}: u8 1 + u64 index + {@code TradeItem}.
+     */
+    public static byte[] clientLockerMove(int opcode, long index, int typeid, int id, int qntd) {
+        return new PacketWriter()
+                .opcode(opcode)
+                .u8(1)
+                .u64(index)
+                .bytes(tradeItem(typeid, id, qntd))
+                .toBytes();
     }
 
     /** C# CLIENT {@code 0xD0}: PStr pass. */

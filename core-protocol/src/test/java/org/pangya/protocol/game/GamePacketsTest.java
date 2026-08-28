@@ -1113,6 +1113,46 @@ class GamePacketsTest {
                 GamePackets.SERVER_LOCKER_ADD, GamePackets.shopSys(GamePackets.LOCKER_ADD_ERR_NONE)));
         assertEquals(GamePackets.SERVER_LOCKER_ADD, lockerAdd.opcode());
         assertEquals(GamePackets.shopSys(5100404), lockerAdd.u32());
+        byte[] trade = GamePackets.tradeItem(0x08000099, 9, 1);
+        assertEquals(GamePackets.TRADE_ITEM_BYTES, trade.length);
+        PacketReader prelude = new PacketReader(GamePackets.lockerAddPrelude());
+        assertEquals(GamePackets.SERVER_DELETE_CARD, prelude.opcode());
+        assertEquals(0, prelude.u16());
+        PacketReader lockerMove = new PacketReader(GamePackets.lockerMoveAdd(List.of(trade)));
+        assertEquals(GamePackets.SERVER_SHOP_BUY, lockerMove.opcode());
+        assertEquals(1, lockerMove.u32());
+        assertEquals(GamePackets.LOCKER_MOVE_ADD, lockerMove.u8());
+        PacketReader addOk = new PacketReader(GamePackets.lockerAddOk(trade));
+        assertEquals(GamePackets.SERVER_LOCKER_ADD, addOk.opcode());
+        assertEquals(0, addOk.u32());
+        assertEquals(0, addOk.u64());
+        assertEquals(0x08000099, addOk.u32());
+        GamePackets.WarehouseItem restored = new GamePackets.WarehouseItem();
+        restored.id = 9;
+        restored.typeid = 0x08000099;
+        restored.ano = -1;
+        restored.c[0] = 1;
+        restored.purchase = 1;
+        restored.type = 2;
+        restored.workshopLevel = -1;
+        PacketReader lockerBack = new PacketReader(
+                GamePackets.lockerMoveRemove(100000, List.of(trade), List.of(restored.toArray())));
+        assertEquals(GamePackets.SERVER_SHOP_BUY, lockerBack.opcode());
+        assertEquals(1, lockerBack.u32());
+        assertEquals(GamePackets.LOCKER_MOVE_REMOVE, lockerBack.u8());
+        PacketReader rmOk = new PacketReader(GamePackets.lockerRemoveOk(7, trade));
+        assertEquals(GamePackets.SERVER_LOCKER_REMOVE, rmOk.opcode());
+        assertEquals(0, rmOk.u32());
+        assertEquals(7, rmOk.u64());
+        PacketReader lockerClient = new PacketReader(
+                GamePackets.clientLockerMove(GamePackets.CLIENT_LOCKER_ADD, 0, 0x08000099, 9, 1));
+        assertEquals(GamePackets.CLIENT_LOCKER_ADD, lockerClient.opcode());
+        assertEquals(1, lockerClient.u8());
+        assertEquals(0, lockerClient.u64());
+        assertEquals(0x08000099, lockerClient.u32());
+        assertEquals(GamePackets.itemCharIdentify(0x08000099), 0);
+        assertEquals(GamePackets.itemCharPartNumber(0x08000099), 0);
+        assertEquals(GamePackets.DOLFINI_LOCKER_ITEM_BYTES, 176);
         PacketReader lockerRm = new PacketReader(GamePackets.sysAck(
                 GamePackets.SERVER_LOCKER_REMOVE, GamePackets.LOCKER_REMOVE_ERR_DEFAULT));
         assertEquals(GamePackets.SERVER_LOCKER_REMOVE, lockerRm.opcode());
@@ -1985,6 +2025,9 @@ class GamePacketsTest {
         assertEquals(GamePackets.CLIENT_TAKE_MAIL, 0x146);
         assertEquals(GamePackets.MAIL_ERR_TAKE_MOVE, 2);
         assertEquals(GamePackets.MAIL_ERR_TAKE_INIT, 3);
+        assertEquals(GamePackets.SERVER_DELETE_CARD, 0x139);
+        assertEquals(GamePackets.LOCKER_MOVE_ADD, 1);
+        assertEquals(GamePackets.LOCKER_REMOVE_GROUP, 3);
         assertEquals(GamePackets.SERVER_BUY_ACK, 0x68);
         assertEquals(GamePackets.CREATE_ROOM_FAILED, 0x07);
         assertEquals(GamePackets.SERVER_LAST5, 0x10E);
