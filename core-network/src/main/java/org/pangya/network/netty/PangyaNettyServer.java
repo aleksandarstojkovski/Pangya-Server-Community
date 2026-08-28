@@ -19,6 +19,8 @@ import org.slf4j.LoggerFactory;
 
 import java.net.InetSocketAddress;
 
+import java.util.function.Consumer;
+
 public final class PangyaNettyServer implements AutoCloseable {
 
     public static final AttributeKey<Session> SESSION_KEY = AttributeKey.valueOf("pangyaSession");
@@ -29,20 +31,31 @@ public final class PangyaNettyServer implements AutoCloseable {
     private final SessionManager sessions;
     private final PangyaClientDecryptHandler.PacketSink sink;
     private final int authUid;
+    private final Consumer<Session> onClose;
     private final EventLoopGroup boss;
     private final EventLoopGroup worker;
     private Channel channel;
 
     public PangyaNettyServer(ServerKind kind, SessionManager sessions, PangyaClientDecryptHandler.PacketSink sink) {
-        this(kind, sessions, sink, PacketIo.DEFAULT_LOGIN_UID);
+        this(kind, sessions, sink, PacketIo.DEFAULT_LOGIN_UID, null);
     }
 
     public PangyaNettyServer(
             ServerKind kind, SessionManager sessions, PangyaClientDecryptHandler.PacketSink sink, int authUid) {
+        this(kind, sessions, sink, authUid, null);
+    }
+
+    public PangyaNettyServer(
+            ServerKind kind,
+            SessionManager sessions,
+            PangyaClientDecryptHandler.PacketSink sink,
+            int authUid,
+            Consumer<Session> onClose) {
         this.kind = kind;
         this.sessions = sessions;
         this.sink = sink;
         this.authUid = authUid;
+        this.onClose = onClose;
         this.boss = new NioEventLoopGroup(1);
         this.worker = new NioEventLoopGroup();
     }
@@ -66,7 +79,12 @@ public final class PangyaNettyServer implements AutoCloseable {
                         ddos.onConnect(ip);
                         Session session = sessions.create(ch);
                         ch.attr(SESSION_KEY).set(session);
-                        ch.closeFuture().addListener(f -> sessions.remove(session));
+                        ch.closeFuture().addListener(f -> {
+                            if (onClose != null) {
+                                onClose.accept(session);
+                            }
+                            sessions.remove(session);
+                        });
                         writeHello(ch, session);
                         ch.pipeline().addLast(new PangyaClientFrameDecoder());
                         ch.pipeline().addLast(new PangyaServerFrameEncoder(session.key()));

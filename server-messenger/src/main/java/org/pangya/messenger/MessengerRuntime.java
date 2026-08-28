@@ -11,6 +11,7 @@ import org.pangya.network.HealthHttp;
 import org.pangya.network.PangyaMetrics;
 import org.pangya.network.auth.AuthServerConnector;
 import org.pangya.network.ddos.IpDdosFilter;
+import org.pangya.protocol.packet.PacketIo;
 import org.pangya.network.netty.PangyaNettyServer;
 import org.pangya.network.netty.ServerKind;
 import org.pangya.network.session.SessionManager;
@@ -34,7 +35,8 @@ public final class MessengerRuntime implements AutoCloseable {
         FriendRepository friends = new JdbiFriendRepository(DatabaseSupport.jdbi(dataSource));
         SessionManager sessions = new SessionManager(new IpDdosFilter());
         MessengerHandler handler = new MessengerHandler(repo, friends, sessions);
-        this.netty = new PangyaNettyServer(ServerKind.MESSENGER, sessions, handler::onPacket);
+        this.netty = new PangyaNettyServer(
+                ServerKind.MESSENGER, sessions, handler::onPacket, PacketIo.DEFAULT_LOGIN_UID, handler::onDisconnect);
         this.netty.bind(config.port());
         PangyaMetrics metrics = new PangyaMetrics(config.serverName(), sessions::size);
         this.health = new HealthHttp(config.healthPort(), config.serverName(), metrics);

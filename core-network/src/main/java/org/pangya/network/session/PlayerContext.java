@@ -84,4 +84,10 @@ public final class PlayerContext {
     public volatile int workshopXfStat;
     /** C# {@code PlayerInfo.cwtc.transform_typeid} pending workshop transform. */
     public volatile int workshopXfTypeid;
+    /** C# messenger {@code PlayerInfo.m_state} ({@code USER_STATUS}). */
+    public volatile int messengerState = 4;
+    /** C# messenger {@code PlayerInfo.m_cpi} wire image (75 bytes). */
+    public volatile byte[] channelPlayerInfo;
+    /** C# {@code PlayerInfo.m_logout} — logout broadcast sent once. */
+    public volatile boolean messengerLogoutSent;
 }

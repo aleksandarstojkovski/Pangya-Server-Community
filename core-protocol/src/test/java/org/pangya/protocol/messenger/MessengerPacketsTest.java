@@ -48,4 +48,44 @@ class MessengerPacketsTest {
                 MessengerPackets.FRIEND_FLAG);
         assertEquals(MessengerPackets.FRIEND_INFO_BYTES + MessengerPackets.CHANNEL_PLAYER_INFO_BYTES + 5, row.length);
     }
+
+    @Test
+    void checkNickChatAndLogoutPackets() {
+        byte[] ok = MessengerPackets.checkNickOk("TestNick2", 10002);
+        PacketReader okR = new PacketReader(ok);
+        assertEquals(MessengerPackets.SERVER_FRIEND_AND_GUILD_LIST, okR.opcode());
+        assertEquals(MessengerPackets.SUB_CHECK_NICK, okR.u16());
+        assertEquals(0, okR.u32());
+        assertEquals("TestNick2", okR.pstr());
+        assertEquals(10002, okR.u32());
+
+        byte[] err = MessengerPackets.checkNickError(MessengerPackets.CHECK_NICK_ERR_MISSING, "Missing");
+        PacketReader errR = new PacketReader(err);
+        assertEquals(MessengerPackets.SERVER_FRIEND_AND_GUILD_LIST, errR.opcode());
+        assertEquals(MessengerPackets.SUB_CHECK_NICK, errR.u16());
+        assertEquals(MessengerPackets.CHECK_NICK_ERR_MISSING, errR.u32());
+        assertEquals("Missing", errR.pstr());
+
+        byte[] chat = MessengerPackets.friendChat(10001, "TestNick", "hi");
+        PacketReader chatR = new PacketReader(chat);
+        assertEquals(MessengerPackets.SERVER_FRIEND_AND_GUILD_LIST, chatR.opcode());
+        assertEquals(MessengerPackets.SUB_FRIEND_CHAT, chatR.u16());
+        assertEquals(10001, chatR.u32());
+        assertEquals("TestNick", chatR.pstr());
+        assertEquals("hi", chatR.pstr());
+        assertEquals(0, chatR.u8());
+
+        byte[] logout = MessengerPackets.friendLogout(10001);
+        PacketReader logoutR = new PacketReader(logout);
+        assertEquals(MessengerPackets.SERVER_FRIEND_AND_GUILD_LIST, logoutR.opcode());
+        assertEquals(MessengerPackets.SUB_FRIEND_LOGOUT, logoutR.u16());
+        assertEquals(10001, logoutR.u32());
+
+        byte[] cpi = MessengerPackets.channelPlayerInfo(10, 2, 30201, 1, "Ch-A");
+        assertEquals(MessengerPackets.CHANNEL_PLAYER_INFO_BYTES, cpi.length);
+        byte[] update = MessengerPackets.clientUpdateChannel(cpi);
+        PacketReader updateR = new PacketReader(update);
+        assertEquals(MessengerPackets.CLIENT_REQ_UPDATE_CHANNEL_INFO, updateR.opcode());
+        assertEquals(MessengerPackets.CHANNEL_PLAYER_INFO_BYTES, updateR.remaining());
+    }
 }

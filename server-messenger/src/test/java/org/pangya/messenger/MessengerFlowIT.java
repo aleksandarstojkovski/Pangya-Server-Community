@@ -140,6 +140,114 @@ class MessengerFlowIT {
     }
 
     @Test
+    void checkNicknameOkAndMissing() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        try (MessengerRuntime runtime = new MessengerRuntime(new AppConfig(testYaml(jdbc, user, password)));
+             PangyaFakeClient client = new PangyaFakeClient()) {
+            client.connect("127.0.0.1", runtime.port(), PangyaFakeClient.HelloKind.MESSENGER);
+            client.awaitHello(5, TimeUnit.SECONDS);
+            client.sendPlain(MessengerPackets.clientLogin(10001, "TestNick"));
+            PacketReader login = new PacketReader(client.awaitPlain(5, TimeUnit.SECONDS));
+            assertEquals(MessengerPackets.SERVER_LOGIN_ACK, login.opcode());
+            assertEquals(0, login.u8());
+
+            client.sendPlain(MessengerPackets.clientCheckNick("TestNick2"));
+            PacketReader ok = new PacketReader(client.awaitPlain(5, TimeUnit.SECONDS));
+            assertEquals(MessengerPackets.SERVER_FRIEND_AND_GUILD_LIST, ok.opcode());
+            assertEquals(MessengerPackets.SUB_CHECK_NICK, ok.u16());
+            assertEquals(0, ok.u32());
+            assertEquals("TestNick2", ok.pstr());
+            assertEquals(10002, ok.u32());
+
+            client.sendPlain(MessengerPackets.clientCheckNick("NoSuchNickZZ"));
+            PacketReader missing = new PacketReader(client.awaitPlain(5, TimeUnit.SECONDS));
+            assertEquals(MessengerPackets.SERVER_FRIEND_AND_GUILD_LIST, missing.opcode());
+            assertEquals(MessengerPackets.SUB_CHECK_NICK, missing.u16());
+            assertEquals(MessengerPackets.CHECK_NICK_ERR_MISSING, missing.u32());
+            assertEquals("NoSuchNickZZ", missing.pstr());
+        }
+    }
+
+    @Test
+    void chatStateChannelUpdateAndLogout() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password)) {
+            var friendRepo = new org.pangya.db.JdbiFriendRepository(DatabaseSupport.jdbi(ds));
+            friendRepo.delete(10001, 10002);
+            friendRepo.delete(10002, 10001);
+            friendRepo.add(10001, new org.pangya.db.FriendRepository.FriendRow(
+                    10002, "TestNick2", "Friend", -1, 0, -1, 0, 0, 0, 255,
+                    MessengerPackets.FLAG_FRIEND));
+            friendRepo.add(10002, new org.pangya.db.FriendRepository.FriendRow(
+                    10001, "TestNick", "Friend", -1, 0, -1, 0, 0, 0, 255,
+                    MessengerPackets.FLAG_FRIEND));
+        }
+
+        try (MessengerRuntime runtime = new MessengerRuntime(new AppConfig(testYaml(jdbc, user, password)));
+             PangyaFakeClient a = new PangyaFakeClient();
+             PangyaFakeClient b = new PangyaFakeClient()) {
+            a.connect("127.0.0.1", runtime.port(), PangyaFakeClient.HelloKind.MESSENGER);
+            a.awaitHello(5, TimeUnit.SECONDS);
+            a.sendPlain(MessengerPackets.clientLogin(10001, "TestNick"));
+            PacketReader loginA = new PacketReader(a.awaitPlain(5, TimeUnit.SECONDS));
+            assertEquals(MessengerPackets.SERVER_LOGIN_ACK, loginA.opcode());
+            assertEquals(0, loginA.u8());
+
+            b.connect("127.0.0.1", runtime.port(), PangyaFakeClient.HelloKind.MESSENGER);
+            b.awaitHello(5, TimeUnit.SECONDS);
+            b.sendPlain(MessengerPackets.clientLogin(10002, "TestNick2"));
+            PacketReader loginB = new PacketReader(b.awaitPlain(5, TimeUnit.SECONDS));
+            assertEquals(MessengerPackets.SERVER_LOGIN_ACK, loginB.opcode());
+            assertEquals(0, loginB.u8());
+
+            byte[] cpi = MessengerPackets.channelPlayerInfo(42, 1, 30201, 3, "Lobby-1");
+            a.sendPlain(MessengerPackets.clientUpdateChannel(cpi));
+            PacketReader selfStatus = new PacketReader(a.awaitPlain(5, TimeUnit.SECONDS));
+            assertEquals(MessengerPackets.SERVER_FRIEND_AND_GUILD_LIST, selfStatus.opcode());
+            assertEquals(MessengerPackets.SUB_CHANGE_MY_STATUS, selfStatus.u16());
+            assertEquals(10001, selfStatus.u32());
+            assertEquals(MessengerPackets.STATE_ONLINE, selfStatus.u32());
+            assertEquals(1, selfStatus.u8());
+            assertEquals(MessengerPackets.CHANNEL_PLAYER_INFO_BYTES, selfStatus.remaining());
+
+            PacketReader friendStatus = new PacketReader(b.awaitPlain(5, TimeUnit.SECONDS));
+            assertEquals(MessengerPackets.SERVER_FRIEND_AND_GUILD_LIST, friendStatus.opcode());
+            assertEquals(MessengerPackets.SUB_CHANGE_MY_STATUS, friendStatus.u16());
+            assertEquals(10001, friendStatus.u32());
+
+            a.sendPlain(MessengerPackets.clientUpdateState(6));
+            PacketReader stateEcho = new PacketReader(b.awaitPlain(5, TimeUnit.SECONDS));
+            assertEquals(MessengerPackets.SERVER_FRIEND_AND_GUILD_LIST, stateEcho.opcode());
+            assertEquals(MessengerPackets.SUB_CHANGE_MY_STATUS, stateEcho.u16());
+            assertEquals(10001, stateEcho.u32());
+            assertEquals(6, stateEcho.u32());
+
+            a.sendPlain(MessengerPackets.clientChatFriend(10002, "hello friend"));
+            PacketReader chat = new PacketReader(b.awaitPlain(5, TimeUnit.SECONDS));
+            assertEquals(MessengerPackets.SERVER_FRIEND_AND_GUILD_LIST, chat.opcode());
+            assertEquals(MessengerPackets.SUB_FRIEND_CHAT, chat.u16());
+            assertEquals(10001, chat.u32());
+            assertEquals("TestNick", chat.pstr());
+            assertEquals("hello friend", chat.pstr());
+            assertEquals(0, chat.u8());
+
+            a.sendPlain(MessengerPackets.clientNotifyLogout());
+            PacketReader logout = new PacketReader(b.awaitPlain(5, TimeUnit.SECONDS));
+            assertEquals(MessengerPackets.SERVER_FRIEND_AND_GUILD_LIST, logout.opcode());
+            assertEquals(MessengerPackets.SUB_FRIEND_LOGOUT, logout.u16());
+            assertEquals(10001, logout.u32());
+        }
+    }
+
+    @Test
     void nickMismatchSendsLoginFail() throws Exception {
         String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
         String user = env("PANGYA_TEST_JDBC_USER", "pangya");

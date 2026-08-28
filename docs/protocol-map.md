@@ -325,7 +325,8 @@ C#: `RankingServer/PangyaEnums/PacketRanking.cs`
 Hello is `makeRaw` `0x1388` + int32 key + byte 5 + PStr(`1970-01-01 00:00:00`) (JP `formatDateLocal(0)`).
 
 CLIENT `0x00`: uint32 uid, PStr id, byte menu, byte item, byte term_s5, byte class, uint32 page.
-Success `0x1389`: byte 0, four search bytes, then either 10 zero bytes (empty registry) or page/pages/count + rows (`uid, pos, last, value` + 7 zero character bytes). Trailing byte `PPRT_NOT_TOP_RANK` (2) on fresh login (`search_dados.active==0`). Error: byte option + 14 zeros.
+Success `0x1389`: byte 0, four search bytes, then either 10 zero bytes (empty registry) or page/pages/count + rows (`uid, pos, last, value` + C# `RankCharacter.playerInfoToPacket`: u8 level, u8 term, u8 class, PStr id, PStr nick — 7 zero bytes when missing). Trailing byte `PPRT_NOT_TOP_RANK` (2) on fresh login (`search_dados.active==0`). Error: byte option + 14 zeros.
+CLIENT `0x02` search: u8 option 0 nickname PStr + search_dados, or option 1 u32 position + search_dados → success `0x138C` byte 0 + four search bytes + page + rows (same tail as `0x1389`) + u16 found position in page; error `0x138C` u8 1.
 CLIENT `0x01` player info → `0x138A` byte 0 + uid + id/nick 22 + level u16 + 513-byte CharacterInfo from `pangya_rank_atual_character` or live `pangya_character_information` + overall flag. Registry SQL is `pangya.pangya_rank_atual` left-joined with `pangya_rank_antes` (C# `ProcGetRankRegistryInfo`).
 
 | Dir | C# | Opcode |
@@ -345,15 +346,20 @@ Hello is `makeRaw` `0x2E` + byte 1 + byte 1 + uint32 key.
 
 CLIENT `0x12`: uint32 uid, PStr nickname. Success `0x2F` byte 0 + uint32 uid. Fail byte 1.
 Friend list CLIENT `0x14` → `0x30` sub `0x115` + uid + state 4 + OK + 75-byte empty `ChannelPlayerInfo`, then **always** `0x30` sub `0x102` + `ManyPacket.Pagina` (byte pagina, u16 total, u16 current). Empty list still sends pagina=1, total=0, current=0 (`FRIEND_PAG_LIMIT` 30). Friend rows: FriendInfo 65 + ChannelPlayerInfo 75 (live or offline -1s + icon 5) + cUnknown + level + state + flag.
-Add friend CLIENT `0x18` uid+PStr nick → `0x30` sub `0x104` + OK + 65-byte `FriendInfo` + offline ChannelPlayerInfo. Agree `0x19` → sub `0x109`. Block `0x1A` → sub `0x10C`. Remove `0x1C` → sub `0x10B`. Rows in `pangya.pangya_friend_list` (C# `ProcAddFriend` / `ProcUpdateFriendInfo` / DELETE).
+Add friend CLIENT `0x18` uid+PStr nick → `0x30` sub `0x104` + OK + 65-byte `FriendInfo` + offline ChannelPlayerInfo (online target: live CPI + sub `0x106` to added player). Agree `0x19` → sub `0x109`. Block `0x1A` → sub `0x10C` + `0x10F` to target. Remove `0x1C` uid+PStr nick → sub `0x10B`. Logout CLIENT `0x16` or TCP disconnect → broadcast sub `0x10F`. Check nick CLIENT `0x17` PStr → sub `0x117` OK (code 0 + nick + uid) or error. State CLIENT `0x1D` u8 → broadcast sub `0x115` to friends. Channel CLIENT `0x23` 75-byte CPI → echo `0x115` self + broadcast friends. Chat friend CLIENT `0x1E` uid+PStr msg → sub `0x113` to online target (friendship + not blocked). Rows in `pangya.pangya_friend_list` (C# `ProcAddFriend` / `ProcUpdateFriendInfo` / DELETE).
 
 | Dir | C# | Opcode |
 |-----|----|--------|
 | C | `CLIENT_CONNECT_0x12` | `0x12` |
+| C | `CLIENT_NOTIFY_LOGOUT` | `0x16` |
+| C | `CLIENT_REQ_CHECK_NICK` | `0x17` |
+| C | `CLIENT_NOTIFY_UPDATE_MY_STATUS` | `0x1D` |
+| C | `CLIENT_REQ_CHAT_FRIEND` | `0x1E` |
+| C | `CLIENT_REQ_UPDATE_CHANNEL_INFO` | `0x23` |
 | S | `SERVER_CONNECT_0x2E` | `0x2E` |
 | S | `SERVER_LOGIN_ACK_0x2F` | `0x2F` |
 | S | `SERVER_FRIEND_AND_GUILD_LIST_0x30` | `0x30` |
-| S | friend/guild chat family | `0x100+` | see Definition.cs |
+| S | sub register friend / new message / logout / chat / check nick | `0x104`/`0x106`/`0x10F`/`0x113`/`0x117` |
 
 ## Golden fixtures
 

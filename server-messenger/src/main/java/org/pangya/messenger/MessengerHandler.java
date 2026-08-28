@@ -12,9 +12,10 @@ import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 /**
- * JP {@code MessengerServer.requestLogin} + friend add/agree/block/remove.
+ * JP {@code MessengerServer.requestLogin} + friend/presence/chat handlers.
  */
 public final class MessengerHandler {
 
@@ -43,8 +44,17 @@ public final class MessengerHandler {
             case MessengerPackets.CLIENT_REQ_FRIEND_AGREE -> agreeFriend(session, reader);
             case MessengerPackets.CLIENT_REQ_FRIEND_BLOCK -> blockFriend(session, reader);
             case MessengerPackets.CLIENT_REQ_FRIEND_REMOVE -> removeFriend(session, reader);
+            case MessengerPackets.CLIENT_NOTIFY_LOGOUT -> notifyLogout(session);
+            case MessengerPackets.CLIENT_REQ_CHECK_NICK -> checkNickname(session, reader);
+            case MessengerPackets.CLIENT_NOTIFY_UPDATE_MY_STATUS -> updatePlayerState(session, reader);
+            case MessengerPackets.CLIENT_REQ_CHAT_FRIEND -> chatFriend(session, reader);
+            case MessengerPackets.CLIENT_REQ_UPDATE_CHANNEL_INFO -> updateChannelInfo(session, reader);
             default -> log.debug("unhandled messenger opcode 0x{}", Integer.toHexString(opcode));
         }
+    }
+
+    public void onDisconnect(Session session) {
+        sendLogoutToFriends(session);
     }
 
     private void requestLogin(Session session, PacketReader reader) {
@@ -71,6 +81,9 @@ public final class MessengerHandler {
             pi.id = info.id();
             pi.nickname = info.nickname();
             pi.level = info.level();
+            pi.messengerState = MessengerPackets.STATE_ONLINE;
+            pi.channelPlayerInfo = MessengerPackets.emptyChannelPlayerInfo();
+            pi.messengerLogoutSent = false;
             sessions.disconnectOthersWithUid(pi.uid, session);
             session.setAuthorized(true);
             session.send(MessengerPackets.loginOk((int) pi.uid));
@@ -88,7 +101,7 @@ public final class MessengerHandler {
         }
         PlayerContext pi = session.player();
         session.send(MessengerPackets.friendStatus(
-                (int) pi.uid, MessengerPackets.STATE_ONLINE, MessengerPackets.emptyChannelPlayerInfo()));
+                (int) pi.uid, pi.messengerState, channelInfo(pi)));
         List<FriendRepository.FriendRow> list = friends.friends(pi.uid);
         if (list.isEmpty()) {
             session.send(MessengerPackets.emptyFriendPage());
@@ -125,8 +138,8 @@ public final class MessengerHandler {
         byte[] channel;
         int icon;
         if (live != null) {
-            channel = MessengerPackets.emptyChannelPlayerInfo();
-            icon = MessengerPackets.STATE_ONLINE;
+            channel = channelInfo(live.player());
+            icon = live.player().messengerState;
             state |= MessengerPackets.FLAG_ONLINE;
         } else {
             channel = MessengerPackets.offlineChannelPlayerInfo();
@@ -176,8 +189,6 @@ public final class MessengerHandler {
                 session.send(MessengerPackets.addFriendError(3));
                 return;
             }
-            int flag = MessengerPackets.FRIEND_FLAG;
-            // C# CmdAddFriend zeros online/sex before INSERT. Requester keeps request bit.
             friends.add(session.player().uid, new FriendRepository.FriendRow(
                     info.uid(), info.nickname(), "Friend", -1, 0, -1, 0, 0, 0, 255,
                     MessengerPackets.FLAG_REQUEST));
@@ -185,8 +196,29 @@ public final class MessengerHandler {
                     session.player().uid, session.player().nickname, "Friend", -1, 0, -1, 0, 0, 0, 255,
                     0));
             byte[] fi = MessengerPackets.friendInfo(info.nickname(), "Friend", (int) info.uid());
-            session.send(MessengerPackets.addFriendOkOffline(
-                    fi, info.level(), MessengerPackets.FLAG_REQUEST, flag));
+            int flag = MessengerPackets.FRIEND_FLAG;
+            int requestState = MessengerPackets.FLAG_REQUEST;
+            Session live = sessions.findByUid(info.uid());
+            if (live != null) {
+                byte[] requesterFi = MessengerPackets.friendInfo(
+                        session.player().nickname, "Friend", (int) session.player().uid);
+                session.send(MessengerPackets.addFriendOkOnline(
+                        fi,
+                        channelInfo(live.player()),
+                        live.player().messengerState,
+                        info.level(),
+                        requestState,
+                        flag));
+                live.send(MessengerPackets.newFriendMessage(
+                        requesterFi,
+                        channelInfo(session.player()),
+                        session.player().messengerState,
+                        session.player().level,
+                        0,
+                        flag));
+            } else {
+                session.send(MessengerPackets.addFriendOkOffline(fi, info.level(), requestState, flag));
+            }
             log.info("add friend uid={} -> {}", session.player().uid, info.uid());
         } catch (RuntimeException e) {
             log.warn("add friend failed: {}", e.toString());
@@ -257,11 +289,7 @@ public final class MessengerHandler {
             session.send(MessengerPackets.friendUidAck(MessengerPackets.SUB_FRIEND_BLOCK, 0, uid));
             Session live = sessions.findByUid(uid);
             if (live != null) {
-                live.send(new org.pangya.protocol.packet.PacketWriter()
-                        .opcode(MessengerPackets.SERVER_FRIEND_AND_GUILD_LIST)
-                        .u16(MessengerPackets.SUB_FRIEND_LOGOUT)
-                        .u32((int) session.player().uid)
-                        .toBytes());
+                live.send(MessengerPackets.friendLogout((int) session.player().uid));
             }
         } catch (RuntimeException e) {
             log.warn("block friend failed: {}", e.toString());
@@ -274,9 +302,19 @@ public final class MessengerHandler {
             return;
         }
         int uid = reader.u32();
+        String nick = reader.remaining() >= 2 ? reader.pstr() : "";
         try {
             if (uid == 0) {
                 session.send(MessengerPackets.friendUidAck(MessengerPackets.SUB_FRIEND_REMOVE, 0x5200701, 0));
+                return;
+            }
+            var row = friends.find(session.player().uid, uid).orElse(null);
+            if (row == null) {
+                session.send(MessengerPackets.friendUidAck(MessengerPackets.SUB_FRIEND_REMOVE, 0x5200702, 0));
+                return;
+            }
+            if (nick != null && !nick.isEmpty() && !nick.equals(row.nickname())) {
+                session.send(MessengerPackets.friendUidAck(MessengerPackets.SUB_FRIEND_REMOVE, 0x5200703, 0));
                 return;
             }
             friends.delete(session.player().uid, uid);
@@ -291,5 +329,148 @@ public final class MessengerHandler {
             log.warn("remove friend failed: {}", e.toString());
             session.send(MessengerPackets.friendUidAck(MessengerPackets.SUB_FRIEND_REMOVE, 0x5200700, 0));
         }
+    }
+
+    private void notifyLogout(Session session) {
+        if (!session.authorized()) {
+            return;
+        }
+        sendLogoutToFriends(session);
+    }
+
+    private void checkNickname(Session session, PacketReader reader) {
+        if (!session.authorized()) {
+            return;
+        }
+        String nickname = reader.remaining() >= 2 ? reader.pstr() : "";
+        try {
+            if (nickname == null || nickname.isEmpty()) {
+                session.send(MessengerPackets.checkNickError(MessengerPackets.CHECK_NICK_ERR_EMPTY, nickname));
+                return;
+            }
+            var info = repo.playerInfoByNick(nickname);
+            if (info.isEmpty()) {
+                session.send(MessengerPackets.checkNickError(MessengerPackets.CHECK_NICK_ERR_MISSING, nickname));
+                return;
+            }
+            session.send(MessengerPackets.checkNickOk(nickname, (int) info.get().uid()));
+        } catch (RuntimeException e) {
+            log.warn("check nick failed: {}", e.toString());
+            session.send(MessengerPackets.checkNickError(MessengerPackets.CHECK_NICK_ERR_DEFAULT, nickname));
+        }
+    }
+
+    private void updatePlayerState(Session session, PacketReader reader) {
+        if (!session.authorized() || reader.remaining() < 1) {
+            return;
+        }
+        int state = reader.u8();
+        PlayerContext pi = session.player();
+        if (pi.messengerState != state) {
+            pi.messengerState = state;
+        }
+        broadcastStatus(session, false);
+    }
+
+    private void updateChannelInfo(Session session, PacketReader reader) {
+        if (!session.authorized()) {
+            return;
+        }
+        try {
+            byte[] cpi = MessengerPackets.readChannelPlayerInfo(reader);
+            session.player().channelPlayerInfo = cpi;
+            session.send(MessengerPackets.friendStatus(
+                    (int) session.player().uid, session.player().messengerState, cpi));
+            broadcastStatus(session, false);
+        } catch (RuntimeException e) {
+            log.warn("update channel failed uid={}: {}", session.player().uid, e.toString());
+            session.send(MessengerPackets.statusBroadcastError(
+                    (int) session.player().uid, session.player().messengerState));
+        }
+    }
+
+    private void chatFriend(Session session, PacketReader reader) {
+        if (!session.authorized()) {
+            return;
+        }
+        try {
+            int uid = reader.u32();
+            String msg = reader.remaining() >= 2 ? reader.pstr() : "";
+            if (msg == null || msg.isEmpty()) {
+                session.send(MessengerPackets.friendChatError());
+                return;
+            }
+            if (uid == 0) {
+                session.send(MessengerPackets.friendChatError());
+                return;
+            }
+            var row = friends.find(session.player().uid, uid).orElse(null);
+            if (row == null || (row.stateFlag() & MessengerPackets.FLAG_BLOCK) != 0) {
+                session.send(MessengerPackets.friendChatError());
+                return;
+            }
+            Session target = sessions.findByUid(uid);
+            if (target == null) {
+                session.send(MessengerPackets.friendChatError());
+                return;
+            }
+            var reverse = friends.find(uid, session.player().uid).orElse(null);
+            if (reverse == null || (reverse.stateFlag() & MessengerPackets.FLAG_BLOCK) != 0) {
+                session.send(MessengerPackets.friendChatError());
+                return;
+            }
+            target.send(MessengerPackets.friendChat(
+                    (int) session.player().uid, session.player().nickname, msg));
+        } catch (RuntimeException e) {
+            log.warn("chat friend failed uid={}: {}", session.player().uid, e.toString());
+            session.send(MessengerPackets.friendChatError());
+        }
+    }
+
+    private void broadcastStatus(Session session, boolean includeSelf) {
+        byte[] packet = MessengerPackets.friendStatus(
+                (int) session.player().uid,
+                session.player().messengerState,
+                channelInfo(session.player()));
+        for (Session friend : onlineFriends(session)) {
+            if (!includeSelf && friend == session) {
+                continue;
+            }
+            friend.send(packet);
+        }
+    }
+
+    private void sendLogoutToFriends(Session session) {
+        if (!session.authorized()) {
+            return;
+        }
+        PlayerContext pi = session.player();
+        if (pi.messengerLogoutSent) {
+            return;
+        }
+        pi.messengerLogoutSent = true;
+        byte[] packet = MessengerPackets.friendLogout((int) pi.uid);
+        for (Session friend : onlineFriends(session)) {
+            friend.send(packet);
+        }
+    }
+
+    private List<Session> onlineFriends(Session session) {
+        List<Session> out = new ArrayList<>();
+        for (FriendRepository.FriendRow row : friends.friends(session.player().uid)) {
+            if ((row.stateFlag() & MessengerPackets.FLAG_BLOCK) != 0) {
+                continue;
+            }
+            Session live = sessions.findByUid(row.friendUid());
+            if (live != null) {
+                out.add(live);
+            }
+        }
+        return out;
+    }
+
+    private static byte[] channelInfo(PlayerContext pi) {
+        byte[] cpi = pi.channelPlayerInfo;
+        return cpi != null ? cpi : MessengerPackets.emptyChannelPlayerInfo();
     }
 }

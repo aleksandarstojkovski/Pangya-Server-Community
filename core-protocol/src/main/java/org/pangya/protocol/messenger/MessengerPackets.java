@@ -16,6 +16,11 @@ public final class MessengerPackets {
     public static final int CLIENT_REQ_FRIEND_AGREE = 0x19;
     public static final int CLIENT_REQ_FRIEND_BLOCK = 0x1A;
     public static final int CLIENT_REQ_FRIEND_REMOVE = 0x1C;
+    public static final int CLIENT_NOTIFY_LOGOUT = 0x16;
+    public static final int CLIENT_REQ_CHECK_NICK = 0x17;
+    public static final int CLIENT_NOTIFY_UPDATE_MY_STATUS = 0x1D;
+    public static final int CLIENT_REQ_CHAT_FRIEND = 0x1E;
+    public static final int CLIENT_REQ_UPDATE_CHANNEL_INFO = 0x23;
 
     public static final int SERVER_CONNECT = 0x2E;
     public static final int SERVER_LOGIN_ACK = 0x2F;
@@ -30,6 +35,14 @@ public final class MessengerPackets {
     public static final int SUB_FRIEND_LOGOUT = 0x10F;
     /** C# {@code requestFriendAndGuildMemberList} page sub-id. */
     public static final int SUB_FRIEND_LIST_PAGE = 0x102;
+    public static final int SUB_FRIEND_CHAT = 0x113;
+    public static final int SUB_CHECK_NICK = 0x117;
+
+    /** C# {@code requestCheckNickname} empty nick. */
+    public static final int CHECK_NICK_ERR_EMPTY = 0x5200501;
+    /** C# nick not found on verify. */
+    public static final int CHECK_NICK_ERR_MISSING = 1;
+    public static final int CHECK_NICK_ERR_DEFAULT = 0x5200500;
 
     /** C# {@code USER_STATUS.IS_ONLINE}. */
     public static final int STATE_ONLINE = 4;
@@ -256,6 +269,144 @@ public final class MessengerPackets {
 
     public static byte[] clientRemoveFriend(int uid, String nickname) {
         return new PacketWriter().opcode(CLIENT_REQ_FRIEND_REMOVE).u32(uid).pstr(nickname).toBytes();
+    }
+
+    public static byte[] clientNotifyLogout() {
+        return new PacketWriter().opcode(CLIENT_NOTIFY_LOGOUT).toBytes();
+    }
+
+    public static byte[] clientCheckNick(String nickname) {
+        return new PacketWriter().opcode(CLIENT_REQ_CHECK_NICK).pstr(nickname).toBytes();
+    }
+
+    public static byte[] clientUpdateState(int state) {
+        return new PacketWriter().opcode(CLIENT_NOTIFY_UPDATE_MY_STATUS).u8(state).toBytes();
+    }
+
+    public static byte[] clientChatFriend(int uid, String msg) {
+        return new PacketWriter().opcode(CLIENT_REQ_CHAT_FRIEND).u32(uid).pstr(msg).toBytes();
+    }
+
+    public static byte[] clientUpdateChannel(byte[] channelPlayerInfo) {
+        return new PacketWriter()
+                .opcode(CLIENT_REQ_UPDATE_CHANNEL_INFO)
+                .bytes(channelPlayerInfo)
+                .toBytes();
+    }
+
+    /** Reads C# {@code ChannelPlayerInfo.ToRead} (75 bytes). */
+    public static byte[] readChannelPlayerInfo(PacketReader reader) {
+        byte[] body = reader.readBytes(CHANNEL_PLAYER_INFO_BYTES);
+        if (body.length != CHANNEL_PLAYER_INFO_BYTES) {
+            throw new IllegalArgumentException("ChannelPlayerInfo truncated");
+        }
+        return body;
+    }
+
+    public static byte[] channelPlayerInfo(int roomNum, int roomType, int serverUid, int channelId, String name) {
+        PacketWriter w = new PacketWriter();
+        w.u16(roomNum);
+        w.i32(roomType);
+        w.u32(serverUid);
+        w.u8(channelId);
+        w.fixedStr(name == null ? "" : name, 64);
+        byte[] body = w.toBytes();
+        if (body.length != CHANNEL_PLAYER_INFO_BYTES) {
+            throw new IllegalStateException("ChannelPlayerInfo size " + body.length);
+        }
+        return body;
+    }
+
+    public static byte[] friendLogout(int uid) {
+        return new PacketWriter()
+                .opcode(SERVER_FRIEND_AND_GUILD_LIST)
+                .u16(SUB_FRIEND_LOGOUT)
+                .u32(uid)
+                .toBytes();
+    }
+
+    public static byte[] checkNickOk(String nickname, int uid) {
+        return new PacketWriter()
+                .opcode(SERVER_FRIEND_AND_GUILD_LIST)
+                .u16(SUB_CHECK_NICK)
+                .u32(0)
+                .pstr(nickname)
+                .u32(uid)
+                .toBytes();
+    }
+
+    public static byte[] checkNickError(int code, String nickname) {
+        return new PacketWriter()
+                .opcode(SERVER_FRIEND_AND_GUILD_LIST)
+                .u16(SUB_CHECK_NICK)
+                .u32(code)
+                .pstr(nickname == null ? "" : nickname)
+                .toBytes();
+    }
+
+    /** C# chat friend to recipient: sub 0x113 + from uid/nick + msg + u8 0. */
+    public static byte[] friendChat(int fromUid, String fromNick, String msg) {
+        return new PacketWriter()
+                .opcode(SERVER_FRIEND_AND_GUILD_LIST)
+                .u16(SUB_FRIEND_CHAT)
+                .u32(fromUid)
+                .pstr(fromNick == null ? "" : fromNick)
+                .pstr(msg == null ? "" : msg)
+                .u8(0)
+                .toBytes();
+    }
+
+    public static byte[] friendChatError() {
+        return new PacketWriter()
+                .opcode(SERVER_FRIEND_AND_GUILD_LIST)
+                .u16(SUB_FRIEND_CHAT)
+                .i32(-1)
+                .toBytes();
+    }
+
+    /**
+     * C# online {@code requestAddFriend}: sub 0x104 with live CPI + state icon tail.
+     */
+    public static byte[] addFriendOkOnline(
+            byte[] friendInfo, byte[] channelPlayerInfo, int stateIcon, int level, int state, int flag) {
+        return new PacketWriter()
+                .opcode(SERVER_FRIEND_AND_GUILD_LIST)
+                .u16(SUB_REGISTER_FRIEND)
+                .u32(0)
+                .bytes(friendInfo)
+                .bytes(channelPlayerInfo)
+                .u8(stateIcon)
+                .u8(CUNKNOWN_FLAG_DEFAULT)
+                .u8(level)
+                .u8(state)
+                .u8(flag)
+                .toBytes();
+    }
+
+    /** C# sub 0x106 to the added player when target is online. */
+    public static byte[] newFriendMessage(
+            byte[] friendInfo, byte[] channelPlayerInfo, int stateIcon, int level, int state, int flag) {
+        return new PacketWriter()
+                .opcode(SERVER_FRIEND_AND_GUILD_LIST)
+                .u16(SUB_NEW_FRIEND_MESSAGE)
+                .bytes(friendInfo)
+                .bytes(channelPlayerInfo)
+                .u8(stateIcon)
+                .u8(CUNKNOWN_FLAG_DEFAULT)
+                .u8(level)
+                .u8(state)
+                .u8(flag)
+                .toBytes();
+    }
+
+    public static byte[] statusBroadcastError(int uid, int state) {
+        return new PacketWriter()
+                .opcode(SERVER_FRIEND_AND_GUILD_LIST)
+                .u16(SUB_CHANGE_MY_STATUS)
+                .u32(uid)
+                .u32(state)
+                .u8(0)
+                .toBytes();
     }
 
     public record Login(int uid, String nickname) {}
