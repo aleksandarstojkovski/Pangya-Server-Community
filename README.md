@@ -22,7 +22,7 @@ docker compose up --build
 
 Health endpoints: Auth `9077/health`, Login `9103`, Game `9202`, Ranking `9474`, Messenger `9302`.
 
-S3: Auth (7777), Login (10203) and Game (20202) speak the GB Season 9 cipher. Game login `0x02` → stub `0x44` + channel list `0x4D`; enter channel `0x04`; Practice room tipo **19** via `0x08` / leave `0x130`. Ranking/Messenger still bind health + historic TCP ports only. Full inventory and other room types land in S4.
+S3/S4: Auth (7777), Login (10203) and Game (20202) speak the GB Season 9 cipher. Game login dumps `principal()` + live warehouse/character from Postgres (seed Nuri + Air Knight). Practice tipo **19** and other room tipos stub `0x49`. Ranking/Messenger still bind health + historic TCP ports only.
 
 Dev login (Flyway V3): user `testuser` / password `testpass`.
 

@@ -8,8 +8,8 @@ Questo repo è **solo** la riscrittura Java.
 
 | Campo | Valore |
 |-------|--------|
-| Slice completata | **S0 + S1 + S2 + S3** verdi |
-| Prossima | **S4** Versus, Tourney, GP, inventario completo |
+| Slice completata | **S0 + S1 + S2 + S3** verdi; **S4** inventario live + stub tutte le room tipo |
+| Prossima | **S4** hole/shot Versus/Tourney + `Room.getInfo()` + card/achievement da DB |
 | Blocked | nessuno |
 | VM | Java 21.0.10, Docker 29.7.2, Compose v5.5.0, 4 CPU / 15 GiB |
 
@@ -143,7 +143,7 @@ Create-user flag C# (`CREATEUSER=1`) **non** portato in S2: account assente → 
 
 ## Inventario Practice (S3)
 
-C# `LoginTask.sendCompleteData` invia `pacote044` option 0 con `principal()` (12512 byte dopo opcode+option) + warehouse `0x73` + characters `0x70` + caddies `0x71` + equip `0x72` + mascot `0xE1` + `pacote04D` channel list. Java S3/S4-inizio: `principal()` con size C# (MemberInfoEx 263, UserInfo 239, trophy 78, UserEquip 116, map stats 10836, equipped 628) e liste inventario **vuote**. Caricamento warehouse/character da DB e il resto del dump (`0x102`…) restano S4. Practice (`RoomInfo.TIPO = 19`) entra con `0x08` e lascia con `0x130` senza `Room.getInfo().ToArray()`.
+C# `LoginTask.sendCompleteData` invia `pacote044` option 0 con `principal()` (12512 byte dopo opcode+option) + warehouse `0x73` + characters `0x70` + caddies `0x71` + equip `0x72` + mascot `0xE1` + `pacote04D` + coda (`0x102`…`0x1B1`). Java carica warehouse/character/caddie/`user_equip` da SQL (seed V4: Nuri `0x4000000`, Air Knight `0x10000000`, ball `0x14000000`). Achievement/card/mascot ancora liste vuote. Create-room accetta tutti i `RoomInfo.TIPO` 0–20 con stub `0x49` (serializzazione `Room.getInfo()` e hole/shot restano S4).
 
 ## S3 evidenza (2026-08-28)
 

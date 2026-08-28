@@ -3,6 +3,7 @@ plugins {
 }
 
 dependencies {
+    api(project(":core-protocol"))
     api(libs.slf4j.api)
     api(libs.bundles.jdbi)
     api(libs.bundles.flyway)

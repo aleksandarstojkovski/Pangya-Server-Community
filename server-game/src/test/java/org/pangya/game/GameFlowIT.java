@@ -54,18 +54,30 @@ class GameFlowIT {
                 int wireVersion = GamePackets.xorPacketVersion(2016110200);
                 client.sendPlain(GamePackets.clientLogin(
                         "testuser", 10001, loginKey, "852.00", wireVersion, gameKey));
-                List<byte[]> loginPkts = collect(client, 7, 5, TimeUnit.SECONDS);
-                assertEquals(7, loginPkts.size(), "expected 0x44 principal + inventory stubs + 0x4D");
+                List<byte[]> loginPkts = collect(client, 26, 8, TimeUnit.SECONDS);
+                assertEquals(26, loginPkts.size(), "expected principal + inventory + channel + sendCompleteData tail");
 
                 PacketReader ack = new PacketReader(loginPkts.get(0));
                 assertEquals(GamePackets.SERVER_LOGIN_ACK, ack.opcode());
                 assertEquals(GamePackets.ACK_LOGIN_OK, ack.u8());
                 assertEquals(GamePackets.PRINCIPAL_PAYLOAD_BYTES, ack.remaining());
 
-                assertEquals(0x73, new PacketReader(loginPkts.get(1)).opcode());
-                assertEquals(0x70, new PacketReader(loginPkts.get(2)).opcode());
+                PacketReader warehouse = new PacketReader(loginPkts.get(1));
+                assertEquals(0x73, warehouse.opcode());
+                assertEquals(2, warehouse.u16());
+                assertEquals(2, warehouse.u16());
+                assertEquals(2 * GamePackets.WAREHOUSE_ITEM_BYTES, warehouse.remaining());
+
+                PacketReader chars = new PacketReader(loginPkts.get(2));
+                assertEquals(0x70, chars.opcode());
+                assertEquals(1, chars.i16());
+                assertEquals(1, chars.i16());
+                assertEquals(GamePackets.CHARACTER_INFO_BYTES, chars.remaining());
+
                 assertEquals(0x71, new PacketReader(loginPkts.get(3)).opcode());
-                assertEquals(0x72, new PacketReader(loginPkts.get(4)).opcode());
+                PacketReader equip = new PacketReader(loginPkts.get(4));
+                assertEquals(0x72, equip.opcode());
+                assertEquals(GamePackets.USER_EQUIP_BYTES, equip.remaining());
                 assertEquals(0xE1, new PacketReader(loginPkts.get(5)).opcode());
 
                 PacketReader channels = new PacketReader(loginPkts.get(6));
@@ -86,8 +98,14 @@ class GameFlowIT {
                 assertEquals(GamePackets.TIPO_PRACTICE, room.u8());
 
                 client.sendPlain(GamePackets.clientLeavePractice());
-                List<byte[]> afterLeave = client.drainPlain(200);
-                assertTrue(afterLeave.isEmpty(), "leave practice is a no-payload ack in S3");
+                client.drainPlain(200);
+
+                client.sendPlain(GamePackets.clientCreateRoom(GamePackets.TIPO_STROKE, "VS", ""));
+                PacketReader stroke = new PacketReader(client.awaitPlain(5, TimeUnit.SECONDS));
+                assertEquals(GamePackets.SERVER_ROOM_ENTER_RESULT, stroke.opcode());
+                assertEquals(0, stroke.i16());
+                assertTrue(stroke.u16() >= 1);
+                assertEquals(GamePackets.TIPO_STROKE, stroke.u8());
             }
 
             assertTrue(awaitSessionCount(runtime, 0, 5, TimeUnit.SECONDS), "kill session must drop the player");
@@ -106,9 +124,10 @@ class GameFlowIT {
                         "852.00",
                         GamePackets.xorPacketVersion(2016110200),
                         gameKey2));
-                List<byte[]> again = collect(client, 7, 5, TimeUnit.SECONDS);
+                List<byte[]> again = collect(client, 26, 8, TimeUnit.SECONDS);
                 assertEquals(GamePackets.SERVER_LOGIN_ACK, new PacketReader(again.get(0)).opcode());
                 assertEquals(GamePackets.SERVER_CHANNEL_LIST, new PacketReader(again.get(6)).opcode());
+                assertEquals(0x1B1, new PacketReader(again.get(25)).opcode());
             }
         }
     }

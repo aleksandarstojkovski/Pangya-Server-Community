@@ -68,4 +68,22 @@ class GamePacketsTest {
         assertEquals(GamePackets.MEMBER_INFO_EX_BYTES, GamePackets.memberInfoEx(1, "a", "b", 0).length);
         assertEquals(GamePackets.USER_INFO_BYTES, GamePackets.userInfo(1).length);
     }
+
+    @Test
+    void warehouseAndCharacterSizesMatchCsharp() {
+        GamePackets.WarehouseItem w = new GamePackets.WarehouseItem();
+        w.id = 2;
+        w.typeid = GamePackets.TYPEID_AIR_KNIGHT;
+        assertEquals(GamePackets.WAREHOUSE_ITEM_BYTES, w.toArray().length);
+        GamePackets.CharacterInfo c = new GamePackets.CharacterInfo();
+        c.id = 1;
+        c.typeid = GamePackets.TYPEID_NURI;
+        assertEquals(GamePackets.CHARACTER_INFO_BYTES, c.toArray().length);
+        GamePackets.CaddieInfo cad = new GamePackets.CaddieInfo();
+        assertEquals(GamePackets.CADDIE_INFO_BYTES, cad.toArray().length);
+        assertEquals(GamePackets.USER_EQUIP_BYTES, new GamePackets.UserEquip().toArray().length);
+        List<byte[]> tail = GamePackets.loginDumpTail(10001, 0, 0, 1);
+        assertEquals(0x102, new PacketReader(tail.get(0)).opcode());
+        assertEquals(0x1B1, new PacketReader(tail.getLast()).opcode());
+    }
 }

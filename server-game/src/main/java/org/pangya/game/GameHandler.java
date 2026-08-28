@@ -1,5 +1,6 @@
 package org.pangya.game;
 
+import org.pangya.db.InventoryRepository;
 import org.pangya.db.LoginRepository;
 import org.pangya.network.AppConfig;
 import org.pangya.network.redis.SessionKeyStore;
@@ -18,8 +19,8 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * GB {@code GameServer.requestLogin} + channel enter + Practice {@code requestMakeRoom}
- * (tipo 19) / {@code requestLeavePractice}. Inventory dump ({@code principal()}) is S4.
+ * GB {@code GameServer.requestLogin} + channel enter + room create (all {@code RoomInfo.TIPO})
+ * / Practice leave. Live warehouse/character come from SQL; remaining match play is S4+.
  */
 public final class GameHandler {
 
@@ -27,6 +28,7 @@ public final class GameHandler {
 
     private final AppConfig config;
     private final LoginRepository repo;
+    private final InventoryRepository inventory;
     private final SessionKeyStore redis;
     private final SessionManager sessions;
     private final List<GamePackets.ChannelInfo> channels;
@@ -35,11 +37,13 @@ public final class GameHandler {
     public GameHandler(
             AppConfig config,
             LoginRepository repo,
+            InventoryRepository inventory,
             SessionKeyStore redis,
             SessionManager sessions,
             List<GamePackets.ChannelInfo> channels) {
         this.config = config;
         this.repo = repo;
+        this.inventory = inventory;
         this.redis = redis;
         this.sessions = sessions;
         this.channels = List.copyOf(channels);
@@ -194,12 +198,19 @@ public final class GameHandler {
                     (int) pi.uid,
                     pi.level,
                     config.property()));
-            session.send(GamePackets.emptyWarehouse());
-            session.send(GamePackets.emptyCharacters());
-            session.send(GamePackets.emptyCaddies());
-            session.send(GamePackets.emptyUserEquip());
+            var warehouse = inventory.warehouse(pi.uid);
+            var characters = inventory.characters(pi.uid);
+            var caddies = inventory.caddies(pi.uid);
+            session.send(GamePackets.warehouse(warehouse));
+            session.send(GamePackets.characters(characters));
+            session.send(GamePackets.caddies(caddies));
+            session.send(GamePackets.userEquip(inventory.userEquip(pi.uid)));
             session.send(GamePackets.emptyMascots());
             session.send(GamePackets.channelList(channels));
+            for (byte[] extra : GamePackets.loginDumpTail(
+                    (int) pi.uid, inventory.pang(pi.uid), inventory.cookie(pi.uid), pi.level)) {
+                session.send(extra);
+            }
             log.info("game login id={} uid={}", pi.id, pi.uid);
         } catch (RuntimeException e) {
             log.warn("game login failed: {}", e.toString());
@@ -240,21 +251,21 @@ public final class GameHandler {
             return;
         }
         GamePackets.CreateRoom room = GamePackets.readCreateRoom(reader);
-        if (room.tipo() != GamePackets.TIPO_PRACTICE) {
-            log.debug("create room tipo={} deferred to S4", room.tipo());
+        if (room.tipo() < 0 || room.tipo() > GamePackets.TIPO_MAX) {
             session.send(GamePackets.roomCreateFailed(GamePackets.CREATE_ROOM_FAILED));
             return;
         }
-        if (room.maxPlayer() > 1 || room.password() == null || room.password().isEmpty()) {
+        if (room.tipo() == GamePackets.TIPO_PRACTICE
+                && (room.maxPlayer() > 1 || room.password() == null || room.password().isEmpty())) {
             session.send(GamePackets.roomCreateFailed(GamePackets.CREATE_ROOM_FAILED));
             return;
         }
         int number = nextRoom.getAndIncrement() & 0xffff;
         PlayerContext pi = session.player();
         pi.roomNumber = number;
-        pi.inPractice = true;
-        session.send(GamePackets.practiceRoomEntered(number, GamePackets.TIPO_PRACTICE));
-        log.info("practice room {} uid={}", number, pi.uid);
+        pi.inPractice = room.tipo() == GamePackets.TIPO_PRACTICE;
+        session.send(GamePackets.practiceRoomEntered(number, room.tipo()));
+        log.info("room {} tipo={} uid={}", number, room.tipo(), pi.uid);
     }
 
     private void leavePractice(Session session) {

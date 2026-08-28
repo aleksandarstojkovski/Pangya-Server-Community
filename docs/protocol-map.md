@@ -84,7 +84,7 @@ Room types (`RoomInfo.TIPO` in `pangya_game_st.cs`): STROKE=0, MATCH=1, LOUNGE=2
 
 Game login CLIENT `0x02` (`GameServer.ReadLoginPacket`): `PStr id`, `uint32 uid`, `uint32 ntreevUID`, `uint16 command`, `PStr authKeyLogin`, `PStr clientVersion`, `uint32 packetVersion` (XOR-encrypted with GUID `{782AE110-2EEF-4c61-B030-A53F17634F7D}`), `uint32 isPcBang`, `PStr authKeyGame`.
 
-Fail `SendLoginAck` writes **uint32** ack. Success `pacote044` option 0 + `principal()` (12512 bytes after opcode+option). Then empty `0x73` warehouse, `0x70` characters, `0x71` caddies, `0x72` equip (116 bytes), `0xE1` mascots, then `0x4D` channel list. Live warehouse/character rows from DB are still S4.
+Fail `SendLoginAck` writes **uint32** ack. Success `pacote044` option 0 + `principal()` (12512 bytes after opcode+option). Then warehouse `0x73` (196-byte items from `pangya_item_warehouse`), characters `0x70` (513-byte `CharacterInfo` from `pangya_character_information`), caddies `0x71`, equip `0x72` (116 bytes from `pangya_user_equip`), mascots `0xE1`, `0x4D` channel list, then `sendCompleteData` tail (`0x102`, `0x131` Treasure Hunter 21 maps, empty `0x21D`/`0x21E`, `0x144`…`0x1B1`). Live card/achievement rows still empty.
 
 `ChannelInfo.ToArray()` is 77 bytes: `WriteStr(name,64)`, int16 max_user, int16 curr_user, byte id, uint32 flag, uint32 flag2. Channel ids are 0-based from YAML order (C# INI `CHANNEL1` → id 0).
 

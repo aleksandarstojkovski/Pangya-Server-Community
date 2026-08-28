@@ -4,6 +4,7 @@ import org.pangya.protocol.packet.PacketIo;
 import org.pangya.protocol.packet.PacketReader;
 import org.pangya.protocol.packet.PacketWriter;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -40,8 +41,27 @@ public final class GamePackets {
     /** C# {@code GameServer.Version_Decrypt} GUID. XOR is involutive. */
     private static final String PACKET_VER_KEY = "{782AE110-2EEF-4c61-B030-A53F17634F7D}";
 
-    /** C# {@code RoomInfo.TIPO.PRACTICE}. */
+    /** C# {@code WarehouseItem.ToArray} Debug.Assert. */
+    public static final int WAREHOUSE_ITEM_BYTES = 196;
+    /** C# {@code CharacterInfo} struct size. */
+    public static final int CHARACTER_INFO_BYTES = 513;
+    /** C# {@code CaddieInfo.ToArray}. */
+    public static final int CADDIE_INFO_BYTES = 25;
+    public static final int MS_NUM_MAPS = 21;
+
+    public static final int TIPO_STROKE = 0;
+    public static final int TIPO_MATCH = 1;
+    public static final int TIPO_TOURNEY = 4;
     public static final int TIPO_PRACTICE = 19;
+    public static final int TIPO_GRAND_PRIX = 20;
+    public static final int TIPO_MAX = 20;
+
+    /** C# {@code AIR_KNIGHT_SET} / IFF CLUBSET << 26. */
+    public static final int TYPEID_AIR_KNIGHT = 0x10000000;
+    /** C# {@code CHARACTER << 26} Nuri. */
+    public static final int TYPEID_NURI = 0x4000000;
+    /** IFF BALL << 26. */
+    public static final int TYPEID_DEFAULT_BALL = 0x14000000;
 
     private GamePackets() {}
 
@@ -121,6 +141,259 @@ public final class GamePackets {
     /** C# {@code pacote0E1} + {@code MascotManager.Build} count 0. */
     public static byte[] emptyMascots() {
         return new PacketWriter().opcode(0xE1).u16(0).toBytes();
+    }
+
+    public static byte[] warehouse(List<WarehouseItem> items) {
+        PacketWriter w = new PacketWriter().opcode(0x73).u16(items.size()).u16(items.size());
+        for (WarehouseItem item : items) {
+            w.bytes(item.toArray());
+        }
+        return w.toBytes();
+    }
+
+    public static byte[] characters(List<CharacterInfo> chars) {
+        PacketWriter w = new PacketWriter().opcode(0x70).i16(chars.size()).i16(chars.size());
+        for (CharacterInfo c : chars) {
+            w.bytes(c.toArray());
+        }
+        return w.toBytes();
+    }
+
+    public static byte[] caddies(List<CaddieInfo> caddies) {
+        PacketWriter w = new PacketWriter().opcode(0x71).i16(caddies.size()).i16(caddies.size());
+        for (CaddieInfo c : caddies) {
+            w.bytes(c.toArray());
+        }
+        return w.toBytes();
+    }
+
+    public static byte[] userEquip(UserEquip equip) {
+        return new PacketWriter().opcode(0x72).bytes(equip.toArray()).toBytes();
+    }
+
+    /** Remaining C# {@code LoginTask.sendCompleteData} packets after the channel list. */
+    public static List<byte[]> loginDumpTail(int uid, long pang, long cookie, int level) {
+        List<byte[]> out = new ArrayList<>();
+        out.add(new PacketWriter().opcode(0x102).i32(0).i32(0).u64(pang).u64(cookie).toBytes());
+        PacketWriter th = new PacketWriter().opcode(0x131).u8(1).u8(MS_NUM_MAPS);
+        for (int i = 0; i < MS_NUM_MAPS; i++) {
+            th.u8(i).i32(1000);
+        }
+        out.add(th.toBytes());
+        out.add(new PacketWriter().opcode(0x21D).u32(0).u32(0).u32(0).toBytes());
+        out.add(new PacketWriter().opcode(0x21E).u32(0).u32(0).u32(0).toBytes());
+        out.add(new PacketWriter().opcode(0x144).u8(0).toBytes());
+        out.add(new PacketWriter().opcode(0x138).i32(0).u16(0).toBytes());
+        out.add(new PacketWriter().opcode(0x136).toBytes());
+        out.add(new PacketWriter().opcode(0x137).u16(0).toBytes());
+        out.add(new PacketWriter().opcode(0x13F).u8(0).toBytes());
+        out.add(new PacketWriter().opcode(0x181).i32(0).u8(0).toBytes());
+        out.add(new PacketWriter().opcode(0x96).u64(cookie).toBytes());
+        out.add(new PacketWriter().opcode(0x169).u8(5).zero(TROPHY_BYTES).toBytes());
+        out.add(new PacketWriter().opcode(0x169).u8(0).zero(TROPHY_BYTES).toBytes());
+        out.add(new PacketWriter().opcode(0xB4).i16(5).u8(0).toBytes());
+        out.add(new PacketWriter().opcode(0xB4).i16(0).u8(0).toBytes());
+        out.add(new PacketWriter().opcode(0x158).u8(0).u32(uid).bytes(userInfo(level)).toBytes());
+        out.add(new PacketWriter().opcode(0x25D).u8(5).u32(0).u32(0).toBytes());
+        out.add(new PacketWriter().opcode(0x25D).u8(0).u32(0).u32(0).toBytes());
+        out.add(new PacketWriter()
+                .opcode(0x1B1)
+                .u64(0x190132DC55L)
+                .u64(0x2211000000L)
+                .zero(13)
+                .u32(0x1100)
+                .toBytes());
+        return out;
+    }
+
+    public static byte[] clientCreateRoom(int tipo, String name, String password) {
+        return new PacketWriter()
+                .opcode(CLIENT_REQUEST_CREATE_ROOM)
+                .u8(0)
+                .u32(0)
+                .u32(0)
+                .u8(tipo == TIPO_PRACTICE ? 1 : 4)
+                .u8(tipo)
+                .u8(18)
+                .u8(0)
+                .u8(0)
+                .u32(0)
+                .pstr(name)
+                .pstr(password)
+                .u32(0)
+                .toBytes();
+    }
+
+    public static final class WarehouseItem {
+        public int id;
+        public int typeid;
+        public short[] c = new short[5];
+        public int purchase;
+        public int flag;
+        public long applyDate;
+        public long endDate;
+        public int type;
+        public short[] workshopC = new short[5];
+
+        public byte[] toArray() {
+            PacketWriter w = new PacketWriter();
+            w.i32(id);
+            w.u32(typeid);
+            w.i32(0);
+            for (short v : c) {
+                w.i16(v);
+            }
+            w.u8(purchase);
+            w.u8(flag);
+            w.i64(applyDate);
+            w.i64(endDate);
+            w.u8(type);
+            w.zero(40);
+            w.u8(0);
+            w.zero(9);
+            w.u8(0);
+            w.i16(0);
+            w.zero(22);
+            w.u32(0);
+            w.zero(16 + 16 + 16);
+            w.i16(0);
+            for (short v : workshopC) {
+                w.i16(v);
+            }
+            w.u32(0).u32(0).i32(0).i32(0);
+            byte[] body = w.toBytes();
+            if (body.length != WAREHOUSE_ITEM_BYTES) {
+                throw new IllegalStateException("WarehouseItem size " + body.length);
+            }
+            return body;
+        }
+    }
+
+    public static final class CharacterInfo {
+        public int id;
+        public int typeid;
+        public int defaultHair;
+        public int defaultShirts;
+        public int giftFlag;
+        public int purchase;
+        public int[] partsTypeid = new int[24];
+        public int[] partsId = new int[24];
+        public int[] auxparts = new int[5];
+        public int[] cutIn = new int[4];
+        public byte[] pcl = new byte[5];
+        public int mastery;
+        public int[] cardCharacter = new int[4];
+        public int[] cardCaddie = new int[4];
+        public int[] cardNpc = new int[4];
+
+        public byte[] toArray() {
+            PacketWriter w = new PacketWriter();
+            w.u32(typeid);
+            w.i32(id);
+            w.u8(defaultHair);
+            w.u8(defaultShirts);
+            w.u8(giftFlag);
+            w.u8(purchase);
+            for (int v : partsTypeid) {
+                w.u32(v);
+            }
+            for (int v : partsId) {
+                w.u32(v);
+            }
+            w.zero(216);
+            for (int v : auxparts) {
+                w.u32(v);
+            }
+            for (int v : cutIn) {
+                w.u32(v);
+            }
+            w.bytes(pcl);
+            w.u32(mastery);
+            for (int v : cardCharacter) {
+                w.u32(v);
+            }
+            for (int v : cardCaddie) {
+                w.u32(v);
+            }
+            for (int v : cardNpc) {
+                w.u32(v);
+            }
+            byte[] body = w.toBytes();
+            if (body.length != CHARACTER_INFO_BYTES) {
+                throw new IllegalStateException("CharacterInfo size " + body.length);
+            }
+            return body;
+        }
+    }
+
+    public static final class CaddieInfo {
+        public int id;
+        public int typeid;
+        public int partsTypeid;
+        public int level;
+        public int exp;
+        public int rentFlag;
+        public int endDateUnix;
+        public int partsEndDateUnix;
+        public int purchase;
+        public int checkEnd;
+
+        public byte[] toArray() {
+            PacketWriter w = new PacketWriter();
+            w.i32(id);
+            w.u32(typeid);
+            w.u32(partsTypeid);
+            w.u8(level);
+            w.u32(exp);
+            w.u8(rentFlag);
+            w.u16(endDateUnix);
+            w.i16(partsEndDateUnix);
+            w.u8(purchase);
+            w.i16(checkEnd);
+            byte[] body = w.toBytes();
+            if (body.length != CADDIE_INFO_BYTES) {
+                throw new IllegalStateException("CaddieInfo size " + body.length);
+            }
+            return body;
+        }
+    }
+
+    public static final class UserEquip {
+        public int caddieId;
+        public int characterId;
+        public int clubsetId;
+        public int ballTypeid;
+        public int[] itemSlot = new int[10];
+        public int[] skinId = new int[6];
+        public int[] skinTypeid = new int[6];
+        public int mascotId;
+        public int[] poster = new int[2];
+
+        public byte[] toArray() {
+            PacketWriter w = new PacketWriter();
+            w.i32(caddieId);
+            w.i32(characterId);
+            w.i32(clubsetId);
+            w.u32(ballTypeid);
+            for (int v : itemSlot) {
+                w.u32(v);
+            }
+            for (int v : skinId) {
+                w.u32(v);
+            }
+            for (int v : skinTypeid) {
+                w.u32(v);
+            }
+            w.i32(mascotId);
+            for (int v : poster) {
+                w.u32(v);
+            }
+            byte[] body = w.toBytes();
+            if (body.length != USER_EQUIP_BYTES) {
+                throw new IllegalStateException("UserEquip size " + body.length);
+            }
+            return body;
+        }
     }
 
     static byte[] memberInfoEx(int oid, String id, String nick, int capability) {

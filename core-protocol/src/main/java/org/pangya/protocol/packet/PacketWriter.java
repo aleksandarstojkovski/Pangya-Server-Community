@@ -50,6 +50,10 @@ public final class PacketWriter {
         return this;
     }
 
+    public PacketWriter i64(long value) {
+        return u64(value);
+    }
+
     /** C# {@code WritePStr}/{@code WriteString(string)}: ushort length + Shift_JIS bytes. */
     public PacketWriter pstr(String value) {
         byte[] encoded = PacketIo.pstr(value);

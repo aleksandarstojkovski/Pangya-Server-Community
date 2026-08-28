@@ -2,6 +2,8 @@ package org.pangya.game;
 
 import com.zaxxer.hikari.HikariDataSource;
 import org.pangya.db.DatabaseSupport;
+import org.pangya.db.InventoryRepository;
+import org.pangya.db.JdbiInventoryRepository;
 import org.pangya.db.JdbiLoginRepository;
 import org.pangya.db.LoginRepository;
 import org.pangya.network.AppConfig;
@@ -36,9 +38,10 @@ public final class GameRuntime implements AutoCloseable {
         this.config = config;
         this.dataSource = DatabaseSupport.dataSource(config.jdbcUrl(), config.dbUser(), config.dbPassword());
         LoginRepository repo = new JdbiLoginRepository(DatabaseSupport.jdbi(dataSource));
+        InventoryRepository inventory = new JdbiInventoryRepository(DatabaseSupport.jdbi(dataSource));
         this.redis = new SessionKeyStore(config.redisUri());
         this.sessions = new SessionManager(new IpDdosFilter());
-        GameHandler handler = new GameHandler(config, repo, redis, sessions, GameHandler.loadChannels(config));
+        GameHandler handler = new GameHandler(config, repo, inventory, redis, sessions, GameHandler.loadChannels(config));
         this.netty = new PangyaNettyServer(ServerKind.GAME, sessions, handler::onPacket);
         this.netty.bind(config.port());
         this.health = new HealthHttp(config.healthPort(), config.serverName());
