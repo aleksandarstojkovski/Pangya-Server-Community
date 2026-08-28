@@ -158,6 +158,27 @@ class InventoryRepositoryTest {
             repo.deleteCardByTypeid(10001, card);
             assertTrue(repo.cards(10001).isEmpty());
             repo.setPangCookie(10001, 100000, 0);
+            repo.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_SHOP_PANG_ITEM);
+            var stockMastery = repo.buyShopItem(
+                    10001, GamePackets.TYPEID_SHOP_PANG_ITEM, 1, GamePackets.SHOP_PANG_PRICE, 0);
+            assertEquals(0, stockMastery.code());
+            var nuri = repo.characters(10001).getFirst();
+            var masteryMiss = repo.expandCharacterMastery(10001, 0, 0, 1);
+            assertEquals(GamePackets.CHAR_MASTERY_ERR_CHAR, masteryMiss.code());
+            var mastery = repo.expandCharacterMastery(10001, nuri.typeid, nuri.id, 1);
+            assertEquals(0, mastery.code());
+            assertEquals(1, mastery.mastery());
+            assertEquals(2, mastery.awards().size());
+            assertEquals(GamePackets.PAPEL_AWARD_TYPE, mastery.awards().getFirst().type());
+            assertEquals(-1, mastery.awards().getFirst().qntd());
+            assertEquals(GamePackets.CHAR_MASTERY_AWARD_TYPE, mastery.awards().get(1).type());
+            assertEquals(1, mastery.awards().get(1).extra());
+            assertEquals(1, repo.characters(10001).getFirst().mastery);
+            nuri.mastery = 0;
+            repo.updateCharacterParts(10001, nuri);
+            assertEquals(0, repo.characters(10001).getFirst().mastery);
+            repo.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_SHOP_PANG_ITEM);
+            repo.setPangCookie(10001, 100000, 0);
         }
     }
 

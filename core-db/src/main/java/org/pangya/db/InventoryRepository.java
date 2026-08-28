@@ -95,6 +95,12 @@ public interface InventoryRepository {
      */
     LoloComposeResult loloCompose(long uid, long clientPang, int t0, int t1, int t2);
 
+    /**
+     * C# {@code requestCharacterMasteryExpand}: SQL {@code iff_character_mastery}
+     * stand-in. {@code level} is {@code PlayerInfo.level}.
+     */
+    CharMasteryResult expandCharacterMastery(long uid, int typeid, int id, int level);
+
     record ShopItem(int typeid, int pangPrice, int cookiePrice, boolean canOverlap) {}
 
     record ShopBuyResult(
@@ -170,6 +176,13 @@ public interface InventoryRepository {
 
         public static LoloComposeResult fail(int code) {
             return new LoloComposeResult(code, 0, 0, List.of(), 0, 0);
+        }
+    }
+
+    record CharMasteryResult(int code, List<GamePackets.PapelAward> awards, int mastery) {
+
+        public static CharMasteryResult fail(int code) {
+            return new CharMasteryResult(code, List.of(), 0);
         }
     }
 }

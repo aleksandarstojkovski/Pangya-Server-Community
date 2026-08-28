@@ -1438,6 +1438,21 @@ class GamePacketsTest {
         assertEquals(1, awards.u32());
         assertEquals(GamePackets.PAPEL_AWARD_TYPE, awards.u8());
         assertEquals(GamePackets.TYPEID_SHOP_PANG_ITEM, awards.u32());
+        GamePackets.PapelAward masteryAward = new GamePackets.PapelAward(
+                GamePackets.CHAR_MASTERY_AWARD_TYPE, GamePackets.TYPEID_NURI, 1, 0, 0, 0, 0, 1);
+        PacketReader masteryAwards = new PacketReader(GamePackets.papelAwards(1, List.of(masteryAward)));
+        assertEquals(GamePackets.SERVER_DAILY_QUEST_STAMP, masteryAwards.opcode());
+        masteryAwards.u32();
+        masteryAwards.u32();
+        assertEquals(GamePackets.CHAR_MASTERY_AWARD_TYPE, masteryAwards.u8());
+        assertEquals(GamePackets.TYPEID_NURI, masteryAwards.u32());
+        masteryAwards.i32();
+        masteryAwards.u32();
+        masteryAwards.i32();
+        masteryAwards.i32();
+        masteryAwards.i32();
+        masteryAwards.readBytes(GamePackets.PAPEL_AWARD_PAD);
+        assertEquals(1, masteryAwards.u32());
         PacketReader remain = new PacketReader(GamePackets.papelRemain(
                 GamePackets.PAPEL_UNLIMITED_REMAIN, GamePackets.PAPEL_UNLIMITED_FLAG));
         assertEquals(GamePackets.SERVER_PAPEL_REMAIN, remain.opcode());
@@ -1469,6 +1484,8 @@ class GamePacketsTest {
         assertEquals(GamePackets.SERVER_LOLO_TIPO, 0x229);
         assertEquals(GamePackets.GM_CMD_VISIBLE, 3);
         assertEquals(GamePackets.CAPABILITY_GM, 4);
+        assertEquals(GamePackets.CHAR_MASTERY_AWARD_TYPE, 0xCD);
+        assertEquals(GamePackets.TYPEID_NURI, 0x4000000);
         assertEquals(GamePackets.SERVER_BUY_ACK, 0x68);
         assertEquals(GamePackets.CREATE_ROOM_FAILED, 0x07);
         assertEquals(GamePackets.SERVER_LAST5, 0x10E);

@@ -192,7 +192,7 @@ C#: `GameServer/PangyaEnums/PacketGame.cs` → Java `org.pangya.protocol.game.Ga
 | C | `CLIENT_EXIT_ROOM_GRAND_PRIX` | `0x17A` | not-in-room silent |
 | C | `CLIENT_ENTER_MY_ROOM` | `0xB7` | channel → `0x168` `PlayerRoomInfoEx` 861 then `0x12D` u32 1 + u16 poster count (seed 0); catch silent; opposite CLIENT workshop transform confirm |
 | C | `CLIENT_PLAY_BIG_PAPEL_SHOP` | `0x186` | 10 balls, `0xC8` remaining+0 then `0x216`/`0xFB`/`0x26C`; funds `shopSys(0x5900102)` |
-| C | `CLIENT_CHAR_MASTERY_EXPAND` | `0x187` | typeid/id 0 → `0x26E` `shopSys(0x5200651)`; truncated → full `0x5200650` |
+| C | `CLIENT_CHAR_MASTERY_EXPAND` | `0x187` | typeid/id 0 → `0x26E` `shopSys(0x5200651)`; truncated → full `0x5200650`; success `0x216` awards (consume + type `0xCD` mastery) then `0x26E` u32 0 |
 | C | `CLIENT_CHAR_STATS_UP` | `0x188` | missing char → `0x26F` `shopSys(0x5200501)`; truncated `ToRead` → full `0x5200500` |
 | C | `CLIENT_CHAR_STATS_DOWN` | `0x189` | missing char → `0x270` `shopSys(0x5200551)`; truncated → full `0x5200550` |
 | C | `CLIENT_CHAR_CARD_EQUIP` | `0x18A` | IFF miss (C# NRE on `card==null && card.ID`) → `0x271` `shopSys(0x5200757)` intended; truncated → full `0x5200750` |
@@ -266,7 +266,7 @@ C#: `GameServer/PangyaEnums/PacketGame.cs` → Java `org.pangya.protocol.game.Ga
 | S | `SERVER_MY_ROOM_CHAR` | `0x168` | `PlayerRoomInfoEx` 861; opposite CLIENT workshop transform confirm |
 | S | `SERVER_MY_ROOM_POSTERS` | `0x12D` | u32 option + u16 count; opposite CLIENT GZ initial |
 | S | `SERVER_BIG_PAPEL` | `0x26C` | u32 error |
-| S | `SERVER_CHAR_MASTERY` | `0x26E` | u32 error |
+| S | `SERVER_CHAR_MASTERY` | `0x26E` | fail u32 error; success u32 0 |
 | S | `SERVER_CHAR_STATS_UP` | `0x26F` | u32 error |
 | S | `SERVER_CHAR_STATS_DOWN` | `0x270` | u32 error |
 | S | `SERVER_CHAR_CARD_EQUIP` | `0x271` | u32 error |

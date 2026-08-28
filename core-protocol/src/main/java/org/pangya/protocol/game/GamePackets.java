@@ -1381,6 +1381,24 @@ public final class GamePackets {
     public static final int CHAR_MASTERY_ERR_CHAR = 0x5200651;
     /** C# character mastery catch else. */
     public static final int CHAR_MASTERY_ERR_DEFAULT = 0x5200650;
+    /** C# character mastery empty IFF list CHANNEL sys {@code 0x5200652}. */
+    public static final int CHAR_MASTERY_ERR_IFF = 0x5200652;
+    /** C# character mastery already max CHANNEL sys {@code 0x5200653}. */
+    public static final int CHAR_MASTERY_ERR_MAX = 0x5200653;
+    /** C# character mastery seq mismatch CHANNEL sys {@code 0x5200654}. */
+    public static final int CHAR_MASTERY_ERR_SEQ = 0x5200654;
+    /** C# character mastery level CHANNEL sys {@code 0x5200655}. */
+    public static final int CHAR_MASTERY_ERR_LEVEL = 0x5200655;
+    /** C# character mastery unknown condition CHANNEL sys {@code 0x5200656}. */
+    public static final int CHAR_MASTERY_ERR_COND = 0x5200656;
+    /** C# character mastery missing warehouse item CHANNEL sys {@code 0x5200657}. */
+    public static final int CHAR_MASTERY_ERR_ITEM = 0x5200657;
+    /** C# character mastery item qntd CHANNEL sys {@code 0x5200658}. */
+    public static final int CHAR_MASTERY_ERR_QNTD = 0x5200658;
+    /** C# {@code CharacterMastery.seq} for the first expand. */
+    public static final int CHAR_MASTERY_SEQ = 1;
+    /** C# {@code stItem.type} {@code 0xCD} character mastery row on {@code 0x216}. */
+    public static final int CHAR_MASTERY_AWARD_TYPE = 0xCD;
     /** C# character stats-up missing character CHANNEL sys. */
     public static final int CHAR_STATS_UP_ERR_CHAR = 0x5200501;
     /** C# character stats-up catch else. */
@@ -2688,6 +2706,9 @@ public final class GamePackets {
                     .i32(award.qntdDep())
                     .i32(award.qntd())
                     .zero(PAPEL_AWARD_PAD);
+            if (award.type() == CHAR_MASTERY_AWARD_TYPE) {
+                w.u32(award.extra());
+            }
         }
         return w.toBytes();
     }
@@ -2712,7 +2733,11 @@ public final class GamePackets {
 
     public record PapelBall(int color, int typeid, int id, int qntd, int tipo) {}
 
-    public record PapelAward(int type, int typeid, int id, int flagTime, int qntdAnt, int qntdDep, int qntd) {}
+    public record PapelAward(int type, int typeid, int id, int flagTime, int qntdAnt, int qntdDep, int qntd, int extra) {
+        public PapelAward(int type, int typeid, int id, int flagTime, int qntdAnt, int qntdDep, int qntd) {
+            this(type, typeid, id, flagTime, qntdAnt, qntdDep, qntd, 0);
+        }
+    }
 
     /**
      * C# {@code pacote102}: i32 normal + i32 partial + u64 pang + u64 cookie.

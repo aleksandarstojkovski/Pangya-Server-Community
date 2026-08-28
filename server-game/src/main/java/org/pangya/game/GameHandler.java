@@ -4088,8 +4088,9 @@ public final class GameHandler {
     }
 
     /**
-     * C# {@code requestCharacterMasteryExpand}: missing character → {@code 0x26E}
-     * {@code shopSys(0x5200651)}.
+     * C# {@code requestCharacterMasteryExpand}: truncated ToRead → full
+     * {@code 0x5200650}; CHANNEL codes as {@code shopSys}; success {@code 0x216}
+     * then {@code 0x26E} u32 0.
      */
     private void characterMasteryExpand(Session session, PacketReader reader) {
         if (!inChannel(session)) {
@@ -4100,11 +4101,25 @@ public final class GameHandler {
                     GamePackets.SERVER_CHAR_MASTERY, GamePackets.CHAR_MASTERY_ERR_DEFAULT));
             return;
         }
-        reader.u32();
-        reader.i32();
-        session.send(GamePackets.sysAck(
-                GamePackets.SERVER_CHAR_MASTERY,
-                GamePackets.shopSys(GamePackets.CHAR_MASTERY_ERR_CHAR)));
+        int typeid = reader.u32();
+        int id = reader.i32();
+        InventoryRepository.CharMasteryResult result;
+        try {
+            result = inventory.expandCharacterMastery(
+                    session.player().uid, typeid, id, session.player().level);
+        } catch (RuntimeException e) {
+            log.warn("char mastery uid={} failed: {}", session.player().uid, e.toString());
+            session.send(GamePackets.sysAck(
+                    GamePackets.SERVER_CHAR_MASTERY, GamePackets.CHAR_MASTERY_ERR_DEFAULT));
+            return;
+        }
+        if (result.code() != 0) {
+            session.send(GamePackets.sysAck(
+                    GamePackets.SERVER_CHAR_MASTERY, GamePackets.shopSys(result.code())));
+            return;
+        }
+        session.send(GamePackets.papelAwards(GamePackets.unixNow(), result.awards()));
+        session.send(GamePackets.sysAck(GamePackets.SERVER_CHAR_MASTERY, 0));
     }
 
     /**

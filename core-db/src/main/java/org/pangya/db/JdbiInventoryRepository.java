@@ -1302,4 +1302,119 @@ public final class JdbiInventoryRepository implements InventoryRepository {
             return new LoloComposeResult(0, pangAfter, cost, awards, drawnTipo, drawnTypeid);
         });
     }
+
+    @Override
+    public CharMasteryResult expandCharacterMastery(long uid, int typeid, int id, int level) {
+        return jdbi.inTransaction(h -> {
+            Integer current = h.createQuery("""
+                            SELECT "Mastery" FROM pangya.pangya_character_information
+                             WHERE "UID" = :uid AND item_id = :id AND typeid = :typeid
+                            """)
+                    .bind("uid", uid)
+                    .bind("id", id)
+                    .bind("typeid", typeid)
+                    .mapTo(Integer.class)
+                    .findOne()
+                    .orElse(null);
+            if (current == null) {
+                return CharMasteryResult.fail(GamePackets.CHAR_MASTERY_ERR_CHAR);
+            }
+            int count = h.createQuery("""
+                            SELECT COUNT(*) FROM pangya.iff_character_mastery WHERE typeid = :typeid
+                            """)
+                    .bind("typeid", typeid)
+                    .mapTo(Integer.class)
+                    .one();
+            if (count == 0) {
+                return CharMasteryResult.fail(GamePackets.CHAR_MASTERY_ERR_IFF);
+            }
+            if (current + 1 > count) {
+                return CharMasteryResult.fail(GamePackets.CHAR_MASTERY_ERR_MAX);
+            }
+            int seq = current + 1;
+            int[] row = h.createQuery("""
+                            SELECT seq, level, cond0_typeid, cond0_qntd, cond1_typeid, cond1_qntd,
+                                   cond2_typeid, cond2_qntd, cond3_typeid, cond3_qntd,
+                                   cond4_typeid, cond4_qntd
+                              FROM pangya.iff_character_mastery
+                             WHERE typeid = :typeid AND seq = :seq
+                            """)
+                    .bind("typeid", typeid)
+                    .bind("seq", seq)
+                    .map((rs, ctx) -> new int[] {
+                            rs.getInt("seq"),
+                            rs.getInt("level"),
+                            rs.getInt("cond0_typeid"), rs.getInt("cond0_qntd"),
+                            rs.getInt("cond1_typeid"), rs.getInt("cond1_qntd"),
+                            rs.getInt("cond2_typeid"), rs.getInt("cond2_qntd"),
+                            rs.getInt("cond3_typeid"), rs.getInt("cond3_qntd"),
+                            rs.getInt("cond4_typeid"), rs.getInt("cond4_qntd")
+                    })
+                    .findOne()
+                    .orElse(null);
+            if (row == null || row[0] != seq) {
+                return CharMasteryResult.fail(GamePackets.CHAR_MASTERY_ERR_SEQ);
+            }
+            if (row[1] > level) {
+                return CharMasteryResult.fail(GamePackets.CHAR_MASTERY_ERR_LEVEL);
+            }
+            List<int[]> consume = new ArrayList<>();
+            for (int i = 0; i < 5; i++) {
+                int condTypeid = row[2 + i * 2];
+                int condQntd = row[3 + i * 2];
+                if (condTypeid <= 0 || condQntd <= 0) {
+                    continue;
+                }
+                if (GamePackets.itemGroupIdentify(condTypeid) != GamePackets.IFF_GROUP_ITEM) {
+                    return CharMasteryResult.fail(GamePackets.CHAR_MASTERY_ERR_COND);
+                }
+                int[] owned = h.createQuery("""
+                                SELECT item_id, "C0" FROM pangya.pangya_item_warehouse
+                                 WHERE "UID" = :uid AND typeid = :typeid AND valid = 1
+                                 ORDER BY item_id
+                                 LIMIT 1
+                                """)
+                        .bind("uid", uid)
+                        .bind("typeid", condTypeid)
+                        .map((rs, ctx) -> new int[] {rs.getInt("item_id"), rs.getInt("C0") & 0xffff})
+                        .findOne()
+                        .orElse(null);
+                if (owned == null) {
+                    return CharMasteryResult.fail(GamePackets.CHAR_MASTERY_ERR_ITEM);
+                }
+                if (owned[1] < condQntd) {
+                    return CharMasteryResult.fail(GamePackets.CHAR_MASTERY_ERR_QNTD);
+                }
+                consume.add(new int[] {owned[0], condTypeid, owned[1], condQntd});
+            }
+            List<GamePackets.PapelAward> awards = new ArrayList<>();
+            for (int[] item : consume) {
+                int ant = item[2];
+                int need = item[3];
+                int dep = ant - need;
+                h.createUpdate("""
+                                UPDATE pangya.pangya_item_warehouse
+                                   SET "C0" = :c0
+                                 WHERE item_id = :id
+                                """)
+                        .bind("c0", dep)
+                        .bind("id", item[0])
+                        .execute();
+                awards.add(new GamePackets.PapelAward(
+                        GamePackets.PAPEL_AWARD_TYPE, item[1], item[0], 0, ant, dep, -need));
+            }
+            int mastery = current + 1;
+            h.createUpdate("""
+                            UPDATE pangya.pangya_character_information
+                               SET "Mastery" = :mastery
+                             WHERE item_id = :id
+                            """)
+                    .bind("mastery", mastery)
+                    .bind("id", id)
+                    .execute();
+            awards.add(new GamePackets.PapelAward(
+                    GamePackets.CHAR_MASTERY_AWARD_TYPE, typeid, id, 0, 0, 0, 0, mastery));
+            return new CharMasteryResult(0, awards, mastery);
+        });
+    }
 }
