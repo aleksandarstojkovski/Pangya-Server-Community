@@ -345,9 +345,15 @@ public final class GamePackets {
     public static final int SERVER_RING_PAWS_SET = 0x281;
     /** C# {@code leaveRoomGrandPrix} {@code 0x254}: u32 0 + i16 -1. */
     public static final int SERVER_GP_EXIT_ROOM = 0x254;
-    /** C# attendance check catch {@code 0x248} u32 {@code ~0}. */
+    /**
+     * C# {@code pacote248} attendance check. Catch u32 {@code ~0}; success
+     * i32 0 + {@code AttendanceRewardInfo.ToArray()}.
+     */
     public static final int SERVER_ATTENDANCE = 0x248;
-    /** C# attendance login-count catch {@code 0x249} u32 {@code ~0}. */
+    /**
+     * C# {@code pacote249} attendance login-count. Catch u32 {@code ~0};
+     * success i32 0 + {@code AttendanceRewardInfo.ToArray()}.
+     */
     public static final int SERVER_ATTENDANCE_LOGIN = 0x249;
     /** C# Grand Prix lobby {@code 0x250}. */
     public static final int SERVER_GP_LOBBY = 0x250;
@@ -822,12 +828,13 @@ public final class GamePackets {
     /**
      * C# {@code packet16E} attendance check. Same numeric as
      * {@link #SERVER_LOCKER_ADD}, opposite direction. Empty catalog →
-     * {@code 0x248} u32 {@code ~0}.
+     * {@code 0x248} u32 {@code ~0}. Success is {@link #attendanceOk}.
      */
     public static final int CLIENT_ATTENDANCE = 0x16E;
     /**
      * C# {@code packet16F} attendance login-count. Same numeric as
-     * {@link #SERVER_LOCKER_REMOVE}, opposite direction.
+     * {@link #SERVER_LOCKER_REMOVE}, opposite direction. Empty catalog →
+     * {@code 0x249} u32 {@code ~0}. Success is {@link #attendanceOk}.
      */
     public static final int CLIENT_ATTENDANCE_LOGIN = 0x16F;
     /**
@@ -1701,6 +1708,16 @@ public final class GamePackets {
      * sys&amp;0xFFFF (0) and never equals {@code ATTENDANCE_REWARD_SYSTEM}.
      */
     public static final int ATTENDANCE_FAIL = 0xffff_ffff;
+    /** C# {@code pacote248}/{@code pacote249} success {@code WriteInt32(0)}. */
+    public static final int ATTENDANCE_OK = 0;
+    /** C# {@code ari.login} after {@code passedOneDay}. */
+    public static final int ATTENDANCE_LOGIN_NEW_DAY = 0;
+    /** C# {@code ari.login} same calendar day / after {@code requestUpdateCountLogin}. */
+    public static final int ATTENDANCE_LOGIN_SAME_DAY = 1;
+    /** C# {@code drawReward} tipo 1 (normal item). */
+    public static final int ATTENDANCE_TIPO_NORMAL = 1;
+    /** C# {@code drawReward} tipo 2 (Papel Box) when {@code (counter+1)%10==0}. */
+    public static final int ATTENDANCE_TIPO_PAPEL = 2;
     /** C# {@code uProperty.grand_prix} bit 11. */
     public static final int PROPERTY_GRAND_PRIX = 1 << 11;
     /** C# GP lobby disabled CHANNEL sys {@code 0x750001}. */
@@ -3579,6 +3596,31 @@ public final class GamePackets {
                 .u32(itemTypeid)
                 .u32(ballTypeid)
                 .u16(ballC0)
+                .toBytes();
+    }
+
+    /**
+     * C# {@code pacote248}/{@code pacote249} success: i32 option 0 +
+     * {@code AttendanceRewardInfo.ToArray()} (u8 login + now + after + counter).
+     * {@code last_login} is SQL-only, not on the wire.
+     */
+    public static byte[] attendanceOk(
+            int opcode,
+            int login,
+            int nowTypeid,
+            int nowQntd,
+            int afterTypeid,
+            int afterQntd,
+            int counter) {
+        return new PacketWriter()
+                .opcode(opcode)
+                .i32(ATTENDANCE_OK)
+                .u8(login)
+                .u32(nowTypeid)
+                .u32(nowQntd)
+                .u32(afterTypeid)
+                .u32(afterQntd)
+                .u32(counter)
                 .toBytes();
     }
 

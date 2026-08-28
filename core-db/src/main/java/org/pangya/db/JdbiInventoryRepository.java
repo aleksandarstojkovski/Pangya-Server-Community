@@ -4,6 +4,8 @@ import org.jdbi.v3.core.Handle;
 import org.jdbi.v3.core.Jdbi;
 import org.pangya.protocol.game.GamePackets;
 
+import java.sql.Timestamp;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -2231,6 +2233,120 @@ public final class JdbiInventoryRepository implements InventoryRepository {
     public void deleteCometRefill(int typeid) {
         jdbi.useHandle(h -> h.createUpdate(
                         "DELETE FROM pangya.pangya_comet_refill WHERE typeid = :typeid")
+                .bind("typeid", typeid)
+                .execute());
+    }
+
+    @Override
+    public Optional<AttendanceReward> attendanceReward(long uid) {
+        return jdbi.withHandle(h -> h.createQuery("""
+                        SELECT counter, item_typeid_now, item_qntd_now,
+                               item_typeid_after, item_qntd_after, last_login
+                          FROM pangya.pangya_attendance_reward
+                         WHERE "UID" = :uid
+                        """)
+                .bind("uid", uid)
+                .map((rs, ctx) -> {
+                    Timestamp ts = rs.getTimestamp("last_login");
+                    Instant last = ts == null ? null : ts.toInstant();
+                    return new AttendanceReward(
+                            rs.getInt("counter"),
+                            rs.getInt("item_typeid_now"),
+                            rs.getInt("item_qntd_now"),
+                            rs.getInt("item_typeid_after"),
+                            rs.getInt("item_qntd_after"),
+                            last);
+                })
+                .findOne());
+    }
+
+    @Override
+    public void upsertAttendanceReward(long uid, AttendanceReward ari) {
+        jdbi.useHandle(h -> h.createUpdate("""
+                        INSERT INTO pangya.pangya_attendance_reward
+                            ("UID", counter, item_typeid_now, item_qntd_now,
+                             item_typeid_after, item_qntd_after, last_login)
+                        VALUES (:uid, :counter, :nowTypeid, :nowQntd,
+                                :afterTypeid, :afterQntd, :lastLogin)
+                        ON CONFLICT ("UID") DO UPDATE SET
+                            counter = EXCLUDED.counter,
+                            item_typeid_now = EXCLUDED.item_typeid_now,
+                            item_qntd_now = EXCLUDED.item_qntd_now,
+                            item_typeid_after = EXCLUDED.item_typeid_after,
+                            item_qntd_after = EXCLUDED.item_qntd_after,
+                            last_login = EXCLUDED.last_login
+                        """)
+                .bind("uid", uid)
+                .bind("counter", ari.counter())
+                .bind("nowTypeid", ari.nowTypeid())
+                .bind("nowQntd", ari.nowQntd())
+                .bind("afterTypeid", ari.afterTypeid())
+                .bind("afterQntd", ari.afterQntd())
+                .bind("lastLogin", ari.lastLogin() == null ? null : Timestamp.from(ari.lastLogin()))
+                .execute());
+    }
+
+    @Override
+    public void deleteAttendanceReward(long uid) {
+        jdbi.useHandle(h -> h.createUpdate(
+                        "DELETE FROM pangya.pangya_attendance_reward WHERE \"UID\" = :uid")
+                .bind("uid", uid)
+                .execute());
+    }
+
+    @Override
+    public List<AttendanceCatalogItem> attendanceCatalog(int tipo) {
+        return jdbi.withHandle(h -> h.createQuery("""
+                        SELECT typeid, quantidade, tipo
+                          FROM pangya.pangya_attendance_table_item_reward
+                         WHERE tipo = :tipo
+                         ORDER BY idx
+                        """)
+                .bind("tipo", tipo)
+                .map((rs, ctx) -> new AttendanceCatalogItem(
+                        rs.getInt("typeid"),
+                        rs.getInt("quantidade"),
+                        rs.getInt("tipo")))
+                .list());
+    }
+
+    @Override
+    public List<AttendanceCatalogItem> attendanceCatalogAll() {
+        return jdbi.withHandle(h -> h.createQuery("""
+                        SELECT typeid, quantidade, tipo
+                          FROM pangya.pangya_attendance_table_item_reward
+                         ORDER BY idx
+                        """)
+                .map((rs, ctx) -> new AttendanceCatalogItem(
+                        rs.getInt("typeid"),
+                        rs.getInt("quantidade"),
+                        rs.getInt("tipo")))
+                .list());
+    }
+
+    @Override
+    public void upsertAttendanceCatalog(int typeid, int qntd, int tipo) {
+        jdbi.useHandle(h -> {
+            h.createUpdate(
+                            "DELETE FROM pangya.pangya_attendance_table_item_reward WHERE typeid = :typeid")
+                    .bind("typeid", typeid)
+                    .execute();
+            h.createUpdate("""
+                            INSERT INTO pangya.pangya_attendance_table_item_reward
+                                (nome, typeid, quantidade, tipo)
+                            VALUES ('test', :typeid, :qntd, :tipo)
+                            """)
+                    .bind("typeid", typeid)
+                    .bind("qntd", qntd)
+                    .bind("tipo", tipo)
+                    .execute();
+        });
+    }
+
+    @Override
+    public void deleteAttendanceCatalog(int typeid) {
+        jdbi.useHandle(h -> h.createUpdate(
+                        "DELETE FROM pangya.pangya_attendance_table_item_reward WHERE typeid = :typeid")
                 .bind("typeid", typeid)
                 .execute());
     }

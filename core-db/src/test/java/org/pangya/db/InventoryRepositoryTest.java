@@ -275,6 +275,18 @@ class InventoryRepositoryTest {
             repo.updateTutorial(10001, 1, 0, 0);
             assertEquals(1, repo.tutorial(10001).rookie());
             repo.updateTutorial(10001, 0, 0, 0);
+            assertTrue(repo.attendanceReward(10001).isEmpty());
+            try {
+                repo.upsertAttendanceReward(10001, new InventoryRepository.AttendanceReward(
+                        1, GamePackets.TYPEID_SHOP_PANG_ITEM, 3, 0, 0, java.time.Instant.EPOCH));
+                var ari = repo.attendanceReward(10001).orElseThrow();
+                assertEquals(1, ari.counter());
+                assertEquals(GamePackets.TYPEID_SHOP_PANG_ITEM, ari.nowTypeid());
+                assertEquals(3, ari.nowQntd());
+            } finally {
+                repo.deleteAttendanceReward(10001);
+            }
+            assertTrue(repo.attendanceReward(10001).isEmpty());
             int partTypeid = (GamePackets.IFF_GROUP_PART << 26) | 0x99;
             repo.deleteWarehouseByTypeid(10001, partTypeid);
             int partId = repo.addWarehouseItem(10001, partTypeid, 1);

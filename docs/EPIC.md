@@ -8,7 +8,7 @@ Questo repo è **solo** la riscrittura Java.
 
 S0 [x] S1 [x] S2 [x] S3 [x] S4 [~] S5 [~] S6 [x]
 
-S4 profondità: **139** opcode success 1:1 / **33** opcode solo fail-stub / **34** stimati rimanenti dal C# Channel
+S4 profondità: **141** opcode success 1:1 / **31** opcode solo fail-stub / **32** stimati rimanenti dal C# Channel
 
 (Channel C# = 197 `packet_func_sv`. Dettaglio in `docs/STATUS.md`. **S4 non è done.**)
 
@@ -16,7 +16,7 @@ S4 profondità: **139** opcode success 1:1 / **33** opcode solo fail-stub / **34
 
 | Campo | Valore |
 |-------|--------|
-| Fatto | comet refill `0xEC` ITEM+BALL SQL: `0x197` u8 1 + item + ball + u16 C0; catch u8 0 + 10 zeros |
+| Fatto | attendance `0x16E`/`0x16F` SQL catalog: `0x248`/`0x249` i32 0 + ari; catch u32 `~0`; no mailbox/IFF |
 | Prossimo opcode/file C# | GZ first-hole `packet137` pulse, o fail-stub IFF-free (daily `0x152`, workshop, item-buff) |
 | Blocco | IFF assenti (pin/cube, `initComboDef`, cutin success `0xE5`); nessuna capture JP S9 |
 | Percentuale epic | scheletro **85%** / parità client reale **35%** |
@@ -56,7 +56,7 @@ Nel dump JP Auth INI usa `5577`; Login/Game Java restano su **7777** (stesso bin
 | **S1** | Netty + framing LE + Cipher bit-compat + session + no Sleep-poll | `./gradlew :core-protocol:test :core-network:test` + handshake fake client |
 | **S2** | Auth + Login + Redis session key + fake client login | compose Auth+Login+db+redis |
 | **S3** | Game core + Practice | integrazione Practice; kill sessione non crasha |
-| **S4** | Tutte le modalità C# + manager char/card/caddie/achievement | **non done** — Channel 197; ~139 success 1:1 / 33 fail-stub; IFF cubes/cutin/combo aperti |
+| **S4** | Tutte le modalità C# + manager char/card/caddie/achievement | **non done** — Channel 197; ~141 success 1:1 / 31 fail-stub; IFF cubes/cutin/combo aperti |
 | **S5** | Ranking + Messenger | compose 5 server |
 | **S6** | Metriche, carico ≥3000 o max VM, `scripts/verify.sh` completo | gradle test + compose health |
 

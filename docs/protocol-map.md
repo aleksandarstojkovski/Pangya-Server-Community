@@ -193,8 +193,8 @@ C#: `GameServer/PangyaEnums/PacketGame.cs` → Java `org.pangya.protocol.game.Ga
 | C | `CLIENT_UCC_LOAD` | `0xFE` | no reply |
 | C | `CLIENT_UCC` | `0xB9` | unknown opt → `0x12E` sbyte -1; no channel; opposite CLIENT marker `0x12E` |
 | C | `CLIENT_UCC_WEB_KEY` | `0xC9` | uid 0 → `0x153` u8 1 + u8 1 + `shopSys(0x5100101)`; opposite `SERVER_ONELINE_MSG` |
-| C | `CLIENT_CHECK_ATTENDANCE` | `0x16E` | empty catalog → `0x248` u32 `~0`; opposite `SERVER_LOCKER_ADD` |
-| C | `CLIENT_ATTENDANCE_LOGIN` | `0x16F` | empty catalog → `0x249` u32 `~0`; opposite `SERVER_LOCKER_REMOVE` |
+| C | `CLIENT_CHECK_ATTENDANCE` | `0x16E` | empty catalog → `0x248` u32 `~0`; success i32 0 + u8 login + now + after + counter (SQL catalog stand-in, no IFF/`addItem`); opposite `SERVER_LOCKER_ADD` |
+| C | `CLIENT_ATTENDANCE_LOGIN` | `0x16F` | empty catalog → `0x249` u32 `~0`; success i32 0 + ari (`after` draw); no mailbox GP/bot/fortune; opposite `SERVER_LOCKER_REMOVE` |
 | C | `CLIENT_CLUB_WORKSHOP_EVENT` | `0x172` | always `0x24E` 0/3000/0/100/0/10/10; opposite `SERVER_LOCKER_PANG` |
 | C | `CLIENT_ENTER_LOBBY_GRAND_PRIX` | `0x176` | `property` bit 11 → lobby dump (no `0xF5`) + `0x250` OK + GP-event bits + v_gpc 0 + f32 avg; already-in-lobby → `0x250` u32 0; opposite `SERVER_LOCKER_MAKE_PASS` |
 | C | `CLIENT_LEAVE_LOBBY_GRAND_PRIX` | `0x177` | leave lobby (no `0xF6`) + `0x251` u32 0 |
@@ -270,8 +270,8 @@ C#: `GameServer/PangyaEnums/PacketGame.cs` → Java `org.pangya.protocol.game.Ga
 | S | `SERVER_UCC` | `0x12E` | fail sbyte -1; opposite CLIENT marker |
 | S | `SERVER_UCC_WEB_KEY` | `0x153` | fail u8 1 + u8 1 + u32; opposite CLIENT daily-quest reward |
 | S | `SERVER_WORKSHOP_EVENT` | `0x24E` | i32 0 + i32 3000 + i32 0 + 4×u8 |
-| S | `SERVER_ATTENDANCE` | `0x248` | fail u32 `~0` |
-| S | `SERVER_ATTENDANCE_LOGIN` | `0x249` | fail u32 `~0` |
+| S | `SERVER_ATTENDANCE` | `0x248` | fail u32 `~0`; success i32 0 + `AttendanceRewardInfo` (no SYSTEMTIME) |
+| S | `SERVER_ATTENDANCE_LOGIN` | `0x249` | fail u32 `~0`; success i32 0 + `AttendanceRewardInfo` |
 | S | `SERVER_GP_LOBBY` | `0x250` | u32 0 + event types + v_gpc + f32 avg |
 | S | `SERVER_GP_LEAVE` | `0x251` | u32 0 |
 | S | `SERVER_MY_ROOM_CHAR` | `0x168` | `PlayerRoomInfoEx` 861; opposite CLIENT workshop transform confirm |

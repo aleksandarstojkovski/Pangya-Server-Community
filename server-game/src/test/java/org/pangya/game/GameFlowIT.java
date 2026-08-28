@@ -1650,6 +1650,88 @@ class GameFlowIT {
     }
 
     @Test
+    void attendanceCheckAndLoginCountDrawFromSqlCatalog() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config);
+             PangyaFakeClient client = new PangyaFakeClient()) {
+            InventoryRepository inv = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
+            final int qntd = 3;
+            try {
+                inv.deleteAttendanceReward(10001);
+                inv.upsertAttendanceCatalog(
+                        GamePackets.TYPEID_SHOP_PANG_ITEM,
+                        qntd,
+                        GamePackets.ATTENDANCE_TIPO_NORMAL);
+                LoginRepository repo = new JdbiLoginRepository(DatabaseSupport.jdbi(ds));
+                String loginKey = repo.generateAuthKeyLogin(10001);
+                String gameKey = repo.generateAuthKeyGame(10001, 20202);
+                keys.putLoginKey(10001, loginKey);
+                keys.putGameKey(10001, 20202, gameKey);
+                loginToChannel(client, runtime.port(), "testuser", 10001, loginKey, gameKey);
+
+                client.sendPlain(GamePackets.clientEmpty(GamePackets.CLIENT_ATTENDANCE));
+                PacketReader first = awaitOpcode(client, GamePackets.SERVER_ATTENDANCE);
+                assertEquals(GamePackets.ATTENDANCE_OK, first.i32());
+                assertEquals(GamePackets.ATTENDANCE_LOGIN_NEW_DAY, first.u8());
+                assertEquals(GamePackets.TYPEID_SHOP_PANG_ITEM, first.u32());
+                assertEquals(qntd, first.u32());
+                assertEquals(0, first.u32());
+                assertEquals(0, first.u32());
+                assertEquals(1, first.u32());
+                assertEquals(0, first.remaining());
+
+                client.sendPlain(GamePackets.clientEmpty(GamePackets.CLIENT_ATTENDANCE));
+                PacketReader sameDay = awaitOpcode(client, GamePackets.SERVER_ATTENDANCE);
+                assertEquals(GamePackets.ATTENDANCE_OK, sameDay.i32());
+                assertEquals(GamePackets.ATTENDANCE_LOGIN_SAME_DAY, sameDay.u8());
+                assertEquals(GamePackets.TYPEID_SHOP_PANG_ITEM, sameDay.u32());
+                assertEquals(qntd, sameDay.u32());
+                assertEquals(0, sameDay.u32());
+                assertEquals(0, sameDay.u32());
+                assertEquals(1, sameDay.u32());
+
+                client.sendPlain(GamePackets.clientEmpty(GamePackets.CLIENT_ATTENDANCE_LOGIN));
+                PacketReader loginCount = awaitOpcode(client, GamePackets.SERVER_ATTENDANCE_LOGIN);
+                assertEquals(GamePackets.ATTENDANCE_OK, loginCount.i32());
+                assertEquals(GamePackets.ATTENDANCE_LOGIN_SAME_DAY, loginCount.u8());
+                assertEquals(GamePackets.TYPEID_SHOP_PANG_ITEM, loginCount.u32());
+                assertEquals(qntd, loginCount.u32());
+                assertEquals(GamePackets.TYPEID_SHOP_PANG_ITEM, loginCount.u32());
+                assertEquals(qntd, loginCount.u32());
+                assertEquals(1, loginCount.u32());
+                assertEquals(0, loginCount.remaining());
+
+                var stored = inv.attendanceReward(10001).orElseThrow();
+                assertEquals(1, stored.counter());
+                assertEquals(GamePackets.TYPEID_SHOP_PANG_ITEM, stored.nowTypeid());
+                assertEquals(qntd, stored.nowQntd());
+                assertEquals(GamePackets.TYPEID_SHOP_PANG_ITEM, stored.afterTypeid());
+                assertEquals(qntd, stored.afterQntd());
+
+                inv.deleteAttendanceCatalog(GamePackets.TYPEID_SHOP_PANG_ITEM);
+                inv.deleteAttendanceReward(10001);
+                client.sendPlain(GamePackets.clientEmpty(GamePackets.CLIENT_ATTENDANCE));
+                PacketReader emptyCheck = awaitOpcode(client, GamePackets.SERVER_ATTENDANCE);
+                assertEquals(GamePackets.ATTENDANCE_FAIL, emptyCheck.u32());
+                client.sendPlain(GamePackets.clientEmpty(GamePackets.CLIENT_ATTENDANCE_LOGIN));
+                PacketReader emptyLogin = awaitOpcode(client, GamePackets.SERVER_ATTENDANCE_LOGIN);
+                assertEquals(GamePackets.ATTENDANCE_FAIL, emptyLogin.u32());
+            } finally {
+                inv.deleteAttendanceCatalog(GamePackets.TYPEID_SHOP_PANG_ITEM);
+                inv.deleteAttendanceReward(10001);
+            }
+        }
+    }
+
+    @Test
     void makeTutorialRookieAcksFlagsAndMailsReward() throws Exception {
         String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
         String user = env("PANGYA_TEST_JDBC_USER", "pangya");

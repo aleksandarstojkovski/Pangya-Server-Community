@@ -2,6 +2,7 @@ package org.pangya.db;
 
 import org.pangya.protocol.game.GamePackets;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.OptionalInt;
@@ -157,6 +158,30 @@ public interface InventoryRepository {
     void upsertCometRefill(int typeid, int min, int max);
 
     void deleteCometRefill(int typeid);
+
+    /**
+     * C# {@code CmdAttendanceRewardInfo} / {@code ProcGetAttendanceReward}.
+     * Empty when the player has no row (zeros + null {@code last_login}).
+     */
+    Optional<AttendanceReward> attendanceReward(long uid);
+
+    /** C# {@code CmdUpdateAttendanceReward} / {@code ProcUpdateAttendanceReward}. */
+    void upsertAttendanceReward(long uid, AttendanceReward ari);
+
+    void deleteAttendanceReward(long uid);
+
+    /**
+     * C# {@code CmdAttendanceRewardItemInfo} rows of
+     * {@code pangya_attendance_table_item_reward} for one {@code tipo}.
+     */
+    List<AttendanceCatalogItem> attendanceCatalog(int tipo);
+
+    List<AttendanceCatalogItem> attendanceCatalogAll();
+
+    /** Test helper: insert one catalog row (SQL stand-in, no IFF {@code IsExist}). */
+    void upsertAttendanceCatalog(int typeid, int qntd, int tipo);
+
+    void deleteAttendanceCatalog(int typeid);
 
     /**
      * C# {@code requestLoloCardCompose}: SQL {@code iff_card} stand-in for
@@ -317,6 +342,21 @@ public interface InventoryRepository {
 
     /** C# {@code ctx_comet_refill}: typeid + {@code QntdRange} min/max. */
     record CometRefill(int typeid, int min, int max) {}
+
+    /**
+     * C# {@code AttendanceRewardInfoEx} without {@code login} (runtime-only).
+     * {@code lastLogin} is SQL {@code last_login}; missing/null means first check.
+     */
+    record AttendanceReward(
+            int counter,
+            int nowTypeid,
+            int nowQntd,
+            int afterTypeid,
+            int afterQntd,
+            Instant lastLogin) {}
+
+    /** C# {@code AttendanceRewardItemCtx}: catalog draw row. */
+    record AttendanceCatalogItem(int typeid, int qntd, int tipo) {}
 
     record TutorialFlags(int rookie, int beginner, int advancer) {}
 }

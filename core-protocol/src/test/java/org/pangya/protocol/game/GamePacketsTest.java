@@ -1092,6 +1092,23 @@ class GamePacketsTest {
         assertEquals(GamePackets.TYPEID_DEFAULT_BALL, cometOk.u32());
         assertEquals(5, cometOk.u16());
         assertEquals(0, cometOk.remaining());
+        PacketReader attendOk = new PacketReader(GamePackets.attendanceOk(
+                GamePackets.SERVER_ATTENDANCE,
+                GamePackets.ATTENDANCE_LOGIN_NEW_DAY,
+                GamePackets.TYPEID_SHOP_PANG_ITEM,
+                3,
+                0,
+                0,
+                1));
+        assertEquals(GamePackets.SERVER_ATTENDANCE, attendOk.opcode());
+        assertEquals(GamePackets.ATTENDANCE_OK, attendOk.i32());
+        assertEquals(GamePackets.ATTENDANCE_LOGIN_NEW_DAY, attendOk.u8());
+        assertEquals(GamePackets.TYPEID_SHOP_PANG_ITEM, attendOk.u32());
+        assertEquals(3, attendOk.u32());
+        assertEquals(0, attendOk.u32());
+        assertEquals(0, attendOk.u32());
+        assertEquals(1, attendOk.u32());
+        assertEquals(0, attendOk.remaining());
         assertEquals(GamePackets.IFF_GROUP_BALL, GamePackets.itemGroupIdentify(GamePackets.TYPEID_DEFAULT_BALL));
         PacketReader boxMail = new PacketReader(GamePackets.boxMailFail(
                 GamePackets.shopSys(GamePackets.BOX_MAIL_ERR_TYPEID)));

@@ -15,6 +15,9 @@ import org.pangya.protocol.packet.PacketWriter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -4916,27 +4919,156 @@ public final class GameHandler {
     }
 
     /**
-     * C# {@code requestCheckAttendance}: empty catalog {@code drawReward}
-     * throws then catch writes {@code 0x248} u32 {@code ~0}.
+     * C# {@code requestCheckAttendance} ({@code packet16E} / {@code pacote248}).
+     * SQL {@code pangya_attendance_table_item_reward} stands in for IFF
+     * {@code IsExist}. Empty catalog → {@code 0x248} u32 {@code ~0}. Success is
+     * i32 0 + {@code AttendanceRewardInfo} (no {@code addItem}). Catch is always
+     * {@code ~0} ({@code DECODE_TYPE} never equals {@code ATTENDANCE_REWARD_SYSTEM}).
      */
     private void checkAttendance(Session session) {
         if (!inChannel(session)) {
             return;
         }
-        session.send(GamePackets.sysAck(
-                GamePackets.SERVER_ATTENDANCE, GamePackets.ATTENDANCE_FAIL));
+        try {
+            long uid = session.player().uid;
+            InventoryRepository.AttendanceReward ari = inventory.attendanceReward(uid)
+                    .orElse(new InventoryRepository.AttendanceReward(0, 0, 0, 0, 0, null));
+            int login;
+            int counter = ari.counter();
+            int nowTypeid = ari.nowTypeid();
+            int nowQntd = ari.nowQntd();
+            if (passedOneDay(ari.lastLogin())) {
+                login = GamePackets.ATTENDANCE_LOGIN_NEW_DAY;
+                counter = counter + 1;
+                Optional<InventoryRepository.AttendanceCatalogItem> reward =
+                        drawAttendance(attendanceTipo(counter));
+                if (reward.isEmpty()) {
+                    session.send(GamePackets.sysAck(
+                            GamePackets.SERVER_ATTENDANCE, GamePackets.ATTENDANCE_FAIL));
+                    return;
+                }
+                nowTypeid = reward.get().typeid();
+                nowQntd = reward.get().qntd();
+            } else {
+                login = GamePackets.ATTENDANCE_LOGIN_SAME_DAY;
+            }
+            Instant lastLogin = attendanceToday();
+            session.send(GamePackets.attendanceOk(
+                    GamePackets.SERVER_ATTENDANCE,
+                    login,
+                    nowTypeid,
+                    nowQntd,
+                    ari.afterTypeid(),
+                    ari.afterQntd(),
+                    counter));
+            inventory.upsertAttendanceReward(uid, new InventoryRepository.AttendanceReward(
+                    counter,
+                    nowTypeid,
+                    nowQntd,
+                    ari.afterTypeid(),
+                    ari.afterQntd(),
+                    lastLogin));
+        } catch (RuntimeException e) {
+            log.debug("attendance check failed: {}", e.toString());
+            session.send(GamePackets.sysAck(
+                    GamePackets.SERVER_ATTENDANCE, GamePackets.ATTENDANCE_FAIL));
+        }
     }
 
     /**
-     * C# {@code requestUpdateCountLogin}: empty catalog → {@code 0x249}
-     * u32 {@code ~0}.
+     * C# {@code requestUpdateCountLogin} ({@code packet16F} / {@code pacote249}).
+     * Draws {@code after}; typeid 0 {@code now} is redrawn (C# {@code IsExist(0)}
+     * is false). Mailbox GP/bot/fortune grants and achievement GUI are skipped
+     * (IFF/{@code ItemManager} stand-in). Empty catalog → {@code 0x249} u32 {@code ~0}.
      */
     private void attendanceLoginCount(Session session) {
         if (!inChannel(session)) {
             return;
         }
-        session.send(GamePackets.sysAck(
-                GamePackets.SERVER_ATTENDANCE_LOGIN, GamePackets.ATTENDANCE_FAIL));
+        try {
+            long uid = session.player().uid;
+            InventoryRepository.AttendanceReward ari = inventory.attendanceReward(uid)
+                    .orElse(new InventoryRepository.AttendanceReward(0, 0, 0, 0, 0, null));
+            int tipo = attendanceTipo(ari.counter());
+            Optional<InventoryRepository.AttendanceCatalogItem> after =
+                    drawAttendance(tipo);
+            if (after.isEmpty()) {
+                session.send(GamePackets.sysAck(
+                        GamePackets.SERVER_ATTENDANCE_LOGIN, GamePackets.ATTENDANCE_FAIL));
+                return;
+            }
+            int nowTypeid = ari.nowTypeid();
+            int nowQntd = ari.nowQntd();
+            if (nowTypeid == 0) {
+                Optional<InventoryRepository.AttendanceCatalogItem> now = drawAttendance(tipo);
+                if (now.isEmpty()) {
+                    session.send(GamePackets.sysAck(
+                            GamePackets.SERVER_ATTENDANCE_LOGIN, GamePackets.ATTENDANCE_FAIL));
+                    return;
+                }
+                nowTypeid = now.get().typeid();
+                nowQntd = now.get().qntd();
+            }
+            Instant lastLogin = attendanceToday();
+            session.send(GamePackets.attendanceOk(
+                    GamePackets.SERVER_ATTENDANCE_LOGIN,
+                    GamePackets.ATTENDANCE_LOGIN_SAME_DAY,
+                    nowTypeid,
+                    nowQntd,
+                    after.get().typeid(),
+                    after.get().qntd(),
+                    ari.counter()));
+            inventory.upsertAttendanceReward(uid, new InventoryRepository.AttendanceReward(
+                    ari.counter(),
+                    nowTypeid,
+                    nowQntd,
+                    after.get().typeid(),
+                    after.get().qntd(),
+                    lastLogin));
+        } catch (RuntimeException e) {
+            log.debug("attendance login-count failed: {}", e.toString());
+            session.send(GamePackets.sysAck(
+                    GamePackets.SERVER_ATTENDANCE_LOGIN, GamePackets.ATTENDANCE_FAIL));
+        }
+    }
+
+    /**
+     * C# {@code drawReward}: equal-weight lottery among matching {@code tipo},
+     * else all catalog rows. Empty catalog is C# {@code isLoad()==false}.
+     */
+    private Optional<InventoryRepository.AttendanceCatalogItem> drawAttendance(int tipo) {
+        List<InventoryRepository.AttendanceCatalogItem> items = inventory.attendanceCatalog(tipo);
+        if (items.isEmpty()) {
+            items = inventory.attendanceCatalogAll();
+        }
+        if (items.isEmpty()) {
+            return Optional.empty();
+        }
+        return Optional.of(items.get(ThreadLocalRandom.current().nextInt(items.size())));
+    }
+
+    /** C# {@code (counter+1)%10==0} → tipo 2 Papel Box, else tipo 1. */
+    private static int attendanceTipo(int counter) {
+        return ((counter + 1) % 10 == 0)
+                ? GamePackets.ATTENDANCE_TIPO_PAPEL
+                : GamePackets.ATTENDANCE_TIPO_NORMAL;
+    }
+
+    /**
+     * C# {@code passedOneDay}: date-truncated diff ≥ 1 day. Missing/null
+     * {@code last_login} is first check (C# Year=0 {@code ConvertTime} throws).
+     */
+    private static boolean passedOneDay(Instant lastLogin) {
+        if (lastLogin == null) {
+            return true;
+        }
+        LocalDate last = lastLogin.atZone(ZoneId.systemDefault()).toLocalDate();
+        return LocalDate.now().isAfter(last);
+    }
+
+    /** C# {@code last_login.CreateTime()} then zero hour/min/sec/ms. */
+    private static Instant attendanceToday() {
+        return LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant();
     }
 
     /**
