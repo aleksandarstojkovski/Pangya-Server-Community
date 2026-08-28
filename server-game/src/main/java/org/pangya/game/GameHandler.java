@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
 
@@ -113,7 +114,7 @@ public final class GameHandler {
             case GamePackets.CLIENT_CLICK -> changeBarSpace(session, reader);
             case GamePackets.CLIENT_POWER_SHOT -> activePowerShot(session, reader);
             case GamePackets.CLIENT_CLUB -> changeClub(session, reader);
-            case GamePackets.CLIENT_USE_ITEM -> { }
+            case GamePackets.CLIENT_USE_ITEM -> useActiveItem(session, reader);
             case GamePackets.CLIENT_EMOTICON -> changeTyping(session, reader);
             case GamePackets.CLIENT_DROP -> moveBall(session, reader);
             case GamePackets.CLIENT_TIMECHECK -> startTurnTime(session);
@@ -593,6 +594,10 @@ public final class GameHandler {
         room.clearLoadHole();
         room.turnOid = 0;
         room.reported.clear();
+        room.activeUses.clear();
+        for (var member : room.snapshot()) {
+            room.initActiveItems(member.oid(), inventory.userEquip(member.player().uid).itemSlot);
+        }
         room.broadcast(GamePackets.startGameFlag());
         room.broadcast(GamePackets.startGameFlag2());
         room.broadcast(GamePackets.pangRate(room.info.ratePang));
@@ -753,6 +758,42 @@ public final class GameHandler {
             return;
         }
         replyInGame(room, session, GamePackets.club(session.oid(), reader.u8()));
+    }
+
+    /**
+     * C# VersusBase/TourneyBase {@code requestUseActiveItem}. Not-in-room /
+     * not-in-game / fail is CHANNEL-ROOM silent. Success {@code game_broadcast}
+     * {@code 0x5A}: u32 typeid + i32 {@code Random.Next()} seed + i32 oid.
+     * {@code findCommomItem}/{@code IsItemEquipable} stand-in is SQL
+     * {@code shop_catalog} plus ITEM group. Versus bans Mulligan Rose.
+     */
+    private void useActiveItem(Session session, PacketReader reader) {
+        GameRoom room = inGameRoom(session);
+        if (room == null || reader.remaining() < 4) {
+            return;
+        }
+        int typeid = reader.u32();
+        if (typeid == 0) {
+            return;
+        }
+        if (inventory.shopItem(typeid).isEmpty()) {
+            return;
+        }
+        if (GamePackets.itemGroupIdentify(typeid) != GamePackets.IFF_GROUP_ITEM) {
+            return;
+        }
+        if (GamePackets.usesVersusInitialData(room.tipo)
+                && typeid == GamePackets.TYPEID_MULLIGAN_ROSE) {
+            return;
+        }
+        if (warehouseByTypeid(session.player().uid, typeid) == null) {
+            return;
+        }
+        if (!room.tryUseActive(session.oid(), typeid)) {
+            return;
+        }
+        int seed = ThreadLocalRandom.current().nextInt();
+        room.broadcast(GamePackets.activeItem(typeid, seed, session.oid()));
     }
 
     private void changeTyping(Session session, PacketReader reader) {
@@ -1947,6 +1988,7 @@ public final class GameHandler {
         room.clearLoadHole();
         room.turnOid = 0;
         room.reported.clear();
+        room.activeUses.clear();
         for (Session member : room.snapshot()) {
             GamePackets.PlayerRoomInfo pri = room.playerInfo(member);
             if (pri == null) {

@@ -37,6 +37,12 @@ final class GameRoom {
     final ConcurrentHashMap<Long, Boolean> reported = new ConcurrentHashMap<>();
     /** C# {@code PersonalShopManager} per-owner shops. */
     final ConcurrentHashMap<Long, PersonalShop> shops = new ConcurrentHashMap<>();
+    /**
+     * C# {@code PlayerGameInfo.used_item.v_active}: oid → typeid → count/slots
+     * from {@code UserEquip.item_slot} at game start.
+     */
+    final ConcurrentHashMap<Integer, ConcurrentHashMap<Integer, ActiveUse>> activeUses =
+            new ConcurrentHashMap<>();
     /** C# Versus {@code m_timer} generation; increment cancels the running turn. */
     private volatile long turnTimerGen;
     private volatile Thread turnTimer;
@@ -201,6 +207,7 @@ final class GameRoom {
         playerInfos.remove(session.oid());
         charIntro.remove(session.oid());
         loadHole.remove(session.oid());
+        activeUses.remove(session.oid());
         shops.remove(session.player().uid);
         for (PersonalShop shop : shops.values()) {
             shop.viewers.remove(session.player().uid);
@@ -358,6 +365,54 @@ final class GameRoom {
         int degree;
         /** C# {@code PlayerGameInfo.shot_data_for_cube}. */
         byte[] shotEndLocation;
+    }
+
+    /** C# {@code UsedItem.Active}: use count vs equipped slot count. */
+    static final class ActiveUse {
+        int count;
+        int slots;
+
+        ActiveUse(int slots) {
+            this.slots = slots;
+        }
+    }
+
+    /**
+     * C# {@code requestIniItemUsedGame} item_slot loop.
+     */
+    void initActiveItems(int oid, int[] itemSlot) {
+        ConcurrentHashMap<Integer, ActiveUse> uses = new ConcurrentHashMap<>();
+        if (itemSlot != null) {
+            for (int typeid : itemSlot) {
+                if (typeid == 0) {
+                    continue;
+                }
+                uses.compute(typeid, (k, current) -> {
+                    if (current == null) {
+                        return new ActiveUse(1);
+                    }
+                    current.slots++;
+                    return current;
+                });
+            }
+        }
+        activeUses.put(oid, uses);
+    }
+
+    /**
+     * C# {@code v_active} find + count++. False when missing or already spent.
+     */
+    boolean tryUseActive(int oid, int typeid) {
+        ConcurrentHashMap<Integer, ActiveUse> uses = activeUses.get(oid);
+        if (uses == null) {
+            return false;
+        }
+        ActiveUse use = uses.get(typeid);
+        if (use == null || use.count >= use.slots) {
+            return false;
+        }
+        use.count++;
+        return true;
     }
 
     static final class PersonalShop {

@@ -968,6 +968,79 @@ class GameFlowIT {
     }
 
     @Test
+    void versusUseItemBroadcastsActiveItem() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config);
+             PangyaFakeClient host = new PangyaFakeClient();
+             PangyaFakeClient guest = new PangyaFakeClient()) {
+            InventoryRepository inv = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
+            try {
+                setItemSlot1(ds, 10001, GamePackets.TYPEID_SHOP_PANG_ITEM);
+                inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_SHOP_PANG_ITEM);
+                inv.addWarehouseItem(10001, GamePackets.TYPEID_SHOP_PANG_ITEM, 1);
+                inv.deleteWarehouseByTypeid(10002, GamePackets.TYPEID_SHOP_PANG_ITEM);
+                inv.addWarehouseItem(10002, GamePackets.TYPEID_SHOP_PANG_ITEM, 1);
+                loginTwoPlayers(ds, keys, host, guest, runtime.port());
+                host.sendPlain(GamePackets.clientCreateRoom(GamePackets.TIPO_STROKE, "UI", ""));
+                PacketReader created = awaitOpcode(host, GamePackets.SERVER_ROOM_ENTER_RESULT);
+                assertEquals(0, created.i16());
+                int numero = roomNumberFromInfo(created.readBytes(GamePackets.ROOM_INFO_BYTES));
+                guest.sendPlain(GamePackets.clientJoinRoom(numero, ""));
+                assertEquals(0, awaitOpcode(guest, GamePackets.SERVER_ROOM_ENTER_RESULT).i16());
+                host.sendPlain(GamePackets.clientStartGame());
+                awaitOpcode(host, GamePackets.SERVER_START_GAME_FLAG);
+                awaitOpcode(host, GamePackets.SERVER_START_GAME_FLAG2);
+                awaitOpcode(host, GamePackets.SERVER_PANG_RATE);
+                awaitOpcode(host, GamePackets.SERVER_GAME_INIT);
+                awaitOpcode(host, GamePackets.SERVER_COURSE);
+                awaitOpcode(host, GamePackets.SERVER_MASCOT_SEED);
+                awaitOpcode(guest, GamePackets.SERVER_GAME_INIT);
+                host.sendPlain(GamePackets.clientInitHole(1, 0, 0, 4, 1.5f, 2.5f, 10f, 20f));
+                guest.sendPlain(GamePackets.clientInitHole(1, 0, 0, 4, 1.5f, 2.5f, 10f, 20f));
+                host.sendPlain(GamePackets.clientLoadOk());
+                guest.sendPlain(GamePackets.clientLoadOk());
+                awaitOpcode(host, GamePackets.SERVER_WEATHER);
+                awaitOpcode(host, GamePackets.SERVER_WIND);
+                awaitOpcode(host, GamePackets.SERVER_HOLE_TURN);
+                int hostOid = oidOf(runtime, 10001);
+                host.sendPlain(GamePackets.clientEmpty(GamePackets.CLIENT_USE_ITEM));
+                host.sendPlain(GamePackets.clientUseItem(0));
+                host.sendPlain(GamePackets.clientUseItem(0x1A000099));
+                host.sendPlain(GamePackets.clientUseItem(GamePackets.TYPEID_NURI));
+                host.sendPlain(GamePackets.clientUseItem(GamePackets.TYPEID_MULLIGAN_ROSE));
+                guest.sendPlain(GamePackets.clientUseItem(GamePackets.TYPEID_SHOP_PANG_ITEM));
+                host.sendPlain(GamePackets.clientUseItem(GamePackets.TYPEID_SHOP_PANG_ITEM));
+                PacketReader used = awaitOpcode(host, GamePackets.SERVER_ACTIVE_ITEM);
+                assertEquals(GamePackets.TYPEID_SHOP_PANG_ITEM, used.u32());
+                used.i32();
+                assertEquals(hostOid, used.i32());
+                PacketReader guestUsed = awaitOpcode(guest, GamePackets.SERVER_ACTIVE_ITEM);
+                assertEquals(GamePackets.TYPEID_SHOP_PANG_ITEM, guestUsed.u32());
+                guestUsed.i32();
+                assertEquals(hostOid, guestUsed.i32());
+                host.sendPlain(GamePackets.clientUseItem(GamePackets.TYPEID_SHOP_PANG_ITEM));
+                host.sendPlain(GamePackets.clientCamera(1.25f));
+                PacketReader mira = new PacketReader(host.awaitPlain(5, TimeUnit.SECONDS));
+                assertEquals(GamePackets.SERVER_CAMERA, mira.opcode());
+                assertEquals(hostOid, mira.i32());
+                assertEquals(1.25f, mira.f32());
+            } finally {
+                setItemSlot1(ds, 10001, 0);
+                inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_SHOP_PANG_ITEM);
+                inv.deleteWarehouseByTypeid(10002, GamePackets.TYPEID_SHOP_PANG_ITEM);
+            }
+        }
+    }
+
+    @Test
     void toggleAssistWingAndAssistGreen() throws Exception {
         String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
         String user = env("PANGYA_TEST_JDBC_USER", "pangya");
@@ -2728,6 +2801,7 @@ class GameFlowIT {
             host.sendPlain(GamePackets.clientEmpty(GamePackets.CLIENT_GZ_INITIAL));
             host.sendPlain(GamePackets.clientEmpty(GamePackets.CLIENT_MARKER));
             host.sendPlain(GamePackets.clientEmpty(GamePackets.CLIENT_SHOT_END));
+            host.sendPlain(GamePackets.clientEmpty(GamePackets.CLIENT_USE_ITEM));
             host.sendPlain(GamePackets.clientEmpty(GamePackets.CLIENT_LEAVE_CHIP_IN));
             host.sendPlain(GamePackets.clientEmpty(GamePackets.CLIENT_GZ_FIRST_HOLE));
             host.sendPlain(GamePackets.clientEmpty(GamePackets.CLIENT_WING));
@@ -3170,6 +3244,17 @@ class GameFlowIT {
         assertEquals(hole, r.u8());
         assertArrayEquals(body, r.readBytes(GamePackets.SHOT_END_LOCATION_BYTES));
         assertEquals(0, r.remaining());
+    }
+
+    private static void setItemSlot1(javax.sql.DataSource ds, long uid, int typeid) {
+        DatabaseSupport.jdbi(ds).useHandle(h -> h.createUpdate("""
+                        UPDATE pangya.pangya_user_equip
+                           SET item_slot_1 = :t
+                         WHERE "UID" = :uid
+                        """)
+                .bind("t", typeid)
+                .bind("uid", uid)
+                .execute());
     }
 
     private static int oidOf(GameRuntime runtime, long uid) {

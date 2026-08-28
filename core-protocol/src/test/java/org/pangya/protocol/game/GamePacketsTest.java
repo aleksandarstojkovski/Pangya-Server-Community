@@ -1162,6 +1162,16 @@ class GamePacketsTest {
         PacketReader gzEnd = new PacketReader(GamePackets.gzEndGame());
         assertEquals(GamePackets.SERVER_GZ_END_GAME, gzEnd.opcode());
         assertEquals(0, gzEnd.remaining());
+        PacketReader activeItem = new PacketReader(GamePackets.activeItem(
+                GamePackets.TYPEID_SHOP_PANG_ITEM, 123, 7));
+        assertEquals(GamePackets.SERVER_ACTIVE_ITEM, activeItem.opcode());
+        assertEquals(GamePackets.TYPEID_SHOP_PANG_ITEM, activeItem.u32());
+        assertEquals(123, activeItem.i32());
+        assertEquals(7, activeItem.i32());
+        PacketReader clientUse = new PacketReader(GamePackets.clientUseItem(
+                GamePackets.TYPEID_SHOP_PANG_ITEM));
+        assertEquals(GamePackets.CLIENT_USE_ITEM, clientUse.opcode());
+        assertEquals(GamePackets.TYPEID_SHOP_PANG_ITEM, clientUse.u32());
         PacketReader clientCutin = new PacketReader(GamePackets.clientCutin(10001, 1, 0, 0x04000000, 1));
         assertEquals(GamePackets.CLIENT_CUTIN, clientCutin.opcode());
         assertEquals(10001, clientCutin.u32());
@@ -1824,6 +1834,9 @@ class GamePacketsTest {
         assertEquals(GamePackets.EARCUFF_ERR_MASCOT, 0x380005);
         assertEquals(GamePackets.MIRACLE_ERR_AUX, 0x350004);
         assertEquals(GamePackets.SERVER_GP_EXIT_ROOM, 0x254);
+        assertEquals(GamePackets.SERVER_ACTIVE_ITEM, 0x5A);
+        assertEquals(GamePackets.CLIENT_USE_ITEM, 0x17);
+        assertEquals(GamePackets.TYPEID_MULLIGAN_ROSE, 0x1800000E);
         assertEquals(GamePackets.SERVER_BUY_ACK, 0x68);
         assertEquals(GamePackets.CREATE_ROOM_FAILED, 0x07);
         assertEquals(GamePackets.SERVER_LAST5, 0x10E);

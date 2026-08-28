@@ -63,6 +63,10 @@ public final class GamePackets {
     public static final int SERVER_CAMERA = 0x56;
     public static final int SERVER_POWER_SHOT = 0x58;
     public static final int SERVER_CLUB = 0x59;
+    /**
+     * C# Versus/Tourney {@code requestUseActiveItem} {@code 0x5A}: u32 typeid +
+     * i32 rand seed + i32 oid. Fail is silent.
+     */
     public static final int SERVER_ACTIVE_ITEM = 0x5A;
     public static final int SERVER_TIMEOUT = 0x5C;
     public static final int SERVER_TYPING = 0x5D;
@@ -449,6 +453,13 @@ public final class GamePackets {
     public static final int CLIENT_CLICK = 0x14;
     public static final int CLIENT_POWER_SHOT = 0x15;
     public static final int CLIENT_CLUB = 0x16;
+    /**
+     * C# {@code packet017} {@code requestUseActiveItem}. Not-in-room /
+     * not-in-game / fail CHANNEL-ROOM catch is silent. Success broadcasts
+     * {@link #SERVER_ACTIVE_ITEM} {@code 0x5A}: typeid + i32 seed + oid.
+     * {@code findCommomItem}/{@code IsItemEquipable} stand-in is SQL
+     * {@code shop_catalog} plus ITEM group bits.
+     */
     public static final int CLIENT_USE_ITEM = 0x17;
     public static final int CLIENT_EMOTICON = 0x18;
     public static final int CLIENT_DROP = 0x19;
@@ -1762,6 +1773,8 @@ public final class GamePackets {
      * IFF ITEM {@code 0x1A000006} (436207622). SQL shop catalog stand-in for C# {@code IsBuyItem}.
      */
     public static final int TYPEID_SHOP_PANG_ITEM = 0x1A000006;
+    /** C# {@code MULLIGAN_ROSE_TYPEID} {@code 0x1800000E}. Banned in Versus. */
+    public static final int TYPEID_MULLIGAN_ROSE = 0x1800000E;
     /** C# {@code CLUB_PATCHER_TYPEID} {@code 0x1A00018F}. */
     public static final int TYPEID_CLUB_PATCHER = 0x1A00018F;
     /** C# gacha ticket typeid {@code 436207744}. */
@@ -4570,6 +4583,24 @@ public final class GamePackets {
 
     public static byte[] club(int oid, int club) {
         return new PacketWriter().opcode(SERVER_CLUB).i32(oid).u8(club).toBytes();
+    }
+
+    /**
+     * C# use-active-item {@code 0x5A}: u32 typeid + i32 seed + i32 oid.
+     * Versus and Tourney {@code game_broadcast}.
+     */
+    public static byte[] activeItem(int typeid, int seed, int oid) {
+        return new PacketWriter()
+                .opcode(SERVER_ACTIVE_ITEM)
+                .u32(typeid)
+                .i32(seed)
+                .i32(oid)
+                .toBytes();
+    }
+
+    /** C# CLIENT {@code 0x17}: u32 typeid. */
+    public static byte[] clientUseItem(int typeid) {
+        return new PacketWriter().opcode(CLIENT_USE_ITEM).u32(typeid).toBytes();
     }
 
     public static byte[] typing(int oid, int typing) {
