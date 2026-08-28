@@ -18,13 +18,18 @@ public final class CoinCubeGenerator {
 
     /** C# {@code Cube.eFLAG_LOCATION.EDGE_GREEN}. */
     public static final int LOC_EDGE = 0;
-    /** C# {@code Cube.eFLAG_LOCATION.GROUND}. */
-    public static final int LOC_GROUND = 1;
+    /** C# {@code Cube.eFLAG_LOCATION.CARPET} (Wiz City lottery pool). */
+    public static final int LOC_CARPET = 1;
     /** C# {@code Cube.eFLAG_LOCATION.AIR}. */
     public static final int LOC_AIR = 2;
+    /** C# {@code Cube.eFLAG_LOCATION.GROUND}. */
+    public static final int LOC_GROUND = 3;
 
     /** C# {@code CourseManager.m_flag_cube_coin}. */
     public static final int FLAG_CUBE_COIN = 1;
+
+    /** C# {@code RoomInfo.ROOM_INFO_COURSE.WIZ_CITY}. */
+    public static final int COURSE_WIZ_CITY = 19;
 
     private CoinCubeGenerator() {}
 
@@ -53,12 +58,16 @@ public final class CoinCubeGenerator {
             return List.of();
         }
 
+        if ((courseId & 0x7f) == COURSE_WIZ_CITY) {
+            return generateWizCity(locations, courseId, holeNum, seqIndex, enableCube);
+        }
+
         CoinCubeInHole.Limits limits =
-                CoinCubeInHole.limitsForPar(CourseParTable.par(courseId, holeNum));
+                CoinCubeInHole.limitsForPar(catalogs.parFor(courseId, holeNum));
         List<GamePackets.CourseCubeEntry> out = new ArrayList<>(limits.maxCoinAndCube());
         ThreadLocalRandom rng = ThreadLocalRandom.current();
 
-        // Edge coins are always present (C# WizCity path; SQL stand-in for all courses).
+        // Edge coins are always present (C# standard path adds ground coins via lottery).
         for (InventoryRepository.CoinCubeLocation loc : locations) {
             if (loc.tipo() == TIPO_COIN && loc.tipoLocation() == LOC_EDGE) {
                 out.add(toEntry(loc, courseId, holeNum, seqIndex));
@@ -77,8 +86,63 @@ public final class CoinCubeGenerator {
             List<InventoryRepository.CoinCubeLocation> groundCoins = locations.stream()
                     .filter(l -> l.tipo() == TIPO_COIN && l.tipoLocation() == LOC_GROUND)
                     .toList();
+            if (groundCoins.isEmpty()) {
+                // V38 seed uses tipo_location 1 for ground stand-in until full JP coords exist.
+                groundCoins = locations.stream()
+                        .filter(l -> l.tipo() == TIPO_COIN && l.tipoLocation() == LOC_CARPET)
+                        .toList();
+            }
             int rest = limits.maxCoinAndCube() - out.size();
             out.addAll(lotteryPick(groundCoins, Math.min(rest, groundCoins.size()), rng, courseId, holeNum, seqIndex));
+        }
+
+        return List.copyOf(out);
+    }
+
+    private static List<GamePackets.CourseCubeEntry> generateWizCity(
+            List<InventoryRepository.CoinCubeLocation> locations,
+            int courseId,
+            int holeNum,
+            int seqIndex,
+            boolean enableCube) {
+        CoinCubeInHole.Limits limits = CoinCubeInHole.limitsForWizCity(holeNum);
+        List<GamePackets.CourseCubeEntry> out = new ArrayList<>(limits.maxCoinAndCube());
+        ThreadLocalRandom rng = ThreadLocalRandom.current();
+
+        List<InventoryRepository.CoinCubeLocation> carpetCoins = locations.stream()
+                .filter(l -> l.tipo() == TIPO_COIN && l.tipoLocation() == LOC_CARPET)
+                .toList();
+
+        for (InventoryRepository.CoinCubeLocation loc : locations) {
+            if (loc.tipoLocation() == LOC_EDGE) {
+                out.add(toEntry(loc, courseId, holeNum, seqIndex));
+            }
+        }
+
+        if (enableCube && limits.maxCube() > 0 && !carpetCoins.isEmpty()) {
+            List<InventoryRepository.CoinCubeLocation> shuffled = new ArrayList<>(carpetCoins);
+            Collections.shuffle(shuffled, rng);
+            int cubeCount = Math.min(limits.maxCube(), shuffled.size());
+            for (int i = 0; i < cubeCount; i++) {
+                InventoryRepository.CoinCubeLocation src = shuffled.get(i);
+                out.add(new GamePackets.CourseCubeEntry(
+                        TIPO_CUBE,
+                        (int) src.index(),
+                        0,
+                        courseId & 0x7f,
+                        holeNum,
+                        seqIndex,
+                        FLAG_CUBE_COIN,
+                        (float) src.x(),
+                        (float) src.y(),
+                        (float) src.z(),
+                        src.tipoLocation()));
+            }
+        }
+
+        if (limits.maxCoinAndCube() > out.size() && !carpetCoins.isEmpty()) {
+            int rest = limits.maxCoinAndCube() - out.size();
+            out.addAll(lotteryPick(carpetCoins, Math.min(rest, carpetCoins.size()), rng, courseId, holeNum, seqIndex));
         }
 
         return List.copyOf(out);

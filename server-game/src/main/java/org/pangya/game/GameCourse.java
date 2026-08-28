@@ -24,10 +24,21 @@ final class GameCourse {
         this.seed = SEED;
         int course = info.course & 0x7f;
         boolean coinCubeActive =
-                catalogs.coinCubeCourseActive().getOrDefault((short) course, false);
+                info.gpActive != 1
+                        && catalogs.coinCubeCourseActive().getOrDefault((short) course, false);
+        boolean isWizCity = course == CoinCubeGenerator.COURSE_WIZ_CITY;
+        int modo = info.modo;
         for (int n = 1; n <= GamePackets.COURSE_HOLE_COUNT; n++) {
             holes.add(new GamePackets.HoleInfo(n, (n - 1) % 3, course, n, 0, 0, 0));
-            boolean enableCube = coinCubeActive && n % 3 == 0;
+            boolean enableCube = false;
+            if (coinCubeActive) {
+                if (isWizCity) {
+                    enableCube = (n == 3 || n == 12 || n == 14 || n == 18)
+                            && (modo != GamePackets.MODO_REPEAT || n % 3 == 0);
+                } else {
+                    enableCube = n % 3 == 0;
+                }
+            }
             boolean enableCoin = coinCubeActive;
             cubesByHole.add(CoinCubeGenerator.generate(
                     catalogs, course, n, n - 1, enableCube, enableCoin));

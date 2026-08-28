@@ -18,4 +18,14 @@ public final class CoinCubeInHole {
             default -> new Limits(0, 0);
         };
     }
+
+    /** C# {@code getAllCoinCubeInHoleWizCity} hole-index limits (course 19). */
+    public static Limits limitsForWizCity(int holeNum) {
+        return switch (holeNum) {
+            case 3, 12 -> new Limits(5, 60);
+            case 14 -> new Limits(2, 48);
+            case 18 -> new Limits(3, 33);
+            default -> new Limits(0, 20);
+        };
+    }
 }

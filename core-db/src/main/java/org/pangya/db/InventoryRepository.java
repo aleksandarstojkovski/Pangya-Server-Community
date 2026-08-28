@@ -327,6 +327,13 @@ public interface InventoryRepository {
     /** C# {@code CmdCoinCubeLocationInfo}: live coin/cube coordinates per course. */
     List<CoinCubeLocation> coinCubeLocations();
 
+    /** C# {@code MapSystem} / IFF {@code Course.Par_Hole} keyed by {@code (courseId << 8) | hole}. */
+    java.util.Map<Integer, Integer> courseParIndex();
+
+    void upsertCoursePar(int courseId, int hole, int par);
+
+    void deleteCoursePar(int courseId, int hole);
+
     /** C# {@code CmdTicketReportDadosInfo}: report date; players are added in later parity work. */
     Optional<Instant> ticketReportDate(int ticketId);
 

@@ -6749,6 +6749,8 @@ public final class GameHandler {
             GameRoom room = new GameRoom(
                     request, number, (int) pi.uid, liveRatePang, liveRateExp, pi.channelId);
             room.grandPrixTypeid = typeid;
+            room.info.gpActive = 1;
+            room.info.gpDadosTypeid = typeid;
             if (!room.addPlayer(session)) {
                 session.send(GamePackets.sysAck(
                         GamePackets.SERVER_START_GAME_FAIL,

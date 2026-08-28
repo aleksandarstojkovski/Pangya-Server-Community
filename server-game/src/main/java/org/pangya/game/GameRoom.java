@@ -81,6 +81,10 @@ final class GameRoom {
         info.state = 1;
         info.tipoShow = GamePackets.tipoShow(tipo);
         info.tipoEx = GamePackets.tipoEx(tipo);
+        if (tipo == GamePackets.TIPO_GRAND_PRIX) {
+            info.gpActive = 1;
+            info.gpDadosTypeid = grandPrixTypeid;
+        }
         RNG.nextBytes(info.key);
         if (tipo == GamePackets.TIPO_PRACTICE) {
             info.name = "Single Player Practice Mode";

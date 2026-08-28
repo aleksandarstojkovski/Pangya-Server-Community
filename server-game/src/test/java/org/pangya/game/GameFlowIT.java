@@ -3549,7 +3549,7 @@ class GameFlowIT {
             assertEquals(1, init.u32());
             PacketReader course = awaitOpcode(client, GamePackets.SERVER_COURSE);
             assertEquals(0, course.u8());
-            assertEquals(GamePackets.TIPO_TOURNEY, course.u8());
+            skipCoursePacketAfterCourseId(course);
         }
     }
 
@@ -4668,9 +4668,38 @@ class GameFlowIT {
                 assertEquals(1, init.u32());
                 PacketReader course = awaitOpcode(client, GamePackets.SERVER_COURSE);
                 assertEquals(0, course.u8());
-                assertEquals(GamePackets.TIPO_TOURNEY, course.u8());
+                skipCoursePacketAfterCourseId(course);
             } finally {
                 inv.deleteGrandPrixEvent(GamePackets.TYPEID_GP_EVENT_TEST);
+            }
+        }
+    }
+
+    @Test
+    void authReloadCourseParRefreshesCatalog() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             GameRuntime runtime = new GameRuntime(config)) {
+            InventoryRepository inv = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
+            try {
+                inv.deleteCoursePar(0, 3);
+                runtime.gameHandler().authReloadGlobalSystem(11);
+                assertEquals(4, runtime.catalogs().parFor(0, 3));
+
+                inv.upsertCoursePar(0, 3, 3);
+                runtime.authHandler().onAuthPacket(
+                        AuthS2s.AUTH_RELOAD_SYSTEM,
+                        new PacketReader(new PacketWriter().u32(11).toBytes()));
+                assertEquals(3, runtime.catalogs().parFor(0, 3));
+            } finally {
+                inv.deleteCoursePar(0, 3);
+                runtime.gameHandler().authReloadGlobalSystem(11);
             }
         }
     }

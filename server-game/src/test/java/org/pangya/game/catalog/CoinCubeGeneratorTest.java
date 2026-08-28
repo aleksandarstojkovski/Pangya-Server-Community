@@ -29,7 +29,7 @@ class CoinCubeGeneratorTest {
                     CoinCubeGenerator.generate(catalogs, 0, 1, 0, false, true);
             assertFalse(cubes.isEmpty());
             assertTrue(cubes.stream().anyMatch(c -> c.id() == 99 && c.flagLocation() == CoinCubeGenerator.LOC_EDGE));
-            assertTrue(cubes.size() <= CoinCubeInHole.limitsForPar(4).maxCoinAndCube());
+            assertTrue(cubes.size() <= CoinCubeInHole.limitsForPar(catalogs.parFor(0, 1)).maxCoinAndCube());
         }
     }
 

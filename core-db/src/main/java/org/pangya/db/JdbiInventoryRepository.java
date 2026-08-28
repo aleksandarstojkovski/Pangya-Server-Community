@@ -3245,6 +3245,23 @@ public final class JdbiInventoryRepository implements InventoryRepository {
     }
 
     @Override
+    public java.util.Map<Integer, Integer> courseParIndex() {
+        return jdbi.withHandle(h -> {
+            java.util.Map<Integer, Integer> out = new java.util.HashMap<>();
+            h.createQuery("""
+                            SELECT course_id, hole, par FROM pangya.iff_course_hole
+                            """)
+                    .map((rs, ctx) -> new Object[] {
+                            ((rs.getShort("course_id") & 0x7f) << 8) | (rs.getShort("hole") & 0xff),
+                            (int) rs.getShort("par")
+                    })
+                    .list()
+                    .forEach(row -> out.put((Integer) row[0], (Integer) row[1]));
+            return out;
+        });
+    }
+
+    @Override
     public Optional<Instant> ticketReportDate(int ticketId) {
         return jdbi.withHandle(h -> h.createQuery("""
                         SELECT report_date FROM pangya.ticket_report_catalog WHERE ticket_id = :id
@@ -3271,6 +3288,28 @@ public final class JdbiInventoryRepository implements InventoryRepository {
         jdbi.useHandle(h -> h.createUpdate(
                         "DELETE FROM pangya.ticket_report_catalog WHERE ticket_id = :id")
                 .bind("id", ticketId)
+                .execute());
+    }
+
+    @Override
+    public void upsertCoursePar(int courseId, int hole, int par) {
+        jdbi.useHandle(h -> h.createUpdate("""
+                        INSERT INTO pangya.iff_course_hole (course_id, hole, par)
+                        VALUES (:course, :hole, :par)
+                        ON CONFLICT (course_id, hole) DO UPDATE SET par = EXCLUDED.par
+                        """)
+                .bind("course", (short) (courseId & 0x7f))
+                .bind("hole", (short) hole)
+                .bind("par", (short) par)
+                .execute());
+    }
+
+    @Override
+    public void deleteCoursePar(int courseId, int hole) {
+        jdbi.useHandle(h -> h.createUpdate(
+                        "DELETE FROM pangya.iff_course_hole WHERE course_id = :course AND hole = :hole")
+                .bind("course", (short) (courseId & 0x7f))
+                .bind("hole", (short) hole)
                 .execute());
     }
 
