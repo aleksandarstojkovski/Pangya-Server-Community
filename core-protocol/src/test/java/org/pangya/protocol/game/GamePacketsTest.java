@@ -606,6 +606,24 @@ class GamePacketsTest {
         assertEquals(0, giftItem.i32());
         assertEquals(GamePackets.TYPEID_SHOP_PANG_ITEM, giftItem.u32());
 
+        PacketReader holeTurn = new PacketReader(GamePackets.holeTurn(7));
+        assertEquals(GamePackets.SERVER_HOLE_TURN, holeTurn.opcode());
+        assertEquals(7, holeTurn.i32());
+        PacketReader playerTurn = new PacketReader(GamePackets.playerTurn(9));
+        assertEquals(GamePackets.SERVER_PLAYER_TURN, playerTurn.opcode());
+        assertEquals(9, playerTurn.i32());
+        PacketReader go = new PacketReader(GamePackets.clientContinueVersus(GamePackets.CONTINUE_GO));
+        assertEquals(GamePackets.CLIENT_ANSWER_GOSTOP, go.opcode());
+        assertEquals(GamePackets.CONTINUE_GO, go.u8());
+        PacketReader giftOk = new PacketReader(GamePackets.giftFailed(0, 99900, 0));
+        assertEquals(GamePackets.SERVER_RESPONSE_GIFT_ITEM, giftOk.opcode());
+        assertEquals(0, giftOk.u32());
+        assertEquals(99900, giftOk.u64());
+        assertEquals(GamePackets.GIFT_MIN_LEVEL, 6);
+        assertEquals(GamePackets.GIFT_FAIL_MAIL, 8);
+        assertEquals(GamePackets.SERVER_HOLE_TURN, 0x53);
+        assertEquals(GamePackets.SERVER_PLAYER_TURN, GamePackets.CLIENT_SYNC_ACTIVITY);
+
         assertEquals(GamePackets.SERVER_BUY_ACK, 0x68);
         assertEquals(GamePackets.CREATE_ROOM_FAILED, 0x07);
         assertEquals(GamePackets.SERVER_RESPONSE_GIFT_ITEM, 0x6A);

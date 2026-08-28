@@ -1,5 +1,6 @@
 package org.pangya.db;
 
+import org.jdbi.v3.core.Handle;
 import org.jdbi.v3.core.Jdbi;
 import org.pangya.protocol.game.GamePackets;
 
@@ -394,58 +395,81 @@ public final class JdbiInventoryRepository implements InventoryRepository {
 
     @Override
     public ShopBuyResult buyShopItem(long uid, int typeid, int qntd, int clientPang, int clientCookie) {
-        return jdbi.inTransaction(h -> {
-            ShopItem item = h.createQuery("""
-                            SELECT typeid, pang_price, cookie_price, can_overlap
-                              FROM pangya.shop_catalog
-                             WHERE typeid = :typeid
+        return jdbi.inTransaction(h -> chargeShopItem(h, uid, typeid, qntd, clientPang, clientCookie, true));
+    }
+
+    @Override
+    public ShopBuyResult giftShopItem(long uid, int typeid, int qntd, int clientPang, int clientCookie) {
+        return jdbi.inTransaction(h -> chargeShopItem(h, uid, typeid, qntd, clientPang, clientCookie, false));
+    }
+
+    @Override
+    public void setLevel(long uid, int level) {
+        jdbi.useHandle(h -> h.createUpdate("""
+                        UPDATE pangya.user_info
+                           SET "level" = :level
+                         WHERE "UID" = :uid
+                        """)
+                .bind("level", level)
+                .bind("uid", uid)
+                .execute());
+    }
+
+    private ShopBuyResult chargeShopItem(
+            Handle h, long uid, int typeid, int qntd, int clientPang, int clientCookie, boolean addWarehouse) {
+        ShopItem item = h.createQuery("""
+                        SELECT typeid, pang_price, cookie_price, can_overlap
+                          FROM pangya.shop_catalog
+                         WHERE typeid = :typeid
+                        """)
+                .bind("typeid", typeid)
+                .map((rs, ctx) -> new ShopItem(
+                        rs.getInt("typeid"),
+                        rs.getInt("pang_price"),
+                        rs.getInt("cookie_price"),
+                        rs.getInt("can_overlap") != 0))
+                .findOne()
+                .orElse(null);
+        if (item == null) {
+            return ShopBuyResult.fail(GamePackets.BUY_FAIL_NOT_BUYABLE);
+        }
+        boolean cash = item.cookiePrice() > 0;
+        int expected = cash ? item.cookiePrice() * qntd : item.pangPrice() * qntd;
+        int offered = cash ? clientCookie : clientPang;
+        if (offered != expected) {
+            return ShopBuyResult.fail(GamePackets.BUY_FAIL_PRICE);
+        }
+        if (addWarehouse && !item.canOverlap()) {
+            int owned = h.createQuery("""
+                            SELECT COUNT(*) FROM pangya.pangya_item_warehouse
+                             WHERE "UID" = :uid AND typeid = :typeid AND valid = 1
                             """)
+                    .bind("uid", uid)
                     .bind("typeid", typeid)
-                    .map((rs, ctx) -> new ShopItem(
-                            rs.getInt("typeid"),
-                            rs.getInt("pang_price"),
-                            rs.getInt("cookie_price"),
-                            rs.getInt("can_overlap") != 0))
-                    .findOne()
-                    .orElse(null);
-            if (item == null) {
-                return ShopBuyResult.fail(GamePackets.BUY_FAIL_NOT_BUYABLE);
+                    .mapTo(Integer.class)
+                    .one();
+            if (owned > 0) {
+                return ShopBuyResult.fail(GamePackets.BUY_FAIL_OWNED);
             }
-            boolean cash = item.cookiePrice() > 0;
-            int expected = cash ? item.cookiePrice() * qntd : item.pangPrice() * qntd;
-            int offered = cash ? clientCookie : clientPang;
-            if (offered != expected) {
-                return ShopBuyResult.fail(GamePackets.BUY_FAIL_PRICE);
-            }
-            if (!item.canOverlap()) {
-                int owned = h.createQuery("""
-                                SELECT COUNT(*) FROM pangya.pangya_item_warehouse
-                                 WHERE "UID" = :uid AND typeid = :typeid AND valid = 1
-                                """)
-                        .bind("uid", uid)
-                        .bind("typeid", typeid)
-                        .mapTo(Integer.class)
-                        .one();
-                if (owned > 0) {
-                    return ShopBuyResult.fail(GamePackets.BUY_FAIL_OWNED);
-                }
-            }
-            long pang = h.createQuery("SELECT COALESCE(\"Pang\", 0) FROM pangya.user_info WHERE \"UID\" = :uid")
-                    .bind("uid", uid)
-                    .mapTo(Long.class)
-                    .findOne()
-                    .orElse(0L);
-            long cookie = h.createQuery("SELECT COALESCE(\"Cookie\", 0) FROM pangya.user_info WHERE \"UID\" = :uid")
-                    .bind("uid", uid)
-                    .mapTo(Long.class)
-                    .findOne()
-                    .orElse(0L);
-            long pangSpent = cash ? 0L : (long) item.pangPrice() * qntd;
-            long cookieSpent = cash ? (long) item.cookiePrice() * qntd : 0L;
-            if (pang < pangSpent || cookie < cookieSpent) {
-                return ShopBuyResult.fail(GamePackets.BUY_FAIL_FUNDS);
-            }
-            int itemId = h.createQuery("""
+        }
+        long pang = h.createQuery("SELECT COALESCE(\"Pang\", 0) FROM pangya.user_info WHERE \"UID\" = :uid")
+                .bind("uid", uid)
+                .mapTo(Long.class)
+                .findOne()
+                .orElse(0L);
+        long cookie = h.createQuery("SELECT COALESCE(\"Cookie\", 0) FROM pangya.user_info WHERE \"UID\" = :uid")
+                .bind("uid", uid)
+                .mapTo(Long.class)
+                .findOne()
+                .orElse(0L);
+        long pangSpent = cash ? 0L : (long) item.pangPrice() * qntd;
+        long cookieSpent = cash ? (long) item.cookiePrice() * qntd : 0L;
+        if (pang < pangSpent || cookie < cookieSpent) {
+            return ShopBuyResult.fail(GamePackets.BUY_FAIL_FUNDS);
+        }
+        int itemId = 0;
+        if (addWarehouse) {
+            itemId = h.createQuery("""
                             INSERT INTO pangya.pangya_item_warehouse (
                                 "UID", typeid, valid, "Gift_flag", flag,
                                 "C0", "C1", "C2", "C3", "C4", "Purchase", "ItemType",
@@ -466,20 +490,20 @@ public final class JdbiInventoryRepository implements InventoryRepository {
                     .bind("qntd", qntd)
                     .mapTo(Integer.class)
                     .one();
-            long pangAfter = pang - pangSpent;
-            long cookieAfter = cookie - cookieSpent;
-            h.createUpdate("""
-                            UPDATE pangya.user_info
-                               SET "Pang" = :pang, "Cookie" = :cookie
-                             WHERE "UID" = :uid
-                            """)
-                    .bind("pang", pangAfter)
-                    .bind("cookie", cookieAfter)
-                    .bind("uid", uid)
-                    .execute();
-            return new ShopBuyResult(
-                    0, itemId, typeid, qntd, pangAfter, cookieAfter, pangSpent, cookieSpent);
-        });
+        }
+        long pangAfter = pang - pangSpent;
+        long cookieAfter = cookie - cookieSpent;
+        h.createUpdate("""
+                        UPDATE pangya.user_info
+                           SET "Pang" = :pang, "Cookie" = :cookie
+                         WHERE "UID" = :uid
+                        """)
+                .bind("pang", pangAfter)
+                .bind("cookie", cookieAfter)
+                .bind("uid", uid)
+                .execute();
+        return new ShopBuyResult(
+                0, itemId, typeid, qntd, pangAfter, cookieAfter, pangSpent, cookieSpent);
     }
 
     @Override

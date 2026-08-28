@@ -50,6 +50,16 @@ public final class GamePackets {
     public static final int SERVER_PANG_RATE = 0x77;
     public static final int SERVER_COURSE = 0x52;
     public static final int SERVER_WIND = 0x5B;
+    /**
+     * C# Versus {@code sendReplyFinishLoadHole} {@code 0x53} i32 oid.
+     * Hole-start turn (not {@link #SERVER_PLAYER_TURN}).
+     */
+    public static final int SERVER_HOLE_TURN = 0x53;
+    /**
+     * C# Versus {@code sendPlayerTurn} {@code 0x63} i32 oid. Same numeric as
+     * {@link #CLIENT_SYNC_ACTIVITY}, opposite direction.
+     */
+    public static final int SERVER_PLAYER_TURN = 0x63;
     public static final int SERVER_CAMERA = 0x56;
     public static final int SERVER_POWER_SHOT = 0x58;
     public static final int SERVER_CLUB = 0x59;
@@ -1292,6 +1302,13 @@ public final class GamePackets {
     public static final int BUY_FAIL_EMPTY = 9;
     /** C# catch: {@code 0x68} uint32 10. */
     public static final int BUY_FAIL_GENERIC = 10;
+    /** C# gift mailbox insert fail {@code 0x6A} u32 8. */
+    public static final int GIFT_FAIL_MAIL = 8;
+    /**
+     * C# {@code enLEVEL.BEGINNER_E} {@code 0x06}. Gift below this → {@code 0x6A}
+     * u32 1.
+     */
+    public static final int GIFT_MIN_LEVEL = 6;
     /** C# {@code BuyItem} body after opcode: id+typeid+time+type+qntd+pang+cookie+13. */
     public static final int BUY_ITEM_BYTES = 37;
     /** C# {@code SYSTEMTIME} (8 × uint16). */
@@ -2127,6 +2144,16 @@ public final class GamePackets {
                 .u16(degree)
                 .u8(reset)
                 .toBytes();
+    }
+
+    /** C# Versus hole-start {@code 0x53} i32 oid. */
+    public static byte[] holeTurn(int oid) {
+        return new PacketWriter().opcode(SERVER_HOLE_TURN).i32(oid).toBytes();
+    }
+
+    /** C# Versus {@code sendPlayerTurn} {@code 0x63} i32 oid. */
+    public static byte[] playerTurn(int oid) {
+        return new PacketWriter().opcode(SERVER_PLAYER_TURN).i32(oid).toBytes();
     }
 
     public static byte[] remainTime(int millis) {
@@ -4188,8 +4215,8 @@ public final class GamePackets {
     }
 
     /**
-     * C# CLIENT {@code 0x1F} with one {@code BuyItem}. Without IFF this fails
-     * {@code initItemFromBuyItem} → {@code 0x6A} code 1.
+     * C# CLIENT {@code 0x1F} with one {@code BuyItem}. Level &lt; Beginner E →
+     * {@code 0x6A} code 1. Catalog miss → 6. Success charges pang and mails.
      */
     public static byte[] clientGiftItem(int uid, int typeid, int qntd, int pang, int cookie) {
         PacketWriter w = new PacketWriter()

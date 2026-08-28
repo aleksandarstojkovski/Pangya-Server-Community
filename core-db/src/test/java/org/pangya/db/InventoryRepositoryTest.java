@@ -60,6 +60,16 @@ class InventoryRepositoryTest {
             assertEquals(GamePackets.BUY_FAIL_NOT_BUYABLE, missing.code());
             repo.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_SHOP_PANG_ITEM);
             repo.setPangCookie(10001, 100000, 0);
+            var gifted = repo.giftShopItem(
+                    10001, GamePackets.TYPEID_SHOP_PANG_ITEM, 1, GamePackets.SHOP_PANG_PRICE, 0);
+            assertEquals(0, gifted.code());
+            assertEquals(99900, gifted.pang());
+            assertFalse(repo.warehouse(10001).stream().anyMatch(w -> w.typeid == GamePackets.TYPEID_SHOP_PANG_ITEM));
+            var giftMissing = repo.giftShopItem(10001, 0x7FFF0001, 1, 1, 0);
+            assertEquals(GamePackets.BUY_FAIL_NOT_BUYABLE, giftMissing.code());
+            repo.setLevel(10001, GamePackets.GIFT_MIN_LEVEL);
+            repo.setLevel(10001, 1);
+            repo.setPangCookie(10001, 100000, 0);
         }
     }
 

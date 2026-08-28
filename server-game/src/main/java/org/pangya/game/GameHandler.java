@@ -574,6 +574,8 @@ public final class GameHandler {
         room.startMillis = System.currentTimeMillis();
         room.course = new GameCourse(room.info);
         room.clearCharIntro();
+        room.clearLoadHole();
+        room.turnOid = 0;
         room.reported.clear();
         room.broadcast(GamePackets.startGameFlag());
         room.broadcast(GamePackets.startGameFlag2());
@@ -622,8 +624,32 @@ public final class GameHandler {
     }
 
     private void finishLoadHole(Session session) {
-        // C# TourneyBase.requestFinishLoadHole sets a flag; first-hole Practice sends nothing extra.
-        inGameRoom(session);
+        GameRoom room = inGameRoom(session);
+        if (room == null || room.course == null || !GamePackets.usesVersusInitialData(room.tipo)) {
+            return;
+        }
+        if (!room.markLoadHole(session)) {
+            return;
+        }
+        room.clearLoadHole();
+        int oid = room.startHoleTurn();
+        GamePackets.HoleInfo info = versusHole(room, oid);
+        room.broadcast(GamePackets.weather(info.weather()));
+        room.broadcast(GamePackets.wind(info.wind(), 0, info.degree(), 1));
+        room.broadcast(GamePackets.holeTurn(oid));
+    }
+
+    private static GamePackets.HoleInfo versusHole(GameRoom room, int oid) {
+        int numero = 1;
+        GameRoom.PlayerShot shot = room.shots.get(oid);
+        if (shot != null && shot.hole > 0) {
+            numero = shot.hole;
+        }
+        GamePackets.HoleInfo info = room.course == null ? null : room.course.find(numero);
+        if (info != null) {
+            return info;
+        }
+        return new GamePackets.HoleInfo(numero, 0, 0, numero, 0, 0, 0);
     }
 
     private void initShot(Session session) {
@@ -810,7 +836,9 @@ public final class GameHandler {
 
     /**
      * C# {@code packet036}: u8 0 stops Versus like {@code 0x37}; u8 1 calls
-     * {@code changeTurn} which needs a turn timer (not invented here).
+     * {@code changeTurn} → {@code sendPlayerTurn} ({@code 0x5B}+{@code 0x63}).
+     * {@code m_player_turn == null} throws and is silent. Last-hole {@code 0x199}
+     * needs {@code acerto_hole} and is not invented here.
      */
     private void replyContinueVersus(Session session, PacketReader reader) {
         GameRoom room = inGameRoom(session);
@@ -822,7 +850,18 @@ public final class GameHandler {
         if (opt == GamePackets.CONTINUE_STOP) {
             sendFinishGameDump(session, room);
             finishGameRoom(room);
+            return;
         }
+        if (opt != GamePackets.CONTINUE_GO || room.turnOid == 0 || room.course == null) {
+            return;
+        }
+        int oid = room.rotateTurn();
+        if (oid == 0) {
+            return;
+        }
+        GamePackets.HoleInfo info = versusHole(room, oid);
+        room.broadcast(GamePackets.wind(info.wind(), 0, info.degree(), 1));
+        room.broadcast(GamePackets.playerTurn(oid));
     }
 
     /**
@@ -1703,6 +1742,8 @@ public final class GameHandler {
         room.pauseCount = 0;
         room.shots.clear();
         room.clearCharIntro();
+        room.clearLoadHole();
+        room.turnOid = 0;
         room.reported.clear();
         for (Session member : room.snapshot()) {
             GamePackets.PlayerRoomInfo pri = room.playerInfo(member);
@@ -1853,8 +1894,10 @@ public final class GameHandler {
     }
 
     /**
-     * C# {@code packet01F} / {@code requestGiftItemShop}. Success needs IFF + mailbox;
-     * Java only emits fail {@code 0x6A} (empty → 9, otherwise init-item 1 / catch 10).
+     * C# {@code packet01F} / {@code requestGiftItemShop}. Level &lt; Beginner E
+     * ({@code 6}) is CHANNEL sys 1 before {@code qntd}. Catalog is SQL
+     * {@code shop_catalog} (IFF {@code IsGiftItem} stand-in). Success charges
+     * the sender without warehouse and puts the item in the recipient mailbox.
      */
     private void giftItem(Session session, PacketReader reader) {
         if (!session.authorized()) {
@@ -1868,22 +1911,55 @@ public final class GameHandler {
                 return;
             }
             reader.u16();
-            reader.u32();
-            reader.pstr();
+            long toUid = reader.u32Unsigned();
+            String msg = reader.pstr();
             if (reader.remaining() < 3) {
                 session.send(GamePackets.giftFailed(GamePackets.BUY_FAIL_GENERIC, pang, cookie));
                 return;
             }
             reader.u8();
             int qntd = reader.u16();
+            if (session.player().level < GamePackets.GIFT_MIN_LEVEL) {
+                session.send(GamePackets.giftFailed(GamePackets.BUY_FAIL_INIT, pang, cookie));
+                return;
+            }
             if (qntd <= 0) {
                 session.send(GamePackets.giftFailed(GamePackets.BUY_FAIL_EMPTY, pang, cookie));
                 return;
             }
+            List<GamePackets.BuyItem> items = new ArrayList<>();
             for (int i = 0; i < qntd; i++) {
-                GamePackets.readBuyItem(reader);
+                items.add(GamePackets.readBuyItem(reader));
             }
-            session.send(GamePackets.giftFailed(GamePackets.BUY_FAIL_INIT, pang, cookie));
+            long pangAfter = pang;
+            long cookieAfter = cookie;
+            long pangSpent = 0;
+            long cookieSpent = 0;
+            for (GamePackets.BuyItem item : items) {
+                InventoryRepository.ShopBuyResult result = inventory.giftShopItem(
+                        session.player().uid, item.typeid(), item.qntd(), item.pang(), item.cookie());
+                if (result.code() != 0) {
+                    session.send(GamePackets.giftFailed(result.code(), pang, cookie));
+                    return;
+                }
+                pangAfter = result.pang();
+                cookieAfter = result.cookie();
+                pangSpent += result.pangSpent();
+                cookieSpent += result.cookieSpent();
+            }
+            String fromId = session.player().nickname == null ? "" : session.player().nickname;
+            mailboxes.add(toUid, fromId, msg == null ? "" : msg, items.size());
+            if (pangSpent > 0) {
+                session.send(GamePackets.pangSpent(pangAfter, pangSpent));
+            }
+            if (cookieSpent > 0) {
+                session.send(GamePackets.cookieBalance(cookieAfter));
+            }
+            session.send(GamePackets.giftFailed(0, pangAfter, cookieAfter));
+            Session target = sessions.findByUid(toUid);
+            if (target != null && target.authorized()) {
+                target.send(GamePackets.newMail(unreadMailBytes(toUid)));
+            }
         } catch (RuntimeException e) {
             log.warn("gift item uid={} failed: {}", session.player().uid, e.toString());
             session.send(GamePackets.giftFailed(GamePackets.BUY_FAIL_GENERIC, pang, cookie));

@@ -42,7 +42,15 @@ public interface InventoryRepository {
 
     ShopBuyResult buyShopItem(long uid, int typeid, int qntd, int clientPang, int clientCookie);
 
+    /**
+     * C# gift {@code consomeMoeda} without adding warehouse to the sender.
+     * Catalog miss is {@link GamePackets#BUY_FAIL_NOT_BUYABLE}.
+     */
+    ShopBuyResult giftShopItem(long uid, int typeid, int qntd, int clientPang, int clientCookie);
+
     void setPangCookie(long uid, long pang, long cookie);
+
+    void setLevel(long uid, int level);
 
     void deleteWarehouseByTypeid(long uid, int typeid);
 

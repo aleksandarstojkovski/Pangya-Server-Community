@@ -27,6 +27,10 @@ final class GameRoom {
     volatile int pauseCount;
     /** C# Versus {@code finish_char_intro}; cleared when all players have sent {@code 0x34}. */
     final ConcurrentHashMap<Integer, Boolean> charIntro = new ConcurrentHashMap<>();
+    /** C# Versus {@code setLoadHole}; cleared when all players have sent {@code 0x11}. */
+    final ConcurrentHashMap<Integer, Boolean> loadHole = new ConcurrentHashMap<>();
+    /** C# Versus {@code m_player_turn.oid}; 0 until {@code sendReplyFinishLoadHole}. */
+    volatile int turnOid;
     /** C# {@code m_player_report_game} UIDs that already sent {@code 0x3A}. */
     final ConcurrentHashMap<Long, Boolean> reported = new ConcurrentHashMap<>();
     /** C# {@code PersonalShopManager} per-owner shops. */
@@ -191,6 +195,7 @@ final class GameRoom {
         shots.remove(session.oid());
         playerInfos.remove(session.oid());
         charIntro.remove(session.oid());
+        loadHole.remove(session.oid());
         shops.remove(session.player().uid);
         for (PersonalShop shop : shops.values()) {
             shop.viewers.remove(session.player().uid);
@@ -250,6 +255,49 @@ final class GameRoom {
 
     synchronized void clearCharIntro() {
         charIntro.clear();
+    }
+
+    /**
+     * C# Versus {@code setLoadHole} then {@code checkAllLoadHole}.
+     */
+    synchronized boolean markLoadHole(Session session) {
+        loadHole.put(session.oid(), Boolean.TRUE);
+        return loadHole.size() >= players.size();
+    }
+
+    synchronized void clearLoadHole() {
+        loadHole.clear();
+    }
+
+    /**
+     * C# {@code init_turn_hole_start} then {@code getNextPlayerTurnHole}: join order
+     * (equal hole-start scores keep {@code m_players} order).
+     */
+    synchronized int startHoleTurn() {
+        if (players.isEmpty()) {
+            turnOid = 0;
+            return 0;
+        }
+        turnOid = players.getFirst().oid();
+        return turnOid;
+    }
+
+    /**
+     * C# {@code requestCalculePlayerTurn} after hole-start popped the first player.
+     */
+    synchronized int rotateTurn() {
+        if (turnOid == 0 || players.isEmpty()) {
+            return 0;
+        }
+        int idx = 0;
+        for (int i = 0; i < players.size(); i++) {
+            if (players.get(i).oid() == turnOid) {
+                idx = i;
+                break;
+            }
+        }
+        turnOid = players.get((idx + 1) % players.size()).oid();
+        return turnOid;
     }
 
     void broadcast(byte[] packet) {

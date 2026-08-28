@@ -356,6 +356,30 @@ class GameFlowIT {
             PacketReader guestLoad = awaitOpcode(guest, GamePackets.SERVER_LOAD_PERCENT);
             assertTrue(guestLoad.i32() > 0);
             assertEquals(50, guestLoad.u8());
+
+            host.sendPlain(GamePackets.clientInitHole(1, 0, 0, 4, 1.5f, 2.5f, 10f, 20f));
+            guest.sendPlain(GamePackets.clientInitHole(1, 0, 0, 4, 1.5f, 2.5f, 10f, 20f));
+            host.sendPlain(GamePackets.clientLoadOk());
+            guest.sendPlain(GamePackets.clientLoadOk());
+            PacketReader weather = awaitOpcode(host, GamePackets.SERVER_WEATHER);
+            assertEquals(0, weather.u16());
+            assertEquals(0, weather.u8());
+            PacketReader wind = awaitOpcode(host, GamePackets.SERVER_WIND);
+            assertEquals(0, wind.u8());
+            assertEquals(0, wind.u8());
+            assertEquals(0, wind.u16());
+            assertEquals(1, wind.u8());
+            PacketReader holeTurn = awaitOpcode(host, GamePackets.SERVER_HOLE_TURN);
+            int firstOid = holeTurn.i32();
+            assertTrue(firstOid > 0);
+            host.sendPlain(GamePackets.clientContinueVersus(GamePackets.CONTINUE_GO));
+            PacketReader turnWind = awaitOpcode(host, GamePackets.SERVER_WIND);
+            assertEquals(0, turnWind.u8());
+            PacketReader playerTurn = awaitOpcode(host, GamePackets.SERVER_PLAYER_TURN);
+            int nextOid = playerTurn.i32();
+            assertTrue(nextOid > 0);
+            assertTrue(nextOid != firstOid);
+
             host.sendPlain(GamePackets.clientCamera(0.5f));
             PacketReader mira = awaitOpcode(guest, GamePackets.SERVER_CAMERA);
             mira.i32();
@@ -539,7 +563,7 @@ class GameFlowIT {
 
             client.sendPlain(GamePackets.clientGiftEmpty(10002));
             PacketReader giftEmpty = awaitOpcode(client, GamePackets.SERVER_RESPONSE_GIFT_ITEM);
-            assertEquals(GamePackets.BUY_FAIL_EMPTY, giftEmpty.u32());
+            assertEquals(GamePackets.BUY_FAIL_INIT, giftEmpty.u32());
             assertEquals(99900, giftEmpty.u64());
             assertEquals(0, giftEmpty.u64());
 
@@ -613,6 +637,65 @@ class GameFlowIT {
 
             inventory.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_SHOP_PANG_ITEM);
             inventory.setPangCookie(10001, 100000, 0);
+        }
+    }
+
+    @Test
+    void shopGiftAtBeginnerEChargesSenderAndMailsRecipient() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config);
+             PangyaFakeClient host = new PangyaFakeClient();
+             PangyaFakeClient guest = new PangyaFakeClient()) {
+            var inventory = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
+            inventory.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_SHOP_PANG_ITEM);
+            inventory.setPangCookie(10001, 100000, 0);
+            inventory.setLevel(10001, GamePackets.GIFT_MIN_LEVEL);
+            try {
+                loginTwoPlayers(ds, keys, host, guest, runtime.port());
+
+                host.sendPlain(GamePackets.clientGiftEmpty(10002));
+                PacketReader empty = awaitOpcode(host, GamePackets.SERVER_RESPONSE_GIFT_ITEM);
+                assertEquals(GamePackets.BUY_FAIL_EMPTY, empty.u32());
+                assertEquals(100000, empty.u64());
+
+                host.sendPlain(GamePackets.clientGiftItem(10002, 0x7FFF0001, 1, 1, 0));
+                PacketReader missing = awaitOpcode(host, GamePackets.SERVER_RESPONSE_GIFT_ITEM);
+                assertEquals(GamePackets.BUY_FAIL_NOT_BUYABLE, missing.u32());
+
+                inventory.setPangCookie(10001, 0, 0);
+                host.sendPlain(GamePackets.clientGiftItem(
+                        10002, GamePackets.TYPEID_SHOP_PANG_ITEM, 1, GamePackets.SHOP_PANG_PRICE, 0));
+                PacketReader funds = awaitOpcode(host, GamePackets.SERVER_RESPONSE_GIFT_ITEM);
+                assertEquals(GamePackets.BUY_FAIL_FUNDS, funds.u32());
+
+                inventory.setPangCookie(10001, 100000, 0);
+                host.sendPlain(GamePackets.clientGiftItem(
+                        10002, GamePackets.TYPEID_SHOP_PANG_ITEM, 1, GamePackets.SHOP_PANG_PRICE, 0));
+                PacketReader spent = awaitOpcode(host, GamePackets.SERVER_PANG_SPENT);
+                assertEquals(99900, spent.u64());
+                assertEquals(GamePackets.SHOP_PANG_PRICE, spent.u64());
+                PacketReader ok = awaitOpcode(host, GamePackets.SERVER_RESPONSE_GIFT_ITEM);
+                assertEquals(0, ok.u32());
+                assertEquals(99900, ok.u64());
+                assertEquals(0, ok.u64());
+                PacketReader mail = awaitOpcode(guest, GamePackets.SERVER_NEW_MAIL);
+                assertEquals(0, mail.i32());
+                assertEquals(1, mail.i32());
+                assertFalse(inventory.warehouse(10001).stream()
+                        .anyMatch(w -> w.typeid == GamePackets.TYPEID_SHOP_PANG_ITEM));
+            } finally {
+                inventory.setLevel(10001, 1);
+                inventory.setPangCookie(10001, 100000, 0);
+                inventory.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_SHOP_PANG_ITEM);
+            }
         }
     }
 

@@ -24,11 +24,16 @@ final class MailBoxStore {
     private final AtomicInteger nextId = new AtomicInteger(1);
 
     MailEntry add(long toUid, String fromId, String msg) {
+        return add(toUid, fromId, msg, 0);
+    }
+
+    MailEntry add(long toUid, String fromId, String msg, int itemNum) {
         MailEntry entry = new MailEntry(
                 nextId.getAndIncrement(),
                 fromId == null ? "" : fromId,
                 msg == null ? "" : msg,
-                LocalDate.now().format(DATE));
+                LocalDate.now().format(DATE),
+                itemNum);
         boxes.computeIfAbsent(toUid, uid -> new ArrayList<>()).add(entry);
         return entry;
     }
@@ -143,7 +148,7 @@ final class MailBoxStore {
     }
 
     static byte[] toListBytes(MailEntry entry) {
-        return GamePackets.mailBoxEntry(entry.id, entry.fromId, entry.msg, entry.visitCount, entry.lidaYn, 0);
+        return GamePackets.mailBoxEntry(entry.id, entry.fromId, entry.msg, entry.visitCount, entry.lidaYn, entry.itemNum);
     }
 
     static final class MailEntry {
@@ -151,14 +156,16 @@ final class MailBoxStore {
         final String fromId;
         final String msg;
         final String giftDate;
+        final int itemNum;
         int visitCount;
         int lidaYn;
 
-        MailEntry(int id, String fromId, String msg, String giftDate) {
+        MailEntry(int id, String fromId, String msg, String giftDate, int itemNum) {
             this.id = id;
             this.fromId = fromId;
             this.msg = msg;
             this.giftDate = giftDate;
+            this.itemNum = itemNum;
         }
     }
 }
