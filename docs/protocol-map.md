@@ -51,6 +51,13 @@ Framing + cipher Java: `org.pangya.protocol.crypto.Cipher`, `MiniLzo`, `CryptoOr
 
 Login first raw frame (14 bytes, key at index 6): see `LoginServer.cs:159-161`.
 
+CLIENT_CONNECT `0x01` body (`LoginData` in `pangya_login_st.cs`):
+`PStr id`, `PStr password`, `byte opt_count`, `uint32 * (opt_count*8/4)`, `PStr mac`.
+
+SERVER_LOGIN `0x01` success (`pacote001` option=0):
+`byte 0`, `PStr id`, `uint32 uid`, `uint32 cap`, `int32 level`, `int32 10`, `uint16 12`, `PStr nickname`.
+Then `0x02` server list, `0x09` messenger list, `0x06` macros.
+
 ## Game (subset; full enum in `PacketGame.cs`)
 
 C#: `GameServer/PangyaEnums/PacketGame.cs` → Java `org.pangya.protocol.game.GamePackets` (S3+)
