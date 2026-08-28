@@ -37,6 +37,8 @@ final class GameRoom {
     volatile int turnOid;
     /** C# Match {@code changeHole} clear bonus applied once per game. */
     volatile boolean matchClearBonusApplied;
+    /** C# Match {@code Team} red/blue pang accumulators (index 0/1). */
+    final MatchTeam[] matchTeams = {new MatchTeam(), new MatchTeam()};
     /** C# {@code m_player_report_game} UIDs that already sent {@code 0x3A}. */
     final ConcurrentHashMap<Long, Boolean> reported = new ConcurrentHashMap<>();
     /** C# {@code PersonalShopManager} per-owner shops. */
@@ -277,6 +279,42 @@ final class GameRoom {
 
     synchronized List<Session> snapshot() {
         return List.copyOf(players);
+    }
+
+    /** C# Match team id from {@code PlayerRoomInfo.stateFlag} bit 0. */
+    int matchTeamId(Session session) {
+        GamePackets.PlayerRoomInfo info = playerInfo(session);
+        if (info == null) {
+            return 0;
+        }
+        return info.stateFlag & GamePackets.PLAYER_TEAM_BIT;
+    }
+
+    void resetMatchTeams() {
+        matchClearBonusApplied = false;
+        for (MatchTeam team : matchTeams) {
+            team.pang = 0;
+            team.bonusPang = 0;
+        }
+    }
+
+    /**
+     * C# {@code Match.requestUpdateTeamPang}: copy team pang/bonus onto each
+     * member's {@link PlayerShot} before finish-game credit.
+     */
+    void mergeMatchTeamPangToPlayers() {
+        for (Session member : snapshot()) {
+            MatchTeam team = matchTeams[matchTeamId(member)];
+            GameRoom.PlayerShot shot = shots.computeIfAbsent(member.oid(), id -> new PlayerShot());
+            shot.pang = team.pang;
+            shot.bonusPang = team.bonusPang;
+        }
+    }
+
+    /** C# {@code Team} pang/bonus running totals during Match. */
+    static final class MatchTeam {
+        long pang;
+        long bonusPang;
     }
 
     /**

@@ -647,6 +647,9 @@ public final class GameHandler {
         room.gzFirstHole.clear();
         room.activeUses.clear();
         room.autoCommandUses.clear();
+        if (room.tipo == GamePackets.TIPO_MATCH) {
+            room.resetMatchTeams();
+        }
         room.initGameFlags();
         for (var member : room.snapshot()) {
             room.initActiveItems(member.oid(), inventory.userEquip(member.player().uid).itemSlot);
@@ -938,6 +941,11 @@ public final class GameHandler {
         shot.displayState = sync.displayState();
         shot.pang = sync.pang() & 0xFFFFFFFFL;
         shot.bonusPang = sync.bonusPang() & 0xFFFFFFFFL;
+        if (room.tipo == GamePackets.TIPO_MATCH) {
+            GameRoom.MatchTeam team = room.matchTeams[room.matchTeamId(session)];
+            team.pang = shot.pang;
+            team.bonusPang = shot.bonusPang;
+        }
         int hole = shot.hole == 0 ? 1 : shot.hole;
         room.broadcast(GamePackets.syncShot(sync.oid(), hole, shot.x, shot.z, shot.shotState, shot.tempo));
     }
@@ -1007,20 +1015,29 @@ public final class GameHandler {
             return;
         }
         reader.readBytes(GamePackets.USER_INFO_BYTES);
-        sendFinishGameDump(session, room);
+        sendFinishGameDump(session, room, true);
         finishGameRoom(room);
     }
 
     /**
      * C# {@code packet037} / {@code requestLastPlayerFinishVersus}: Versus
-     * {@code finish_game(first, 2)} then {@code room.finish_game()}.
+     * {@code finish_game(first, 2)} then {@code room.finish_game()}. Match
+     * {@code finish_match} credits every team member's pang.
      */
     private void lastPlayerFinishVersus(Session session) {
         GameRoom room = inGameRoom(session);
         if (room == null || !GamePackets.usesVersusInitialData(room.tipo)) {
             return;
         }
-        sendFinishGameDump(session, room);
+        if (room.tipo == GamePackets.TIPO_MATCH) {
+            room.mergeMatchTeamPangToPlayers();
+            for (Session member : room.snapshot()) {
+                creditPlayerGamePang(member, room);
+            }
+            sendFinishGameDump(session, room, false);
+        } else {
+            sendFinishGameDump(session, room, true);
+        }
         finishGameRoom(room);
     }
 
@@ -1052,7 +1069,7 @@ public final class GameHandler {
         }
         int opt = reader.u8();
         if (opt == GamePackets.CONTINUE_STOP) {
-            sendFinishGameDump(session, room);
+            sendFinishGameDump(session, room, true);
             finishGameRoom(room);
             return;
         }
@@ -1106,9 +1123,7 @@ public final class GameHandler {
 
     /**
      * C# {@code Match.changeHole}: broadcast {@code 0x199} and
-     * {@code calculeClearMatch} for each team when the match ends on the last hole.
-     * Java stand-in: credit every player once when all have {@code acerto_hole} on
-     * the final hole (team pang merge is not modeled yet).
+     * {@code calculeClearMatch} per team when the match ends on the last hole.
      */
     private void applyMatchEndClearBonus(GameRoom room) {
         if (room.matchClearBonusApplied) {
@@ -1131,13 +1146,14 @@ public final class GameHandler {
             log.warn("match clear bonus missing course map course={} room={}", courseId, room.info.numero);
             return;
         }
-        int bonus = MapCatalog.calculeClearMatch(map, holes);
-        for (Session member : room.snapshot()) {
-            GameRoom.PlayerShot shot = room.shots.get(member.oid());
-            if (shot != null) {
-                shot.bonusPang += bonus;
-            }
+        int holeSeq = holes;
+        int bonusHole = MapCatalog.calculeClearMatch(map, holeSeq);
+        int bonusCourse = MapCatalog.calculeClearMatch(map, holes);
+        for (GameRoom.MatchTeam team : room.matchTeams) {
+            team.bonusPang += bonusHole;
+            team.bonusPang += bonusCourse;
         }
+        room.mergeMatchTeamPangToPlayers();
     }
 
     /**
@@ -2194,22 +2210,32 @@ public final class GameHandler {
         replyInGame(room, session, GamePackets.replay(remaining.getAsInt()));
     }
 
-    private void sendFinishGameDump(Session session, GameRoom room) {
+    private void creditPlayerGamePang(Session session, GameRoom room) {
+        GameRoom.PlayerShot shot = room.shots.get(session.oid());
+        if (shot == null) {
+            return;
+        }
+        long credit = shot.pang + shot.bonusPang;
+        if (credit <= 0) {
+            return;
+        }
+        long uid = session.player().uid;
+        inventory.setPangCookie(uid, inventory.pang(uid) + credit, inventory.cookie(uid));
+    }
+
+    private void sendFinishGameDump(Session session, GameRoom room, boolean creditPang) {
         session.send(GamePackets.prizeList(new int[0]));
         session.send(GamePackets.gameResult(0, room.info.trophy, 0, 2));
         session.send(GamePackets.myStatistics(GamePackets.userInfoPublic(session.player().level)));
         session.send(GamePackets.treasureHunterItem());
         long uid = session.player().uid;
-        long pang = inventory.pang(uid);
-        GameRoom.PlayerShot shot = room.shots.get(session.oid());
-        if (shot != null) {
-            long credit = shot.pang + shot.bonusPang;
-            if (credit > 0) {
-                pang += credit;
-                inventory.setPangCookie(uid, pang, inventory.cookie(uid));
+        if (creditPang) {
+            if (room.tipo == GamePackets.TIPO_MATCH) {
+                room.mergeMatchTeamPangToPlayers();
             }
+            creditPlayerGamePang(session, room);
         }
-        session.send(GamePackets.pangSpent(pang, 0));
+        session.send(GamePackets.pangSpent(inventory.pang(uid), 0));
     }
 
     /**
@@ -2396,6 +2422,9 @@ public final class GameHandler {
         room.activeUses.clear();
         room.autoCommandUses.clear();
         room.gameFlags.clear();
+        if (room.tipo == GamePackets.TIPO_MATCH) {
+            room.resetMatchTeams();
+        }
         for (Session member : room.snapshot()) {
             GamePackets.PlayerRoomInfo pri = room.playerInfo(member);
             if (pri == null) {
@@ -8140,7 +8169,7 @@ public final class GameHandler {
             return;
         }
         session.send(GamePackets.gzEndGame());
-        sendFinishGameDump(session, room);
+        sendFinishGameDump(session, room, true);
         finishGameRoom(room);
     }
 

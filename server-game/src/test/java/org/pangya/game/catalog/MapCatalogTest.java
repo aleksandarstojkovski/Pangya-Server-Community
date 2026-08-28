@@ -24,6 +24,7 @@ class MapCatalogTest {
             assertEquals(180, MapCatalog.calculeClear30s(map, 18));
             assertEquals(360, MapCatalog.calculeClearVs(map, 2, 18));
             assertEquals(360, MapCatalog.calculeClearMatch(map, 18));
+            assertEquals(720, MapCatalog.calculeClearMatch(map, 18) * 2);
         }
     }
 
