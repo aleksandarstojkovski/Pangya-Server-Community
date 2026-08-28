@@ -8,6 +8,7 @@ import org.pangya.network.session.PlayerContext;
 import org.pangya.network.session.Session;
 import org.pangya.network.session.SessionManager;
 import org.pangya.protocol.game.GamePackets;
+import org.pangya.protocol.login.ServerInfo;
 import org.pangya.protocol.packet.PacketIo;
 import org.pangya.protocol.packet.PacketReader;
 import org.slf4j.Logger;
@@ -104,6 +105,12 @@ public final class GameHandler {
             case GamePackets.CLIENT_KEEPALIVE -> { }
             case GamePackets.CLIENT_WHISPER -> whisper(session, reader);
             case GamePackets.CLIENT_REQUEST_CASH -> requestCash(session);
+            case GamePackets.CLIENT_REQUEST_USERINFO -> requestPlayerInfo(session, reader);
+            case GamePackets.CLIENT_UPDATE_MACRO -> updateMacros(session, reader);
+            case GamePackets.CLIENT_REQUEST_SERVER_LIST -> requestServerList(session);
+            case GamePackets.CLIENT_REQUEST_RANK -> requestRank(session);
+            case GamePackets.CLIENT_CHANGE_TEAM -> changeTeam(session, reader);
+            case GamePackets.CLIENT_REQUEST_DETAIL_ROOM_INFO -> requestRoomDetail(session, reader);
             default -> log.debug("unhandled game opcode 0x{}", Integer.toHexString(opcode));
         }
     }
@@ -890,6 +897,139 @@ public final class GameHandler {
             return;
         }
         session.send(GamePackets.cookieBalance(inventory.cookie(session.player().uid)));
+    }
+
+    private void requestPlayerInfo(Session session, PacketReader reader) {
+        if (!session.authorized() || reader.remaining() < 5) {
+            return;
+        }
+        int uid = reader.u32();
+        int season = reader.u8();
+        var info = repo.playerInfo(uid & 0xffff_ffffL).orElse(null);
+        if (info == null) {
+            session.send(GamePackets.playerInfoAck(GamePackets.PLAYER_INFO_OK, 0, 0));
+            return;
+        }
+        boolean viewerGm = (session.player().capability & 4) != 0;
+        boolean targetGm = (info.capability() & 4) != 0;
+        if (uid != (int) session.player().uid && !viewerGm && targetGm) {
+            session.send(GamePackets.playerInfoAck(GamePackets.PLAYER_INFO_NO_GM, season, uid));
+            return;
+        }
+        Session online = sessions.findByUid(info.uid());
+        int oid = online == null ? 0 : online.oid();
+        int sala = 0xffff;
+        if (online != null && online.player().roomNumber >= 0) {
+            sala = online.player().roomNumber & 0xffff;
+        }
+        GamePackets.UserEquip equip = inventory.userEquip(info.uid());
+        GamePackets.CharacterInfo character = null;
+        for (GamePackets.CharacterInfo c : inventory.characters(info.uid())) {
+            if (c.id == equip.characterId || character == null) {
+                character = c;
+                if (c.id == equip.characterId) {
+                    break;
+                }
+            }
+        }
+        for (byte[] pkt : GamePackets.playerInfoDump(
+                (int) info.uid(),
+                season,
+                oid,
+                sala,
+                info.id(),
+                info.nickname(),
+                info.capability(),
+                info.level(),
+                character,
+                equip)) {
+            session.send(pkt);
+        }
+        session.send(GamePackets.playerInfoAck(GamePackets.PLAYER_INFO_OK, season, (int) info.uid()));
+    }
+
+    private void updateMacros(Session session, PacketReader reader) {
+        if (!session.authorized() || reader.remaining() < GamePackets.MACRO_COUNT * GamePackets.MACRO_BYTES) {
+            return;
+        }
+        String[] macros = new String[GamePackets.MACRO_COUNT];
+        for (int i = 0; i < macros.length; i++) {
+            macros[i] = reader.fixedStr(GamePackets.MACRO_BYTES);
+        }
+        repo.saveMacros(session.player().uid, macros);
+    }
+
+    private void requestServerList(Session session) {
+        if (!session.authorized()) {
+            return;
+        }
+        List<byte[]> servers = new ArrayList<>();
+        for (LoginRepository.ServerListRow row : repo.serverList(1)) {
+            ServerInfo info = new ServerInfo();
+            info.name = row.name() == null ? "" : row.name();
+            info.uid = row.uid();
+            info.maxUser = row.maxUser();
+            info.currUser = row.currUser();
+            info.ip = row.ip() == null ? "" : row.ip();
+            info.port = row.port();
+            info.property = row.property();
+            info.angelicWings = row.angelicWings();
+            info.eventFlag = row.eventFlag();
+            info.eventMap = row.eventMap();
+            info.appRate = row.appRate();
+            info.scratchRate = row.scratchRate();
+            info.imgNo = row.imgNo();
+            servers.add(info.toArray());
+        }
+        session.send(GamePackets.serverAndChannelList(servers, channels));
+    }
+
+    private void requestRank(Session session) {
+        if (!session.authorized()) {
+            return;
+        }
+        List<LoginRepository.ServerListRow> ranks = repo.serverList(4);
+        if (ranks.isEmpty()) {
+            return;
+        }
+        LoginRepository.ServerListRow rank = ranks.getFirst();
+        session.send(GamePackets.rankAddress(rank.ip(), rank.port()));
+    }
+
+    private void changeTeam(Session session, PacketReader reader) {
+        if (!session.authorized() || reader.remaining() < 1) {
+            return;
+        }
+        int team = reader.u8() & 1;
+        GameRoom room = rooms.get(session.player().roomNumber);
+        if (room == null) {
+            return;
+        }
+        GamePackets.PlayerRoomInfo pri = room.playerInfo(session);
+        if (pri == null) {
+            return;
+        }
+        pri.stateFlag = (pri.stateFlag & ~GamePackets.PLAYER_TEAM_BIT) | team;
+        room.putPlayerInfo(session, pri);
+        room.broadcast(GamePackets.teamState(session.oid(), team));
+    }
+
+    private void requestRoomDetail(Session session, PacketReader reader) {
+        if (!session.authorized() || reader.remaining() < 2) {
+            return;
+        }
+        int numero = reader.u16();
+        GameRoom room = rooms.get(numero);
+        if (room == null) {
+            return;
+        }
+        List<GamePackets.RoomDetailPlayer> players = new ArrayList<>();
+        for (Session member : room.snapshot()) {
+            GamePackets.PlayerLobbyInfo info = makeLobbyInfo(member);
+            players.add(new GamePackets.RoomDetailPlayer(
+                    info.oid, info.level, 0, info.capability, info.title, info.teamPoint));
+        }
+        session.send(GamePackets.roomDetail(room.info, room.tipo, players));
     }
 
     private GamePackets.ChannelInfo findChannel(int id) {

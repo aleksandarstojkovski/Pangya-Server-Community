@@ -297,6 +297,53 @@ public final class JdbiLoginRepository implements LoginRepository {
     }
 
     @Override
+    public void saveMacros(long uid, String[] macros) {
+        String[] slots = new String[9];
+        for (int i = 0; i < 9; i++) {
+            slots[i] = (macros != null && i < macros.length && macros[i] != null) ? macros[i] : "";
+        }
+        jdbi.useHandle(h -> {
+            int updated = h.createUpdate("""
+                            UPDATE pangya.pangya_user_macro
+                               SET \"Macro1\" = :m1, \"Macro2\" = :m2, \"Macro3\" = :m3,
+                                   \"Macro4\" = :m4, \"Macro5\" = :m5, \"Macro6\" = :m6,
+                                   \"Macro7\" = :m7, \"Macro8\" = :m8, \"Macro9\" = :m9
+                             WHERE \"UID\" = :uid
+                            """)
+                    .bind("uid", uid)
+                    .bind("m1", slots[0])
+                    .bind("m2", slots[1])
+                    .bind("m3", slots[2])
+                    .bind("m4", slots[3])
+                    .bind("m5", slots[4])
+                    .bind("m6", slots[5])
+                    .bind("m7", slots[6])
+                    .bind("m8", slots[7])
+                    .bind("m9", slots[8])
+                    .execute();
+            if (updated == 0) {
+                h.createUpdate("""
+                                INSERT INTO pangya.pangya_user_macro (
+                                    \"UID\", \"Macro1\", \"Macro2\", \"Macro3\", \"Macro4\", \"Macro5\",
+                                    \"Macro6\", \"Macro7\", \"Macro8\", \"Macro9\", \"Macro10\")
+                                VALUES (:uid, :m1, :m2, :m3, :m4, :m5, :m6, :m7, :m8, :m9, '')
+                                """)
+                        .bind("uid", uid)
+                        .bind("m1", slots[0])
+                        .bind("m2", slots[1])
+                        .bind("m3", slots[2])
+                        .bind("m4", slots[3])
+                        .bind("m5", slots[4])
+                        .bind("m6", slots[5])
+                        .bind("m7", slots[6])
+                        .bind("m8", slots[7])
+                        .bind("m9", slots[8])
+                        .execute();
+            }
+        });
+    }
+
+    @Override
     public Optional<String> loadAuthKeyLogin(long uid) {
         return jdbi.withHandle(h -> h.createQuery(
                         "SELECT \"AuthKey\" FROM pangya.authkey_login WHERE \"UID\" = :uid AND valid = 1 LIMIT 1")

@@ -275,4 +275,102 @@ class GamePacketsTest {
         assertEquals(GamePackets.CHAT_OFFLINE, offline.u8());
         assertEquals("nobody", offline.pstr());
     }
+
+    @Test
+    void playerInfoDumpAndServerListMatchCsharpLayouts() {
+        GamePackets.CharacterInfo character = new GamePackets.CharacterInfo();
+        character.id = 1;
+        character.typeid = GamePackets.TYPEID_NURI;
+        List<byte[]> dump = GamePackets.playerInfoDump(
+                10001, 0, 7, 0xffff, "testuser", "TestNick", 0, 1,
+                character, new GamePackets.UserEquip());
+        assertEquals(GamePackets.PLAYER_INFO_DUMP_COUNT, dump.size());
+        int[] opcodes = {0x157, 0x15E, 0x156, 0x158, 0x15D, 0x15C, 0x15C, 0x15B, 0x15A, 0x159, 0x15C, 0x257};
+        for (int i = 0; i < opcodes.length; i++) {
+            assertEquals(opcodes[i], new PacketReader(dump.get(i)).opcode(), "dump[" + i + "]");
+        }
+        PacketReader member = new PacketReader(dump.get(0));
+        member.opcode();
+        assertEquals(0, member.u8());
+        assertEquals(10001, member.u32());
+        assertEquals(GamePackets.MEMBER_INFO_EX_BYTES, member.remaining() - 8);
+        PacketReader characterPkt = new PacketReader(dump.get(1));
+        characterPkt.opcode();
+        assertEquals(10001, characterPkt.u32());
+        assertEquals(GamePackets.CHARACTER_INFO_BYTES, characterPkt.remaining());
+        PacketReader maps = new PacketReader(dump.get(5));
+        maps.opcode();
+        assertEquals(0x0A, maps.u8());
+        assertEquals(10001, maps.u32());
+        assertEquals(0, maps.i32());
+        assertEquals(0, maps.i32());
+        PacketReader unknown = new PacketReader(dump.get(7));
+        unknown.opcode();
+        assertEquals(0, unknown.u8());
+        assertEquals(10001, unknown.u32());
+        assertEquals(1, unknown.i16());
+        for (int i = 0; i < 60; i++) {
+            assertEquals(i, unknown.i32());
+        }
+        PacketReader ack = new PacketReader(GamePackets.playerInfoAck(GamePackets.PLAYER_INFO_OK, 0, 10001));
+        assertEquals(GamePackets.SERVER_PLAYER_INFO, ack.opcode());
+        assertEquals(GamePackets.PLAYER_INFO_OK, ack.u32());
+        assertEquals(0, ack.u8());
+        assertEquals(10001, ack.u32());
+        PacketReader missing = new PacketReader(GamePackets.playerInfoAck(GamePackets.PLAYER_INFO_OK, 0, 0));
+        assertEquals(GamePackets.SERVER_PLAYER_INFO, missing.opcode());
+        assertEquals(1, missing.u32());
+        assertEquals(0, missing.u8());
+        assertEquals(0, missing.u32());
+
+        org.pangya.protocol.login.ServerInfo server = new org.pangya.protocol.login.ServerInfo();
+        server.name = "PAPEL";
+        server.ip = "127.0.0.1";
+        server.port = 20202;
+        assertEquals(GamePackets.SERVER_INFO_BYTES, server.toArray().length);
+        GamePackets.ChannelInfo channel = new GamePackets.ChannelInfo();
+        channel.name = "Channel (Rookies)";
+        channel.maxUser = 500;
+        PacketReader list = new PacketReader(GamePackets.serverAndChannelList(
+                List.of(server.toArray()), List.of(channel)));
+        assertEquals(GamePackets.SERVER_SERVER_LIST, list.opcode());
+        assertEquals(1, list.u8());
+        assertEquals(GamePackets.SERVER_INFO_BYTES, list.remaining() - 1 - GamePackets.CHANNEL_INFO_BYTES);
+        list.readBytes(GamePackets.SERVER_INFO_BYTES);
+        assertEquals(1, list.u8());
+        assertEquals(GamePackets.CHANNEL_INFO_BYTES, list.remaining());
+        assertEquals(GamePackets.CHANNEL_INFO_BYTES, channel.toArray().length);
+
+        PacketReader rank = new PacketReader(GamePackets.rankAddress("127.0.0.1", 4774));
+        assertEquals(GamePackets.SERVER_RANK_ADDRESS, rank.opcode());
+        assertEquals("127.0.0.1", rank.pstr());
+        assertEquals(4774, rank.i32());
+        PacketReader team = new PacketReader(GamePackets.teamState(3, 1));
+        assertEquals(GamePackets.SERVER_TEAM, team.opcode());
+        assertEquals(3, team.i32());
+        assertEquals(1, team.u8());
+        PacketReader macros = new PacketReader(GamePackets.clientUpdateMacros(new String[] {"Nice shot!"}));
+        assertEquals(GamePackets.CLIENT_UPDATE_MACRO, macros.opcode());
+        assertEquals(GamePackets.MACRO_COUNT * GamePackets.MACRO_BYTES, macros.remaining());
+        assertEquals("Nice shot!", macros.fixedStr(GamePackets.MACRO_BYTES));
+        GamePackets.RoomInfo room = new GamePackets.RoomInfo();
+        room.numPlayer = 2;
+        room.holes = 18;
+        room.tipoShow = GamePackets.tipoShow(GamePackets.TIPO_STROKE);
+        PacketReader detail = new PacketReader(GamePackets.roomDetail(
+                room, GamePackets.TIPO_STROKE, List.of(
+                        new GamePackets.RoomDetailPlayer(1, 1, 0, 0, 0, 1000),
+                        new GamePackets.RoomDetailPlayer(2, 1, 0, 0, 0, 1000))));
+        assertEquals(GamePackets.SERVER_ROOM_DETAIL, detail.opcode());
+        assertEquals(2, detail.u32());
+        assertEquals(18, detail.u8());
+        assertEquals(0, detail.u32());
+        assertEquals(0, detail.u8());
+        assertEquals(GamePackets.TIPO_STROKE, detail.u8());
+        assertEquals(0, detail.u8());
+        assertEquals(0, detail.u32());
+        assertEquals(1, detail.i32());
+        assertEquals(1, detail.u8());
+        assertEquals(0, detail.u8());
+    }
 }

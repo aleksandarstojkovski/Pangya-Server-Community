@@ -20,6 +20,7 @@ public final class GamePackets {
     public static final int SERVER_ROOM_PLAYERS = 0x48;
     public static final int SERVER_ROOM_ENTER_RESULT = 0x49;
     public static final int SERVER_ROOM_UPDATE = 0x4A;
+    public static final int SERVER_EXIT_ROOM = 0x4C;
     public static final int SERVER_PANG_RATE = 0x77;
     public static final int SERVER_COURSE = 0x52;
     public static final int SERVER_WIND = 0x5B;
@@ -37,6 +38,11 @@ public final class GamePackets {
     public static final int SERVER_ENTER_LOBBY = 0xF5;
     public static final int SERVER_LEAVE_LOBBY = 0xF6;
     public static final int SERVER_WHISPER = 0x84;
+    public static final int SERVER_ROOM_DETAIL = 0x86;
+    public static final int SERVER_PLAYER_INFO = 0x89;
+    public static final int SERVER_TEAM = 0x7D;
+    public static final int SERVER_SERVER_LIST = 0x9F;
+    public static final int SERVER_RANK_ADDRESS = 0xA2;
     /** C# {@code pacote0AA} / {@code SERVER_NEW_ITEM}. */
     public static final int SERVER_NEW_ITEM = 0xAA;
     /** C# pang spent after shop buy ({@code 0xC8} + remaining + spent). */
@@ -72,7 +78,13 @@ public final class GamePackets {
     public static final int CLIENT_LEAVE_LOBBY = 0x82;
     public static final int CLIENT_KEEPALIVE = 0x01;
     public static final int CLIENT_WHISPER = 0x2A;
+    public static final int CLIENT_REQUEST_DETAIL_ROOM_INFO = 0x2D;
     public static final int CLIENT_REQUEST_CASH = 0x3D;
+    public static final int CLIENT_REQUEST_USERINFO = 0x2F;
+    public static final int CLIENT_UPDATE_MACRO = 0x69;
+    public static final int CLIENT_REQUEST_SERVER_LIST = 0x43;
+    public static final int CLIENT_REQUEST_RANK = 0x47;
+    public static final int CLIENT_CHANGE_TEAM = 0x10;
 
     public static final int ACK_LOGIN_OK = 0;
     public static final int ACK_LOGIN_FAIL = 1;
@@ -98,6 +110,16 @@ public final class GamePackets {
     public static final int CHAT_GM = 0x80;
     public static final int WHISPER_FROM = 0;
     public static final int WHISPER_TO = 1;
+    /** C# {@code pacote089} default err_code after the info dump. */
+    public static final int PLAYER_INFO_OK = 1;
+    public static final int PLAYER_INFO_NO_GM = 3;
+    public static final int GUILD_INFO_BYTES = 77;
+    public static final int MACRO_COUNT = 9;
+    public static final int MACRO_BYTES = 64;
+    public static final int PLAYER_INFO_DUMP_COUNT = 12;
+    public static final int PLAYER_TEAM_BIT = 1;
+    public static final int CHANNEL_INFO_BYTES = 77;
+    public static final int SERVER_INFO_BYTES = 92;
     public static final int LOBBY_USER_JOIN = 1;
     public static final int LOBBY_USER_LEAVE = 2;
     public static final int LOBBY_USER_UPDATE = 3;
@@ -685,8 +707,12 @@ public final class GamePackets {
     }
 
     public static byte[] memberInfoExPublic(int oid, String id, String nick, int capability) {
+        return memberInfoExPublic(oid, id, nick, capability, 0xffff);
+    }
+
+    public static byte[] memberInfoExPublic(int oid, String id, String nick, int capability, int salaNumero) {
         PacketWriter w = new PacketWriter();
-        w.u16(0xffff); // sala_numero DEFAULT_ROOM_ID
+        w.u16(salaNumero);
         w.fixedStr(id, 22);
         w.fixedStr(nick, 22);
         w.zero(17); // guild_name
@@ -1154,6 +1180,133 @@ public final class GamePackets {
         return tipo == TIPO_PRACTICE || tipo == TIPO_GRAND_ZODIAC_PRACTICE;
     }
 
+    /** C# {@code pacote089}: uint32 err, then season+uid when err > 0. */
+    public static byte[] playerInfoAck(int err, int season, int uid) {
+        PacketWriter w = new PacketWriter().opcode(SERVER_PLAYER_INFO).u32(err);
+        if (err > 0) {
+            w.u8(season).u32(uid);
+        }
+        return w.toBytes();
+    }
+
+    /**
+     * C# {@code requestPlayerInfo} online dump before {@code pacote089}.
+     * Map statistics stay empty when best_score is the C# unused sentinel 127.
+     */
+    public static List<byte[]> playerInfoDump(
+            int uid,
+            int season,
+            int oid,
+            int salaNumero,
+            String id,
+            String nick,
+            int capability,
+            int level,
+            CharacterInfo character,
+            UserEquip equip) {
+        byte[] mi = memberInfoExPublic(oid, id, nick, capability, salaNumero);
+        byte[] ci = character == null ? new byte[CHARACTER_INFO_BYTES] : character.toArray();
+        byte[] ue = equip == null ? new byte[USER_EQUIP_BYTES] : equip.toArray();
+        int natural = season != 0 ? 0x33 : 0x0A;
+        int gp = season != 0 ? 0x34 : 0x0B;
+        List<byte[]> out = new ArrayList<>();
+        out.add(new PacketWriter()
+                .opcode(0x157)
+                .u8(season)
+                .u32(uid)
+                .bytes(mi)
+                .u32(uid)
+                .u32(0)
+                .toBytes());
+        out.add(new PacketWriter().opcode(0x15E).u32(uid).bytes(ci).toBytes());
+        out.add(new PacketWriter().opcode(0x156).u8(season).u32(uid).bytes(ue).toBytes());
+        out.add(new PacketWriter().opcode(0x158).u8(season).u32(uid).bytes(userInfo(level)).toBytes());
+        out.add(new PacketWriter().opcode(0x15D).u32(uid).zero(GUILD_INFO_BYTES).toBytes());
+        out.add(mapStats(uid, natural));
+        out.add(mapStats(uid, gp));
+        PacketWriter unknown = new PacketWriter().opcode(0x15B).u8(season).u32(uid).i16(1);
+        for (int i = 0; i < 60; i++) {
+            unknown.i32(i);
+        }
+        out.add(unknown.toBytes());
+        out.add(new PacketWriter().opcode(0x15A).u8(season).u32(uid).u16(0).toBytes());
+        out.add(new PacketWriter().opcode(0x159).u8(season).u32(uid).zero(TROPHY_BYTES).toBytes());
+        out.add(mapStats(uid, season));
+        out.add(new PacketWriter().opcode(0x257).u8(season).u32(uid).i16(0).toBytes());
+        if (out.size() != PLAYER_INFO_DUMP_COUNT) {
+            throw new IllegalStateException("player info dump count " + out.size());
+        }
+        return out;
+    }
+
+    private static byte[] mapStats(int uid, int season) {
+        return new PacketWriter().opcode(0x15C).u8(season).u32(uid).i32(0).i32(0).toBytes();
+    }
+
+    /**
+     * C# {@code pacote09F}: server count + {@code ServerInfo} rows + channel count +
+     * {@code ChannelInfo} (no nested {@code 0x4D} opcode).
+     */
+    public static byte[] serverAndChannelList(List<byte[]> servers, List<ChannelInfo> channels) {
+        PacketWriter w = new PacketWriter().opcode(SERVER_SERVER_LIST).u8(servers.size());
+        for (byte[] server : servers) {
+            w.bytes(server);
+        }
+        w.u8(channels.size());
+        for (ChannelInfo channel : channels) {
+            w.bytes(channel.toArray());
+        }
+        return w.toBytes();
+    }
+
+    public static byte[] rankAddress(String ip, int port) {
+        return new PacketWriter().opcode(SERVER_RANK_ADDRESS).pstr(ip == null ? "" : ip).i32(port).toBytes();
+    }
+
+    public static byte[] teamState(int oid, int team) {
+        return new PacketWriter().opcode(SERVER_TEAM).i32(oid).u8(team).toBytes();
+    }
+
+    /**
+     * C# {@code requestShowInfoRoom} / {@code pacote086}: room summary then per-player
+     * oid/level/place/capability/title/ladder.
+     */
+    public static byte[] roomDetail(RoomInfo info, int tipo, List<RoomDetailPlayer> players) {
+        int time;
+        if (tipo == TIPO_STROKE || tipo == TIPO_MATCH || tipo == TIPO_PANG_BATTLE) {
+            time = info.timeVs;
+        } else if (tipo == TIPO_GUILD_BATTLE) {
+            time = 0;
+        } else {
+            time = info.time30s;
+        }
+        PacketWriter w = new PacketWriter()
+                .opcode(SERVER_ROOM_DETAIL)
+                .u32(info.numPlayer)
+                .u8(info.holes)
+                .u32(time)
+                .u8(info.course)
+                .u8(tipo)
+                .u8(info.modo)
+                .u32(info.trophy);
+        for (RoomDetailPlayer player : players) {
+            w.i32(player.oid())
+                    .u8(player.level())
+                    .u8(player.place())
+                    .i32(player.capability())
+                    .u32(player.title())
+                    .u32(player.ladderPoint());
+        }
+        return w.toBytes();
+    }
+
+    public record RoomDetailPlayer(int oid, int level, int place, int capability, int title, int ladderPoint) {}
+
+    /** C# {@code pacote04C}: int16 option ({@code -1} after a successful leave). */
+    public static byte[] exitRoomAck(int option) {
+        return new PacketWriter().opcode(SERVER_EXIT_ROOM).i16(option).toBytes();
+    }
+
     /**
      * C# {@code pacote196}: oid + {@code StateCharacterLounge} defaults (all 1.0f).
      */
@@ -1262,6 +1415,35 @@ public final class GamePackets {
 
     public static byte[] clientRequestCash() {
         return new PacketWriter().opcode(CLIENT_REQUEST_CASH).toBytes();
+    }
+
+    public static byte[] clientRequestUserInfo(int uid, int season) {
+        return new PacketWriter().opcode(CLIENT_REQUEST_USERINFO).u32(uid).u8(season).toBytes();
+    }
+
+    public static byte[] clientUpdateMacros(String[] macros) {
+        PacketWriter w = new PacketWriter().opcode(CLIENT_UPDATE_MACRO);
+        for (int i = 0; i < MACRO_COUNT; i++) {
+            String text = (macros != null && i < macros.length && macros[i] != null) ? macros[i] : "";
+            w.fixedStr(text, MACRO_BYTES);
+        }
+        return w.toBytes();
+    }
+
+    public static byte[] clientRequestServerList() {
+        return new PacketWriter().opcode(CLIENT_REQUEST_SERVER_LIST).toBytes();
+    }
+
+    public static byte[] clientRequestRank() {
+        return new PacketWriter().opcode(CLIENT_REQUEST_RANK).toBytes();
+    }
+
+    public static byte[] clientChangeTeam(int team) {
+        return new PacketWriter().opcode(CLIENT_CHANGE_TEAM).u8(team).toBytes();
+    }
+
+    public static byte[] clientRequestRoomDetail(int numero) {
+        return new PacketWriter().opcode(CLIENT_REQUEST_DETAIL_ROOM_INFO).u16(numero).toBytes();
     }
 
     public static byte[] clientInitHole(int numero, int option, int unknown, int par,

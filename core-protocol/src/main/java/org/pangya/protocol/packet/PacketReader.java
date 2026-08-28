@@ -78,6 +78,16 @@ public final class PacketReader {
         return s;
     }
 
+    /** C# {@code ReadPStr(length)} / {@code ReadStr}: fixed Shift_JIS field. */
+    public String fixedStr(int length) {
+        byte[] raw = readBytes(length);
+        int end = 0;
+        while (end < raw.length && raw[end] != 0) {
+            end++;
+        }
+        return new String(raw, 0, end, PacketIo.SHIFT_JIS);
+    }
+
     public byte[] remainingBytes() {
         byte[] rest = PacketIo.slice(buf, pos, remaining());
         pos = buf.length;

@@ -51,6 +51,14 @@ class LoginRepositoryTest {
             repo.upsertServer(game);
             assertEquals(1, repo.serverList(1).size());
             assertEquals("PAPEL", repo.serverList(1).getFirst().name());
+
+            repo.saveMacros(10001, new String[] {
+                    "Nice!", "Good!", "OK", "Thanks", "Sorry", "Go", "Nice shot!", "Wow", "GG"});
+            String[] macros = repo.macros(10001);
+            assertEquals("Nice!", macros[0]);
+            assertEquals("GG", macros[8]);
+            repo.saveMacros(10001, new String[] {"Nice shot!"});
+            assertEquals("Nice shot!", repo.macros(10001)[0]);
         }
     }
 

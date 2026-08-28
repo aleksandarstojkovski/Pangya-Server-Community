@@ -41,6 +41,8 @@ public interface LoginRepository {
 
     String[] macros(long uid);
 
+    void saveMacros(long uid, String[] macros);
+
     Optional<String> loadAuthKeyLogin(long uid);
 
     Optional<String> loadAuthKeyGame(long uid, int serverUid);

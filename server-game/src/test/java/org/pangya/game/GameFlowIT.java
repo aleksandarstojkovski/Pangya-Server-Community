@@ -639,6 +639,89 @@ class GameFlowIT {
             assertEquals(-1, updated.i16());
             assertEquals(GamePackets.tipoShow(GamePackets.TIPO_STROKE), updated.u8());
             assertEquals(5, updated.u8());
+
+            host.sendPlain(GamePackets.clientChangeTeam(1));
+            PacketReader team = awaitOpcode(host, GamePackets.SERVER_TEAM);
+            assertTrue(team.i32() > 0);
+            assertEquals(1, team.u8());
+            PacketReader guestTeam = awaitOpcode(guest, GamePackets.SERVER_TEAM);
+            assertTrue(guestTeam.i32() > 0);
+            assertEquals(1, guestTeam.u8());
+
+            host.sendPlain(GamePackets.clientRequestRoomDetail(numero));
+            PacketReader detail = awaitOpcode(host, GamePackets.SERVER_ROOM_DETAIL);
+            assertEquals(2, detail.u32());
+            assertEquals(18, detail.u8());
+            detail.u32();
+            detail.u8();
+            assertEquals(GamePackets.TIPO_STROKE, detail.u8());
+        }
+    }
+
+    @Test
+    void playerInfoMacrosServerListAndRankMatchCsharp() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config);
+             PangyaFakeClient host = new PangyaFakeClient();
+             PangyaFakeClient guest = new PangyaFakeClient()) {
+            LoginRepository repo = new JdbiLoginRepository(DatabaseSupport.jdbi(ds));
+            repo.upsertServer(new LoginRepository.ServerListRow(
+                    "RANK", 4774, "127.0.0.1", 4774, 100, 0, 4,
+                    0, 0, 0, (short) 0, (short) 0, (short) 0, (short) 0,
+                    "Release.JP.983.01", "JP.R7.983.01"));
+            loginTwoPlayers(ds, keys, host, guest, runtime.port());
+
+            host.sendPlain(GamePackets.clientRequestUserInfo(10001, 0));
+            List<byte[]> dump = collect(host, GamePackets.PLAYER_INFO_DUMP_COUNT + 1, 8, TimeUnit.SECONDS);
+            assertEquals(GamePackets.PLAYER_INFO_DUMP_COUNT + 1, dump.size());
+            int[] opcodes = {0x157, 0x15E, 0x156, 0x158, 0x15D, 0x15C, 0x15C, 0x15B, 0x15A, 0x159, 0x15C, 0x257};
+            for (int i = 0; i < opcodes.length; i++) {
+                assertEquals(opcodes[i], new PacketReader(dump.get(i)).opcode());
+            }
+            PacketReader ack = new PacketReader(dump.get(GamePackets.PLAYER_INFO_DUMP_COUNT));
+            assertEquals(GamePackets.SERVER_PLAYER_INFO, ack.opcode());
+            assertEquals(GamePackets.PLAYER_INFO_OK, ack.u32());
+            assertEquals(0, ack.u8());
+            assertEquals(10001, ack.u32());
+            PacketReader member = new PacketReader(dump.get(0));
+            member.opcode();
+            member.u8();
+            member.u32();
+            assertEquals(0xFFFF, member.u16());
+
+            host.sendPlain(GamePackets.clientRequestUserInfo(99999, 0));
+            PacketReader missing = awaitOpcode(host, GamePackets.SERVER_PLAYER_INFO);
+            assertEquals(GamePackets.PLAYER_INFO_OK, missing.u32());
+            assertEquals(0, missing.u8());
+            assertEquals(0, missing.u32());
+
+            host.sendPlain(GamePackets.clientUpdateMacros(new String[] {
+                    "Nice!", "Good!", "OK", "Thanks", "Sorry", "Go", "Nice shot!", "Wow", "GG"}));
+            Thread.sleep(200);
+            String[] macros = repo.macros(10001);
+            assertEquals("Nice!", macros[0]);
+            assertEquals("GG", macros[8]);
+
+            host.sendPlain(GamePackets.clientRequestServerList());
+            PacketReader servers = awaitOpcode(host, GamePackets.SERVER_SERVER_LIST);
+            int gsCount = servers.u8();
+            assertTrue(gsCount >= 1);
+            servers.readBytes(gsCount * GamePackets.SERVER_INFO_BYTES);
+            assertEquals(2, servers.u8());
+            assertEquals(2 * GamePackets.CHANNEL_INFO_BYTES, servers.remaining());
+
+            host.sendPlain(GamePackets.clientRequestRank());
+            PacketReader rank = awaitOpcode(host, GamePackets.SERVER_RANK_ADDRESS);
+            assertEquals("127.0.0.1", rank.pstr());
+            assertEquals(4774, rank.i32());
         }
     }
 
