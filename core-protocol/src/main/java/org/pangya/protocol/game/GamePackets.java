@@ -1403,10 +1403,38 @@ public final class GamePackets {
     public static final int CHAR_STATS_UP_ERR_CHAR = 0x5200501;
     /** C# character stats-up catch else. */
     public static final int CHAR_STATS_UP_ERR_DEFAULT = 0x5200500;
+    /** C# character stats-up invalid slot CHANNEL sys {@code 0x5200502}. */
+    public static final int CHAR_STATS_UP_ERR_STAT = 0x5200502;
+    /** C# character stats-up PCL limit CHANNEL sys {@code 0x5200503}. */
+    public static final int CHAR_STATS_UP_ERR_LIMIT = 0x5200503;
+    /** C# character stats-up missing enchant CHANNEL sys {@code 0x5200504}. */
+    public static final int CHAR_STATS_UP_ERR_ENCHANT = 0x5200504;
+    /** C# character stats-up missing IFF Character CHANNEL sys {@code 0x5200505}. */
+    public static final int CHAR_STATS_UP_ERR_CHAR_IFF = 0x5200505;
+    /** C# character stats-up empty mastery list CHANNEL sys {@code 0x5200506}. */
+    public static final int CHAR_STATS_UP_ERR_MASTERY = 0x5200506;
+    /** C# character stats-up mastery count CHANNEL sys {@code 0x5200507}. */
+    public static final int CHAR_STATS_UP_ERR_MASTERY_VAL = 0x5200507;
     /** C# character stats-down missing character CHANNEL sys. */
     public static final int CHAR_STATS_DOWN_ERR_CHAR = 0x5200551;
     /** C# character stats-down catch else. */
     public static final int CHAR_STATS_DOWN_ERR_DEFAULT = 0x5200550;
+    /** C# character stats-down invalid stat CHANNEL sys {@code 0x5200552}. */
+    public static final int CHAR_STATS_DOWN_ERR_STAT = 0x5200552;
+    /** C# character stats-down pcl already 0 CHANNEL sys {@code 0x5200553}. */
+    public static final int CHAR_STATS_DOWN_ERR_EMPTY = 0x5200553;
+    /** C# character stats-down missing IFF Character CHANNEL sys {@code 0x5200554}. */
+    public static final int CHAR_STATS_DOWN_ERR_CHAR_IFF = 0x5200554;
+    /** C# {@code CharacterInfo.Stats.S_POWER}. */
+    public static final int CHAR_STATS_POWER = 0;
+    /** C# {@code CharacterInfo.Stats.S_CURVE}. */
+    public static final int CHAR_STATS_CURVE = 4;
+    /** C# {@code stItem.type} {@code 0xC9} PCL row on {@code 0x216}. */
+    public static final int CHAR_STATS_AWARD_TYPE = 0xC9;
+    /** C# {@code WriteZeroByte(15)} after 5× u16 PCL. */
+    public static final int CHAR_STATS_PCL_PAD = 15;
+    /** Seeded {@code iff_enchant.pang} for POWER at pcl 0. */
+    public static final int CHAR_STATS_ENCHANT_PANG = 100;
     /** C# card-equip IFF miss CHANNEL sys. */
     public static final int CHAR_CARD_ERR_IFF = 0x5200757;
     /** C# card-equip catch else. */
@@ -1441,6 +1469,15 @@ public final class GamePackets {
     public static final int MY_ROOM_DENY = 0;
     /** C# {@code IFF_GROUP.ITEM}. {@code (typeid & 0xFC000000) >> 26}. */
     public static final int IFF_GROUP_ITEM = 6;
+    /** C# {@code IFF_GROUP.ENCHANT} {@code 13}. */
+    public static final int IFF_GROUP_ENCHANT = 13;
+    /**
+     * C# {@code (ENCHANT << 26) | (stat << 20) + pcl}. POWER at pcl 0 is
+     * {@code 0x34000000}.
+     */
+    public static int enchantTypeid(int stat, int pcl) {
+        return (IFF_GROUP_ENCHANT << 26) | (stat << 20) | (pcl & 0xff);
+    }
     /** C# {@code WriteSByte(-1)} on delete-item fail. */
     public static final int DELETE_ITEM_FAIL = 0xff;
     /** C# view {@code WriteString(nick, 22)}. */
@@ -2711,6 +2748,33 @@ public final class GamePackets {
             }
         }
         return w.toBytes();
+    }
+
+    /**
+     * C# stats {@code 0x216}: unix + count 1 + type {@code 0xC9} + ids +
+     * 5× u16 PCL + 15 zeros.
+     */
+    public static byte[] charPclAwards(int unix, int typeid, int id, byte[] pcl) {
+        PacketWriter w = new PacketWriter()
+                .opcode(SERVER_DAILY_QUEST_STAMP)
+                .u32(unix)
+                .u32(1)
+                .u8(CHAR_STATS_AWARD_TYPE)
+                .u32(typeid)
+                .i32(id)
+                .u32(0)
+                .u32(0)
+                .u32(0)
+                .u32(0);
+        for (int i = 0; i < 5; i++) {
+            w.u16(pcl[i] & 0xff);
+        }
+        return w.zero(CHAR_STATS_PCL_PAD).toBytes();
+    }
+
+    /** C# {@code 0x26F}/{@code 0x270} success: u32 0 + u32 stat. */
+    public static byte[] charStatsOk(int opcode, int stat) {
+        return new PacketWriter().opcode(opcode).u32(0).u32(stat).toBytes();
     }
 
     /** C# {@code 0xFB} after Papel: remain + flag (unlimited is -1 / -3). */
@@ -4551,10 +4615,14 @@ public final class GamePackets {
      * C# CLIENT {@code 0x188}/{@code 0x189}: u32 stat + {@code CharacterInfo.ToRead}.
      */
     public static byte[] clientCharStats(int opcode, int stat) {
+        return clientCharStats(opcode, stat, null);
+    }
+
+    public static byte[] clientCharStats(int opcode, int stat, CharacterInfo character) {
         return new PacketWriter()
                 .opcode(opcode)
                 .u32(stat)
-                .zero(CHARACTER_INFO_BYTES)
+                .bytes(character == null ? new byte[CHARACTER_INFO_BYTES] : character.toArray())
                 .toBytes();
     }
 

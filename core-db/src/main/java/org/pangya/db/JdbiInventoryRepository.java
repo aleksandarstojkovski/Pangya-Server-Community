@@ -1417,4 +1417,164 @@ public final class JdbiInventoryRepository implements InventoryRepository {
             return new CharMasteryResult(0, awards, mastery);
         });
     }
+
+    @Override
+    public CharStatsResult characterStatsUp(long uid, int stat, GamePackets.CharacterInfo client, int level) {
+        return jdbi.inTransaction(h -> {
+            GamePackets.CharacterInfo pCi = loadCharacter(h, uid, client.id, client.typeid);
+            if (pCi == null) {
+                return CharStatsResult.fail(GamePackets.CHAR_STATS_UP_ERR_CHAR);
+            }
+            int[] iffPcl = h.createQuery("""
+                            SELECT pcl0, pcl1, pcl2, pcl3, pcl4
+                              FROM pangya.iff_character
+                             WHERE typeid = :typeid
+                            """)
+                    .bind("typeid", pCi.typeid)
+                    .map((rs, ctx) -> new int[] {
+                            rs.getInt("pcl0"), rs.getInt("pcl1"), rs.getInt("pcl2"),
+                            rs.getInt("pcl3"), rs.getInt("pcl4")
+                    })
+                    .findOne()
+                    .orElse(null);
+            if (iffPcl == null) {
+                return CharStatsResult.fail(GamePackets.CHAR_STATS_UP_ERR_CHAR_IFF);
+            }
+            if (stat > GamePackets.CHAR_STATS_CURVE) {
+                return CharStatsResult.fail(GamePackets.CHAR_STATS_UP_ERR_STAT);
+            }
+            int bonus = 0;
+            if (stat == GamePackets.CHAR_STATS_POWER) {
+                bonus += (level - 1) / 5;
+            }
+            List<Integer> masteryStats = h.createQuery("""
+                            SELECT stats FROM pangya.iff_character_mastery
+                             WHERE typeid = :typeid
+                             ORDER BY seq
+                            """)
+                    .bind("typeid", pCi.typeid)
+                    .mapTo(Integer.class)
+                    .list();
+            if (masteryStats.isEmpty()) {
+                return CharStatsResult.fail(GamePackets.CHAR_STATS_UP_ERR_MASTERY);
+            }
+            if (masteryStats.size() < pCi.mastery) {
+                return CharStatsResult.fail(GamePackets.CHAR_STATS_UP_ERR_MASTERY_VAL);
+            }
+            int extras = 0;
+            for (int i = 0; i < pCi.mastery; i++) {
+                if (masteryStats.get(i) - 1 == stat) {
+                    extras++;
+                }
+            }
+            int limit = iffPcl[stat] + extras + bonus;
+            int current = pCi.pcl[stat] & 0xff;
+            if (current > limit) {
+                return CharStatsResult.fail(GamePackets.CHAR_STATS_UP_ERR_LIMIT);
+            }
+            int enchantTypeid = GamePackets.enchantTypeid(stat, current);
+            Long cost = h.createQuery("SELECT pang FROM pangya.iff_enchant WHERE typeid = :typeid")
+                    .bind("typeid", enchantTypeid)
+                    .mapTo(Long.class)
+                    .findOne()
+                    .orElse(null);
+            if (cost == null) {
+                return CharStatsResult.fail(GamePackets.CHAR_STATS_UP_ERR_ENCHANT);
+            }
+            if (cost <= 0) {
+                throw new IllegalStateException("enchant pang " + cost);
+            }
+            long pang = h.createQuery("SELECT COALESCE(\"Pang\", 0) FROM pangya.user_info WHERE \"UID\" = :uid")
+                    .bind("uid", uid)
+                    .mapTo(Long.class)
+                    .findOne()
+                    .orElse(0L);
+            if (pang < cost) {
+                throw new IllegalStateException("pang " + pang + " < " + cost);
+            }
+            byte[] pcl = pCi.pcl.clone();
+            pcl[stat] = (byte) (current + 1);
+            long pangAfter = pang - cost;
+            h.createUpdate("""
+                            UPDATE pangya.user_info
+                               SET "Pang" = :pang
+                             WHERE "UID" = :uid
+                            """)
+                    .bind("pang", pangAfter)
+                    .bind("uid", uid)
+                    .execute();
+            h.createUpdate("""
+                            UPDATE pangya.pangya_character_information
+                               SET "PCL0" = :p0, "PCL1" = :p1, "PCL2" = :p2, "PCL3" = :p3, "PCL4" = :p4
+                             WHERE item_id = :id
+                            """)
+                    .bind("p0", pcl[0] & 0xff).bind("p1", pcl[1] & 0xff)
+                    .bind("p2", pcl[2] & 0xff).bind("p3", pcl[3] & 0xff)
+                    .bind("p4", pcl[4] & 0xff)
+                    .bind("id", pCi.id)
+                    .execute();
+            return new CharStatsResult(0, pangAfter, cost, pcl, stat, pCi.typeid, pCi.id);
+        });
+    }
+
+    @Override
+    public CharStatsResult characterStatsDown(long uid, int stat, GamePackets.CharacterInfo client) {
+        return jdbi.inTransaction(h -> {
+            GamePackets.CharacterInfo pCi = loadCharacter(h, uid, client.id, client.typeid);
+            if (pCi == null) {
+                return CharStatsResult.fail(GamePackets.CHAR_STATS_DOWN_ERR_CHAR);
+            }
+            boolean hasIff = h.createQuery("SELECT 1 FROM pangya.iff_character WHERE typeid = :typeid")
+                    .bind("typeid", pCi.typeid)
+                    .mapTo(Integer.class)
+                    .findOne()
+                    .isPresent();
+            if (!hasIff) {
+                return CharStatsResult.fail(GamePackets.CHAR_STATS_DOWN_ERR_CHAR_IFF);
+            }
+            if (stat > GamePackets.CHAR_STATS_CURVE) {
+                return CharStatsResult.fail(GamePackets.CHAR_STATS_DOWN_ERR_STAT);
+            }
+            int current = pCi.pcl[stat] & 0xff;
+            if (current == 0) {
+                return CharStatsResult.fail(GamePackets.CHAR_STATS_DOWN_ERR_EMPTY);
+            }
+            byte[] pcl = pCi.pcl.clone();
+            pcl[stat] = (byte) (current - 1);
+            h.createUpdate("""
+                            UPDATE pangya.pangya_character_information
+                               SET "PCL0" = :p0, "PCL1" = :p1, "PCL2" = :p2, "PCL3" = :p3, "PCL4" = :p4
+                             WHERE item_id = :id
+                            """)
+                    .bind("p0", pcl[0] & 0xff).bind("p1", pcl[1] & 0xff)
+                    .bind("p2", pcl[2] & 0xff).bind("p3", pcl[3] & 0xff)
+                    .bind("p4", pcl[4] & 0xff)
+                    .bind("id", pCi.id)
+                    .execute();
+            return new CharStatsResult(0, 0, 0, pcl, stat, pCi.typeid, pCi.id);
+        });
+    }
+
+    private static GamePackets.CharacterInfo loadCharacter(Handle h, long uid, int id, int typeid) {
+        return h.createQuery("""
+                        SELECT item_id, typeid, "PCL0", "PCL1", "PCL2", "PCL3", "PCL4", "Mastery"
+                          FROM pangya.pangya_character_information
+                         WHERE "UID" = :uid AND item_id = :id AND typeid = :typeid
+                        """)
+                .bind("uid", uid)
+                .bind("id", id)
+                .bind("typeid", typeid)
+                .map((rs, ctx) -> {
+                    GamePackets.CharacterInfo c = new GamePackets.CharacterInfo();
+                    c.id = rs.getInt("item_id");
+                    c.typeid = rs.getInt("typeid");
+                    for (int i = 0; i < 5; i++) {
+                        c.pcl[i] = (byte) rs.getInt("PCL" + i);
+                    }
+                    c.mastery = rs.getInt("Mastery");
+                    return c;
+                })
+                .findOne()
+                .orElse(null);
+    }
 }

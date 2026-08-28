@@ -101,6 +101,18 @@ public interface InventoryRepository {
      */
     CharMasteryResult expandCharacterMastery(long uid, int typeid, int id, int level);
 
+    /**
+     * C# {@code requestCharacterStatsUp}: SQL {@code iff_character} /
+     * {@code iff_enchant} / {@code iff_character_mastery} stand-ins.
+     * {@code level} is {@code PlayerInfo.level}.
+     */
+    CharStatsResult characterStatsUp(long uid, int stat, GamePackets.CharacterInfo client, int level);
+
+    /**
+     * C# {@code requestCharacterStatsDown}: SQL {@code iff_character} stand-in.
+     */
+    CharStatsResult characterStatsDown(long uid, int stat, GamePackets.CharacterInfo client);
+
     record ShopItem(int typeid, int pangPrice, int cookiePrice, boolean canOverlap) {}
 
     record ShopBuyResult(
@@ -183,6 +195,20 @@ public interface InventoryRepository {
 
         public static CharMasteryResult fail(int code) {
             return new CharMasteryResult(code, List.of(), 0);
+        }
+    }
+
+    record CharStatsResult(
+            int code,
+            long pangAfter,
+            long pangSpent,
+            byte[] pcl,
+            int stat,
+            int typeid,
+            int id) {
+
+        public static CharStatsResult fail(int code) {
+            return new CharStatsResult(code, 0, 0, new byte[5], 0, 0, 0);
         }
     }
 }

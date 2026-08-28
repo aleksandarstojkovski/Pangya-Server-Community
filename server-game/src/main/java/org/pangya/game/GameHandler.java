@@ -4123,8 +4123,9 @@ public final class GameHandler {
     }
 
     /**
-     * C# {@code requestCharacterStatsUp}: missing character → {@code 0x26F}
-     * {@code shopSys(0x5200501)}.
+     * C# {@code requestCharacterStatsUp}: truncated ToRead → full
+     * {@code 0x5200500}; CHANNEL codes as {@code shopSys}; success
+     * {@code 0xC8}/{@code 0x216} type {@code 0xC9}/{@code 0x26F} u32 0 + stat.
      */
     private void characterStatsUp(Session session, PacketReader reader) {
         if (!inChannel(session)) {
@@ -4135,16 +4136,33 @@ public final class GameHandler {
                     GamePackets.SERVER_CHAR_STATS_UP, GamePackets.CHAR_STATS_UP_ERR_DEFAULT));
             return;
         }
-        reader.u32();
-        GamePackets.CharacterInfo.read(reader);
-        session.send(GamePackets.sysAck(
-                GamePackets.SERVER_CHAR_STATS_UP,
-                GamePackets.shopSys(GamePackets.CHAR_STATS_UP_ERR_CHAR)));
+        int stat = reader.u32();
+        GamePackets.CharacterInfo ci = GamePackets.CharacterInfo.read(reader);
+        InventoryRepository.CharStatsResult result;
+        try {
+            result = inventory.characterStatsUp(
+                    session.player().uid, stat, ci, session.player().level);
+        } catch (RuntimeException e) {
+            log.warn("char stats up uid={} failed: {}", session.player().uid, e.toString());
+            session.send(GamePackets.sysAck(
+                    GamePackets.SERVER_CHAR_STATS_UP, GamePackets.CHAR_STATS_UP_ERR_DEFAULT));
+            return;
+        }
+        if (result.code() != 0) {
+            session.send(GamePackets.sysAck(
+                    GamePackets.SERVER_CHAR_STATS_UP, GamePackets.shopSys(result.code())));
+            return;
+        }
+        session.send(GamePackets.pangSpent(result.pangAfter(), result.pangSpent()));
+        session.send(GamePackets.charPclAwards(
+                GamePackets.unixNow(), result.typeid(), result.id(), result.pcl()));
+        session.send(GamePackets.charStatsOk(GamePackets.SERVER_CHAR_STATS_UP, result.stat()));
     }
 
     /**
-     * C# {@code requestCharacterStatsDown}: missing character → {@code 0x270}
-     * {@code shopSys(0x5200551)}.
+     * C# {@code requestCharacterStatsDown}: truncated ToRead → full
+     * {@code 0x5200550}; CHANNEL codes as {@code shopSys}; success
+     * {@code 0x216} type {@code 0xC9} then {@code 0x270} u32 0 + stat.
      */
     private void characterStatsDown(Session session, PacketReader reader) {
         if (!inChannel(session)) {
@@ -4155,11 +4173,25 @@ public final class GameHandler {
                     GamePackets.SERVER_CHAR_STATS_DOWN, GamePackets.CHAR_STATS_DOWN_ERR_DEFAULT));
             return;
         }
-        reader.u32();
-        GamePackets.CharacterInfo.read(reader);
-        session.send(GamePackets.sysAck(
-                GamePackets.SERVER_CHAR_STATS_DOWN,
-                GamePackets.shopSys(GamePackets.CHAR_STATS_DOWN_ERR_CHAR)));
+        int stat = reader.u32();
+        GamePackets.CharacterInfo ci = GamePackets.CharacterInfo.read(reader);
+        InventoryRepository.CharStatsResult result;
+        try {
+            result = inventory.characterStatsDown(session.player().uid, stat, ci);
+        } catch (RuntimeException e) {
+            log.warn("char stats down uid={} failed: {}", session.player().uid, e.toString());
+            session.send(GamePackets.sysAck(
+                    GamePackets.SERVER_CHAR_STATS_DOWN, GamePackets.CHAR_STATS_DOWN_ERR_DEFAULT));
+            return;
+        }
+        if (result.code() != 0) {
+            session.send(GamePackets.sysAck(
+                    GamePackets.SERVER_CHAR_STATS_DOWN, GamePackets.shopSys(result.code())));
+            return;
+        }
+        session.send(GamePackets.charPclAwards(
+                GamePackets.unixNow(), result.typeid(), result.id(), result.pcl()));
+        session.send(GamePackets.charStatsOk(GamePackets.SERVER_CHAR_STATS_DOWN, result.stat()));
     }
 
     /**

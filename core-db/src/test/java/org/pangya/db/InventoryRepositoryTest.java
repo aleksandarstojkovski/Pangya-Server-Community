@@ -179,6 +179,18 @@ class InventoryRepositoryTest {
             assertEquals(0, repo.characters(10001).getFirst().mastery);
             repo.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_SHOP_PANG_ITEM);
             repo.setPangCookie(10001, 100000, 0);
+            var statsMiss = repo.characterStatsUp(10001, 0, new GamePackets.CharacterInfo(), 1);
+            assertEquals(GamePackets.CHAR_STATS_UP_ERR_CHAR, statsMiss.code());
+            var statsUp = repo.characterStatsUp(10001, 0, nuri, 1);
+            assertEquals(0, statsUp.code());
+            assertEquals(1, statsUp.pcl()[0] & 0xff);
+            assertEquals(100000 - GamePackets.CHAR_STATS_ENCHANT_PANG, statsUp.pangAfter());
+            assertEquals(1, repo.characters(10001).getFirst().pcl[0] & 0xff);
+            var statsDown = repo.characterStatsDown(10001, 0, nuri);
+            assertEquals(0, statsDown.code());
+            assertEquals(0, statsDown.pcl()[0] & 0xff);
+            assertEquals(0, repo.characters(10001).getFirst().pcl[0] & 0xff);
+            repo.setPangCookie(10001, 100000, 0);
         }
     }
 

@@ -2045,6 +2045,33 @@ class GameFlowIT {
             host.sendPlain(GamePackets.clientEmpty(GamePackets.CLIENT_CHAR_STATS_UP));
             PacketReader statsUpTrunc = awaitOpcode(host, GamePackets.SERVER_CHAR_STATS_UP);
             assertEquals(GamePackets.CHAR_STATS_UP_ERR_DEFAULT, statsUpTrunc.u32());
+            var statsNuri = inv.characters(10001).getFirst();
+            int beforeStats = GamePackets.unixNow();
+            host.sendPlain(GamePackets.clientCharStats(
+                    GamePackets.CLIENT_CHAR_STATS_UP, 0, statsNuri));
+            PacketReader statsSpent = awaitOpcode(host, GamePackets.SERVER_PANG_SPENT);
+            assertEquals(pang - GamePackets.CHAR_STATS_ENCHANT_PANG, statsSpent.u64());
+            assertEquals(GamePackets.CHAR_STATS_ENCHANT_PANG, statsSpent.u64());
+            PacketReader statsAwards = awaitOpcode(host, GamePackets.SERVER_DAILY_QUEST_STAMP);
+            int statsUnix = statsAwards.u32();
+            assertTrue(statsUnix >= beforeStats - 1 && statsUnix <= GamePackets.unixNow() + 1);
+            assertEquals(1, statsAwards.u32());
+            assertEquals(GamePackets.CHAR_STATS_AWARD_TYPE, statsAwards.u8());
+            assertEquals(statsNuri.typeid, statsAwards.u32());
+            assertEquals(statsNuri.id, statsAwards.i32());
+            statsAwards.u32();
+            statsAwards.u32();
+            statsAwards.u32();
+            statsAwards.u32();
+            assertEquals(1, statsAwards.u16());
+            assertEquals(0, statsAwards.u16());
+            assertEquals(0, statsAwards.u16());
+            assertEquals(0, statsAwards.u16());
+            assertEquals(0, statsAwards.u16());
+            statsAwards.readBytes(GamePackets.CHAR_STATS_PCL_PAD);
+            PacketReader statsOk = awaitOpcode(host, GamePackets.SERVER_CHAR_STATS_UP);
+            assertEquals(0, statsOk.u32());
+            assertEquals(0, statsOk.u32());
 
             host.sendPlain(GamePackets.clientCharStats(GamePackets.CLIENT_CHAR_STATS_DOWN, 0));
             PacketReader statsDown = awaitOpcode(host, GamePackets.SERVER_CHAR_STATS_DOWN);
@@ -2052,6 +2079,17 @@ class GameFlowIT {
             host.sendPlain(GamePackets.clientEmpty(GamePackets.CLIENT_CHAR_STATS_DOWN));
             PacketReader statsDownTrunc = awaitOpcode(host, GamePackets.SERVER_CHAR_STATS_DOWN);
             assertEquals(GamePackets.CHAR_STATS_DOWN_ERR_DEFAULT, statsDownTrunc.u32());
+            host.sendPlain(GamePackets.clientCharStats(
+                    GamePackets.CLIENT_CHAR_STATS_DOWN, 0, statsNuri));
+            PacketReader statsDownAwards = awaitOpcode(host, GamePackets.SERVER_DAILY_QUEST_STAMP);
+            assertTrue(statsDownAwards.u32() > 0);
+            assertEquals(1, statsDownAwards.u32());
+            assertEquals(GamePackets.CHAR_STATS_AWARD_TYPE, statsDownAwards.u8());
+            PacketReader statsDownOk = awaitOpcode(host, GamePackets.SERVER_CHAR_STATS_DOWN);
+            assertEquals(0, statsDownOk.u32());
+            assertEquals(0, statsDownOk.u32());
+            inv.setPangCookie(10001, pang, cookie);
+            assertEquals(0, inv.characters(10001).getFirst().pcl[0] & 0xff);
 
             host.sendPlain(GamePackets.clientCardEquip(GamePackets.CLIENT_CHAR_CARD_EQUIP));
             PacketReader cardEquip = awaitOpcode(host, GamePackets.SERVER_CHAR_CARD_EQUIP);
