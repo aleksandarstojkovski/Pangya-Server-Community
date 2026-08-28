@@ -4,6 +4,7 @@ import org.pangya.protocol.game.GamePackets;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.OptionalInt;
 
 /** Game inventory replacing C# {@code CmdWarehouseItem} / {@code CmdCharacterInfo} / {@code CmdCaddieInfo}. */
 public interface InventoryRepository {
@@ -91,6 +92,13 @@ public interface InventoryRepository {
 
     /** Insert or increment a warehouse consumable (C# {@code C0}). */
     int addWarehouseItem(long uid, int typeid, int qntd);
+
+    /**
+     * C# {@code ItemManager.removeItem} for warehouse ITEM: consume {@code qntd}
+     * from C0. Empty when the row is missing or C0 is insufficient. Remaining 0
+     * deletes the row ({@code qntd_dep}).
+     */
+    OptionalInt consumeWarehouseByTypeid(long uid, int typeid, int qntd);
 
     /**
      * C# {@code requestLoloCardCompose}: SQL {@code iff_card} stand-in for

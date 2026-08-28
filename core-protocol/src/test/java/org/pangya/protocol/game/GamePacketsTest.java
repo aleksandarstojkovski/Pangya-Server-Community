@@ -741,6 +741,9 @@ class GamePacketsTest {
         PacketReader replay = new PacketReader(GamePackets.clientReplay(0x1A000001));
         assertEquals(GamePackets.CLIENT_REPLAY_ONLINE, replay.opcode());
         assertEquals(0x1A000001, replay.u32());
+        PacketReader replayAck = new PacketReader(GamePackets.replay(1));
+        assertEquals(GamePackets.SERVER_REPLAY, replayAck.opcode());
+        assertEquals(1, replayAck.u16());
         assertEquals(GamePackets.SERVER_MSN_ACK, 0x95);
         assertEquals(GamePackets.CLIENT_REPORT_ERROR, 0x33);
         assertEquals(GamePackets.SERVER_BUY_ACK, 0x68);
@@ -1861,6 +1864,8 @@ class GamePacketsTest {
         assertEquals(GamePackets.END_SHOT_DROP_SLOTS, 128);
         assertEquals(GamePackets.TYPEID_SPINNING_CUBE, 0x1A00015B);
         assertEquals(GamePackets.TYPEID_COIN, 0x1A000010);
+        assertEquals(GamePackets.SERVER_REPLAY, 0xA4);
+        assertEquals(GamePackets.CLIENT_REPLAY_ONLINE, 0x4A);
         assertEquals(GamePackets.SERVER_BUY_ACK, 0x68);
         assertEquals(GamePackets.CREATE_ROOM_FAILED, 0x07);
         assertEquals(GamePackets.SERVER_LAST5, 0x10E);

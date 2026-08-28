@@ -9,6 +9,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.concurrent.ThreadLocalRandom;
 
 public final class JdbiInventoryRepository implements InventoryRepository {
@@ -693,6 +694,48 @@ public final class JdbiInventoryRepository implements InventoryRepository {
                 return existing;
             }
             return insertWarehouse(h, uid, typeid, qntd);
+        });
+    }
+
+    @Override
+    public OptionalInt consumeWarehouseByTypeid(long uid, int typeid, int qntd) {
+        if (qntd <= 0) {
+            return OptionalInt.empty();
+        }
+        return jdbi.inTransaction(h -> {
+            int[] row = h.createQuery("""
+                            SELECT item_id, "C0" FROM pangya.pangya_item_warehouse
+                             WHERE "UID" = :uid AND typeid = :typeid AND valid = 1
+                             ORDER BY item_id
+                             LIMIT 1
+                            """)
+                    .bind("uid", uid)
+                    .bind("typeid", typeid)
+                    .map((rs, ctx) -> new int[] {rs.getInt("item_id"), rs.getInt("C0") & 0xffff})
+                    .findOne()
+                    .orElse(null);
+            if (row == null || row[1] < qntd) {
+                return OptionalInt.empty();
+            }
+            int remaining = row[1] - qntd;
+            if (remaining <= 0) {
+                h.createUpdate("""
+                                DELETE FROM pangya.pangya_item_warehouse
+                                 WHERE item_id = :id
+                                """)
+                        .bind("id", row[0])
+                        .execute();
+                return OptionalInt.of(0);
+            }
+            h.createUpdate("""
+                            UPDATE pangya.pangya_item_warehouse
+                               SET "C0" = :c0
+                             WHERE item_id = :id
+                            """)
+                    .bind("c0", remaining)
+                    .bind("id", row[0])
+                    .execute();
+            return OptionalInt.of(remaining);
         });
     }
 

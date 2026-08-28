@@ -72,6 +72,12 @@ public final class GamePackets {
     public static final int SERVER_TYPING = 0x5D;
     public static final int SERVER_MOVE_BALL = 0x60;
     public static final int SERVER_LOAD_PERCENT = 0xA3;
+    /**
+     * C# {@code SERVER_REPLAY} / Versus/Tourney {@code requestActiveReplay}
+     * {@code 0xA4}: u16 remaining warehouse C0. Same numeric as C#
+     * {@code CLIENT_REQUEST_PANGYA_QUIZ_LEVEL}, opposite direction.
+     */
+    public static final int SERVER_REPLAY = 0xA4;
     public static final int SERVER_TEAM_CHAT = 0xB0;
     public static final int SERVER_GAME_INIT = 0x76;
     /** C# {@code SERVER_RESPONSE_GIFT_ITEM} / {@code 0x6A}: u32 code + u64 pang + u64 cookie. */
@@ -516,7 +522,13 @@ public final class GamePackets {
     public static final int CLIENT_SHOT_COMMAND = 0x42;
     /** C# {@code CLIENT_JOIN_GALLERY} / {@code packet03E} spy enter. Catch silent. */
     public static final int CLIENT_JOIN_GALLERY = 0x3E;
-    /** C# {@code CLIENT_REPLAY_ONLINE} / {@code packet04A}; catch is silent. */
+    /**
+     * C# {@code packet04A} {@code requestActiveReplay}. Not-in-room /
+     * not-in-game / typeid 0 / warehouse miss / C0&lt;=0 / consume fail
+     * CHANNEL-ROOM catch is silent. Success {@link #SERVER_REPLAY}
+     * {@code 0xA4} u16 remaining C0. Versus {@code game_broadcast};
+     * Tourney {@code session_send}.
+     */
     public static final int CLIENT_REPLAY_ONLINE = 0x4A;
     /**
      * C# {@code CLIENT_ENCHANT} / {@code packet04B} club-set stats. Same numeric
@@ -4867,6 +4879,15 @@ public final class GamePackets {
     /** C# CLIENT {@code 0x4A}: u32 warehouse typeid. */
     public static byte[] clientReplay(int typeid) {
         return new PacketWriter().opcode(CLIENT_REPLAY_ONLINE).u32(typeid).toBytes();
+    }
+
+    /**
+     * C# Versus/Tourney {@code requestActiveReplay} {@code 0xA4}: u16 remaining
+     * C0 ({@code item.stat.qntd_dep}). Versus {@code game_broadcast};
+     * Tourney {@code session_send}.
+     */
+    public static byte[] replay(int remaining) {
+        return new PacketWriter().opcode(SERVER_REPLAY).u16(remaining).toBytes();
     }
 
     public static byte[] clientShopCancel() {

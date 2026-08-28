@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.OptionalInt;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -1826,16 +1827,26 @@ public final class GameHandler {
     }
 
     /**
-     * C# {@code packet04A}: u32 typeid. Success {@code 0xA4} needs warehouse;
-     * catch is silent.
+     * C# Versus/Tourney {@code requestActiveReplay} {@code 0xA4}. Not-in-room /
+     * not-in-game / typeid 0 / warehouse miss / C0&lt;=0 / consume fail
+     * CHANNEL-ROOM catch is silent. Success writes u16 remaining C0
+     * ({@code item.stat.qntd_dep}). Versus {@code game_broadcast};
+     * Tourney {@code session_send}.
      */
     private void activeReplay(Session session, PacketReader reader) {
-        if (inGameRoom(session) == null) {
+        GameRoom room = inGameRoom(session);
+        if (room == null || reader.remaining() < 4) {
             return;
         }
-        if (reader.remaining() >= 4) {
-            reader.u32();
+        int typeid = reader.u32();
+        if (typeid == 0) {
+            return;
         }
+        OptionalInt remaining = inventory.consumeWarehouseByTypeid(session.player().uid, typeid, 1);
+        if (remaining.isEmpty()) {
+            return;
+        }
+        replyInGame(room, session, GamePackets.replay(remaining.getAsInt()));
     }
 
     private void sendFinishGameDump(Session session, GameRoom room) {

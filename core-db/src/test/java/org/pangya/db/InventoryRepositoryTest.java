@@ -243,6 +243,11 @@ class InventoryRepositoryTest {
             repo.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_SHOP_PANG_ITEM);
             repo.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_CLUB_PATCHER);
             repo.setPangCookie(10001, 100000, 0);
+            repo.addWarehouseItem(10001, GamePackets.TYPEID_SHOP_PANG_ITEM, 2);
+            assertEquals(1, repo.consumeWarehouseByTypeid(10001, GamePackets.TYPEID_SHOP_PANG_ITEM, 1).orElseThrow());
+            assertEquals(0, repo.consumeWarehouseByTypeid(10001, GamePackets.TYPEID_SHOP_PANG_ITEM, 1).orElseThrow());
+            assertTrue(repo.consumeWarehouseByTypeid(10001, GamePackets.TYPEID_SHOP_PANG_ITEM, 1).isEmpty());
+            repo.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_SHOP_PANG_ITEM);
         }
     }
 
