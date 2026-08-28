@@ -1098,9 +1098,11 @@ class GamePacketsTest {
         PacketReader lockerDep = new PacketReader(GamePackets.sysAck(
                 GamePackets.SERVER_LOCKER_UPDATE_PANG,
                 GamePackets.shopSys(GamePackets.LOCKER_PANG_DEPOSIT_ERR)));
+        assertEquals(GamePackets.SERVER_LOCKER_UPDATE_PANG, lockerDep.opcode());
         assertEquals(GamePackets.shopSys(5100352), lockerDep.u32());
         PacketReader lockerOk = new PacketReader(GamePackets.sysAck(
                 GamePackets.SERVER_LOCKER_UPDATE_PANG, 0));
+        assertEquals(GamePackets.SERVER_LOCKER_UPDATE_PANG, lockerOk.opcode());
         assertEquals(0, lockerOk.u32());
         PacketReader lockerMoved = new PacketReader(GamePackets.pangSpent(99000, 1000));
         assertEquals(GamePackets.SERVER_PANG_SPENT, lockerMoved.opcode());
