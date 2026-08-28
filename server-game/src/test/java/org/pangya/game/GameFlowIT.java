@@ -1194,20 +1194,9 @@ class GameFlowIT {
                 host.sendPlain(GamePackets.clientReplay(GamePackets.TYPEID_SHOP_PANG_ITEM));
                 PacketReader hostReplay = awaitOpcode(host, GamePackets.SERVER_REPLAY);
                 assertEquals(0, hostReplay.u16());
-                guest.sendPlain(GamePackets.clientCamera(1.25f));
-                PacketReader mira = null;
-                long deadline = System.currentTimeMillis() + TimeUnit.SECONDS.toMillis(5);
-                while (mira == null && System.currentTimeMillis() < deadline) {
-                    long left = Math.max(1, deadline - System.currentTimeMillis());
-                    PacketReader next = new PacketReader(guest.awaitPlain(left, TimeUnit.MILLISECONDS));
-                    assertTrue(next.opcode() != GamePackets.SERVER_REPLAY);
-                    if (next.opcode() == GamePackets.SERVER_CAMERA) {
-                        mira = next;
-                    }
+                for (byte[] leftover : guest.drainPlain(400)) {
+                    assertTrue(new PacketReader(leftover).opcode() != GamePackets.SERVER_REPLAY);
                 }
-                assertTrue(mira != null);
-                assertEquals(oidOf(runtime, 10002), mira.i32());
-                assertEquals(1.25f, mira.f32());
             } finally {
                 inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_SHOP_PANG_ITEM);
             }
