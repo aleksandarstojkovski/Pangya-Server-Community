@@ -1172,6 +1172,24 @@ class GamePacketsTest {
                 GamePackets.TYPEID_SHOP_PANG_ITEM));
         assertEquals(GamePackets.CLIENT_USE_ITEM, clientUse.opcode());
         assertEquals(GamePackets.TYPEID_SHOP_PANG_ITEM, clientUse.u32());
+        PacketReader endEmpty = new PacketReader(GamePackets.endShot(7));
+        assertEquals(GamePackets.SERVER_END_SHOT, endEmpty.opcode());
+        assertEquals(7, endEmpty.i32());
+        assertEquals(0, endEmpty.u8());
+        assertEquals(0, endEmpty.remaining());
+        GamePackets.DropItem cubeDrop = new GamePackets.DropItem(
+                GamePackets.TYPEID_SPINNING_CUBE, 0, 1, 1, GamePackets.DROP_TYPE_CUBE);
+        PacketReader endCube = new PacketReader(GamePackets.endShot(7, List.of(cubeDrop)));
+        assertEquals(GamePackets.SERVER_END_SHOT, endCube.opcode());
+        assertEquals(7, endCube.i32());
+        assertEquals(1, endCube.u8());
+        assertEquals(GamePackets.TYPEID_SPINNING_CUBE, endCube.u32());
+        assertEquals(0, endCube.u8());
+        assertEquals(1, endCube.u8());
+        assertEquals(1, endCube.i16());
+        assertEquals(GamePackets.DROP_TYPE_CUBE, endCube.u64());
+        assertEquals((GamePackets.END_SHOT_DROP_SLOTS - 1) * GamePackets.DROP_ITEM_BYTES,
+                endCube.remaining());
         PacketReader clientCutin = new PacketReader(GamePackets.clientCutin(10001, 1, 0, 0x04000000, 1));
         assertEquals(GamePackets.CLIENT_CUTIN, clientCutin.opcode());
         assertEquals(10001, clientCutin.u32());
@@ -1837,6 +1855,12 @@ class GamePacketsTest {
         assertEquals(GamePackets.SERVER_ACTIVE_ITEM, 0x5A);
         assertEquals(GamePackets.CLIENT_USE_ITEM, 0x17);
         assertEquals(GamePackets.TYPEID_MULLIGAN_ROSE, 0x1800000E);
+        assertEquals(GamePackets.SERVER_END_SHOT, 0xCC);
+        assertEquals(GamePackets.CLIENT_SHOT_ACK, 0x1C);
+        assertEquals(GamePackets.DROP_ITEM_BYTES, 16);
+        assertEquals(GamePackets.END_SHOT_DROP_SLOTS, 128);
+        assertEquals(GamePackets.TYPEID_SPINNING_CUBE, 0x1A00015B);
+        assertEquals(GamePackets.TYPEID_COIN, 0x1A000010);
         assertEquals(GamePackets.SERVER_BUY_ACK, 0x68);
         assertEquals(GamePackets.CREATE_ROOM_FAILED, 0x07);
         assertEquals(GamePackets.SERVER_LAST5, 0x10E);

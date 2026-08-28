@@ -123,7 +123,7 @@ public final class GameHandler {
             case GamePackets.CLIENT_ALLOW_WHISPER -> allowWhisper(session, reader);
             case GamePackets.CLIENT_REQUEST_SERVER_TIME -> requestServerTime(session);
             case GamePackets.CLIENT_SHOT_RESULT -> syncShot(session, reader);
-            case GamePackets.CLIENT_SHOT_ACK -> finishShot(session);
+            case GamePackets.CLIENT_SHOT_ACK -> finishShot(session, reader);
             case GamePackets.CLIENT_REQUEST_EQUIP_ITEM -> equipItem(session, reader);
             case GamePackets.CLIENT_REQUEST_BUY_ITEM -> buyItem(session, reader);
             case GamePackets.CLIENT_REQUEST_GIFT_ITEM -> giftItem(session, reader);
@@ -881,12 +881,42 @@ public final class GameHandler {
         room.broadcast(GamePackets.syncShot(sync.oid(), hole, shot.x, shot.z, shot.shotState, shot.tempo));
     }
 
-    private void finishShot(Session session) {
+    /**
+     * C# Versus/Tourney {@code requestFinishShot} {@code 0xCC}. Cube/coin
+     * {@code requestInitCubeCoin} is empty without IFF/SQL cube IDs; fail
+     * still sends oid + count 0. Versus {@code game_broadcast}; Tourney
+     * {@code session_send}. Versus duplicate {@code finish_shot2} is ignored.
+     */
+    private void finishShot(Session session, PacketReader reader) {
         GameRoom room = inGameRoom(session);
         if (room == null) {
             return;
         }
-        session.send(GamePackets.endShot(session.oid()));
+        if (GamePackets.usesVersusInitialData(room.tipo)) {
+            GameRoom.PlayerShot shot = room.shots.computeIfAbsent(session.oid(), id -> new GameRoom.PlayerShot());
+            if (shot.finishShot2 == 1) {
+                return;
+            }
+            shot.finishShot2 = 1;
+        }
+        skipCubeCoin(reader);
+        replyInGame(room, session, GamePackets.endShot(session.oid()));
+    }
+
+    /**
+     * C# {@code requestInitCubeCoin}: u8 opt + u8 count + count×(u8 tipo + u32 id).
+     * Unknown IDs throw inside C# and yield an empty drop list.
+     */
+    private static void skipCubeCoin(PacketReader reader) {
+        if (reader.remaining() < 2) {
+            return;
+        }
+        reader.u8();
+        int count = reader.u8();
+        int need = count * 5;
+        if (count > 0 && reader.remaining() >= need) {
+            reader.readBytes(need);
+        }
     }
 
     /**

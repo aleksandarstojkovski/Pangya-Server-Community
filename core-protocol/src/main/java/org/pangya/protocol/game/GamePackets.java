@@ -465,6 +465,12 @@ public final class GamePackets {
     public static final int CLIENT_DROP = 0x19;
     public static final int CLIENT_HOLE_INFO = 0x1A;
     public static final int CLIENT_SHOT_RESULT = 0x1B;
+    /**
+     * C# {@code packet01C} {@code requestFinishShot}. Versus {@code game_broadcast}
+     * {@link #SERVER_END_SHOT} {@code 0xCC}; Tourney {@code session_send}.
+     * Body is cube/coin opt+count; without IFF cube IDs the drop list is empty
+     * (oid + u8 0). Versus duplicate {@code finish_shot2} is silent.
+     */
     public static final int CLIENT_SHOT_ACK = 0x1C;
     public static final int CLIENT_TIMECHECK = 0x22;
     /** C# {@code CLIENT_REQUEST_BANISH} / {@code packet026} {@code requestKickPlayerOfRoom}. */
@@ -1775,6 +1781,19 @@ public final class GamePackets {
     public static final int TYPEID_SHOP_PANG_ITEM = 0x1A000006;
     /** C# {@code MULLIGAN_ROSE_TYPEID} {@code 0x1800000E}. Banned in Versus. */
     public static final int TYPEID_MULLIGAN_ROSE = 0x1800000E;
+    /** C# {@code COIN_TYPEID} {@code 0x1A000010}. */
+    public static final int TYPEID_COIN = 0x1A000010;
+    /** C# {@code SPINNING_CUBE_TYPEID} {@code 0x1A00015B}. */
+    public static final int TYPEID_SPINNING_CUBE = 0x1A00015B;
+    /** C# {@code DropItem.ToArray} 16 bytes; {@code sendEndShot} pads to 128 slots. */
+    public static final int DROP_ITEM_BYTES = 16;
+    public static final int END_SHOT_DROP_SLOTS = 128;
+    /** C# {@code DropItem.eTYPE.CUBE}. */
+    public static final long DROP_TYPE_CUBE = 5;
+    /** C# {@code DropItem.eTYPE.COIN_EDGE_GREEN}. */
+    public static final long DROP_TYPE_COIN_EDGE = 3;
+    /** C# {@code DropItem.eTYPE.COIN_GROUND}. */
+    public static final long DROP_TYPE_COIN_GROUND = 4;
     /** C# {@code CLUB_PATCHER_TYPEID} {@code 0x1A00018F}. */
     public static final int TYPEID_CLUB_PATCHER = 0x1A00018F;
     /** C# gacha ticket typeid {@code 436207744}. */
@@ -2707,7 +2726,28 @@ public final class GamePackets {
 
     /** C# {@code sendEndShot} with empty drop list: oid + count 0. */
     public static byte[] endShot(int oid) {
-        return new PacketWriter().opcode(SERVER_END_SHOT).i32(oid).u8(0).toBytes();
+        return endShot(oid, List.of());
+    }
+
+    /**
+     * C# Versus/Tourney {@code sendEndShot} {@code 0xCC}: i32 oid + u8 count;
+     * if count &gt; 0, count×16-byte {@link DropItem} then pad to
+     * {@link #END_SHOT_DROP_SLOTS} slots.
+     */
+    public static byte[] endShot(int oid, List<DropItem> drops) {
+        PacketWriter w = new PacketWriter().opcode(SERVER_END_SHOT).i32(oid);
+        int n = drops == null ? 0 : drops.size();
+        w.u8(n);
+        if (n > 0) {
+            for (DropItem drop : drops) {
+                w.u32(drop.typeid()).u8(drop.course()).u8(drop.hole())
+                        .i16(drop.qntd()).u64(drop.type());
+            }
+            if (n < END_SHOT_DROP_SLOTS) {
+                w.zero((END_SHOT_DROP_SLOTS - n) * DROP_ITEM_BYTES);
+            }
+        }
+        return w.toBytes();
     }
 
     /**
@@ -4627,6 +4667,15 @@ public final class GamePackets {
         return new PacketWriter().opcode(CLIENT_SHOT_ACK).toBytes();
     }
 
+    /** C# CLIENT {@code 0x1C} cube/coin body: u8 opt + u8 count + count×(u8 tipo + u32 id). */
+    public static byte[] clientShotAckCubes(int opt, int... ids) {
+        PacketWriter w = new PacketWriter().opcode(CLIENT_SHOT_ACK).u8(opt).u8(ids.length);
+        for (int id : ids) {
+            w.u8(0).u32(id);
+        }
+        return w.toBytes();
+    }
+
     /**
      * C# {@code DecryptShot}: XOR the 54-byte {@code ShotSyncData} with {@code RoomInfo.key[i%16]}.
      */
@@ -5769,6 +5818,9 @@ public final class GamePackets {
     public record BoughtItem(int typeid, int id, int time, int flagTime, int qntdDep) {}
 
     public record HoleInfo(int id, int pin, int course, int numero, int weather, int wind, int degree) {}
+
+    /** C# {@code DropItem} 16-byte {@code ToArray} used in {@code 0xCC}. */
+    public record DropItem(int typeid, int course, int hole, int qntd, long type) {}
 
     public record InitHole(
             int numero, int option, int unknown, int par,

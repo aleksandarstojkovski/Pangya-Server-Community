@@ -365,6 +365,8 @@ final class GameRoom {
         int degree;
         /** C# {@code PlayerGameInfo.shot_data_for_cube}. */
         byte[] shotEndLocation;
+        /** C# Versus {@code PlayerGameInfo.finish_shot2}. */
+        int finishShot2;
     }
 
     /** C# {@code UsedItem.Active}: use count vs equipped slot count. */

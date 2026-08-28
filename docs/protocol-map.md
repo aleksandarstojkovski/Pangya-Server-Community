@@ -103,6 +103,8 @@ C#: `GameServer/PangyaEnums/PacketGame.cs` → Java `org.pangya.protocol.game.Ga
 | C | `CLIENT_REQUEST_BANISH` | `0x26` | u32 uid; master kicks via leave `0x4C` -1 |
 | C | `CLIENT_TIMECHECK` | `0x22` | Versus `startTime`; `timeVs>0` → `0x5C` oid when the turn timer fires |
 | C | `CLIENT_CLICK` | `0x14` | Versus bar-space; `state==0 && tempo==1` → `0x5C` oid |
+| C | `CLIENT_SHOT_ACK` | `0x1C` | cube/coin opt+count; empty IFF cubes → `0xCC` oid + u8 0; Versus `game_broadcast`; Tourney `session_send`; Versus duplicate `finish_shot2` silent |
+| S | `SERVER_END_SHOT` | `0xCC` | i32 oid + u8 drop count; count&gt;0 then 128×16-byte `DropItem`; opposite CLIENT locker access |
 | C | `CLIENT_USE_ITEM` | `0x17` | u32 typeid; fail silent; success broadcast `0x5A` typeid + i32 seed + oid; catalog + ITEM group stand-in; Versus bans Mulligan Rose `0x1800000E` |
 | S | `SERVER_ACTIVE_ITEM` | `0x5A` | u32 typeid + i32 seed + i32 oid; opposite C# `CLIENT_OFFLINE_GAME` |
 | C | `CLIENT_REEMPLOY_CADDIE` | `0x39` | SQL `iff_caddie`; success `0x93` u8 2 + id + pang; catch u8 1 |
