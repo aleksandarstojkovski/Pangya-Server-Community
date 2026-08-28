@@ -4705,6 +4705,35 @@ class GameFlowIT {
     }
 
     @Test
+    void authReloadIffSqlStandInsRefreshesCourseMap() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             GameRuntime runtime = new GameRuntime(config)) {
+            InventoryRepository inv = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
+            try {
+                inv.deleteCourseMap(0);
+                runtime.gameHandler().authReloadGlobalSystem(1);
+                assertEquals(null, runtime.catalogs().courseMap(0));
+
+                inv.upsertCourseMap(0, "Blue Lagoon", 10, 20);
+                runtime.authHandler().onAuthPacket(
+                        AuthS2s.AUTH_RELOAD_SYSTEM,
+                        new PacketReader(new PacketWriter().u32(1).toBytes()));
+                assertEquals(20, runtime.catalogs().courseMap(0).clearBonus());
+            } finally {
+                inv.upsertCourseMap(0, "Blue Lagoon", 10, 20);
+                runtime.gameHandler().authReloadGlobalSystem(1);
+            }
+        }
+    }
+
+    @Test
     void legacyTikiExchangesItemsAndPoints() throws Exception {
         String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
         String user = env("PANGYA_TEST_JDBC_USER", "pangya");

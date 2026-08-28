@@ -3262,6 +3262,50 @@ public final class JdbiInventoryRepository implements InventoryRepository {
     }
 
     @Override
+    public java.util.Map<Short, InventoryRepository.CourseMap> courseMapIndex() {
+        return jdbi.withHandle(h -> {
+            java.util.Map<Short, InventoryRepository.CourseMap> out = new java.util.HashMap<>();
+            h.createQuery("""
+                            SELECT course_id, name, star_tenths, clear_bonus
+                              FROM pangya.iff_course
+                            """)
+                    .map((rs, ctx) -> new InventoryRepository.CourseMap(
+                            rs.getShort("course_id"),
+                            rs.getString("name"),
+                            rs.getShort("star_tenths"),
+                            rs.getInt("clear_bonus")))
+                    .list()
+                    .forEach(row -> out.put(row.courseId(), row));
+            return out;
+        });
+    }
+
+    @Override
+    public void upsertCourseMap(int courseId, String name, int starTenths, int clearBonus) {
+        jdbi.useHandle(h -> h.createUpdate("""
+                        INSERT INTO pangya.iff_course (course_id, name, star_tenths, clear_bonus)
+                        VALUES (:course, :name, :star, :bonus)
+                        ON CONFLICT (course_id) DO UPDATE SET
+                            name = EXCLUDED.name,
+                            star_tenths = EXCLUDED.star_tenths,
+                            clear_bonus = EXCLUDED.clear_bonus
+                        """)
+                .bind("course", (short) (courseId & 0x7f))
+                .bind("name", name)
+                .bind("star", (short) starTenths)
+                .bind("bonus", clearBonus)
+                .execute());
+    }
+
+    @Override
+    public void deleteCourseMap(int courseId) {
+        jdbi.useHandle(h -> h.createUpdate(
+                        "DELETE FROM pangya.iff_course WHERE course_id = :course")
+                .bind("course", (short) (courseId & 0x7f))
+                .execute());
+    }
+
+    @Override
     public Optional<Instant> ticketReportDate(int ticketId) {
         return jdbi.withHandle(h -> h.createQuery("""
                         SELECT report_date FROM pangya.ticket_report_catalog WHERE ticket_id = :id

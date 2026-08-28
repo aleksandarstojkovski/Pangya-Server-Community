@@ -330,6 +330,13 @@ public interface InventoryRepository {
     /** C# {@code MapSystem} / IFF {@code Course.Par_Hole} keyed by {@code (courseId << 8) | hole}. */
     java.util.Map<Integer, Integer> courseParIndex();
 
+    /** C# {@code MapSystem.getMap}: course clear bonus, name, star. */
+    java.util.Map<Short, CourseMap> courseMapIndex();
+
+    void upsertCourseMap(int courseId, String name, int starTenths, int clearBonus);
+
+    void deleteCourseMap(int courseId);
+
     void upsertCoursePar(int courseId, int hole, int par);
 
     void deleteCoursePar(int courseId, int hole);
@@ -622,6 +629,9 @@ public interface InventoryRepository {
             double x,
             double y,
             double z) {}
+
+    /** C# {@code Map.stCtx} static fields from IFF Course. */
+    record CourseMap(short courseId, String name, int starTenths, int clearBonus) {}
 
     /**
      * C# {@code AttendanceRewardInfoEx} without {@code login} (runtime-only).

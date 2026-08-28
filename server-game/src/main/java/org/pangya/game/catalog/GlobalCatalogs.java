@@ -30,6 +30,7 @@ public final class GlobalCatalogs {
     private volatile Map<Short, Boolean> coinCubeActive = Map.of();
     private volatile Map<Short, List<InventoryRepository.CoinCubeLocation>> coinCubeByCourse = Map.of();
     private volatile Map<Integer, Integer> coursePar = Map.of();
+    private volatile Map<Short, MapCatalog.CourseCtx> courseMaps = Map.of();
 
     public GlobalCatalogs(InventoryRepository inventory) {
         this.inventory = inventory;
@@ -41,7 +42,7 @@ public final class GlobalCatalogs {
         try {
             switch (tipo) {
                 case 0 -> reloadAll();
-                case 1 -> log.info("auth reload IFF (binary files absent; SQL catalogs unchanged)");
+                case 1 -> reloadIffSqlStandIns();
                 case 2 -> reloadCardPack();
                 case 3 -> reloadCometRefill();
                 case 4 -> log.info("auth reload papel shop (queried per request)");
@@ -50,7 +51,7 @@ public final class GlobalCatalogs {
                 case 7, 14 -> reloadCoinCube();
                 case 8, 9 -> log.info("auth reload tipo={} (treasure/drop not cataloged in SQL yet)", tipo);
                 case 10 -> reloadAttendance();
-                case 11 -> reloadCoursePar();
+                case 11 -> reloadCourseData();
                 case 12, 13, 15, 16, 17 -> log.info("auth reload event tipo={} (event SQL stub)", tipo);
                 case 18 -> log.info("auth reload smart calculator (not ported)");
                 default -> {
@@ -74,8 +75,15 @@ public final class GlobalCatalogs {
         reloadMemorial();
         reloadAttendance();
         reloadCoinCube();
-        reloadCoursePar();
+        reloadCourseData();
         log.info("auth reload all global SQL catalogs ok");
+    }
+
+    /** C# {@code sIff.reload()} stand-in: refresh SQL-backed map/cube catalogs. */
+    private void reloadIffSqlStandIns() {
+        reloadCourseData();
+        reloadCoinCube();
+        log.info("auth reload IFF SQL stand-ins (map/cube; binary files absent)");
     }
 
     private void reloadCometRefill() {
@@ -121,12 +129,22 @@ public final class GlobalCatalogs {
         coinCubeByCourse = Map.copyOf(frozen);
     }
 
-    private void reloadCoursePar() {
+    private void reloadCourseData() {
         coursePar = Map.copyOf(inventory.courseParIndex());
+        Map<Short, MapCatalog.CourseCtx> built = new HashMap<>();
+        for (InventoryRepository.CourseMap row : inventory.courseMapIndex().values()) {
+            built.put(row.courseId(), MapCatalog.build(row, coursePar));
+        }
+        courseMaps = Map.copyOf(built);
     }
 
     public int parFor(int courseId, int holeNum) {
         return coursePar.getOrDefault(((courseId & 0x7f) << 8) | (holeNum & 0xff), 4);
+    }
+
+    /** C# {@code MapSystem.getMap}. */
+    public MapCatalog.CourseCtx courseMap(int courseId) {
+        return courseMaps.get((short) (courseId & 0x7f));
     }
 
     public Optional<InventoryRepository.CometRefill> cometRefill(int typeid) {
@@ -172,5 +190,9 @@ public final class GlobalCatalogs {
 
     int courseParCount() {
         return coursePar.size();
+    }
+
+    int courseMapCount() {
+        return courseMaps.size();
     }
 }
