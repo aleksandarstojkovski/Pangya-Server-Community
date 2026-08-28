@@ -23,6 +23,7 @@ public final class MessengerPackets {
     public static final int CLIENT_REQ_CHAT_FRIEND = 0x1E;
     public static final int CLIENT_REQ_ASSIGN_APELIDO = 0x1F;
     public static final int CLIENT_REQ_UPDATE_CHANNEL_INFO = 0x23;
+    public static final int CLIENT_NOTIFY_ROOM_INVITE = 0x24;
     public static final int CLIENT_REQ_CHAT_GUILD = 0x25;
 
     public static final int SERVER_CONNECT = 0x2E;
@@ -286,6 +287,10 @@ public final class MessengerPackets {
 
     public static byte[] clientChatGuild(String msg) {
         return new PacketWriter().opcode(CLIENT_REQ_CHAT_GUILD).pstr(msg).toBytes();
+    }
+
+    public static byte[] clientNotifyRoomInvite(int uid) {
+        return new PacketWriter().opcode(CLIENT_NOTIFY_ROOM_INVITE).u32(uid).toBytes();
     }
 
     public static byte[] clientNotifyLogout() {

@@ -13,14 +13,14 @@ Conteggio Channel: **197** handler `packet_func_sv` registrati in `GameService.i
 
 ## Questo turno
 
-Fatto: S5 Messenger — CLIENT `0x16` logout broadcast `0x10F`; `0x17` check nick → `0x117`; `0x1D` state + `0x23` channel update → broadcast `0x115`; `0x1E` friend chat → `0x113`; online add-friend `0x104`/`0x106`; disconnect hook.
-Prossimo opcode/file C#: IFF pin/cube/`initComboDef`; GM default-throw/equipDefault; Messenger guild chat `0x25`/alias `0x1F`; capture JP S9.
+Fatto: S5 Messenger — unblock `0x1B` → `0x10D`/`0x115`; alias `0x1F` → `0x119`; guild chat `0x25` → `0x113` u8 1 broadcast; login carica guild da SQL.
+Prossimo opcode/file C#: IFF pin/cube/`initComboDef`; GM default-throw/equipDefault; Messenger `0x24` room invite; capture JP S9.
 Blocco: file IFF assenti (pin/cube live, `initComboDef`); nessuna capture client JP Season 9.
 
-Percentuale epic: **scheletro 85%** / **parità client reale 38%**.
+Percentuale epic: **scheletro 85%** / **parità client reale 39%**.
 
 - Scheletro: S0–S3 e S6 chiusi (Gradle, Cipher, Auth/Login, Practice, Ranking/Messenger core, metriche 3000, compose `/health`). S4/S5 aperti.
-- Parità client reale: ~173/197 Channel con happy-path; login dump include `pacote11F` tipo 3; Ranking page/search con row summary SQL; Messenger presence/chat/check-nick; zero fail-stub/pulse Channel noti ma IFF/capture ancora aperti.
+- Parità client reale: ~173/197 Channel con happy-path; login dump include `pacote11F` tipo 3; Ranking page/search; Messenger presence/chat/unblock/alias/guild-chat; zero fail-stub/pulse Channel noti ma IFF/capture ancora aperti.
 
 ## Slice (non dichiarare S4 done)
 
@@ -31,5 +31,5 @@ Percentuale epic: **scheletro 85%** / **parità client reale 38%**.
 | S2 | [x] | Auth + Login + Redis key |
 | S3 | [x] | Game core + Practice |
 | S4 | [~] | Modi C# + char/card/caddie/achievement: dispatch ampio, profondità fail-stub/IFF |
-| S5 | [~] | Ranking + Messenger: hello/login/friend/rank page/search + presence/chat/check-nick; guild chat/alias aperti |
+| S5 | [~] | Ranking + Messenger: page/search + presence/chat/unblock/alias/guild-chat; room invite/auth callbacks aperti |
 | S6 | [x] | `/metrics`, SessionLoadIT 3000, `scripts/verify.sh`, compose health |

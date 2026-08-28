@@ -170,6 +170,114 @@ public final class JdbiInventoryRepository implements InventoryRepository {
     }
 
     @Override
+    public GamePackets.UserEquip reconcileEquipAtLogin(long uid) {
+        GamePackets.UserEquip equip = userEquip(uid);
+        List<GamePackets.CharacterInfo> chars = characters(uid);
+        List<GamePackets.CaddieInfo> caddies = caddies(uid);
+        List<GamePackets.MascotInfo> mascots = mascots(uid);
+        List<GamePackets.WarehouseItem> wh = warehouse(uid);
+        boolean changed = false;
+
+        if (equip.characterId == 0 || chars.stream().noneMatch(c -> c.id == equip.characterId)) {
+            int fallback = chars.isEmpty() ? 0 : chars.get(0).id;
+            if (equip.characterId != fallback) {
+                equip.characterId = fallback;
+                changed = true;
+            }
+        }
+        if (equip.caddieId != 0 && caddies.stream().noneMatch(c -> c.id == equip.caddieId)) {
+            equip.caddieId = 0;
+            changed = true;
+        }
+        if (equip.mascotId != 0 && mascots.stream().noneMatch(m -> m.id == equip.mascotId)) {
+            equip.mascotId = 0;
+            changed = true;
+        }
+        if (equip.clubsetId == 0 || wh.stream().noneMatch(w -> w.id == equip.clubsetId)) {
+            int fallback = findWarehouseIdByTypeid(wh, GamePackets.TYPEID_AIR_KNIGHT);
+            if (fallback == 0) {
+                fallback = wh.stream()
+                        .filter(w -> (w.typeid >>> 26) == GamePackets.IFF_GROUP_CLUBSET)
+                        .map(w -> w.id)
+                        .findFirst()
+                        .orElse(0);
+            }
+            if (equip.clubsetId != fallback) {
+                equip.clubsetId = fallback;
+                changed = true;
+            }
+        }
+        if (equip.ballTypeid == 0 || wh.stream().noneMatch(w -> w.typeid == equip.ballTypeid)) {
+            int fallback = GamePackets.TYPEID_DEFAULT_BALL;
+            boolean hasDefaultBall = wh.stream().anyMatch(w -> w.typeid == GamePackets.TYPEID_DEFAULT_BALL);
+            if (!hasDefaultBall) {
+                fallback = wh.stream()
+                        .filter(w -> (w.typeid >>> 26) == GamePackets.IFF_GROUP_BALL)
+                        .map(w -> w.typeid)
+                        .findFirst()
+                        .orElse(GamePackets.TYPEID_DEFAULT_BALL);
+            }
+            if (equip.ballTypeid != fallback) {
+                equip.ballTypeid = fallback;
+                changed = true;
+            }
+        }
+        for (int i = 0; i < equip.itemSlot.length; i++) {
+            int slotTypeid = equip.itemSlot[i];
+            if (slotTypeid != 0 && wh.stream().noneMatch(w -> w.typeid == slotTypeid)) {
+                equip.itemSlot[i] = 0;
+                changed = true;
+            }
+        }
+        if (changed) {
+            persistUserEquip(uid, equip);
+        }
+        return equip;
+    }
+
+    private static int findWarehouseIdByTypeid(List<GamePackets.WarehouseItem> wh, int typeid) {
+        for (GamePackets.WarehouseItem item : wh) {
+            if (item.typeid == typeid) {
+                return item.id;
+            }
+        }
+        return 0;
+    }
+
+    private void persistUserEquip(long uid, GamePackets.UserEquip equip) {
+        jdbi.useHandle(h -> h.createUpdate("""
+                        UPDATE pangya.pangya_user_equip
+                           SET caddie_id = :caddie,
+                               character_id = :character,
+                               club_id = :club,
+                               ball_type = :ball,
+                               item_slot_1 = :s1, item_slot_2 = :s2, item_slot_3 = :s3,
+                               item_slot_4 = :s4, item_slot_5 = :s5, item_slot_6 = :s6,
+                               item_slot_7 = :s7, item_slot_8 = :s8, item_slot_9 = :s9,
+                               item_slot_10 = :s10,
+                               mascot_id = :mascot
+                         WHERE "UID" = :uid
+                        """)
+                .bind("uid", uid)
+                .bind("caddie", equip.caddieId)
+                .bind("character", equip.characterId)
+                .bind("club", equip.clubsetId)
+                .bind("ball", equip.ballTypeid)
+                .bind("mascot", equip.mascotId)
+                .bind("s1", equip.itemSlot[0])
+                .bind("s2", equip.itemSlot[1])
+                .bind("s3", equip.itemSlot[2])
+                .bind("s4", equip.itemSlot[3])
+                .bind("s5", equip.itemSlot[4])
+                .bind("s6", equip.itemSlot[5])
+                .bind("s7", equip.itemSlot[6])
+                .bind("s8", equip.itemSlot[7])
+                .bind("s9", equip.itemSlot[8])
+                .bind("s10", equip.itemSlot[9])
+                .execute());
+    }
+
+    @Override
     public List<GamePackets.MascotInfo> mascots(long uid) {
         return jdbi.withHandle(h -> h.createQuery("""
                         SELECT item_id, typeid, "mLevel", "mExp", "Tipo", "Message"

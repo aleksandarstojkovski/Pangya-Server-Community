@@ -568,6 +568,51 @@ class InventoryRepositoryTest {
         }
     }
 
+    @Test
+    void reconcileEquipFixesInvalidReferences() {
+        String url = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        DatabaseSupport.migrate(url, user, password);
+
+        try (var ds = DatabaseSupport.dataSource(url, user, password)) {
+            var jdbi = DatabaseSupport.jdbi(ds);
+            InventoryRepository repo = new JdbiInventoryRepository(jdbi);
+            int charId = repo.characters(10001).getFirst().id;
+            int clubId = repo.warehouse(10001).stream()
+                    .filter(w -> w.typeid == GamePackets.TYPEID_AIR_KNIGHT)
+                    .findFirst()
+                    .orElseThrow()
+                    .id;
+            try {
+                jdbi.useHandle(h -> h.createUpdate("""
+                                UPDATE pangya.pangya_user_equip
+                                   SET character_id = 99999,
+                                       club_id = 99998,
+                                       ball_type = 1,
+                                       item_slot_1 = 0x7FFF0001,
+                                       caddie_id = 99996,
+                                       mascot_id = 99995
+                                 WHERE "UID" = 10001
+                                """)
+                        .execute());
+                GamePackets.UserEquip fixed = repo.reconcileEquipAtLogin(10001);
+                assertEquals(charId, fixed.characterId);
+                assertEquals(clubId, fixed.clubsetId);
+                assertEquals(GamePackets.TYPEID_DEFAULT_BALL, fixed.ballTypeid);
+                assertEquals(0, fixed.caddieId);
+                assertEquals(0, fixed.mascotId);
+                assertEquals(0, fixed.itemSlot[0]);
+                assertEquals(charId, repo.userEquip(10001).characterId);
+            } finally {
+                repo.equipCharacter(10001, charId);
+                repo.equipBallAndClub(10001, GamePackets.TYPEID_DEFAULT_BALL, clubId);
+                repo.equipCaddie(10001, 0);
+                repo.equipMascot(10001, 0);
+            }
+        }
+    }
+
     private static String env(String name, String fallback) {
         String v = System.getenv(name);
         return (v == null || v.isBlank()) ? fallback : v;

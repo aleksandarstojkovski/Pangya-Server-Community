@@ -52,6 +52,7 @@ public final class MessengerHandler {
             case MessengerPackets.CLIENT_REQ_ASSIGN_APELIDO -> assignApelido(session, reader);
             case MessengerPackets.CLIENT_REQ_UPDATE_CHANNEL_INFO -> updateChannelInfo(session, reader);
             case MessengerPackets.CLIENT_REQ_CHAT_GUILD -> chatGuild(session, reader);
+            case MessengerPackets.CLIENT_NOTIFY_ROOM_INVITE -> notifyRoomInvite(session, reader);
             default -> log.debug("unhandled messenger opcode 0x{}", Integer.toHexString(opcode));
         }
     }
@@ -374,6 +375,22 @@ public final class MessengerHandler {
         } catch (RuntimeException e) {
             log.warn("assign apelido failed: {}", e.toString());
             session.send(MessengerPackets.assignApelidoError(0x5200900));
+        }
+    }
+
+    private void notifyRoomInvite(Session session, PacketReader reader) {
+        if (!session.authorized()) {
+            return;
+        }
+        try {
+            int uid = reader.u32();
+            if (uid != (int) session.player().uid) {
+                log.warn("room invite uid mismatch session={} packet={}", session.player().uid, uid);
+                return;
+            }
+            log.info("messenger room invite uid={}", uid);
+        } catch (RuntimeException e) {
+            log.warn("room invite failed uid={}: {}", session.player().uid, e.toString());
         }
     }
 

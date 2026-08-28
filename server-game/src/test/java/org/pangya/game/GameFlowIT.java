@@ -6211,10 +6211,10 @@ class GameFlowIT {
     private static void setItemSlot1(javax.sql.DataSource ds, long uid, int typeid) {
         DatabaseSupport.jdbi(ds).useHandle(h -> h.createUpdate("""
                         UPDATE pangya.pangya_user_equip
-                           SET item_slot_1 = :t
+                           SET item_slot_1 = :typeid
                          WHERE "UID" = :uid
                         """)
-                .bind("t", typeid)
+                .bind("typeid", typeid)
                 .bind("uid", uid)
                 .execute());
     }

@@ -359,6 +359,26 @@ class MessengerFlowIT {
     }
 
     @Test
+    void roomInviteAcceptsOwnUid() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        try (MessengerRuntime runtime = new MessengerRuntime(new AppConfig(testYaml(jdbc, user, password)));
+             PangyaFakeClient client = new PangyaFakeClient()) {
+            client.connect("127.0.0.1", runtime.port(), PangyaFakeClient.HelloKind.MESSENGER);
+            client.awaitHello(5, TimeUnit.SECONDS);
+            client.sendPlain(MessengerPackets.clientLogin(10001, "TestNick"));
+            PacketReader login = new PacketReader(client.awaitPlain(5, TimeUnit.SECONDS));
+            assertEquals(MessengerPackets.SERVER_LOGIN_ACK, login.opcode());
+            assertEquals(0, login.u8());
+
+            client.sendPlain(MessengerPackets.clientNotifyRoomInvite(10001));
+        }
+    }
+
+    @Test
     void nickMismatchSendsLoginFail() throws Exception {
         String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
         String user = env("PANGYA_TEST_JDBC_USER", "pangya");

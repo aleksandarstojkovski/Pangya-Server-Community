@@ -418,6 +418,7 @@ public final class GameHandler {
                     (int) pi.uid,
                     pi.level,
                     config.property()));
+            inventory.reconcileEquipAtLogin(pi.uid);
             var warehouse = inventory.warehouse(pi.uid);
             var characters = inventory.characters(pi.uid);
             var caddies = inventory.caddies(pi.uid);

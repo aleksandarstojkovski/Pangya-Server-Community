@@ -19,6 +19,12 @@ public interface InventoryRepository {
 
     GamePackets.UserEquip userEquip(long uid);
 
+    /**
+     * C# {@code LoginTask.sendCompleteData} → {@code Player.checkAllItemEquiped}:
+     * fix invalid equip references against SQL inventory and persist when changed.
+     */
+    GamePackets.UserEquip reconcileEquipAtLogin(long uid);
+
     List<GamePackets.MascotInfo> mascots(long uid);
 
     /**
