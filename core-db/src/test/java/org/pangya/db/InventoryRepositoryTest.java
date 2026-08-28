@@ -336,6 +336,19 @@ class InventoryRepositoryTest {
                 repo.setClubSetMasteryPts(10001, clubId, 0);
                 repo.deleteClubSetIff(GamePackets.TYPEID_AIR_KNIGHT);
             }
+            repo.deletePartIff(GamePackets.TYPEID_RENTAL_PART);
+            repo.upsertPartValorRental(GamePackets.TYPEID_RENTAL_PART, 100);
+            try {
+                assertEquals(100, repo.partValorRental(GamePackets.TYPEID_RENTAL_PART).orElseThrow());
+                repo.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_RENTAL_PART);
+                int rentalId = repo.addWarehouseItem(10001, GamePackets.TYPEID_RENTAL_PART, 1);
+                repo.setWarehouseEndDate(10001, rentalId, java.time.Instant.EPOCH.plusSeconds(60));
+                assertTrue(repo.deleteWarehouseById(10001, rentalId));
+                assertTrue(repo.warehouse(10001).stream().noneMatch(w -> w.id == rentalId));
+            } finally {
+                repo.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_RENTAL_PART);
+                repo.deletePartIff(GamePackets.TYPEID_RENTAL_PART);
+            }
             int partTypeid = (GamePackets.IFF_GROUP_PART << 26) | 0x99;
             repo.deleteWarehouseByTypeid(10001, partTypeid);
             int partId = repo.addWarehouseItem(10001, partTypeid, 1);

@@ -110,6 +110,22 @@ public interface InventoryRepository {
 
     void deleteWarehouseByTypeid(long uid, int typeid);
 
+    /** C# {@code CmdDeleteRental}: {@code valid = 0}. */
+    boolean deleteWarehouseById(long uid, int itemId);
+
+    /**
+     * C# {@code sIff.findPart}: SQL {@code iff_part.valor_rental} stand-in.
+     * Empty when the typeid is missing.
+     */
+    OptionalLong partValorRental(int typeid);
+
+    void upsertPartValorRental(int typeid, long valorRental);
+
+    void deletePartIff(int typeid);
+
+    /** C# {@code CmdExtendRental}: {@code EndDate} = now + 7 days. */
+    void setWarehouseEndDate(long uid, int itemId, Instant endDate);
+
     /**
      * C# {@code PapelShopSystem.dropBalls} / {@code dropBigBall} then warehouse
      * add + pang charge. Empty catalog is {@link GamePackets#PAPEL_PLAY_ERR_BALLS}.

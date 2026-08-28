@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalInt;
+import java.util.OptionalLong;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -4812,23 +4813,92 @@ public final class GameHandler {
     }
 
     /**
-     * C# {@code requestExtendRental}: catch always {@code 0x18F} u8 1.
+     * C# {@code requestExtendRental}: PART warehouse + SQL {@code iff_part.valor_rental}
+     * stand-in for IFF {@code findPart}. Persist {@code EndDate} and pang before
+     * {@code 0xC8}/{@code 0x18F}. Catch always u8 1.
      */
     private void extendRental(Session session, PacketReader reader) {
         if (!inChannel(session)) {
             return;
         }
-        session.send(GamePackets.rentalFail(GamePackets.SERVER_EXTEND_RENTAL));
+        try {
+            if (reader.remaining() < 4) {
+                session.send(GamePackets.rentalFail(GamePackets.SERVER_EXTEND_RENTAL));
+                return;
+            }
+            int itemId = reader.i32();
+            if (itemId <= 0) {
+                session.send(GamePackets.rentalFail(GamePackets.SERVER_EXTEND_RENTAL));
+                return;
+            }
+            long uid = session.player().uid;
+            GamePackets.WarehouseItem item = warehouseById(uid, itemId);
+            if (item == null
+                    || GamePackets.itemGroupIdentify(item.typeid) != GamePackets.IFF_GROUP_PART) {
+                session.send(GamePackets.rentalFail(GamePackets.SERVER_EXTEND_RENTAL));
+                return;
+            }
+            OptionalLong valor = inventory.partValorRental(item.typeid);
+            if (valor.isEmpty() || valor.getAsLong() <= 0) {
+                session.send(GamePackets.rentalFail(GamePackets.SERVER_EXTEND_RENTAL));
+                return;
+            }
+            long cost = valor.getAsLong();
+            long pang = inventory.pang(uid);
+            if (pang < cost) {
+                session.send(GamePackets.rentalFail(GamePackets.SERVER_EXTEND_RENTAL));
+                return;
+            }
+            inventory.setWarehouseEndDate(
+                    uid, item.id, Instant.now().plusSeconds(GamePackets.RENTAL_EXTEND_SECONDS));
+            inventory.setPangCookie(uid, pang - cost, inventory.cookie(uid));
+            session.send(GamePackets.pangSpent(pang - cost, cost));
+            session.send(GamePackets.rentalOk(GamePackets.SERVER_EXTEND_RENTAL, item.typeid, item.id));
+        } catch (RuntimeException e) {
+            log.debug("extend rental failed: {}", e.toString());
+            session.send(GamePackets.rentalFail(GamePackets.SERVER_EXTEND_RENTAL));
+        }
     }
 
     /**
-     * C# {@code requestDeleteRental}: catch always {@code 0x190} u8 1.
+     * C# {@code requestDeleteRental}: PART warehouse + SQL {@code iff_part.valor_rental}
+     * stand-in. Persist delete before {@code 0x190}. Catch always u8 1.
      */
     private void deleteRental(Session session, PacketReader reader) {
         if (!inChannel(session)) {
             return;
         }
-        session.send(GamePackets.rentalFail(GamePackets.SERVER_DELETE_RENTAL));
+        try {
+            if (reader.remaining() < 4) {
+                session.send(GamePackets.rentalFail(GamePackets.SERVER_DELETE_RENTAL));
+                return;
+            }
+            int itemId = reader.i32();
+            if (itemId <= 0) {
+                session.send(GamePackets.rentalFail(GamePackets.SERVER_DELETE_RENTAL));
+                return;
+            }
+            long uid = session.player().uid;
+            GamePackets.WarehouseItem item = warehouseById(uid, itemId);
+            if (item == null
+                    || GamePackets.itemGroupIdentify(item.typeid) != GamePackets.IFF_GROUP_PART) {
+                session.send(GamePackets.rentalFail(GamePackets.SERVER_DELETE_RENTAL));
+                return;
+            }
+            OptionalLong valor = inventory.partValorRental(item.typeid);
+            if (valor.isEmpty() || valor.getAsLong() <= 0) {
+                session.send(GamePackets.rentalFail(GamePackets.SERVER_DELETE_RENTAL));
+                return;
+            }
+            if (!inventory.deleteWarehouseById(uid, item.id)) {
+                session.send(GamePackets.rentalFail(GamePackets.SERVER_DELETE_RENTAL));
+                return;
+            }
+            session.send(GamePackets.rentalOk(GamePackets.SERVER_DELETE_RENTAL, item.typeid, item.id));
+        } catch (RuntimeException e) {
+            log.debug("delete rental failed: {}", e.toString());
+            session.send(GamePackets.rentalFail(GamePackets.SERVER_DELETE_RENTAL));
+        }
     }
 
     /**

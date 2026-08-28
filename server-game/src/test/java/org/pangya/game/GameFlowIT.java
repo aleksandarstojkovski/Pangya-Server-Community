@@ -2074,6 +2074,69 @@ class GameFlowIT {
     }
 
     @Test
+    void rentalExtendAndDeletePart() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config);
+             PangyaFakeClient client = new PangyaFakeClient()) {
+            InventoryRepository inv = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
+            long pang = inv.pang(10001);
+            long cookie = inv.cookie(10001);
+            inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_RENTAL_PART);
+            inv.deletePartIff(GamePackets.TYPEID_RENTAL_PART);
+            int partId = inv.addWarehouseItem(10001, GamePackets.TYPEID_RENTAL_PART, 1);
+            try {
+                LoginRepository repo = new JdbiLoginRepository(DatabaseSupport.jdbi(ds));
+                String loginKey = repo.generateAuthKeyLogin(10001);
+                String gameKey = repo.generateAuthKeyGame(10001, 20202);
+                keys.putLoginKey(10001, loginKey);
+                keys.putGameKey(10001, 20202, gameKey);
+                loginToChannel(client, runtime.port(), "testuser", 10001, loginKey, gameKey);
+
+                client.sendPlain(GamePackets.clientRental(GamePackets.CLIENT_EXTEND_RENTAL, partId));
+                PacketReader missingIff = awaitOpcode(client, GamePackets.SERVER_EXTEND_RENTAL);
+                assertEquals(GamePackets.RENTAL_FAIL, missingIff.u8());
+
+                inv.upsertPartValorRental(GamePackets.TYPEID_RENTAL_PART, 100);
+                client.sendPlain(GamePackets.clientRental(GamePackets.CLIENT_EXTEND_RENTAL, partId));
+                PacketReader spent = awaitOpcode(client, GamePackets.SERVER_PANG_SPENT);
+                assertEquals(pang - 100, spent.u64());
+                assertEquals(100, spent.u64());
+                PacketReader extendOk = awaitOpcode(client, GamePackets.SERVER_EXTEND_RENTAL);
+                assertEquals(GamePackets.RENTAL_OK, extendOk.u8());
+                assertEquals(GamePackets.TYPEID_RENTAL_PART, extendOk.u32());
+                assertEquals(partId, extendOk.i32());
+                assertEquals(pang - 100, inv.pang(10001));
+
+                client.sendPlain(GamePackets.clientRental(GamePackets.CLIENT_DELETE_RENTAL, partId));
+                PacketReader deleteOk = awaitOpcode(client, GamePackets.SERVER_DELETE_RENTAL);
+                assertEquals(GamePackets.RENTAL_OK, deleteOk.u8());
+                assertEquals(GamePackets.TYPEID_RENTAL_PART, deleteOk.u32());
+                assertEquals(partId, deleteOk.i32());
+                assertTrue(inv.warehouse(10001).stream().noneMatch(w -> w.id == partId));
+
+                client.sendPlain(GamePackets.clientRental(GamePackets.CLIENT_DELETE_RENTAL, partId));
+                PacketReader missing = awaitOpcode(client, GamePackets.SERVER_DELETE_RENTAL);
+                assertEquals(GamePackets.RENTAL_FAIL, missing.u8());
+                client.sendPlain(GamePackets.clientRental(GamePackets.CLIENT_EXTEND_RENTAL, 0));
+                PacketReader zero = awaitOpcode(client, GamePackets.SERVER_EXTEND_RENTAL);
+                assertEquals(GamePackets.RENTAL_FAIL, zero.u8());
+            } finally {
+                inv.setPangCookie(10001, pang, cookie);
+                inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_RENTAL_PART);
+                inv.deletePartIff(GamePackets.TYPEID_RENTAL_PART);
+            }
+        }
+    }
+
+    @Test
     void makeTutorialRookieAcksFlagsAndMailsReward() throws Exception {
         String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
         String user = env("PANGYA_TEST_JDBC_USER", "pangya");

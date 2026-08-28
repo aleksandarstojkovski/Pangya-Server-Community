@@ -1263,6 +1263,12 @@ class GamePacketsTest {
         PacketReader deleteRental = new PacketReader(GamePackets.rentalFail(GamePackets.SERVER_DELETE_RENTAL));
         assertEquals(GamePackets.SERVER_DELETE_RENTAL, deleteRental.opcode());
         assertEquals(1, deleteRental.u8());
+        PacketReader rentalOk = new PacketReader(GamePackets.rentalOk(
+                GamePackets.SERVER_EXTEND_RENTAL, GamePackets.TYPEID_RENTAL_PART, 9));
+        assertEquals(GamePackets.SERVER_EXTEND_RENTAL, rentalOk.opcode());
+        assertEquals(GamePackets.RENTAL_OK, rentalOk.u8());
+        assertEquals(GamePackets.TYPEID_RENTAL_PART, rentalOk.u32());
+        assertEquals(9, rentalOk.i32());
         PacketReader xfConfirm = new PacketReader(GamePackets.sysAck(
                 GamePackets.SERVER_WORKSHOP_TRANSFORM_CONFIRM,
                 GamePackets.shopSys(GamePackets.WORKSHOP_TRANSFORM_CONFIRM_ERR)));
@@ -2134,6 +2140,10 @@ class GamePacketsTest {
         assertEquals(GamePackets.SERVER_RING_MIRACLE, 0x280);
         assertEquals(GamePackets.SERVER_RING_PAWS_SET, 0x281);
         assertEquals(GamePackets.IFF_GROUP_PART, 2);
+        assertEquals(GamePackets.TYPEID_RENTAL_PART, 0x0800009A);
+        assertEquals(GamePackets.IFF_GROUP_PART, GamePackets.itemGroupIdentify(GamePackets.TYPEID_RENTAL_PART));
+        assertEquals(GamePackets.RENTAL_OK, 0);
+        assertEquals(GamePackets.RENTAL_EXTEND_SECONDS, 7 * 24 * 3600);
         assertEquals(GamePackets.IFF_GROUP_CLUBSET, 4);
         assertEquals(GamePackets.IFF_GROUP_CLUBSET, GamePackets.itemGroupIdentify(GamePackets.TYPEID_AIR_KNIGHT));
         assertEquals(GamePackets.WORKSHOP_AWARD_TYPE, 0xCC);

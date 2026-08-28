@@ -241,7 +241,7 @@ public final class GamePackets {
     public static final int SERVER_OPEN_CARD_PACK = 0x154;
     /** C# use-card-special catch {@code 0x160}. */
     public static final int SERVER_USE_CARD = 0x160;
-    /** C# extend-rental catch {@code 0x18F} u8 1. */
+    /** C# extend-rental {@code 0x18F}: fail u8 1; success u8 0 + typeid + id. */
     public static final int SERVER_EXTEND_RENTAL = 0x18F;
     /**
      * C# cutin {@code 0x18D}: u8 0 + u16 1 fail, u8 0 + u16 3 GZ disabled,
@@ -255,7 +255,7 @@ public final class GamePackets {
     public static final int CUTIN_GZ_DISABLED = 3;
     /** C# {@code stActiveCutin} body: u32 uid + u32 tipo + u16 opt + u32 char + u8. */
     public static final int CUTIN_BODY_BYTES = 15;
-    /** C# delete-rental catch {@code 0x190} u8 1. */
+    /** C# delete-rental {@code 0x190}: fail u8 1; success u8 0 + typeid + id. */
     public static final int SERVER_DELETE_RENTAL = 0x190;
     /** C# workshop transform-confirm catch {@code 0x242}. */
     public static final int SERVER_WORKSHOP_TRANSFORM_CONFIRM = 0x242;
@@ -811,9 +811,9 @@ public final class GamePackets {
      * {@code findCutinInfomation}.
      */
     public static final int CLIENT_CUTIN = 0xE5;
-    /** C# {@code packet0E6} extend rental. Catch always {@code 0x18F} u8 1. */
+    /** C# {@code packet0E6} extend rental. Success {@code 0xC8} then {@code 0x18F} u8 0. Catch always u8 1. */
     public static final int CLIENT_EXTEND_RENTAL = 0xE6;
-    /** C# {@code packet0E7} delete rental. Catch always {@code 0x190} u8 1. */
+    /** C# {@code packet0E7} delete rental. Success {@code 0x190} u8 0. Catch always u8 1. */
     public static final int CLIENT_DELETE_RENTAL = 0xE7;
     /** C# {@code packet0FE} UCC load. No reply. */
     public static final int CLIENT_UCC_LOAD = 0xFE;
@@ -1693,6 +1693,10 @@ public final class GamePackets {
     public static final int CARD_PACK_ERR = 1;
     /** C# extend/delete rental catch u8 1. */
     public static final int RENTAL_FAIL = 1;
+    /** C# extend/delete rental success u8 0. */
+    public static final int RENTAL_OK = 0;
+    /** C# extend adds 7 days to {@code end_date_unix_local}. */
+    public static final int RENTAL_EXTEND_SECONDS = 7 * 24 * 3600;
     /** C# transform-confirm missing ClubSet CHANNEL sys. */
     public static final int WORKSHOP_TRANSFORM_CONFIRM_ERR = 0x5300451;
     /** C# transform-confirm catch else. */
@@ -2079,6 +2083,8 @@ public final class GamePackets {
     public static final int IFF_GROUP_CHARACTER = 1;
     /** C# {@code IFF_GROUP.PART} {@code 2}. */
     public static final int IFF_GROUP_PART = 2;
+    /** Test PART typeid {@code (IFF_GROUP_PART << 26) | 0x9A}. */
+    public static final int TYPEID_RENTAL_PART = 0x0800009A;
     /** C# {@code IFF_GROUP.MASCOT} {@code 16}. */
     public static final int IFF_GROUP_MASCOT = 16;
     /** C# {@code IFF_GROUP.AUX_PART} {@code 28}. */
@@ -3982,6 +3988,11 @@ public final class GamePackets {
     /** C# rental catch {@code 0x18F}/{@code 0x190} u8 1. */
     public static byte[] rentalFail(int opcode) {
         return new PacketWriter().opcode(opcode).u8(RENTAL_FAIL).toBytes();
+    }
+
+    /** C# rental success u8 0 + typeid + id. */
+    public static byte[] rentalOk(int opcode, int typeid, int id) {
+        return new PacketWriter().opcode(opcode).u8(RENTAL_OK).u32(typeid).i32(id).toBytes();
     }
 
     /** C# UCC catch {@code 0x12E} sbyte -1. */

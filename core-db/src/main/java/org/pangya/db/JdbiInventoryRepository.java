@@ -888,6 +888,63 @@ public final class JdbiInventoryRepository implements InventoryRepository {
     }
 
     @Override
+    public boolean deleteWarehouseById(long uid, int itemId) {
+        return jdbi.withHandle(h -> h.createUpdate("""
+                        UPDATE pangya.pangya_item_warehouse
+                           SET valid = 0
+                         WHERE "UID" = :uid AND item_id = :id AND valid = 1
+                        """)
+                .bind("uid", uid)
+                .bind("id", itemId)
+                .execute()) > 0;
+    }
+
+    @Override
+    public OptionalLong partValorRental(int typeid) {
+        return jdbi.withHandle(h -> h.createQuery("""
+                        SELECT valor_rental FROM pangya.iff_part WHERE typeid = :typeid
+                        """)
+                .bind("typeid", typeid)
+                .mapTo(Long.class)
+                .findOne())
+                .map(OptionalLong::of)
+                .orElseGet(OptionalLong::empty);
+    }
+
+    @Override
+    public void upsertPartValorRental(int typeid, long valorRental) {
+        jdbi.useHandle(h -> h.createUpdate("""
+                        INSERT INTO pangya.iff_part (typeid, valor_rental)
+                        VALUES (:typeid, :valor)
+                        ON CONFLICT (typeid) DO UPDATE SET valor_rental = EXCLUDED.valor_rental
+                        """)
+                .bind("typeid", typeid)
+                .bind("valor", valorRental)
+                .execute());
+    }
+
+    @Override
+    public void deletePartIff(int typeid) {
+        jdbi.useHandle(h -> h.createUpdate(
+                        "DELETE FROM pangya.iff_part WHERE typeid = :typeid")
+                .bind("typeid", typeid)
+                .execute());
+    }
+
+    @Override
+    public void setWarehouseEndDate(long uid, int itemId, Instant endDate) {
+        jdbi.useHandle(h -> h.createUpdate("""
+                        UPDATE pangya.pangya_item_warehouse
+                           SET "EndDate" = :end
+                         WHERE "UID" = :uid AND item_id = :id
+                        """)
+                .bind("uid", uid)
+                .bind("id", itemId)
+                .bind("end", Timestamp.from(endDate))
+                .execute());
+    }
+
+    @Override
     public int addWarehouseItem(long uid, int typeid, int qntd) {
         return jdbi.inTransaction(h -> {
             Integer existing = h.createQuery("""
