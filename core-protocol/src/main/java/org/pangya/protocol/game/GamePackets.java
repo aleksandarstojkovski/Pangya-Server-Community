@@ -36,6 +36,7 @@ public final class GamePackets {
     public static final int SERVER_READY = 0x78;
     public static final int SERVER_ENTER_LOBBY = 0xF5;
     public static final int SERVER_LEAVE_LOBBY = 0xF6;
+    public static final int SERVER_WHISPER = 0x84;
     /** C# {@code pacote0AA} / {@code SERVER_NEW_ITEM}. */
     public static final int SERVER_NEW_ITEM = 0xAA;
     /** C# pang spent after shop buy ({@code 0xC8} + remaining + spent). */
@@ -70,6 +71,8 @@ public final class GamePackets {
     public static final int CLIENT_ENTER_LOBBY = 0x81;
     public static final int CLIENT_LEAVE_LOBBY = 0x82;
     public static final int CLIENT_KEEPALIVE = 0x01;
+    public static final int CLIENT_WHISPER = 0x2A;
+    public static final int CLIENT_REQUEST_CASH = 0x3D;
 
     public static final int ACK_LOGIN_OK = 0;
     public static final int ACK_LOGIN_FAIL = 1;
@@ -91,7 +94,10 @@ public final class GamePackets {
     public static final int PLAYER_READY_BIT = 1 << 9;
     public static final int CHAT_NORMAL = 0;
     public static final int CHAT_NOTICE = 7;
+    public static final int CHAT_OFFLINE = 6;
     public static final int CHAT_GM = 0x80;
+    public static final int WHISPER_FROM = 0;
+    public static final int WHISPER_TO = 1;
     public static final int LOBBY_USER_JOIN = 1;
     public static final int LOBBY_USER_LEAVE = 2;
     public static final int LOBBY_USER_UPDATE = 3;
@@ -1116,6 +1122,23 @@ public final class GamePackets {
         return new PacketWriter().opcode(SERVER_READY).i32(oid).u8(ready).toBytes();
     }
 
+    /**
+     * C# {@code 0x84}: byte 0 = FROM (ack to sender), byte 1 = TO (deliver to target).
+     */
+    public static byte[] whisper(int direction, String nick, String msg) {
+        return new PacketWriter()
+                .opcode(SERVER_WHISPER)
+                .u8(direction)
+                .pstr(nick == null ? "" : nick)
+                .pstr(msg == null ? "" : msg)
+                .toBytes();
+    }
+
+    /** C# {@code pacote040} option {@code CHAT_OFFLINE} — nick only. */
+    public static byte[] chatOffline(String nick) {
+        return new PacketWriter().opcode(SERVER_CHAT).u8(CHAT_OFFLINE).pstr(nick == null ? "" : nick).toBytes();
+    }
+
     /** C# {@code packet_func.pacote0F5} — empty. */
     public static byte[] enterLobbyAck() {
         return new PacketWriter().opcode(SERVER_ENTER_LOBBY).toBytes();
@@ -1227,6 +1250,18 @@ public final class GamePackets {
                 .u8(ROOM_CHANGE_COURSE)
                 .u8(course)
                 .toBytes();
+    }
+
+    public static byte[] clientWhisper(String nick, String msg) {
+        return new PacketWriter()
+                .opcode(CLIENT_WHISPER)
+                .pstr(nick == null ? "" : nick)
+                .pstr(msg == null ? "" : msg)
+                .toBytes();
+    }
+
+    public static byte[] clientRequestCash() {
+        return new PacketWriter().opcode(CLIENT_REQUEST_CASH).toBytes();
     }
 
     public static byte[] clientInitHole(int numero, int option, int unknown, int par,

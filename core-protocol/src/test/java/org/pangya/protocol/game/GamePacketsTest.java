@@ -265,5 +265,14 @@ class GamePacketsTest {
         assertEquals(1, change.u8());
         assertEquals(GamePackets.ROOM_CHANGE_COURSE, change.u8());
         assertEquals(5, change.u8());
+        PacketReader pm = new PacketReader(GamePackets.whisper(GamePackets.WHISPER_FROM, "TestNick2", "hi"));
+        assertEquals(GamePackets.SERVER_WHISPER, pm.opcode());
+        assertEquals(GamePackets.WHISPER_FROM, pm.u8());
+        assertEquals("TestNick2", pm.pstr());
+        assertEquals("hi", pm.pstr());
+        PacketReader offline = new PacketReader(GamePackets.chatOffline("nobody"));
+        assertEquals(GamePackets.SERVER_CHAT, offline.opcode());
+        assertEquals(GamePackets.CHAT_OFFLINE, offline.u8());
+        assertEquals("nobody", offline.pstr());
     }
 }

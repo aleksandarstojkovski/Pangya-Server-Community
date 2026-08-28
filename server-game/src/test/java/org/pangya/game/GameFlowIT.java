@@ -567,6 +567,25 @@ class GameFlowIT {
              PangyaFakeClient guest = new PangyaFakeClient()) {
             loginTwoPlayers(ds, keys, host, guest, runtime.port());
 
+            host.sendPlain(GamePackets.clientRequestCash());
+            PacketReader cash = awaitOpcode(host, GamePackets.SERVER_COOKIE);
+            assertTrue(cash.u64() >= 0);
+
+            host.sendPlain(GamePackets.clientWhisper("nobody", "are you there"));
+            PacketReader offline = awaitOpcode(host, GamePackets.SERVER_CHAT);
+            assertEquals(GamePackets.CHAT_OFFLINE, offline.u8());
+            assertEquals("nobody", offline.pstr());
+
+            host.sendPlain(GamePackets.clientWhisper("TestNick2", "hi guest"));
+            PacketReader from = awaitOpcode(host, GamePackets.SERVER_WHISPER);
+            assertEquals(GamePackets.WHISPER_FROM, from.u8());
+            assertEquals("TestNick2", from.pstr());
+            assertEquals("hi guest", from.pstr());
+            PacketReader to = awaitOpcode(guest, GamePackets.SERVER_WHISPER);
+            assertEquals(GamePackets.WHISPER_TO, to.u8());
+            assertEquals("TestNick", to.pstr());
+            assertEquals("hi guest", to.pstr());
+
             host.sendPlain(GamePackets.clientKeepalive());
             host.sendPlain(GamePackets.clientEnterLobby());
             PacketReader clear = awaitOpcode(host, GamePackets.SERVER_USERLIST);

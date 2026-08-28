@@ -55,6 +55,18 @@ public final class SessionManager {
         return null;
     }
 
+    public Session findByNickname(String nickname) {
+        if (nickname == null || nickname.isEmpty()) {
+            return null;
+        }
+        for (Session session : snapshot()) {
+            if (session.authorized() && nickname.equals(session.player().nickname)) {
+                return session;
+            }
+        }
+        return null;
+    }
+
     public void disconnectOthersWithUid(long uid, Session keep) {
         if (uid <= 0) {
             return;

@@ -8,7 +8,7 @@ Questo repo è **solo** la riscrittura Java.
 
 | Campo | Valore |
 |-------|--------|
-| Slice completata | **S0–S6** packet paths: shop SQL catalog `0xAA`/`0x68` success, messenger `0x102` pages, lounge `0x196`, GZ/SSC start-game, lobby `0x81`/`0x46`/`0x47`/`0xF5`, chat `0x40`, ready `0x78`, change-room `0x0A`→`0x4A` |
+| Slice completata | **S0–S6** packet paths: shop, messenger pages, lounge, GZ/SSC, lobby `0x81`/`0x46`/`0x47`/`0xF5`, chat `0x40`, whisper `0x84`, cookie `0x96`, ready `0x78`, change-room `0x0A`→`0x4A` |
 | Prossima | IFF cubes/pins/`initComboDef`; full lounge walk/zoom persistence; real JP client captures |
 | Blocked | IFF files absent (live pin/cube coords, IFF shop prices beyond SQL catalog, `initComboDef` parts) |
 | VM | Java 21.0.10, Docker 29.7.2, Compose v5.5.0, 4 CPU / 15 GiB |

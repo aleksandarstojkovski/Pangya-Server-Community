@@ -102,6 +102,8 @@ public final class GameHandler {
             case GamePackets.CLIENT_SET_READY -> setReady(session, reader);
             case GamePackets.CLIENT_CHANGE_ROOM_INFO -> changeRoomInfo(session, reader);
             case GamePackets.CLIENT_KEEPALIVE -> { }
+            case GamePackets.CLIENT_WHISPER -> whisper(session, reader);
+            case GamePackets.CLIENT_REQUEST_CASH -> requestCash(session);
             default -> log.debug("unhandled game opcode 0x{}", Integer.toHexString(opcode));
         }
     }
@@ -861,6 +863,33 @@ public final class GameHandler {
                 other.send(packet);
             }
         }
+    }
+
+    private void whisper(Session session, PacketReader reader) {
+        if (!session.authorized()) {
+            return;
+        }
+        String nick = reader.remaining() >= 2 ? reader.pstr() : "";
+        String msg = reader.remaining() >= 2 ? reader.pstr() : "";
+        if (nick.isEmpty() || msg.isEmpty()) {
+            return;
+        }
+        Session target = sessions.findByNickname(nick);
+        if (target == null) {
+            session.send(GamePackets.chatOffline(nick));
+            return;
+        }
+        String from = session.player().nickname == null ? "" : session.player().nickname;
+        String to = target.player().nickname == null ? nick : target.player().nickname;
+        session.send(GamePackets.whisper(GamePackets.WHISPER_FROM, to, msg));
+        target.send(GamePackets.whisper(GamePackets.WHISPER_TO, from, msg));
+    }
+
+    private void requestCash(Session session) {
+        if (!session.authorized()) {
+            return;
+        }
+        session.send(GamePackets.cookieBalance(inventory.cookie(session.player().uid)));
     }
 
     private GamePackets.ChannelInfo findChannel(int id) {
