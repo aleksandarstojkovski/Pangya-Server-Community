@@ -33,6 +33,8 @@ class LoginRepositoryTest {
             assertEquals(8, gameKey.length());
             assertEquals(loginKey, repo.loadAuthKeyLogin(10001).orElseThrow());
             assertEquals(gameKey, repo.loadAuthKeyGame(10001, 20202).orElseThrow());
+            String webKey = repo.generateWebKey(10001);
+            assertEquals(6, webKey.length());
             String s2s = repo.generateAuthServerKey(10203);
             assertEquals(16, s2s.length());
             var stored = repo.authServerKey(10203).orElseThrow();
@@ -42,7 +44,7 @@ class LoginRepositoryTest {
             LoginRepository.ServerListRow game = new LoginRepository.ServerListRow(
                     "PAPEL", 20202, "127.0.0.1", 20202, 2001, 0, 1,
                     2048, 0, 0, (short) 0, (short) 0, (short) 0, (short) 0,
-                    "GS.Release.852.00", "852.00");
+                    "Release.JP.983.00", "JP.R7.983.00");
             repo.upsertServer(game);
             assertEquals(1, repo.serverList(1).size());
             assertEquals("PAPEL", repo.serverList(1).getFirst().name());

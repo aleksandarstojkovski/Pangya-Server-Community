@@ -7,9 +7,9 @@ server:
   ip: 127.0.0.1
   maxUser: 2001
   property: 2048
-  version: LS.Release.852.00
-  clientVersion: "852.00"
-  packetVersion: 2016110200
+  version: LS.Release.2.0
+  clientVersion: "JP.R7.983.00"
+  packetVersion: 2017110200
   maintenance: false
 database:
   url: jdbc:postgresql://postgres:5432/pangya
@@ -22,14 +22,14 @@ auth:
   host: auth
   port: 7777
 game:
-  name: PAPEL
+  name: Kuma(2.0)
   uid: 20202
   ip: 127.0.0.1
   port: 20202
   maxUser: 2001
   property: 2048
-  version: GS.Release.852.00
-  clientVersion: "852.00"
+  version: Release.JP.983.00
+  clientVersion: "JP.R7.983.00"
 messenger:
   name: Messenger Server
   uid: 30201
@@ -38,4 +38,4 @@ messenger:
   maxUser: 2001
   property: 4096
   version: MS.Release.2.0
-  clientVersion: "852.00"
+  clientVersion: "JP.R7.983.01"

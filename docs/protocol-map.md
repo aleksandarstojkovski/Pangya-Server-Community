@@ -1,6 +1,6 @@
 # Protocol map (C# type → Java class → opcode)
 
-Season 9 / C# `Develop` GB only. Fill as packets are ported. Do not invent opcodes.
+Season 9 / C# `Develop` **JP**. Fill as packets are ported. Do not invent opcodes.
 
 Framing reference: `PangyaAPI.Network.PangyaPacket.PacketBuffer`.
 Cipher: `PangyaAPI.Network.Cryptor.Cipher`.
@@ -49,16 +49,16 @@ Framing + cipher Java: `org.pangya.protocol.crypto.Cipher`, `MiniLzo`, `CryptoOr
 | S | `SERVER_AUTH_KEY_LOGIN` | `0x10` |
 | S | `SERVER_CHARACTER_SAVE` | `0x11` |
 
-Login first raw frame (14 bytes, key at index 6): see `LoginServer.cs:159-161`.
+Login first raw frame (JP `makeRaw` opcode 0 + int32 key + int32 server uid): see `LoginServer.cs:155-166`.
 
 CLIENT_CONNECT `0x01` body (`LoginData` in `pangya_login_st.cs`):
 `PStr id`, `PStr password`, `byte opt_count`, `uint32 * (opt_count*8/4)`, `PStr mac`.
 
-SERVER_LOGIN `0x01` success (`pacote001` option=0, **GB**):
-`byte 0`, `PStr id`, `uint32 uid`, `uint32 cap`, `int32 level`, `int32 10`, `uint16 12`, `PStr nickname`.
+SERVER_LOGIN `0x01` success (`pacote001` option=0, **JP**):
+`byte 0`, `PStr id`, `uint32 uid`, `uint32 cap`, `byte 1`, `int32 0`, `byte 1`, `int32 5`, `SYSTEMTIME`, `PStr acess_code` (web key), `uint64 0`, `PStr nickname`.
 Then `0x10` was already sent (auth key login), then `0x02` GS list, `0x09` messenger list, `0x06` macros (9×64-byte `WriteStr`).
 
-GB `requestLogin` hashes MD5 then **overwrites with plaintext** `result.password` — Java stores/compares the client string as sent.
+JP `requestLogin` hashes MD5 then **overwrites with plaintext** `result.password` — Java stores/compares the client string as sent. Option 7 block time uses **360** hours when remaining < 1h. `pacote00F` adds uint32 0, uint32 5, `formatDateLocal(0)`, acess_code.
 
 `ServerInfo.ToArray()` is 92 bytes: `WriteStr(nome,40)`, int32 uid/max/curr, `WriteStr(ip,18)`, int32 port, uint32 property, int32 angelic, uint16 event_flag, int16 event_map/app_rate/scratch_rate/img_no.
 
@@ -84,19 +84,19 @@ Room types (`RoomInfo.TIPO` in `pangya_game_st.cs`): STROKE=0, MATCH=1, LOUNGE=2
 
 Game login CLIENT `0x02` (`GameServer.ReadLoginPacket`): `PStr id`, `uint32 uid`, `uint32 ntreevUID`, `uint16 command`, `PStr authKeyLogin`, `PStr clientVersion`, `uint32 packetVersion` (XOR-encrypted with GUID `{782AE110-2EEF-4c61-B030-A53F17634F7D}`), `uint32 isPcBang`, `PStr authKeyGame`.
 
-Fail `SendLoginAck` writes **uint32** ack. Success `pacote044` option 0 + `principal()` (12512 bytes after opcode+option). Then warehouse `0x73` (196-byte items from `pangya_item_warehouse`), characters `0x70` (513-byte `CharacterInfo` from `pangya_character_information`), caddies `0x71`, equip `0x72` (116 bytes from `pangya_user_equip`), mascots `0xE1`, `0x4D` channel list, then `sendCompleteData` tail (`0x102`, `0x131` Treasure Hunter 21 maps, live `0x21D`/`0x21E` from `pangya_counter_item`/`pangya_achievement`/`pangya_quest`, `0x144`…`0x1B1`). Seeded accounts have empty achievement rows so those packets are still three uint32 zeros.
+Fail `SendLoginAck` writes **uint32** ack. Success `pacote044` option 0 + JP `principal()` (PStr clientVersion only, MemberInfoEx **299**, UserInfo **265**, no 277-byte pad). Then warehouse `0x73` (196-byte items from `pangya_item_warehouse`), characters `0x70` (513-byte `CharacterInfo` from `pangya_character_information`), caddies `0x71`, equip `0x72` (116 bytes from `pangya_user_equip`), mascots `0xE1`, `0x4D` channel list, then `sendCompleteData` tail (`0x102`, `0x131` Treasure Hunter 21 maps, live `0x21D`/`0x21E` from `pangya_counter_item`/`pangya_achievement`/`pangya_quest`, `0x144`…`0x1B1`). Seeded accounts have empty achievement rows so those packets are still three uint32 zeros.
 
 `ChannelInfo.ToArray()` is 77 bytes: `WriteStr(name,64)`, int16 max_user, int16 curr_user, byte id, uint32 flag, uint32 flag2. Channel ids are 0-based from YAML order (C# INI `CHANNEL1` → id 0).
 
 `pacote04E`: byte option (1=ok, 2=full, 3=not found). Enter channel: CLIENT `0x04` + byte channel id.
 
-Practice create CLIENT `0x08` with `tipo==19`. C# enter order: `pacote04A` (int16 -1 + `RoomInfoEx.ToArrayEx` lobby summary) then `pacote049` (int16 0 + `RoomInfoEx.ToArray()` 210 bytes) then `pacote048` list + `pacote048` self. `PlayerRoomInfo.ToArray` is **341** bytes (C# `SIZE_STRUCT` comment 348 is padded); Ex is 854. Practice uses compact `0x100` (wire option byte 0); Stroke/Match/Lounge/Pang Battle send Ex. Leave CLIENT `0x130`. Exit room CLIENT `0x0F`. Start-game CLIENT `0x0E` → empty `0x230` + empty `0x231` + `0x77` uint32 pang rate. Solo start is allowed only for Practice/GP/Grand Zodiac; Versus with one player returns `0x253` uint32 `0x5900202`. Practice/Tourney then send `0x76` (tipo_show + uint32 1 + SYSTEMTIME) and `0x52` course (18 synthetic holes, cube count 0; pin coords come from CLIENT `0x1A` because IFF files are not in the env). Versus with ≥2 players sends `0x76` player dump (MemberInfoEx + UserInfo + trophy + UserEquip + zero map stats + Character/Caddie/ClubSet/Mascot from SQL) then per-player `0x52` + `0x16A` mascot seed. CLIENT `0x1A` → `0x9E` weather + `0x5B` wind + `0x8D` remain-ms. CLIENT `0x1B` XOR-decrypts 54-byte `ShotSyncData` with the 16-byte room key and broadcasts `0x6E`. CLIENT `0x1C` → `0xCC` empty drop. Equip CLIENT `0x20` type 0 writes `CharacterInfo` parts to `pangya_character_information` (IFF part validation skipped); types 1/3/5/8 update `pangya_user_equip`; ack `0x6B` err 4. Buy CLIENT `0x1D` without IFF catalog → `0x68` uint32 10.
+Practice create CLIENT `0x08` with `tipo==19`. C# enter order: `pacote04A` (int16 -1 + `RoomInfoEx.ToArrayEx` lobby summary) then `pacote049` (int16 0 + `RoomInfoEx.ToArray()` 210 bytes) then `pacote048` list + `pacote048` self. JP `PlayerRoomInfo.ToArray` is **348** bytes; Ex is **861**. Practice uses compact `0x100` (wire option byte 0); Stroke/Match/Lounge/Pang Battle send Ex. Leave CLIENT `0x130`. Exit room CLIENT `0x0F`. Start-game CLIENT `0x0E` → empty `0x230` + empty `0x231` + `0x77` uint32 pang rate. Solo start is allowed only for Practice/GP/Grand Zodiac; Versus with one player returns `0x253` uint32 `0x5900202`. Practice/Tourney then send `0x76` (tipo_show + uint32 1 + SYSTEMTIME) and `0x52` course (18 synthetic holes, cube count 0; pin coords come from CLIENT `0x1A` because IFF files are not in the env). Versus with ≥2 players sends `0x76` player dump (MemberInfoEx + UserInfo + trophy + UserEquip + zero map stats + Character/Caddie/ClubSet/Mascot from SQL) then per-player `0x52` + `0x16A` mascot seed. CLIENT `0x1A` → `0x9E` weather + `0x5B` wind + `0x8D` remain-ms. CLIENT `0x1B` XOR-decrypts 54-byte `ShotSyncData` with the 16-byte room key and broadcasts `0x6E`. CLIENT `0x1C` → `0xCC` empty drop. Equip CLIENT `0x20` type 0 writes `CharacterInfo` parts to `pangya_character_information` (IFF part validation skipped); types 1/3/5/8 update `pangya_user_equip`; ack `0x6B` err 4. Buy CLIENT `0x1D` without IFF catalog → `0x68` uint32 10.
 
 ## Ranking
 
 C#: `RankingServer/PangyaEnums/PacketRanking.cs`
 
-Hello is `makeRaw` `0x1388` + int32 key + byte 5 + PStr(`1970-01-01 00:00:00.000`) (C# `formatDateLocal(0)` as UTC).
+Hello is `makeRaw` `0x1388` + int32 key + byte 5 + PStr(`1970-01-01 00:00:00`) (JP `formatDateLocal(0)`).
 
 CLIENT `0x00`: uint32 uid, PStr id, byte menu, byte item, byte term_s5, byte class, uint32 page.
 Success `0x1389`: byte 0, four search bytes, then either 10 zero bytes (empty registry) or page/pages/count + rows (`uid, pos, last, value` + 7 zero character bytes). Trailing byte `PPRT_NOT_TOP_RANK` (2) on fresh login (`search_dados.active==0`). Error: byte option + 14 zeros.

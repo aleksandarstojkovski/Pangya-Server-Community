@@ -11,7 +11,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * GB {@code MessengerServer.requestLogin} + friend add/agree/block/remove.
+ * JP {@code MessengerServer.requestLogin} + friend add/agree/block/remove.
  */
 public final class MessengerHandler {
 

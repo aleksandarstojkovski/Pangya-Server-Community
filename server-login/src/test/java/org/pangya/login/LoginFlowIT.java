@@ -55,9 +55,13 @@ class LoginFlowIT {
             assertEquals("testuser", login.pstr());
             assertEquals(10001, login.u32());
             login.u32();
-            login.u32();
-            login.u32();
-            login.u16();
+            assertEquals(1, login.u8());
+            assertEquals(0, login.u32());
+            assertEquals(1, login.u8());
+            assertEquals(5, login.u32());
+            login.readBytes(16);
+            assertEquals(6, login.pstr().length());
+            assertEquals(0, login.u64());
             assertEquals("TestNick", login.pstr());
 
             PacketReader gs = new PacketReader(packets.get(2));
@@ -129,9 +133,9 @@ class LoginFlowIT {
         server.put("ip", "127.0.0.1");
         server.put("maxUser", 2001);
         server.put("property", 2048);
-        server.put("version", "LS.Release.852.00");
-        server.put("clientVersion", "852.00");
-        server.put("packetVersion", 2016110200);
+        server.put("version", "LS.Release.2.0");
+        server.put("clientVersion", "JP.R7.983.00");
+        server.put("packetVersion", 2017110200);
         root.put("server", server);
         root.put("database", Map.of("url", jdbc, "user", user, "password", password));
         root.put("redis", Map.of("uri", redis));

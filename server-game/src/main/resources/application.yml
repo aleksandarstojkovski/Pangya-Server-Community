@@ -7,9 +7,9 @@ server:
   ip: 127.0.0.1
   maxUser: 2001
   property: 2048
-  version: GS.Release.852.00
-  clientVersion: "852.00"
-  packetVersion: 2016110200
+  version: Release.JP.983.00
+  clientVersion: "JP.R7.983.00"
+  packetVersion: 2017110200
 database:
   url: jdbc:postgresql://postgres:5432/pangya
   user: pangya
@@ -26,17 +26,7 @@ channels:
     maxLevel: 16
     lowLevel: 0
     flag: 0
-  - name: Channel (Geral)
-    maxUser: 500
-    maxLevel: 70
-    lowLevel: 0
-    flag: 0
-  - name: Channel (Free 2)
-    maxUser: 500
-    maxLevel: 70
-    lowLevel: 0
-    flag: 0
-  - name: Channel (Free 3)
+  - name: Channel (All)
     maxUser: 500
     maxLevel: 70
     lowLevel: 0

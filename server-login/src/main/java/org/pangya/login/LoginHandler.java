@@ -15,7 +15,7 @@ import java.util.List;
 import java.util.regex.Pattern;
 
 /**
- * GB {@code LoginServer.requestLogin} + {@code packet_func_ls.succes_login} / {@code packet003}.
+ * JP {@code LoginServer.requestLogin} + {@code packet_func_ls.succes_login} / {@code packet003}.
  */
 public final class LoginHandler {
 
@@ -63,7 +63,7 @@ public final class LoginHandler {
             session.setAuthorized(false);
             return;
         }
-        // GB overwrites MD5 with the password the client sent.
+        // JP hashes MD5 then overwrites with the password the client sent.
         String pass = data.password();
         if (repo.isBannedIp(session.ip())) {
             session.send(LoginPackets.pacote001Option(LoginPackets.OPT_REGION_BAN));
@@ -138,7 +138,8 @@ public final class LoginHandler {
         List<ServerInfo> msns = toInfo(repo.serverList(3));
         String[] macros = repo.macros(pi.uid);
         session.send(LoginPackets.pacote010(authKey));
-        session.send(LoginPackets.pacote001Success(pi.id, pi.uid, pi.capability, pi.level, pi.nickname));
+        String accessCode = repo.generateWebKey(pi.uid);
+        session.send(LoginPackets.pacote001Success(pi.id, pi.uid, pi.capability, accessCode, pi.nickname));
         session.send(LoginPackets.pacote002(games));
         session.send(LoginPackets.pacote009(msns));
         session.send(LoginPackets.pacote006(macros));
@@ -168,7 +169,8 @@ public final class LoginHandler {
     private static void sendBlock(Session session, PlayerContext pi) {
         // C# bit flags on IDState; non-zero without known bits still blocks via option 0x0C.
         if (pi.blockTime > 0 || pi.blockTime == -1) {
-            int hours = pi.blockTime == -1 ? 1 : Math.max(1, pi.blockTime / 3600);
+            int hours = pi.blockTime == -1 ? LoginPackets.BLOCK_TIME_UNDER_ONE_HOUR
+                    : Math.max(LoginPackets.BLOCK_TIME_UNDER_ONE_HOUR, pi.blockTime / 3600);
             session.send(LoginPackets.pacote001BlockTime(hours));
         } else {
             session.send(LoginPackets.pacote001Option(LoginPackets.OPT_BLOCK_FOREVER));

@@ -21,7 +21,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * GB {@code GameServer.requestLogin} + channel enter + {@code Channel.requestMakeRoom}
+ * JP {@code GameServer.requestLogin} + channel enter + {@code Channel.requestMakeRoom}
  * ({@code Room.getInfo().ToArray()}) + start-game flags + Practice leave.
  */
 public final class GameHandler {
@@ -203,7 +203,6 @@ public final class GameHandler {
             // caddies + equip + mascots + channel list. Remaining dump packets are S4+.
             session.send(GamePackets.loginOkPrincipal(
                     config.clientVersion(),
-                    config.version(),
                     session.oid(),
                     pi.id,
                     pi.nickname,

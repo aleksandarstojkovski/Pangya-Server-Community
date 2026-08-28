@@ -4,7 +4,7 @@ import org.pangya.protocol.packet.PacketReader;
 import org.pangya.protocol.packet.PacketWriter;
 
 /**
- * GB {@code Definition.cs} + {@code MessengerServer.requestLogin}/{@code confirmLoginOnOtherServer}.
+ * JP {@code Definition.cs} + {@code MessengerServer.requestLogin}/{@code confirmLoginOnOtherServer}.
  */
 public final class MessengerPackets {
 

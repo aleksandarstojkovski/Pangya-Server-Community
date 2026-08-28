@@ -40,7 +40,7 @@ public final class LoginRuntime implements AutoCloseable {
         this.redis = new SessionKeyStore(config.redisUri());
         LoginHandler handler = new LoginHandler(config, repo, redis);
         SessionManager sessions = new SessionManager(new IpDdosFilter());
-        this.netty = new PangyaNettyServer(ServerKind.LOGIN, sessions, handler::onPacket);
+        this.netty = new PangyaNettyServer(ServerKind.LOGIN, sessions, handler::onPacket, config.uid());
         this.netty.bind(config.port());
         PangyaMetrics metrics = new PangyaMetrics(config.serverName(), sessions::size);
         this.health = new HealthHttp(config.healthPort(), config.serverName(), metrics);
@@ -82,15 +82,15 @@ public final class LoginRuntime implements AutoCloseable {
             Map<String, Object> game = config.section("game");
             if (!game.isEmpty()) {
                 upsert(repo,
-                        config.nestedFrom(game, "name", "PAPEL"),
+                        config.nestedFrom(game, "name", "Kuma(2.0)"),
                         config.nestedIntFrom(game, "uid", 20202),
                         config.nestedFrom(game, "ip", config.advertisedIp()),
                         config.nestedIntFrom(game, "port", 20202),
                         1,
                         config.nestedIntFrom(game, "maxUser", 2001),
                         config.nestedIntFrom(game, "property", 2048),
-                        config.nestedFrom(game, "version", "GS.Release.852.00"),
-                        config.nestedFrom(game, "clientVersion", "852.00"));
+                        config.nestedFrom(game, "version", "Release.JP.983.00"),
+                        config.nestedFrom(game, "clientVersion", "JP.R7.983.00"));
             }
             Map<String, Object> msn = config.section("messenger");
             if (!msn.isEmpty()) {
@@ -103,7 +103,7 @@ public final class LoginRuntime implements AutoCloseable {
                         config.nestedIntFrom(msn, "maxUser", 2001),
                         config.nestedIntFrom(msn, "property", 4096),
                         config.nestedFrom(msn, "version", "MS.Release.2.0"),
-                        config.nestedFrom(msn, "clientVersion", "852.00"));
+                        config.nestedFrom(msn, "clientVersion", "JP.R7.983.01"));
             }
         } catch (RuntimeException e) {
             log.warn("server-list heartbeat: {}", e.toString());

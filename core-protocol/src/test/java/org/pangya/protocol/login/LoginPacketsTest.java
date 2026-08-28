@@ -26,16 +26,21 @@ class LoginPacketsTest {
 
     @Test
     void pacote001SuccessLayout() {
-        byte[] pkt = LoginPackets.pacote001Success("testuser", 10001, 4, 10, "TestNick");
+        byte[] pkt = LoginPackets.pacote001Success(
+                "testuser", 10001, 4, LoginPackets.DEFAULT_ACCESS_CODE, "TestNick");
         PacketReader r = new PacketReader(pkt);
         assertEquals(0x01, r.opcode());
         assertEquals(0, r.u8());
         assertEquals("testuser", r.pstr());
         assertEquals(10001, r.u32());
         assertEquals(4, r.u32());
-        assertEquals(10, r.u32());
-        assertEquals(10, r.u32());
-        assertEquals(12, r.u16());
+        assertEquals(1, r.u8());
+        assertEquals(0, r.u32());
+        assertEquals(1, r.u8());
+        assertEquals(5, r.u32());
+        r.readBytes(16);
+        assertEquals(LoginPackets.DEFAULT_ACCESS_CODE, r.pstr());
+        assertEquals(0, r.u64());
         assertEquals("TestNick", r.pstr());
         assertEquals(0, r.remaining());
     }
@@ -102,7 +107,7 @@ class LoginPacketsTest {
 
     @Test
     void authRegisterRoundtrip() {
-        byte[] pkt = AuthS2s.register(0, 10203, "Login Server", "DEADBEEFDEADBEEF", "852.00", 2016110200);
+        byte[] pkt = AuthS2s.register(0, 10203, "Login Server", "DEADBEEFDEADBEEF", "JP.R7.983.00", 2017110200);
         PacketReader r = new PacketReader(pkt);
         assertEquals(AuthS2s.REGISTER, r.opcode());
         AuthS2s.RegisterRequest req = AuthS2s.readRegister(r);
@@ -110,8 +115,8 @@ class LoginPacketsTest {
         assertEquals(10203, req.uid());
         assertEquals("Login Server", req.name());
         assertEquals("DEADBEEFDEADBEEF", req.key());
-        assertEquals("852.00", req.clientVersion());
-        assertEquals(2016110200, req.packetVersion());
+        assertEquals("JP.R7.983.00", req.clientVersion());
+        assertEquals(2017110200, req.packetVersion());
     }
 
     @Test
@@ -139,5 +144,19 @@ class LoginPacketsTest {
     void emptyGsListIsCountZero() {
         byte[] pkt = LoginPackets.pacote002(List.of());
         assertArrayEquals(new byte[] {0x02, 0x00, 0x00}, pkt);
+    }
+
+    @Test
+    void pacote00FHasJpUnknownAndAccessCode() {
+        byte[] pkt = LoginPackets.pacote00F(1, "testuser");
+        PacketReader r = new PacketReader(pkt);
+        assertEquals(0x0F, r.opcode());
+        assertEquals(1, r.u8());
+        assertEquals("testuser", r.pstr());
+        assertEquals(0, r.u32());
+        assertEquals(5, r.u32());
+        assertEquals(org.pangya.protocol.packet.PacketIo.FORMAT_DATE_EPOCH, r.pstr());
+        assertEquals(LoginPackets.DEFAULT_ACCESS_CODE, r.pstr());
+        assertEquals(0, r.remaining());
     }
 }

@@ -33,4 +33,4 @@ docker compose up --build
 
 Slice plan, C#→Java map, and blockers: `docs/EPIC.md`. Packet IDs: `docs/protocol-map.md`.
 
-Do not change client-facing packet bytes. Do not introduce JPA/Hibernate.
+Do not change JP client-facing packet bytes. Do not introduce JPA/Hibernate.

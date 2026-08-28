@@ -13,7 +13,7 @@ import org.slf4j.LoggerFactory;
 import java.util.List;
 
 /**
- * GB {@code RankingServer.requestLogin} + {@code sendFirstPage} + {@code requestPlayerInfo}.
+ * JP {@code RankingServer.requestLogin} + {@code sendFirstPage} + {@code requestPlayerInfo}.
  * Registry rows come from {@code pangya_rank_atual} (C# {@code ProcGetRankRegistryInfo}).
  */
 public final class RankingHandler {

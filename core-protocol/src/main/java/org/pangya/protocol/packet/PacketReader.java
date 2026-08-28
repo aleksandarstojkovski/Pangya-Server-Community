@@ -61,6 +61,15 @@ public final class PacketReader {
         return u32() & 0xffff_ffffL;
     }
 
+    public long u64() {
+        require(8);
+        long v = 0;
+        for (int i = 0; i < 8; i++) {
+            v |= ((long) (buf[pos++] & 0xff)) << (8 * i);
+        }
+        return v;
+    }
+
     public String pstr() {
         int len = u16();
         require(len);

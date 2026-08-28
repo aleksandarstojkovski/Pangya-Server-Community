@@ -41,8 +41,8 @@ class AuthS2sIT {
                     "name", "login-test",
                     "uid", 10203,
                     "tipo", 0,
-                    "clientVersion", "852.00",
-                    "packetVersion", 2016110200
+                    "clientVersion", "JP.R7.983.00",
+                    "packetVersion", 2017110200
             ));
             childYaml.put("auth", Map.of("host", "127.0.0.1", "port", auth.port()));
             var repo = new JdbiLoginRepository(DatabaseSupport.jdbi(ds));

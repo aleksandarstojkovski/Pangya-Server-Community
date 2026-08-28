@@ -6,7 +6,7 @@ import org.pangya.protocol.packet.PacketWriter;
 import java.util.List;
 
 /**
- * GB {@code PacketRanking.cs} + {@code RankingServer.requestLogin}/{@code sendFirstPage}.
+ * JP {@code PacketRanking.cs} + {@code RankingServer.requestLogin}/{@code sendFirstPage}.
  */
 public final class RankingPackets {
 

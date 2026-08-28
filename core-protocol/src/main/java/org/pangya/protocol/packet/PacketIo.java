@@ -76,13 +76,19 @@ public final class PacketIo {
         return out;
     }
 
+    /** Default Login {@code GUID} used by Java listen config (JP INI is 10903). */
+    public static final int DEFAULT_LOGIN_UID = 10203;
+
     /**
-     * LoginServer.cs:159 hardcoded first packet. Only the key at index 6 varies.
+     * JP {@code LoginServer.onAcceptCompleted}: {@code makeRaw} opcode {@code 0x00}
+     * + int32 session key + int32 server uid.
      */
     public static byte[] loginHello(int key) {
-        return new byte[] {
-                0x00, 0x0B, 0x00, 0x00, 0x00, 0x00, (byte) key, 0x00, 0x00, 0x00, 0x75, 0x27, 0x00, 0x00
-        };
+        return loginHello(key, DEFAULT_LOGIN_UID);
+    }
+
+    public static byte[] loginHello(int key, int serverUid) {
+        return makeRaw(concat(opcode(0x00), u32le(key), u32le(serverUid)));
     }
 
     /** GameServer onAcceptCompleted: raw 0x3F + options + key + PStr(ip). */
@@ -97,9 +103,10 @@ public final class PacketIo {
 
     /**
      * RankingServer onAcceptCompleted: raw {@code 0x1388} + int32 key + byte 5 + PStr(epoch).
-     * C# {@code UtilTime.formatDateLocal(0)} as UTC {@code yyyy-MM-dd HH:mm:ss.SSS}.
+     * JP {@code UtilTime.formatDateLocal(0)} is {@code yyyy-MM-dd HH:mm:ss} (no millis).
      */
-    public static final String RANKING_EPOCH = "1970-01-01 00:00:00.000";
+    public static final String FORMAT_DATE_EPOCH = "1970-01-01 00:00:00";
+    public static final String RANKING_EPOCH = FORMAT_DATE_EPOCH;
 
     public static byte[] rankingHello(int key) {
         byte[] payload = concat(

@@ -51,9 +51,9 @@ class GameFlowIT {
                 assertEquals(1, helloBody.u8());
                 assertEquals(client.key(), helloBody.u8());
 
-                int wireVersion = GamePackets.xorPacketVersion(2016110200);
+                int wireVersion = GamePackets.xorPacketVersion(GamePackets.JP_PACKET_VERSION);
                 client.sendPlain(GamePackets.clientLogin(
-                        "testuser", 10001, loginKey, "852.00", wireVersion, gameKey));
+                        "testuser", 10001, loginKey, GamePackets.JP_CLIENT_VERSION, wireVersion, gameKey));
                 List<byte[]> loginPkts = collect(client, 26, 8, TimeUnit.SECONDS);
                 assertEquals(26, loginPkts.size(), "expected principal + inventory + channel + sendCompleteData tail");
 
@@ -216,8 +216,8 @@ class GameFlowIT {
                         "testuser",
                         10001,
                         loginKey2,
-                        "852.00",
-                        GamePackets.xorPacketVersion(2016110200),
+                        GamePackets.JP_CLIENT_VERSION,
+                        GamePackets.xorPacketVersion(GamePackets.JP_PACKET_VERSION),
                         gameKey2));
                 List<byte[]> again = collect(client, 26, 8, TimeUnit.SECONDS);
                 assertEquals(GamePackets.SERVER_LOGIN_ACK, new PacketReader(again.get(0)).opcode());
@@ -289,7 +289,7 @@ class GameFlowIT {
         client.connect("127.0.0.1", port, PangyaFakeClient.HelloKind.GAME);
         client.awaitHello(5, TimeUnit.SECONDS);
         client.sendPlain(GamePackets.clientLogin(
-                id, uid, loginKey, "852.00", GamePackets.xorPacketVersion(2016110200), gameKey));
+                id, uid, loginKey, GamePackets.JP_CLIENT_VERSION, GamePackets.xorPacketVersion(GamePackets.JP_PACKET_VERSION), gameKey));
         List<byte[]> loginPkts = collect(client, 26, 8, TimeUnit.SECONDS);
         assertEquals(26, loginPkts.size());
         client.sendPlain(GamePackets.clientEnterChannel(0));
@@ -322,8 +322,8 @@ class GameFlowIT {
                     "testuser",
                     10001,
                     loginKey,
-                    "852.00",
-                    GamePackets.xorPacketVersion(2016110200),
+                    GamePackets.JP_CLIENT_VERSION,
+                    GamePackets.xorPacketVersion(GamePackets.JP_PACKET_VERSION),
                     "DEADBEEF"));
             PacketReader r = new PacketReader(client.awaitPlain(5, TimeUnit.SECONDS));
             assertEquals(GamePackets.SERVER_LOGIN_ACK, r.opcode());
@@ -394,9 +394,9 @@ class GameFlowIT {
         server.put("ip", "127.0.0.1");
         server.put("maxUser", 2001);
         server.put("property", 2048);
-        server.put("version", "GS.Release.852.00");
-        server.put("clientVersion", "852.00");
-        server.put("packetVersion", 2016110200);
+        server.put("version", "Release.JP.983.00");
+        server.put("clientVersion", GamePackets.JP_CLIENT_VERSION);
+        server.put("packetVersion", GamePackets.JP_PACKET_VERSION);
         root.put("server", server);
         root.put("database", Map.of("url", jdbc, "user", user, "password", password));
         root.put("redis", Map.of("uri", redis));

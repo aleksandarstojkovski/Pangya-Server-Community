@@ -15,7 +15,7 @@ Questo repo è **solo** la riscrittura Java.
 
 ## Mappa C# → Java
 
-| C# (GB) | Java |
+| C# (JP) | Java |
 |---------|------|
 | `PangyaAPI.Network.Cryptor.Cipher` | `org.pangya.protocol.crypto.Cipher` (S1 done) |
 | `PangyaAPI.Network.Cryptor.CryptoOracle` | `org.pangya.protocol.crypto.CryptoOracle` — tabelle 4096 byte embeddate da C# |
@@ -37,7 +37,7 @@ Canali Game: restano in config YAML (come INI C#), non in DB.
 
 ### Porte Auth
 
-Nel dump GB convivono due valori (`5577` vs `7777`). **Decisione:** Auth ascolta **7777** (file `AuthServer/AuthServer/server.ini` usato a runtime + Login/Game `[AUTHSERVER] PORT=7777`). Ranking/Messenger sample INI dicevano 5577: in Java tutti i child puntano a 7777.
+Nel dump JP Auth INI usa `5577`; Login/Game Java restano su **7777** (stesso bind Compose/test). Le porte client Login/Game restano 10203/20202 (JP INI 10903/20301) così i test e Compose non cambiano; il client prende la lista GS dal Login.
 
 ## Piano slice
 
@@ -81,7 +81,7 @@ Plaintext dopo decrypt: `int16 LE` opcode + payload. Stringhe Shift_JIS nel C#.
 1. MiniLZO deve essere il port del C# (`MiniLzo.cs`), non una lib LZO generica — golden bytes dal C# in S1.
 2. 502 proc: parità query-by-query; rischio di semantica ranking/inventario (gate se due interpretazioni cambiano il gameplay).
 3. Client binario Pangya non è nell'env; da S2 in poi fake client + fixture. Non scaricare warez.
-4. IFF files (catalogo item) ancora da decidere: parser Java vs leggere i binari client se presenti in `Server/GB` reference. Non bloccante per S0–S1.
+4. IFF files (catalogo item) ancora da decidere: parser Java vs leggere i binari client se presenti in `Server/JP` reference. Non bloccante per S0–S1.
 5. Collation / locking SQL Server vs PG: default PG; si interviene solo se test di gioco divergono.
 
 ## Comandi di verifica (S0)
@@ -121,10 +121,10 @@ Golden bytes da capture client reale: ancora assenti (gap documentato).
 
 ## S2 evidenza (2026-08-28)
 
-GB `Develop` è la fonte dei byte Login (`packet_func_ls.pacote001` option=0: PStr id, uid, cap, int32 level, int32 10, uint16 12, PStr nick). JP S9 ha un layout diverso — **non** usato.
+JP `Develop` è la fonte dei byte Login (`packet_func_ls.pacote001` option=0: PStr id, uid, cap, byte 1, int32 0, byte 1, int32 5, SYSTEMTIME, PStr acess_code/web key, uint64 0, PStr nick). GB S9 ha un layout diverso — **non** usato.
 
 Flusso implementato:
-1. Login hello 14 byte → CLIENT_CONNECT `0x01` (`LoginData`) → ban IP → verify ID/pass su `pangya.account` (password **come inviata dal client**, GB sovrascrive l'MD5) → `user_info.level` → success `0x10` authkey + `0x01` + `0x02` GS list + `0x09` MS list + `0x06` 9×64 macros.
+1. Login hello JP `makeRaw` opcode 0 + int32 key + int32 server uid → CLIENT_CONNECT `0x01` (`LoginData`) → ban IP → verify ID/pass su `pangya.account` (password **come inviata dal client**, JP sovrascrive l'MD5) → `user_info.level` → success `0x10` authkey + web key + `0x01` + `0x02` GS list + `0x09` MS list + `0x06` 9×64 macros.
 2. CLIENT_SELECT_GS `0x03` → `0x03` auth key game (8 hex) in `authkey_game` + Redis.
 3. Auth S2S: raw `0x00` key+uid → child `0x01` register (tipo, uid, PStr name/key/version, packetVersion) → ack `0x01` int32 oid. Chiave in `pangya_auth_key`. Reconnect exponential backoff su virtual thread.
 4. Seed V3: account `testuser`/`testpass` uid=10001, FIRST_LOGIN=1, FIRST_SET=1. Login heartbeat mantiene `pangya_server_list` (Game type=1, Messenger type=3) dentro la finestra 8s di `ProcGetServerList`.
@@ -143,15 +143,15 @@ Create-user flag C# (`CREATEUSER=1`) **non** portato in S2: account assente → 
 
 ## Inventario Practice (S3)
 
-C# `LoginTask.sendCompleteData` invia `pacote044` option 0 con `principal()` (12512 byte dopo opcode+option) + warehouse `0x73` + characters `0x70` + caddies `0x71` + equip `0x72` + mascot `0xE1` + `pacote04D` + coda (`0x102`…`0x1B1`). Java carica warehouse/character/caddie/`user_equip`/mascot/card da SQL (seed V4: Nuri `0x4000000`, Air Knight `0x10000000`, ball `0x14000000`). Create-room accetta tutti i `RoomInfo.TIPO` 0–20 e risponde `pacote049` con `Room.getInfo().ToArray()` (210 byte). Start-game `0x0E` manda `0x230`+`0x231`+`0x77` per Practice/GP/GZ; Versus/Tourney a un giocatore fallisce con `0x253` come C#. Hole/shot IFF restano aperti.
+C# `LoginTask.sendCompleteData` invia `pacote044` option 0 con JP `principal()` (PStr `JP.R7.983.00` + 12270 byte fissi: MemberInfoEx 299, UserInfo 265, niente pad 277 GB) + warehouse `0x73` + characters `0x70` + caddies `0x71` + equip `0x72` + mascot `0xE1` + `pacote04D` + coda (`0x102`…`0x1B1`). Java carica warehouse/character/caddie/`user_equip`/mascot/card da SQL (seed V4: Nuri `0x4000000`, Air Knight `0x10000000`, ball `0x14000000`). Create-room accetta tutti i `RoomInfo.TIPO` 0–20 e risponde `pacote049` con `Room.getInfo().ToArray()` (210 byte). Start-game `0x0E` manda `0x230`+`0x231`+`0x77` per Practice/GP/GZ; Versus/Tourney a un giocatore fallisce con `0x253` come C#. Hole/shot IFF restano aperti.
 
 ## S3 evidenza (2026-08-28)
 
-`RoomInfo.TIPO.PRACTICE = 19` (SSC = 18). Game hello raw `0x3F`. CLIENT `0x02` valida auth keys Redis+SQL e `Version_Decrypt` (XOR GUID). Success: `0x44` + `principal()` 12512 byte + warehouse/chars/caddies/equip/mascot + `0x4D`. `0x04` → `0x4E` option 1. Leave `0x130`. Kill sessione: secondo login dopo disconnect.
+`RoomInfo.TIPO.PRACTICE = 19` (SSC = 18). Game hello raw `0x3F`. CLIENT `0x02` valida auth keys Redis+SQL e `Version_Decrypt` (XOR GUID). Success: `0x44` + JP `principal()` + warehouse/chars/caddies/equip/mascot + `0x4D`. `0x04` → `0x4E` option 1. Leave `0x130`. Kill sessione: secondo login dopo disconnect.
 
 ```
 ./gradlew --no-daemon :core-protocol:test :core-network:test :core-db:test :server-login:test :server-auth:test :server-game:test
-# GamePacketsTest principalPayloadIs12512Bytes PASSED
+# GamePacketsTest principalPayloadMatchesJpLayout PASSED
 # GameFlowIT fakeClientLogsInEntersChannelCreatesAndLeavesPractice PASSED
 # GameFlowIT badGameKeySendsSecurityAck PASSED
 # BUILD SUCCESSFUL

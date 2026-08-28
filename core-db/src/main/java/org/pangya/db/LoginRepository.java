@@ -30,6 +30,9 @@ public interface LoginRepository {
 
     String generateAuthKeyGame(long uid, int serverUid);
 
+    /** JP {@code ProcGeraWeblinkCookiesKey}: 6-char hex, stored in {@code pangya_weblink_cookies_key}. */
+    String generateWebKey(long uid);
+
     String generateAuthServerKey(int serverUid);
 
     Optional<AuthServerKey> authServerKey(int serverUid);

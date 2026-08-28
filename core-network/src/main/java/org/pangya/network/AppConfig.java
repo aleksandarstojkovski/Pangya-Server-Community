@@ -94,11 +94,11 @@ public final class AppConfig {
     }
 
     public String clientVersion() {
-        return nested("server", "clientVersion", "852.00");
+        return nested("server", "clientVersion", "JP.R7.983.00");
     }
 
     public int packetVersion() {
-        return nestedInt("server", "packetVersion", 2016110200);
+        return nestedInt("server", "packetVersion", 2017110200);
     }
 
     /** C# {@code ServerInfo.rate.pang}; default 100. */

@@ -1,13 +1,14 @@
 package org.pangya.protocol.login;
 
+import org.pangya.protocol.packet.PacketIo;
 import org.pangya.protocol.packet.PacketReader;
 import org.pangya.protocol.packet.PacketWriter;
 
 import java.util.List;
 
 /**
- * GB {@code PacketLogin.cs} + {@code packet_func_ls} builders.
- * Layouts copied from {@code Server/GB/LoginServer/PacketFunc/packet_func_ls.cs}.
+ * JP {@code PacketLogin.cs} + {@code packet_func_ls} builders.
+ * Layouts copied from {@code Server/JP/LoginServer/PacketFunc/packet_func_ls.cs}.
  */
 public final class LoginPackets {
 
@@ -43,22 +44,33 @@ public final class LoginPackets {
     public static final int OPT_FIRST_SET = 0xD9;
     public static final int OPT_ERROR = 0xE2;
 
+    /** C# {@code PlayerInfo.acess_code} default until {@code ProcGeraWeblinkCookiesKey}. */
+    public static final String DEFAULT_ACCESS_CODE = "302540";
+
+    /** JP option 7: less than one hour of block is sent as 360 hours (15 days). */
+    public static final int BLOCK_TIME_UNDER_ONE_HOUR = 360;
+
     private LoginPackets() {}
 
     /**
-     * {@code pacote001} option=0 success:
-     * byte 0, PStr id, uint32 uid, uint32 cap, int32 level, int32 10, uint16 12, PStr nick.
+     * JP {@code pacote001} option=0 success:
+     * byte 0, PStr id, uint32 uid, uint32 cap, byte 1, int32 0, byte 1, int32 5,
+     * SYSTEMTIME, PStr acess_code, uint64 0, PStr nick.
      */
-    public static byte[] pacote001Success(String id, long uid, int cap, int level, String nickname) {
+    public static byte[] pacote001Success(String id, long uid, int cap, String accessCode, String nickname) {
         return new PacketWriter()
                 .opcode(SERVER_LOGIN)
                 .u8(OPT_OK)
                 .pstr(id)
                 .u32((int) uid)
                 .u32(cap)
-                .i32(level)
-                .i32(10)
-                .u16(12)
+                .u8(1)
+                .i32(0)
+                .u8(1)
+                .i32(5)
+                .systemTimeNow()
+                .pstr(accessCode == null || accessCode.isBlank() ? DEFAULT_ACCESS_CODE : accessCode)
+                .u64(0)
                 .pstr(nickname)
                 .toBytes();
     }
@@ -142,10 +154,22 @@ public final class LoginPackets {
     }
 
     public static byte[] pacote00F(int option, String id) {
+        return pacote00F(option, id, DEFAULT_ACCESS_CODE);
+    }
+
+    /**
+     * JP {@code pacote00F}: byte option, PStr id, uint32 0, uint32 5,
+     * PStr {@code formatDateLocal(0)}, PStr acess_code.
+     */
+    public static byte[] pacote00F(int option, String id, String accessCode) {
         return new PacketWriter()
                 .opcode(SERVER_TUTORIAL)
                 .u8(option)
                 .pstr(id)
+                .u32(0)
+                .u32(5)
+                .pstr(PacketIo.FORMAT_DATE_EPOCH)
+                .pstr(accessCode == null || accessCode.isBlank() ? DEFAULT_ACCESS_CODE : accessCode)
                 .toBytes();
     }
 

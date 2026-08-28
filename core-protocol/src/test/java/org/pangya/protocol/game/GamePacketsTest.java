@@ -25,15 +25,16 @@ class GamePacketsTest {
 
     @Test
     void loginRoundtrip() {
-        byte[] pkt = GamePackets.clientLogin("testuser", 10001, "ABCD1234", "852.00", 2015031200, "EFGH5678");
+        byte[] pkt = GamePackets.clientLogin(
+                "testuser", 10001, "ABCD1234", GamePackets.JP_CLIENT_VERSION, 2017110200, "EFGH5678");
         PacketReader r = new PacketReader(pkt);
         assertEquals(GamePackets.CLIENT_REQUEST_LOGIN, r.opcode());
         GamePackets.GameLogin login = GamePackets.readLogin(r);
         assertEquals("testuser", login.id());
         assertEquals(10001, login.uid());
         assertEquals("ABCD1234", login.authKeyLogin());
-        assertEquals("852.00", login.clientVersion());
-        assertEquals(2015031200, login.packetVersion());
+        assertEquals(GamePackets.JP_CLIENT_VERSION, login.clientVersion());
+        assertEquals(2017110200, login.packetVersion());
         assertEquals("EFGH5678", login.authKeyGame());
     }
 
@@ -50,21 +51,21 @@ class GamePacketsTest {
 
     @Test
     void packetVersionXorIsInvolutive() {
-        int plain = 2016110200;
+        int plain = GamePackets.JP_PACKET_VERSION;
         int wire = GamePackets.xorPacketVersion(plain);
         assertEquals(plain, GamePackets.xorPacketVersion(wire));
     }
 
     @Test
-    void principalPayloadIs12512Bytes() {
+    void principalPayloadMatchesJpLayout() {
         byte[] pkt = GamePackets.loginOkPrincipal(
-                "852.00", "GS.Release.852.00", 1, "testuser", "TestNick", 0, 10001, 1, 2048);
+                GamePackets.JP_CLIENT_VERSION, 1, "testuser", "TestNick", 0, 10001, 1, 2048);
         PacketReader r = new PacketReader(pkt);
         assertEquals(GamePackets.SERVER_LOGIN_ACK, r.opcode());
         assertEquals(GamePackets.ACK_LOGIN_OK, r.u8());
         assertEquals(GamePackets.PRINCIPAL_PAYLOAD_BYTES, r.remaining());
-        assertEquals("852.00", r.pstr());
-        assertEquals("GS.Release.852.00", r.pstr());
+        assertEquals(GamePackets.JP_CLIENT_VERSION, r.pstr());
+        assertEquals(GamePackets.PRINCIPAL_AFTER_VERSION_BYTES, r.remaining());
         assertEquals(GamePackets.MEMBER_INFO_EX_BYTES, GamePackets.memberInfoEx(1, "a", "b", 0).length);
         assertEquals(GamePackets.USER_INFO_BYTES, GamePackets.userInfo(1).length);
     }

@@ -10,7 +10,7 @@ class CryptoOracleTest {
     void tablesMatchCSharpLengthsAndKnownPrefix() {
         assertEquals(4096, CryptoOracle.PUBLIC_KEY_TABLE.length);
         assertEquals(4096, CryptoOracle.PRIVATE_KEY_TABLE.length);
-        // First 8 bytes from Server/GB/.../CryptoOracle.cs
+        // First 8 bytes from Server/JP/.../CryptoOracle.cs (same tables as GB)
         assertEquals(0, Byte.toUnsignedInt(CryptoOracle.PUBLIC_KEY_TABLE[0]));
         assertEquals(1, Byte.toUnsignedInt(CryptoOracle.PUBLIC_KEY_TABLE[1]));
         assertEquals(41, Byte.toUnsignedInt(CryptoOracle.PUBLIC_KEY_TABLE[2]));

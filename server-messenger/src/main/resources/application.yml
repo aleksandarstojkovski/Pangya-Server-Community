@@ -8,8 +8,8 @@ server:
   maxUser: 2001
   property: 4096
   version: MS.Release.2.0
-  clientVersion: "852.00"
-  packetVersion: 2016110200
+  clientVersion: "JP.R7.983.01"
+  packetVersion: 2024100800
 database:
   url: jdbc:postgresql://postgres:5432/pangya
   user: pangya

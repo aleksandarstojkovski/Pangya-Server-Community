@@ -34,7 +34,7 @@ public final class PangyaNettyServer implements AutoCloseable {
     private Channel channel;
 
     public PangyaNettyServer(ServerKind kind, SessionManager sessions, PangyaClientDecryptHandler.PacketSink sink) {
-        this(kind, sessions, sink, 8888);
+        this(kind, sessions, sink, PacketIo.DEFAULT_LOGIN_UID);
     }
 
     public PangyaNettyServer(
@@ -86,7 +86,7 @@ public final class PangyaNettyServer implements AutoCloseable {
 
     private void writeHello(SocketChannel ch, Session session) {
         byte[] hello = switch (kind) {
-            case LOGIN -> PacketIo.loginHello(session.key());
+            case LOGIN -> PacketIo.loginHello(session.key(), authUid);
             case GAME -> PacketIo.gameHello(session.key(), session.ip());
             case AUTH -> PacketIo.makeRaw(PacketIo.concat(
                     PacketIo.opcode(0x00),

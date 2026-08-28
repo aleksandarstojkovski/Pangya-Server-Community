@@ -211,6 +211,26 @@ public final class JdbiLoginRepository implements LoginRepository {
     }
 
     @Override
+    public String generateWebKey(long uid) {
+        String key = randomKey(6);
+        jdbi.useHandle(h -> {
+            int updated = h.createUpdate(
+                            "UPDATE pangya.pangya_weblink_cookies_key SET \"key\" = :k, valid = 1 WHERE uid = :uid")
+                    .bind("k", key)
+                    .bind("uid", uid)
+                    .execute();
+            if (updated == 0) {
+                h.createUpdate(
+                                "INSERT INTO pangya.pangya_weblink_cookies_key (uid, \"key\", valid) VALUES (:uid, :k, 1)")
+                        .bind("uid", uid)
+                        .bind("k", key)
+                        .execute();
+            }
+        });
+        return key;
+    }
+
+    @Override
     public String generateAuthServerKey(int serverUid) {
         String key = randomKey(16);
         jdbi.useHandle(h -> {
@@ -358,7 +378,7 @@ public final class JdbiLoginRepository implements LoginRepository {
                     .bind("curr", server.currUser())
                     .bind("now", OffsetDateTime.now())
                     .bind("ver", nz(server.version(), "Java.S2"))
-                    .bind("cver", nz(server.clientVersion(), "852.00"))
+                    .bind("cver", nz(server.clientVersion(), "JP.R7.983.00"))
                     .bind("prop", server.property())
                     .bind("angel", server.angelicWings())
                     .bind("eflag", server.eventFlag())
@@ -397,7 +417,7 @@ public final class JdbiLoginRepository implements LoginRepository {
                         .bind("type", server.type())
                         .bind("now", OffsetDateTime.now())
                         .bind("ver", nz(server.version(), "Java.S2"))
-                        .bind("cver", nz(server.clientVersion(), "852.00"))
+                        .bind("cver", nz(server.clientVersion(), "JP.R7.983.00"))
                         .bind("prop", server.property())
                         .bind("angel", server.angelicWings())
                         .bind("eflag", server.eventFlag())

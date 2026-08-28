@@ -8,7 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * GB {@code PacketGame.cs} subset for S3/S4 (login, channel, rooms, start-game).
+ * JP {@code PacketGame.cs} subset for S3/S4 (login, channel, rooms, start-game).
  * C# {@code RoomInfo.TIPO.PRACTICE} = 19 (SSC is 18).
  */
 public final class GamePackets {
@@ -97,10 +97,10 @@ public final class GamePackets {
     public static final int MASCOT_INFO_BYTES = 62;
     /** C# {@code CardInfo.ToArray}. */
     public static final int CARD_INFO_BYTES = 58;
-    /** C# {@code PlayerRoomInfo.ToArray} (SIZE_STRUCT comment 348 is padded; wire is 341). */
-    public static final int PLAYER_ROOM_INFO_BYTES = 341;
-    /** C# {@code PlayerRoomInfoEx.SIZE_STRUCT_EX} = ToArray + CharacterInfo. */
-    public static final int PLAYER_ROOM_INFO_EX_BYTES = 854;
+    /** JP {@code PlayerRoomInfo.ToArray} Debug.Assert size (guild 20, mark 12, unknown 3). */
+    public static final int PLAYER_ROOM_INFO_BYTES = 348;
+    /** JP {@code PlayerRoomInfoEx.ToArrayEx} = ToArray 348 + CharacterInfo 513. */
+    public static final int PLAYER_ROOM_INFO_EX_BYTES = 861;
     /** C# {@code ClubSetInfo.ToArray}. */
     public static final int CLUBSET_INFO_BYTES = 28;
     /** C# {@code RoomInfo.eMODO.M_REPEAT}. */
@@ -135,23 +135,34 @@ public final class GamePackets {
     public static final int MAP_STAT_BYTES = 10836;
     /** C# {@code UserEquipedItem.ToArray}. */
     public static final int EQUIPED_ITEM_BYTES = 628;
-    /** C# {@code MemberInfoEx.ToArrayEx}. */
-    public static final int MEMBER_INFO_EX_BYTES = 263;
-    /** C# {@code UserInfo.ToArray}. */
-    public static final int USER_INFO_BYTES = 239;
-    /** Bytes after opcode+option in {@code pacote044} ACK_LOGIN_OK / {@code principal()}. */
-    public static final int PRINCIPAL_PAYLOAD_BYTES = 12512;
+    /** JP {@code MemberInfoEx.ToArrayEx} (sala_numero + ToArray 297). */
+    public static final int MEMBER_INFO_EX_BYTES = 299;
+    /** JP {@code UserInfo.ToArray} (stMedal is 6×int32). */
+    public static final int USER_INFO_BYTES = 265;
+    /**
+     * Bytes after opcode+option+PStr(clientVersion) in JP {@code principal()}
+     * (no server-version PStr, no GB 277-byte guild pad).
+     */
+    public static final int PRINCIPAL_AFTER_VERSION_BYTES = 12270;
+    /**
+     * Bytes after opcode+option for canonical JP client version {@code JP.R7.983.00}
+     * (PStr 14 + {@link #PRINCIPAL_AFTER_VERSION_BYTES}).
+     */
+    public static final int PRINCIPAL_PAYLOAD_BYTES = 14 + PRINCIPAL_AFTER_VERSION_BYTES;
+    public static final String JP_CLIENT_VERSION = "JP.R7.983.00";
+    public static final int JP_PACKET_VERSION = 2017110200;
 
     public static byte[] loginAck(int option) {
         return new PacketWriter().opcode(SERVER_LOGIN_ACK).u8(option).toBytes();
     }
 
     /**
-     * C# {@code pacote044} option 0 + {@code principal()}. Payload after opcode+option is 12512 bytes.
+     * JP {@code pacote044} option 0 + {@code principal()}: PStr clientVersion only
+     * (no server version), then MemberInfoEx + uid + UserInfo + trophy + equip + map
+     * + equipped items + SYSTEMTIME + server flags. No GB 277-byte pad.
      */
     public static byte[] loginOkPrincipal(
             String clientVersion,
-            String serverVersion,
             int oid,
             String id,
             String nick,
@@ -161,7 +172,6 @@ public final class GamePackets {
             int serverProperty) {
         PacketWriter w = new PacketWriter().opcode(SERVER_LOGIN_ACK).u8(ACK_LOGIN_OK);
         w.pstr(clientVersion == null ? "" : clientVersion);
-        w.pstr(serverVersion == null ? "" : serverVersion);
         w.bytes(memberInfoEx(oid, id, nick, capability));
         w.u32(uid);
         w.bytes(userInfo(level));
@@ -174,9 +184,8 @@ public final class GamePackets {
         w.u16(0xffff).u16(0xffff).u16(0xffff); // PlayerPapelShopInfo defaults
         w.u32(0);
         w.u64(0);
-        w.u32(0);
+        w.i32(0); // ToTalClubsetCNT + ToTalPartsCNT
         w.u32(serverProperty);
-        w.zero(277);
         return w.toBytes();
     }
 
@@ -542,6 +551,7 @@ public final class GamePackets {
         w.fixedStr(nick, 22);
         w.zero(17); // guild_name
         w.zero(12); // guild_mark_img
+        w.zero(35); // sComment (JP only)
         w.u32(0); // school
         w.i32(capability);
         w.u32(0); // galleryUid
@@ -550,7 +560,7 @@ public final class GamePackets {
         w.u32(0); // guild_uid
         w.u32(0); // guild_mark_img_no
         w.u8(0); // state_flag
-        w.u8(1); // flag_login_time (first login on GS)
+        w.u16(1); // flag_login_time (JP writes ushort)
         w.u16(0xffff).u16(0xffff).u16(0xffff); // papel_shop
         w.u32(0); // point_point_event
         w.u64(0); // flag_block
@@ -571,11 +581,9 @@ public final class GamePackets {
         PacketWriter w = new PacketWriter();
         w.zero(16); // tacada, putt, tempo, tempo_tacada
         w.zero(4); // best_drive float
-        w.zero(24); // acerto..hole_in
-        w.zero(4); // hio
+        w.zero(28); // acerto..hio (7×int32)
         w.zero(2); // bunker
-        w.zero(12); // fairway, albatross, mad
-        w.zero(4); // putt_in
+        w.zero(16); // fairway, albatross, mad, putt_in
         w.zero(8); // best_long_putt, best_chip_in
         w.u32(0); // exp
         w.u8(level);
@@ -586,14 +594,16 @@ public final class GamePackets {
         w.zero(40); // best_pang[5]
         w.zero(8); // sum_pang
         w.zero(16); // jogado, team_hole, team_win, team_game
-        w.zero(20); // ladder_*
+        w.zero(20); // ladder_point, hole, win, lose, draw
         w.zero(12); // combo, all_combo, quitado
         w.zero(8); // skin_pang
-        w.zero(16); // skin_win..strike
-        w.zero(2); // skin_all_in
-        w.zero(8); // event_value, jogados_disconnect
+        w.zero(8); // skin_win, skin_lose
+        w.zero(16); // skin_all_in, run_hole, strike, jogados_disconnect
+        w.zero(2); // event_value int16
+        w.zero(4); // disconnect
+        w.zero(24); // stMedal 6×int32
+        w.zero(4); // sys_school_serie
         w.zero(4); // game_count_season
-        w.zero(6); // medal bytes
         w.zero(2); // _16bit
         byte[] body = w.toBytes();
         if (body.length != USER_INFO_BYTES) {
@@ -1374,7 +1384,7 @@ public final class GamePackets {
             PacketWriter w = new PacketWriter();
             w.i32(oid);
             w.fixedStr(nickname, 22);
-            w.fixedStr(guildName, 17);
+            w.fixedStr(guildName, 20);
             w.u8(position);
             w.i32(capability);
             w.u32(title);
@@ -1387,7 +1397,7 @@ public final class GamePackets {
             w.u8(iconAngel);
             w.u8(place);
             w.i32(guildUid);
-            w.fixedStr(guildMark, 9);
+            w.fixedStr(guildMark, 12);
             w.u32(guildMarkIndex);
             w.u32(uid);
             w.u32(stateLounge);
@@ -1404,7 +1414,7 @@ public final class GamePackets {
             w.fixedStr(displayId, 128);
             w.u8(convidado);
             w.f32(avgScore);
-            w.zero(2);
+            w.zero(3);
             byte[] body = w.toBytes();
             if (body.length != PLAYER_ROOM_INFO_BYTES) {
                 throw new IllegalStateException("PlayerRoomInfo size " + body.length);

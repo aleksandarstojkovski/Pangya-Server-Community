@@ -7,15 +7,15 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class PacketIoTest {
 
     @Test
-    void loginHelloMatchesCsharpHardcodedFrame() {
-        byte[] hello = PacketIo.loginHello(7);
+    void loginHelloIsMakeRawKeyAndServerUid() {
+        byte[] hello = PacketIo.loginHello(7, 10203);
         assertEquals(14, hello.length);
         assertEquals(0x00, hello[0] & 0xff);
         assertEquals(0x0B, hello[1] & 0xff);
         assertEquals(0x00, hello[2] & 0xff);
         assertEquals(7, hello[6] & 0xff);
-        assertEquals(0x75, hello[10] & 0xff);
-        assertEquals(0x27, hello[11] & 0xff);
+        assertEquals(10203 & 0xff, hello[10] & 0xff);
+        assertEquals((10203 >>> 8) & 0xff, hello[11] & 0xff);
     }
 
     @Test
