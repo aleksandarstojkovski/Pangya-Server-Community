@@ -4290,6 +4290,88 @@ class GameFlowIT {
     }
 
     @Test
+    void memorialCoinAddsRewardAndSends264() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config);
+             PangyaFakeClient client = new PangyaFakeClient()) {
+            InventoryRepository inv = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
+            inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_MEMORIAL_COIN_TEST);
+            inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_MEMORIAL_REWARD_TEST);
+            inv.deleteItemIff(GamePackets.TYPEID_MEMORIAL_COIN_TEST);
+            inv.deleteMemorialRewards(GamePackets.TYPEID_MEMORIAL_COIN_TEST);
+            int coinId = inv.addWarehouseItem(10001, GamePackets.TYPEID_MEMORIAL_COIN_TEST, 1);
+            try {
+                inv.upsertItemIff(GamePackets.TYPEID_MEMORIAL_COIN_TEST);
+                inv.upsertMemorialReward(
+                        GamePackets.TYPEID_MEMORIAL_COIN_TEST,
+                        0,
+                        2,
+                        GamePackets.TYPEID_MEMORIAL_REWARD_TEST,
+                        3);
+                LoginRepository repo = new JdbiLoginRepository(DatabaseSupport.jdbi(ds));
+                String loginKey = repo.generateAuthKeyLogin(10001);
+                String gameKey = repo.generateAuthKeyGame(10001, 20202);
+                keys.putLoginKey(10001, loginKey);
+                keys.putGameKey(10001, 20202, gameKey);
+                loginToChannel(client, runtime.port(), "testuser", 10001, loginKey, gameKey);
+
+                client.sendPlain(GamePackets.clientMemorial(GamePackets.TYPEID_MEMORIAL_COIN_TEST));
+                PacketReader update = awaitOpcode(client, GamePackets.SERVER_DAILY_QUEST_STAMP);
+                update.u32();
+                assertEquals(2, update.u32());
+                assertEquals(GamePackets.PAPEL_AWARD_TYPE, update.u8());
+                assertEquals(GamePackets.TYPEID_MEMORIAL_REWARD_TEST, update.u32());
+                int rewardId = update.i32();
+                assertTrue(rewardId > 0);
+                update.u32();
+                assertEquals(0, update.i32());
+                assertEquals(3, update.i32());
+                assertEquals(3, update.i32());
+                update.readBytes(GamePackets.PAPEL_AWARD_PAD);
+                assertEquals(GamePackets.PAPEL_AWARD_TYPE, update.u8());
+                assertEquals(GamePackets.TYPEID_MEMORIAL_COIN_TEST, update.u32());
+                assertEquals(coinId, update.i32());
+                update.u32();
+                assertEquals(1, update.i32());
+                assertEquals(0, update.i32());
+                assertEquals(-1, update.i32());
+                update.readBytes(GamePackets.PAPEL_AWARD_PAD);
+                assertEquals(0, update.remaining());
+
+                PacketReader ok = awaitOpcode(client, GamePackets.SERVER_MEMORIAL);
+                assertEquals(GamePackets.MEMORIAL_OK, ok.u32());
+                assertEquals(1, ok.u32());
+                assertEquals(2, ok.i32());
+                assertEquals(GamePackets.TYPEID_MEMORIAL_REWARD_TEST, ok.u32());
+                assertEquals(3, ok.u32());
+                assertEquals(0, ok.remaining());
+                assertTrue(inv.warehouse(10001).stream().noneMatch(
+                        w -> w.typeid == GamePackets.TYPEID_MEMORIAL_COIN_TEST));
+                assertEquals(3, inv.warehouse(10001).stream()
+                        .filter(w -> w.typeid == GamePackets.TYPEID_MEMORIAL_REWARD_TEST)
+                        .findFirst()
+                        .orElseThrow()
+                        .c[0]);
+                assertTrue(inv.warehouse(10001).stream().anyMatch(
+                        w -> w.typeid == GamePackets.TYPEID_AIR_KNIGHT));
+            } finally {
+                inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_MEMORIAL_COIN_TEST);
+                inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_MEMORIAL_REWARD_TEST);
+                inv.deleteItemIff(GamePackets.TYPEID_MEMORIAL_COIN_TEST);
+                inv.deleteMemorialRewards(GamePackets.TYPEID_MEMORIAL_COIN_TEST);
+            }
+        }
+    }
+
+    @Test
     void soloGrandZodiacSendsTourneyInit() throws Exception {
         String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
         String user = env("PANGYA_TEST_JDBC_USER", "pangya");

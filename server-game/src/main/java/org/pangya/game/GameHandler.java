@@ -6605,19 +6605,97 @@ public final class GameHandler {
         if (!inChannel(session)) {
             return;
         }
-        if (reader.remaining() < 4) {
+        try {
+            if (reader.remaining() < 4) {
+                session.send(GamePackets.sysAck(
+                        GamePackets.SERVER_MEMORIAL, GamePackets.MEMORIAL_ERR_DEFAULT));
+                return;
+            }
+            int coinTypeid = reader.u32();
+            if (coinTypeid == 0) {
+                session.send(GamePackets.sysAck(
+                        GamePackets.SERVER_MEMORIAL,
+                        GamePackets.shopSys(GamePackets.MEMORIAL_ERR_COIN)));
+                return;
+            }
+            if (GamePackets.itemGroupIdentify(coinTypeid) != GamePackets.IFF_GROUP_ITEM) {
+                session.send(GamePackets.sysAck(
+                        GamePackets.SERVER_MEMORIAL,
+                        GamePackets.shopSys(GamePackets.MEMORIAL_ERR_GROUP)));
+                return;
+            }
+            long uid = session.player().uid;
+            GamePackets.WarehouseItem coin = warehouseByTypeid(uid, coinTypeid);
+            if (coin == null) {
+                session.send(GamePackets.sysAck(
+                        GamePackets.SERVER_MEMORIAL,
+                        GamePackets.shopSys(GamePackets.MEMORIAL_ERR_MISSING)));
+                return;
+            }
+            if (!inventory.itemIff(coinTypeid)) {
+                session.send(GamePackets.sysAck(
+                        GamePackets.SERVER_MEMORIAL,
+                        GamePackets.shopSys(GamePackets.MEMORIAL_ERR_IFF)));
+                return;
+            }
+            List<InventoryRepository.MemorialReward> draw = inventory.memorialRewards(coinTypeid);
+            if (draw.isEmpty()) {
+                session.send(GamePackets.sysAck(
+                        GamePackets.SERVER_MEMORIAL,
+                        GamePackets.shopSys(GamePackets.MEMORIAL_ERR_SYSTEM)));
+                return;
+            }
+            List<GamePackets.PapelAward> updates = new ArrayList<>();
+            List<GamePackets.MemorialAward> response = new ArrayList<>();
+            for (InventoryRepository.MemorialReward reward : draw) {
+                if (reward.rewardTypeid() == 0 || reward.qntd() <= 0) {
+                    session.send(GamePackets.sysAck(
+                            GamePackets.SERVER_MEMORIAL,
+                            GamePackets.shopSys(GamePackets.MEMORIAL_ERR_DRAW)));
+                    return;
+                }
+                GamePackets.WarehouseItem existing = warehouseByTypeid(uid, reward.rewardTypeid());
+                int ant = existing == null ? 0 : existing.c[0] & 0xffff;
+                int id = inventory.addWarehouseItem(uid, reward.rewardTypeid(), reward.qntd());
+                if (id <= 0) {
+                    session.send(GamePackets.sysAck(
+                            GamePackets.SERVER_MEMORIAL,
+                            GamePackets.shopSys(GamePackets.MEMORIAL_ERR_ADD)));
+                    return;
+                }
+                updates.add(new GamePackets.PapelAward(
+                        GamePackets.PAPEL_AWARD_TYPE,
+                        reward.rewardTypeid(),
+                        id,
+                        0,
+                        ant,
+                        ant + reward.qntd(),
+                        reward.qntd()));
+                response.add(new GamePackets.MemorialAward(
+                        reward.rarity(), reward.rewardTypeid(), reward.qntd()));
+            }
+            OptionalInt remaining = inventory.consumeWarehouseByTypeid(uid, coinTypeid, 1);
+            if (remaining.isEmpty()) {
+                session.send(GamePackets.sysAck(
+                        GamePackets.SERVER_MEMORIAL,
+                        GamePackets.shopSys(GamePackets.MEMORIAL_ERR_CONSUME)));
+                return;
+            }
+            updates.add(new GamePackets.PapelAward(
+                    GamePackets.PAPEL_AWARD_TYPE,
+                    coinTypeid,
+                    coin.id,
+                    0,
+                    coin.c[0] & 0xffff,
+                    remaining.getAsInt(),
+                    -1));
+            session.send(GamePackets.papelAwards(GamePackets.unixNow(), updates));
+            session.send(GamePackets.memorialOk(response));
+        } catch (RuntimeException e) {
+            log.debug("memorial failed uid={}: {}", session.player().uid, e.toString());
             session.send(GamePackets.sysAck(
                     GamePackets.SERVER_MEMORIAL, GamePackets.MEMORIAL_ERR_DEFAULT));
-            return;
         }
-        int coin = reader.u32();
-        if (coin == 0) {
-            session.send(GamePackets.sysAck(
-                    GamePackets.SERVER_MEMORIAL, GamePackets.shopSys(GamePackets.MEMORIAL_ERR_COIN)));
-            return;
-        }
-        session.send(GamePackets.sysAck(
-                GamePackets.SERVER_MEMORIAL, GamePackets.shopSys(0x6300303)));
     }
 
     /**

@@ -217,7 +217,7 @@ C#: `GameServer/PangyaEnums/PacketGame.cs` → Java `org.pangya.protocol.game.Ga
 | C | `CLIENT_CLUBSETWORKSHOP_RECOVERY` | `0x16B` | typeid 0 → `0x246` `shopSys(0x5300151)`; truncated → full `0x5300150`; C0&lt;1 `shopSys(0x5300152)`; missing ClubSet `shopSys(0x5300153)`; no `iff_clubset` `shopSys(0x5300154)`; tipo -1 `shopSys(0x5300155)`; consume fail `shopSys(0x5300156)`; already recovered `shopSys(0x5300157)`; success `0x216` (type 2 consume + type `0xCC` + workshop 23) then `0x246` u32 0 |
 | C | `CLIENT_CLUBSETWORKSHOP_TRANSFER` | `0x16C` | missing UCIM → `0x245` `shopSys(0x5300104)`; truncated → full `0x5300100`; C0&lt;qntd `shopSys(0x5300105)`; missing ClubSet `shopSys(0x5300101)`; no `iff_clubset` `shopSys(0x5300102)`; dest tipo -1 `shopSys(0x5300103)`; Rank S `shopSys(0x5300108)`; extra chips `shopSys(0x5300106)`; consume fail `shopSys(0x5300107)`; success `0x216` (type 2 + two type `0xCC`) then `0x245` u32 0. Opposite `SERVER_LOCKER_ACCESS`. SlotStats IFF as zeros |
 | C | `CLIENT_CLUBSET_RESET` | `0x16D` | unknown typeid / `s_calcRank==-1` → `0x247` `shopSys(0x5300506)`; missing item `0x5300501`; C0&lt;1 `0x5300502`; missing club `0x5300503`; no `iff_clubset` `0x5300504`; no rank-exp `0x5300505`; consume fail `0x5300507`; truncated → full `0x5300500`. Soft `0x1A000247` / hard `0x1A00024B`: persist then `0x216` count 3 (type 2 + `0xCC` + `0xC9`) then `0x247` u32 0 + typeid + id. Hard also `0xC8` remaining+0 (rank[] stand-in empty). Opposite `SERVER_LOCKER_ITEMS` |
-| C | `CLIENT_PLAY_MEMORIAL` | `0x17F` | coin 0 → `0x264` `shopSys(0x6300301)` |
+| C | `CLIENT_PLAY_MEMORIAL` | `0x17F` | SQL `memorial_reward_catalog` ordered stand-in. Coin 0/non-ITEM/missing/no IFF/no system → `0x6300301`–`0x6300305`; empty draw `0x6300306`; consume/add `0x6300311`/`0x6300312`; truncated/else full `0x6300300`. Success add rewards + consume coin, `0x216` reward rows then coin row, then `0x264` u32 0 + count + rarity/typeid/qntd |
 | C | `CLIENT_UPDATE_INGAME_WEBPAGE` | `0xA1` | sbyte `place`; no reply |
 | C | `CLIENT_REQUEST_PANG_INFO` | `0xA2` | `0xC8` only if pang changed |
 | C | `CLIENT_JOIN_GALLERY` | `0x3E` | spy enter; locked room + matching password enters (`0x4A`/`0x49`/`0x48`); missing/unlocked/wrong password silent |
@@ -268,7 +268,7 @@ C#: `GameServer/PangyaEnums/PacketGame.cs` → Java `org.pangya.protocol.game.Ga
 | S | `SERVER_WORKSHOP_TRANSFER` | `0x245` | fail u32 sys; success u32 0 after `0x216`. Opposite CLIENT locker access |
 | S | `SERVER_WORKSHOP_RECOVERY` | `0x246` | fail u32 sys; success u32 0 after `0x216` |
 | S | `SERVER_CLUBSET_RESET` | `0x247` | u32 sys |
-| S | `SERVER_MEMORIAL` | `0x264` | u32 sys |
+| S | `SERVER_MEMORIAL` | `0x264` | fail u32 sys; success u32 0 + count + i32 rarity/u32 typeid/u32 qntd rows |
 | S | `SERVER_UCC` | `0x12E` | fail sbyte -1; opposite CLIENT marker |
 | S | `SERVER_UCC_WEB_KEY` | `0x153` | fail u8 1 + u8 1 + u32; opposite CLIENT daily-quest reward |
 | S | `SERVER_WORKSHOP_EVENT` | `0x24E` | i32 0 + i32 3000 + i32 0 + 4×u8 |

@@ -2888,6 +2888,51 @@ public final class JdbiInventoryRepository implements InventoryRepository {
     }
 
     @Override
+    public List<MemorialReward> memorialRewards(int coinTypeid) {
+        return jdbi.withHandle(h -> h.createQuery("""
+                        SELECT seq, rarity, reward_typeid, qntd
+                          FROM pangya.memorial_reward_catalog
+                         WHERE coin_typeid = :coin
+                         ORDER BY seq
+                        """)
+                .bind("coin", coinTypeid)
+                .map((rs, ctx) -> new MemorialReward(
+                        rs.getInt("seq"),
+                        rs.getInt("rarity"),
+                        rs.getInt("reward_typeid"),
+                        rs.getInt("qntd")))
+                .list());
+    }
+
+    @Override
+    public void upsertMemorialReward(
+            int coinTypeid, int seq, int rarity, int rewardTypeid, int qntd) {
+        jdbi.useHandle(h -> h.createUpdate("""
+                        INSERT INTO pangya.memorial_reward_catalog (
+                            coin_typeid, seq, rarity, reward_typeid, qntd)
+                        VALUES (:coin, :seq, :rarity, :reward, :qntd)
+                        ON CONFLICT (coin_typeid, seq) DO UPDATE SET
+                            rarity = EXCLUDED.rarity,
+                            reward_typeid = EXCLUDED.reward_typeid,
+                            qntd = EXCLUDED.qntd
+                        """)
+                .bind("coin", coinTypeid)
+                .bind("seq", seq)
+                .bind("rarity", rarity)
+                .bind("reward", rewardTypeid)
+                .bind("qntd", qntd)
+                .execute());
+    }
+
+    @Override
+    public void deleteMemorialRewards(int coinTypeid) {
+        jdbi.useHandle(h -> h.createUpdate(
+                        "DELETE FROM pangya.memorial_reward_catalog WHERE coin_typeid = :coin")
+                .bind("coin", coinTypeid)
+                .execute());
+    }
+
+    @Override
     public OptionalInt consumeCardByTypeid(long uid, int typeid, int qntd) {
         if (qntd <= 0) {
             return OptionalInt.empty();

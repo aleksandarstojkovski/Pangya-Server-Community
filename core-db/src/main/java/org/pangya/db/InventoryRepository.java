@@ -290,6 +290,13 @@ public interface InventoryRepository {
 
     void deleteCardPackRewards(int packTypeid);
 
+    /** C# {@code MemorialSystem.findCoin/drawCoin}: ordered deterministic SQL draw. */
+    List<MemorialReward> memorialRewards(int coinTypeid);
+
+    void upsertMemorialReward(int coinTypeid, int seq, int rarity, int rewardTypeid, int qntd);
+
+    void deleteMemorialRewards(int coinTypeid);
+
     /**
      * C# {@code ItemManager.removeItem} for cards: consume {@code qntd} from
      * {@code QNTD}. Empty when missing or insufficient. Remaining 0 deletes.
@@ -551,6 +558,8 @@ public interface InventoryRepository {
     record CardSpecialIff(int typeid, int effect, int effectValue, int effectTime) {}
 
     record CardPackReward(int seq, int cardTypeid) {}
+
+    record MemorialReward(int seq, int rarity, int rewardTypeid, int qntd) {}
 
     /** C# IFF {@code TimeLimitItem}: {@code type}, {@code percent}, {@code time} minutes. */
     record TimeLimitItem(int typeid, int tipo, int percent, int timeMinutes) {}

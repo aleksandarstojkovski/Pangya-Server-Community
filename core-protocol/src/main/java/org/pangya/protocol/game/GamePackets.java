@@ -1604,6 +1604,8 @@ public final class GamePackets {
     public static final int TYPEID_BOX_MAIL_OPENED_TEST = 0x1A000301;
     /** Test reward delivered through mailbox by generic box path. */
     public static final int TYPEID_BOX_MAIL_REWARD_TEST = 0x1A000302;
+    public static final int TYPEID_MEMORIAL_COIN_TEST = 0x1A000310;
+    public static final int TYPEID_MEMORIAL_REWARD_TEST = 0x1A000311;
     /** C# transform lottery special typeids. */
     public static final int[] WORKSHOP_TRANSFORM_SPECIALS = {
         TYPEID_WINGTROSS_EVO, TYPEID_GIGA_YARD_TOTEM, TYPEID_DUOSTAR_MANAPIKAL
@@ -1930,6 +1932,14 @@ public final class GamePackets {
     public static final int MEMORIAL_ERR_COIN = 0x6300301;
     /** C# memorial catch else. */
     public static final int MEMORIAL_ERR_DEFAULT = 0x6300300;
+    public static final int MEMORIAL_ERR_GROUP = 0x6300302;
+    public static final int MEMORIAL_ERR_MISSING = 0x6300303;
+    public static final int MEMORIAL_ERR_IFF = 0x6300304;
+    public static final int MEMORIAL_ERR_SYSTEM = 0x6300305;
+    public static final int MEMORIAL_ERR_DRAW = 0x6300306;
+    public static final int MEMORIAL_ERR_CONSUME = 0x6300311;
+    public static final int MEMORIAL_ERR_ADD = 0x6300312;
+    public static final int MEMORIAL_OK = 0;
     /** C# UCC catch {@code WriteSByte(-1)}. */
     public static final int UCC_FAIL = 0xff;
     /** C# UCC web-key uid==0 GAME_SERVER sys {@code 0x5100101}. */
@@ -4374,6 +4384,19 @@ public final class GamePackets {
                 .u32(rewardTypeid)
                 .i32(rewardQntd)
                 .toBytes();
+    }
+
+    /** C# memorial success {@code 0x264}: 0 + count + rarity/typeid/qntd rows. */
+    public static byte[] memorialOk(List<MemorialAward> rewards) {
+        List<MemorialAward> rows = rewards == null ? List.of() : rewards;
+        PacketWriter w = new PacketWriter()
+                .opcode(SERVER_MEMORIAL)
+                .u32(MEMORIAL_OK)
+                .u32(rows.size());
+        for (MemorialAward row : rows) {
+            w.i32(row.rarity()).u32(row.typeid()).u32(row.qntd());
+        }
+        return w.toBytes();
     }
 
     /**
@@ -7099,6 +7122,8 @@ public final class GamePackets {
     public record BoughtItem(int typeid, int id, int time, int flagTime, int qntdDep) {}
 
     public record CardPackAward(int id, int typeid, int qntdDep) {}
+
+    public record MemorialAward(int rarity, int typeid, int qntd) {}
 
     public record HoleInfo(int id, int pin, int course, int numero, int weather, int wind, int degree) {}
 

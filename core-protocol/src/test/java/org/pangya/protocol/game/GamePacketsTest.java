@@ -1595,6 +1595,15 @@ class GamePacketsTest {
                 GamePackets.SERVER_MEMORIAL, GamePackets.shopSys(GamePackets.MEMORIAL_ERR_COIN)));
         assertEquals(GamePackets.SERVER_MEMORIAL, memorial.opcode());
         assertEquals(0x0301, memorial.u32());
+        PacketReader memorialOk = new PacketReader(GamePackets.memorialOk(List.of(
+                new GamePackets.MemorialAward(2, GamePackets.TYPEID_MEMORIAL_REWARD_TEST, 3))));
+        assertEquals(GamePackets.SERVER_MEMORIAL, memorialOk.opcode());
+        assertEquals(GamePackets.MEMORIAL_OK, memorialOk.u32());
+        assertEquals(1, memorialOk.u32());
+        assertEquals(2, memorialOk.i32());
+        assertEquals(GamePackets.TYPEID_MEMORIAL_REWARD_TEST, memorialOk.u32());
+        assertEquals(3, memorialOk.u32());
+        assertEquals(0, memorialOk.remaining());
         PacketReader uccFail = new PacketReader(GamePackets.uccFail());
         assertEquals(GamePackets.SERVER_UCC, uccFail.opcode());
         assertEquals(GamePackets.UCC_FAIL, uccFail.u8());
@@ -2464,6 +2473,8 @@ class GamePacketsTest {
         assertEquals(GamePackets.CARD_SPECIAL_OK, 0);
         assertEquals(GamePackets.itemSubGroupIdentify22(GamePackets.TYPEID_CARD_PACK_TEST), 3);
         assertEquals(GamePackets.CARD_PACK_ERR, 1);
+        assertEquals(GamePackets.MEMORIAL_OK, 0);
+        assertEquals(GamePackets.MEMORIAL_ERR_SYSTEM, 0x6300305);
         assertEquals(GamePackets.WORKSHOP_ERR_MISSING, 0x5300202);
         assertEquals(GamePackets.SERVER_BUY_ACK, 0x68);
         assertEquals(GamePackets.CREATE_ROOM_FAILED, 0x07);

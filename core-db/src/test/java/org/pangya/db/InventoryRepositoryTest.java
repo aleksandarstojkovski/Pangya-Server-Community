@@ -462,6 +462,17 @@ class InventoryRepositoryTest {
                 assertEquals(
                         GamePackets.TYPEID_CARD_PACK_REWARD_1,
                         repo.cardPackRewards(GamePackets.TYPEID_CARD_PACK_TEST).get(0).cardTypeid());
+                repo.deleteMemorialRewards(GamePackets.TYPEID_MEMORIAL_COIN_TEST);
+                repo.upsertMemorialReward(
+                        GamePackets.TYPEID_MEMORIAL_COIN_TEST,
+                        0,
+                        2,
+                        GamePackets.TYPEID_MEMORIAL_REWARD_TEST,
+                        3);
+                var memorial = repo.memorialRewards(GamePackets.TYPEID_MEMORIAL_COIN_TEST).get(0);
+                assertEquals(2, memorial.rarity());
+                assertEquals(GamePackets.TYPEID_MEMORIAL_REWARD_TEST, memorial.rewardTypeid());
+                assertEquals(3, memorial.qntd());
                 repo.deleteCardByTypeid(10001, GamePackets.TYPEID_CARD_NORMAL);
                 repo.addCard(10001, GamePackets.TYPEID_CARD_NORMAL, 2);
                 assertEquals(1, repo.consumeCardByTypeid(10001, GamePackets.TYPEID_CARD_NORMAL, 1).orElseThrow());
@@ -476,6 +487,7 @@ class InventoryRepositoryTest {
                 repo.deleteBoxMailReward(GamePackets.TYPEID_BOX_MAIL_TEST);
                 repo.deleteCardIff(GamePackets.TYPEID_CARD_SPECIAL_PANG);
                 repo.deleteCardPackRewards(GamePackets.TYPEID_CARD_PACK_TEST);
+                repo.deleteMemorialRewards(GamePackets.TYPEID_MEMORIAL_COIN_TEST);
                 repo.deleteCardByTypeid(10001, GamePackets.TYPEID_CARD_NORMAL);
             }
             repo.deletePartIff(GamePackets.TYPEID_RENTAL_PART);
