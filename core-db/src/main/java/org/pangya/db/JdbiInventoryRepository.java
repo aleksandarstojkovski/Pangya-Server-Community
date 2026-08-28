@@ -2806,6 +2806,52 @@ public final class JdbiInventoryRepository implements InventoryRepository {
     }
 
     @Override
+    public Optional<CardSpecialIff> cardSpecialIff(int typeid) {
+        return jdbi.withHandle(h -> h.createQuery("""
+                        SELECT typeid, efeito, efeito_qntd, efeito_tempo
+                          FROM pangya.iff_card
+                         WHERE typeid = :typeid
+                        """)
+                .bind("typeid", typeid)
+                .map((rs, ctx) -> new CardSpecialIff(
+                        rs.getInt("typeid"),
+                        rs.getInt("efeito"),
+                        rs.getInt("efeito_qntd"),
+                        rs.getInt("efeito_tempo")))
+                .findOne());
+    }
+
+    @Override
+    public void upsertCardSpecialIff(
+            int typeid, int rarity, int probability, int effect, int effectValue, int effectTime) {
+        jdbi.useHandle(h -> h.createUpdate("""
+                        INSERT INTO pangya.iff_card (
+                            typeid, rarity, probabilidade, efeito, efeito_qntd, efeito_tempo)
+                        VALUES (:typeid, :rarity, :prob, :effect, :value, :time)
+                        ON CONFLICT (typeid) DO UPDATE SET
+                            rarity = EXCLUDED.rarity,
+                            probabilidade = EXCLUDED.probabilidade,
+                            efeito = EXCLUDED.efeito,
+                            efeito_qntd = EXCLUDED.efeito_qntd,
+                            efeito_tempo = EXCLUDED.efeito_tempo
+                        """)
+                .bind("typeid", typeid)
+                .bind("rarity", rarity)
+                .bind("prob", probability)
+                .bind("effect", effect)
+                .bind("value", effectValue)
+                .bind("time", effectTime)
+                .execute());
+    }
+
+    @Override
+    public void deleteCardIff(int typeid) {
+        jdbi.useHandle(h -> h.createUpdate("DELETE FROM pangya.iff_card WHERE typeid = :typeid")
+                .bind("typeid", typeid)
+                .execute());
+    }
+
+    @Override
     public OptionalInt consumeCardByTypeid(long uid, int typeid, int qntd) {
         if (qntd <= 0) {
             return OptionalInt.empty();

@@ -276,6 +276,13 @@ public interface InventoryRepository {
     /** C# {@code sIff.findCard}: SQL {@code iff_card} row exists. */
     boolean cardIff(int typeid);
 
+    Optional<CardSpecialIff> cardSpecialIff(int typeid);
+
+    void upsertCardSpecialIff(
+            int typeid, int rarity, int probability, int effect, int effectValue, int effectTime);
+
+    void deleteCardIff(int typeid);
+
     /**
      * C# {@code ItemManager.removeItem} for cards: consume {@code qntd} from
      * {@code QNTD}. Empty when missing or insufficient. Remaining 0 deletes.
@@ -532,6 +539,9 @@ public interface InventoryRepository {
     /** C# {@code ctx_box_item} plus Box opened-typeid/message for mail delivery. */
     record BoxMailReward(
             int boxTypeid, int rewardTypeid, int rewardQntd, int openedTypeid, String message) {}
+
+    /** C# IFF Card special effect fields. */
+    record CardSpecialIff(int typeid, int effect, int effectValue, int effectTime) {}
 
     /** C# IFF {@code TimeLimitItem}: {@code type}, {@code percent}, {@code time} minutes. */
     record TimeLimitItem(int typeid, int tipo, int percent, int timeMinutes) {}

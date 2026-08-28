@@ -172,6 +172,16 @@ class FlywayMigrationTest {
                             .mapTo(Integer.class)
                             .one());
             assertEquals(0, boxMail);
+            int effectTimeCol = jdbi.withHandle(h ->
+                    h.createQuery("""
+                            select count(*) from information_schema.columns
+                             where table_schema = 'pangya'
+                               and table_name = 'iff_card'
+                               and column_name = 'efeito_tempo'
+                            """)
+                            .mapTo(Integer.class)
+                            .one());
+            assertEquals(1, effectTimeCol);
             assertTrue(accounts >= 1);
         }
     }

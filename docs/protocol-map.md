@@ -179,7 +179,7 @@ C#: `GameServer/PangyaEnums/PacketGame.cs` → Java `org.pangya.protocol.game.Ga
 | C | `CLIENT_NOTIFY_NOT_DISPLAY_WHISPER` | `0xDE` | named online player gets `0x40` option 4 + nick |
 | C | `CLIENT_GM_IDENTITY` | `0x41` | non-GM CHANNEL catch silent |
 | C | `CLIENT_MYROOM_CHECK` | `0xB5` | no channel; seed `allow_enter==0` → `0x12B` u32 0 + to_uid |
-| C | `CLIENT_USE_CARD_SPECIAL` | `0xBD` | typeid 0 → `0x160` `shopSys(0x5500351)` |
+| C | `CLIENT_USE_CARD_SPECIAL` | `0xBD` | missing/qntd/IFF/non-special → `0x5500352`/`0x5500358`/`0x5500353`/`0x5500354`; unsupported/invalid effect `0x5500355`/`0x5500357`; truncated/else full `0x5500350`. SQL `iff_card` immediate Pang Effect=4 success: consume one + persist Pang + `0x160` u32 0 + card id/typeid + zero part/slot + active 1 + two zero SYSTEMTIME + u16 0 |
 | C | `CLIENT_OPEN_CARD_PACK` | `0xCA` | catch always `0x154` u32 1; opposite `SERVER_ONELINE_QUERY` |
 | C | `CLIENT_ITEMSTORAGE_REQ_ADD_ITEM` | `0xCE` | PART SQL: `valid=0` + locker_item, `0x139` u16 0 + `0xEC` u8 1 + TradeItem 168 + `0x16E` u32 0 + u64 0 + TradeItem. Count 0 `shopSys(5100404)`; non-PART `shopSys(109)`; missing `shopSys(5100403)`; shop `shopSys(0x5201010)`. No `findPart`/UCC. Opposite attendance `0x16E`. |
 | C | `CLIENT_ITEMSTORAGE_REQ_DEL_ITEM` | `0xCF` | `valid=1`/`flag=0`, `0xEC` u8 0 + pang + TradeItem + u8 3 + warehouse 196 + `0x16F` u32 0 + u64 idx + TradeItem. Truncated `5100450`; missing `shopSys(5100451)`; count 0 `shopSys(5100404)`. |
@@ -260,7 +260,7 @@ C#: `GameServer/PangyaEnums/PacketGame.cs` → Java `org.pangya.protocol.game.Ga
 | S | `SERVER_LOCKER_REMOVE` | `0x16F` | u32 sys |
 | S | `SERVER_LOCKER_UPDATE_PANG` | `0x171` | u32 sys; opposite CLIENT earcuff |
 | S | `SERVER_OPEN_CARD_PACK` | `0x154` | u32 1; opposite CLIENT daily-quest leave |
-| S | `SERVER_USE_CARD` | `0x160` | u32 sys |
+| S | `SERVER_USE_CARD` | `0x160` | fail u32 sys; immediate-effect success u32 0 + CardEquipInfo identity/date fields |
 | S | `SERVER_EXTEND_RENTAL` | `0x18F` | fail u8 1; success u8 0 + typeid + id after `0xC8` |
 | S | `SERVER_DELETE_RENTAL` | `0x190` | fail u8 1; success u8 0 + typeid + id |
 | S | `SERVER_WORKSHOP_TRANSFORM_CONFIRM` | `0x242` | fail u32 sys; success u32 0 + u32 typeid + i32 id |

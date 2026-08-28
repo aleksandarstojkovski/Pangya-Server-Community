@@ -1812,6 +1812,18 @@ public final class GamePackets {
     public static final int CARD_ERR_TYPEID = 0x5500351;
     /** C# use-card catch else. */
     public static final int CARD_ERR_DEFAULT = 0x5500350;
+    public static final int CARD_ERR_MISSING = 0x5500352;
+    public static final int CARD_ERR_IFF = 0x5500353;
+    public static final int CARD_ERR_SUBGROUP = 0x5500354;
+    public static final int CARD_ERR_EFFECT = 0x5500355;
+    public static final int CARD_ERR_CONSUME = 0x5500356;
+    public static final int CARD_ERR_VALUE = 0x5500357;
+    public static final int CARD_ERR_QNTD = 0x5500358;
+    /** C# {@code CARD_SUB_TYPE.T_SPECIAL}. */
+    public static final int CARD_SUB_TYPE_SPECIAL = 2;
+    /** C# immediate Pang special-card effect. */
+    public static final int CARD_EFFECT_PANG = 4;
+    public static final int CARD_SPECIAL_OK = 0;
     /** C# open-card-pack catch always u32 1. */
     public static final int CARD_PACK_ERR = 1;
     /** C# extend/delete rental catch u8 1. */
@@ -2222,6 +2234,8 @@ public final class GamePackets {
     public static final int TYPEID_MASCOT = 0x40000000;
     /** C# {@code IFF_GROUP.CARD} {@code 31 << 26 | 1}: {@code 0x7C000001}. */
     public static final int TYPEID_CARD_NORMAL = 0x7C000001;
+    /** Test C# {@code CARD_SUB_TYPE.T_SPECIAL} card. */
+    public static final int TYPEID_CARD_SPECIAL_PANG = 0x7C800001;
     /** C# {@code ASSIST_ITEM_TYPEID} {@code 0x1BE00016}. */
     public static final int TYPEID_ASSIST = 0x1BE00016;
     /** C# toggle-assist add fail {@code 0x5200801}. */
@@ -4205,6 +4219,25 @@ public final class GamePackets {
     /** C# workshop confirm/cancel/rank catch u32 sys. */
     public static byte[] clubWorkshopOpcodeFail(int opcode, int code) {
         return new PacketWriter().opcode(opcode).u32(code).toBytes();
+    }
+
+    /**
+     * C# immediate special-card success {@code 0x160}: card identity, zero
+     * part/slot, active=1, two zero SYSTEMTIME values, and trailing u16 zero.
+     */
+    public static byte[] cardSpecialOk(int cardId, int cardTypeid) {
+        return new PacketWriter()
+                .opcode(SERVER_USE_CARD)
+                .u32(CARD_SPECIAL_OK)
+                .u32(cardId)
+                .u32(cardTypeid)
+                .u32(0)
+                .u32(0)
+                .u32(0)
+                .u32(1)
+                .zero(SYSTEMTIME_BYTES * 2)
+                .u16(0)
+                .toBytes();
     }
 
     /** C# item-buff catch {@code 0x181} u32 sys. */

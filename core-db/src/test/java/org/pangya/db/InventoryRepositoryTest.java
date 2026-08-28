@@ -442,6 +442,17 @@ class InventoryRepositoryTest {
                 assertEquals(GamePackets.TYPEID_SHOP_PANG_ITEM, box.rewardTypeid());
                 assertEquals(2, box.rewardQntd());
                 assertEquals(GamePackets.TYPEID_BOX_MAIL_OPENED_TEST, box.openedTypeid());
+                repo.deleteCardIff(GamePackets.TYPEID_CARD_SPECIAL_PANG);
+                repo.upsertCardSpecialIff(
+                        GamePackets.TYPEID_CARD_SPECIAL_PANG,
+                        0,
+                        100,
+                        GamePackets.CARD_EFFECT_PANG,
+                        500,
+                        0);
+                var special = repo.cardSpecialIff(GamePackets.TYPEID_CARD_SPECIAL_PANG).orElseThrow();
+                assertEquals(GamePackets.CARD_EFFECT_PANG, special.effect());
+                assertEquals(500, special.effectValue());
                 repo.deleteCardByTypeid(10001, GamePackets.TYPEID_CARD_NORMAL);
                 repo.addCard(10001, GamePackets.TYPEID_CARD_NORMAL, 2);
                 assertEquals(1, repo.consumeCardByTypeid(10001, GamePackets.TYPEID_CARD_NORMAL, 1).orElseThrow());
@@ -454,6 +465,7 @@ class InventoryRepositoryTest {
                 repo.deleteClubSetOriginal(GamePackets.TYPEID_WINGTROSS_EVO);
                 repo.deleteCutinIff(GamePackets.TYPEID_CUTIN_SKIN);
                 repo.deleteBoxMailReward(GamePackets.TYPEID_BOX_MAIL_TEST);
+                repo.deleteCardIff(GamePackets.TYPEID_CARD_SPECIAL_PANG);
                 repo.deleteCardByTypeid(10001, GamePackets.TYPEID_CARD_NORMAL);
             }
             repo.deletePartIff(GamePackets.TYPEID_RENTAL_PART);

@@ -5330,26 +5330,87 @@ public final class GameHandler {
     }
 
     /**
-     * C# {@code requestUseCardSpecial}: typeid 0 → {@code 0x160}
-     * {@code shopSys(0x5500351)}.
+     * C# {@code requestUseCardSpecial}. SQL {@code iff_card} provides Effect,
+     * EffectValue, and EffectTime. The immediate Pang effect (4) consumes one
+     * special card, persists Pang, then sends the C# {@code 0x160} structure.
      */
     private void useCardSpecial(Session session, PacketReader reader) {
         if (!inChannel(session)) {
             return;
         }
-        if (reader.remaining() < 4) {
+        try {
+            if (reader.remaining() < 4) {
+                session.send(GamePackets.sysAck(
+                        GamePackets.SERVER_USE_CARD, GamePackets.CARD_ERR_DEFAULT));
+                return;
+            }
+            int typeid = reader.u32();
+            if (typeid == 0) {
+                session.send(GamePackets.sysAck(
+                        GamePackets.SERVER_USE_CARD,
+                        GamePackets.shopSys(GamePackets.CARD_ERR_TYPEID)));
+                return;
+            }
+            long uid = session.player().uid;
+            GamePackets.CardInfo card = null;
+            for (GamePackets.CardInfo c : inventory.cards(uid)) {
+                if (c.typeid == typeid) {
+                    card = c;
+                    break;
+                }
+            }
+            if (card == null) {
+                session.send(GamePackets.sysAck(
+                        GamePackets.SERVER_USE_CARD,
+                        GamePackets.shopSys(GamePackets.CARD_ERR_MISSING)));
+                return;
+            }
+            if (card.qntd < 1) {
+                session.send(GamePackets.sysAck(
+                        GamePackets.SERVER_USE_CARD,
+                        GamePackets.shopSys(GamePackets.CARD_ERR_QNTD)));
+                return;
+            }
+            Optional<InventoryRepository.CardSpecialIff> iff = inventory.cardSpecialIff(typeid);
+            if (iff.isEmpty()) {
+                session.send(GamePackets.sysAck(
+                        GamePackets.SERVER_USE_CARD,
+                        GamePackets.shopSys(GamePackets.CARD_ERR_IFF)));
+                return;
+            }
+            if (GamePackets.itemSubGroupIdentify22(typeid) != GamePackets.CARD_SUB_TYPE_SPECIAL) {
+                session.send(GamePackets.sysAck(
+                        GamePackets.SERVER_USE_CARD,
+                        GamePackets.shopSys(GamePackets.CARD_ERR_SUBGROUP)));
+                return;
+            }
+            InventoryRepository.CardSpecialIff effect = iff.get();
+            if (effect.effect() != GamePackets.CARD_EFFECT_PANG) {
+                session.send(GamePackets.sysAck(
+                        GamePackets.SERVER_USE_CARD,
+                        GamePackets.shopSys(GamePackets.CARD_ERR_EFFECT)));
+                return;
+            }
+            if (effect.effectValue() <= 0) {
+                session.send(GamePackets.sysAck(
+                        GamePackets.SERVER_USE_CARD,
+                        GamePackets.shopSys(GamePackets.CARD_ERR_VALUE)));
+                return;
+            }
+            if (inventory.consumeCardByTypeid(uid, typeid, 1).isEmpty()) {
+                session.send(GamePackets.sysAck(
+                        GamePackets.SERVER_USE_CARD,
+                        GamePackets.shopSys(GamePackets.CARD_ERR_CONSUME)));
+                return;
+            }
+            inventory.setPangCookie(
+                    uid, inventory.pang(uid) + (effect.effectValue() & 0xffff_ffffL), inventory.cookie(uid));
+            session.send(GamePackets.cardSpecialOk(card.id, typeid));
+        } catch (RuntimeException e) {
+            log.debug("use card special failed uid={}: {}", session.player().uid, e.toString());
             session.send(GamePackets.sysAck(
                     GamePackets.SERVER_USE_CARD, GamePackets.CARD_ERR_DEFAULT));
-            return;
         }
-        int typeid = reader.u32();
-        if (typeid == 0) {
-            session.send(GamePackets.sysAck(
-                    GamePackets.SERVER_USE_CARD, GamePackets.shopSys(GamePackets.CARD_ERR_TYPEID)));
-            return;
-        }
-        session.send(GamePackets.sysAck(
-                GamePackets.SERVER_USE_CARD, GamePackets.shopSys(0x5500352)));
     }
 
     /**

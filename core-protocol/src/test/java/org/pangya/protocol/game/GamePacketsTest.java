@@ -1291,6 +1291,19 @@ class GamePacketsTest {
                 GamePackets.SERVER_USE_CARD, GamePackets.shopSys(GamePackets.CARD_ERR_TYPEID)));
         assertEquals(GamePackets.SERVER_USE_CARD, useCard.opcode());
         assertEquals(0x0351, useCard.u32());
+        PacketReader useCardOk = new PacketReader(GamePackets.cardSpecialOk(
+                9, GamePackets.TYPEID_CARD_SPECIAL_PANG));
+        assertEquals(GamePackets.SERVER_USE_CARD, useCardOk.opcode());
+        assertEquals(GamePackets.CARD_SPECIAL_OK, useCardOk.u32());
+        assertEquals(9, useCardOk.u32());
+        assertEquals(GamePackets.TYPEID_CARD_SPECIAL_PANG, useCardOk.u32());
+        assertEquals(0, useCardOk.u32());
+        assertEquals(0, useCardOk.u32());
+        assertEquals(0, useCardOk.u32());
+        assertEquals(1, useCardOk.u32());
+        useCardOk.readBytes(GamePackets.SYSTEMTIME_BYTES * 2);
+        assertEquals(0, useCardOk.u16());
+        assertEquals(0, useCardOk.remaining());
         PacketReader extend = new PacketReader(GamePackets.rentalFail(GamePackets.SERVER_EXTEND_RENTAL));
         assertEquals(GamePackets.SERVER_EXTEND_RENTAL, extend.opcode());
         assertEquals(1, extend.u8());
@@ -2431,6 +2444,9 @@ class GamePacketsTest {
         assertEquals(GamePackets.SERVER_BOX_CONSUME, 0xA7);
         assertEquals(GamePackets.BOX_MAIL_OK, 0);
         assertEquals(GamePackets.BOX_MAIL_ERR_SYSTEM, 0x6300106);
+        assertEquals(GamePackets.itemSubGroupIdentify22(GamePackets.TYPEID_CARD_SPECIAL_PANG), 2);
+        assertEquals(GamePackets.CARD_EFFECT_PANG, 4);
+        assertEquals(GamePackets.CARD_SPECIAL_OK, 0);
         assertEquals(GamePackets.WORKSHOP_ERR_MISSING, 0x5300202);
         assertEquals(GamePackets.SERVER_BUY_ACK, 0x68);
         assertEquals(GamePackets.CREATE_ROOM_FAILED, 0x07);

@@ -4154,6 +4154,66 @@ class GameFlowIT {
     }
 
     @Test
+    void specialPangCardConsumesAndSends160() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config);
+             PangyaFakeClient client = new PangyaFakeClient()) {
+            InventoryRepository inv = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
+            inv.deleteCardByTypeid(10001, GamePackets.TYPEID_CARD_SPECIAL_PANG);
+            inv.deleteCardIff(GamePackets.TYPEID_CARD_SPECIAL_PANG);
+            inv.setPangCookie(10001, 100000, 0);
+            int cardId = inv.addCard(10001, GamePackets.TYPEID_CARD_SPECIAL_PANG, 1);
+            try {
+                inv.upsertCardSpecialIff(
+                        GamePackets.TYPEID_CARD_SPECIAL_PANG,
+                        0,
+                        100,
+                        GamePackets.CARD_EFFECT_PANG,
+                        500,
+                        0);
+                LoginRepository repo = new JdbiLoginRepository(DatabaseSupport.jdbi(ds));
+                String loginKey = repo.generateAuthKeyLogin(10001);
+                String gameKey = repo.generateAuthKeyGame(10001, 20202);
+                keys.putLoginKey(10001, loginKey);
+                keys.putGameKey(10001, 20202, gameKey);
+                loginToChannel(client, runtime.port(), "testuser", 10001, loginKey, gameKey);
+
+                client.sendPlain(GamePackets.clientUseCard(GamePackets.TYPEID_CARD_SPECIAL_PANG));
+                PacketReader ok = awaitOpcode(client, GamePackets.SERVER_USE_CARD);
+                assertEquals(GamePackets.CARD_SPECIAL_OK, ok.u32());
+                assertEquals(cardId, ok.u32());
+                assertEquals(GamePackets.TYPEID_CARD_SPECIAL_PANG, ok.u32());
+                assertEquals(0, ok.u32());
+                assertEquals(0, ok.u32());
+                assertEquals(0, ok.u32());
+                assertEquals(1, ok.u32());
+                ok.readBytes(GamePackets.SYSTEMTIME_BYTES * 2);
+                assertEquals(0, ok.u16());
+                assertEquals(0, ok.remaining());
+                assertEquals(100500, inv.pang(10001));
+                assertTrue(inv.cards(10001).stream().noneMatch(
+                        c -> c.typeid == GamePackets.TYPEID_CARD_SPECIAL_PANG));
+
+                client.sendPlain(GamePackets.clientUseCard(0));
+                PacketReader zero = awaitOpcode(client, GamePackets.SERVER_USE_CARD);
+                assertEquals(GamePackets.shopSys(GamePackets.CARD_ERR_TYPEID), zero.u32());
+            } finally {
+                inv.setPangCookie(10001, 100000, 0);
+                inv.deleteCardByTypeid(10001, GamePackets.TYPEID_CARD_SPECIAL_PANG);
+                inv.deleteCardIff(GamePackets.TYPEID_CARD_SPECIAL_PANG);
+            }
+        }
+    }
+
+    @Test
     void soloGrandZodiacSendsTourneyInit() throws Exception {
         String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
         String user = env("PANGYA_TEST_JDBC_USER", "pangya");
