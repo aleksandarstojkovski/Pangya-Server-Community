@@ -1964,6 +1964,9 @@ public final class GamePackets {
     public static final int UCC_WEB_KEY_ERR_UID = 0x5100101;
     /** C# UCC web-key catch else. */
     public static final int UCC_WEB_KEY_ERR_DEFAULT = 0x5100100;
+    public static final int UCC_WEB_KEY_ERR_ITEM_ID = 0x5100102;
+    public static final int UCC_WEB_KEY_ERR_OFFLINE = 0x5100103;
+    public static final int UCC_WEB_KEY_ERR_MISSING = 0x5100104;
     /**
      * C# attendance catch writes {@code ~0u} because {@code DECODE_TYPE} is
      * sys&amp;0xFFFF (0) and never equals {@code ATTENDANCE_REWARD_SYSTEM}.
@@ -4619,6 +4622,18 @@ public final class GamePackets {
                 .u8(1)
                 .u8(1)
                 .u32(code)
+                .toBytes();
+    }
+
+    /** C# UCC web-key success: u8 0 + u8 1 + item id + string key + seq. */
+    public static byte[] uccWebKeyOk(int itemId, String key, int seq) {
+        return new PacketWriter()
+                .opcode(SERVER_UCC_WEB_KEY)
+                .u8(0)
+                .u8(1)
+                .i32(itemId)
+                .pstr(key == null ? "" : key)
+                .u8(seq)
                 .toBytes();
     }
 

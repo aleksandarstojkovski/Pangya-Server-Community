@@ -6310,15 +6310,37 @@ public final class GameHandler {
         }
         reader.u8();
         int uid = reader.u32();
-        reader.u8();
-        reader.i32();
+        int seq = reader.u8();
+        int itemId = reader.i32();
         if (uid == 0) {
             session.send(GamePackets.uccWebKeyFail(
                     GamePackets.shopSys(GamePackets.UCC_WEB_KEY_ERR_UID)));
             return;
         }
-        session.send(GamePackets.uccWebKeyFail(
-                GamePackets.shopSys(0x5100103)));
+        if (itemId <= 0) {
+            session.send(GamePackets.uccWebKeyFail(
+                    GamePackets.shopSys(GamePackets.UCC_WEB_KEY_ERR_ITEM_ID)));
+            return;
+        }
+        Session owner = sessions.findByUid(uid & 0xffff_ffffL);
+        if (owner == null || !owner.authorized()) {
+            session.send(GamePackets.uccWebKeyFail(
+                    GamePackets.shopSys(GamePackets.UCC_WEB_KEY_ERR_OFFLINE)));
+            return;
+        }
+        GamePackets.WarehouseItem item = warehouseById(owner.player().uid, itemId);
+        if (item == null) {
+            session.send(GamePackets.uccWebKeyFail(
+                    GamePackets.shopSys(GamePackets.UCC_WEB_KEY_ERR_MISSING)));
+            return;
+        }
+        try {
+            session.send(GamePackets.uccWebKeyOk(
+                    item.id, repo.generateWebKey(session.player().uid), seq));
+        } catch (RuntimeException e) {
+            log.debug("UCC web key failed uid={}: {}", session.player().uid, e.toString());
+            session.send(GamePackets.uccWebKeyFail(GamePackets.UCC_WEB_KEY_ERR_DEFAULT));
+        }
     }
 
     /**

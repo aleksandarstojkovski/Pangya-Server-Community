@@ -1714,6 +1714,14 @@ class GamePacketsTest {
         assertEquals(1, uccKey.u8());
         assertEquals(1, uccKey.u8());
         assertEquals(0x0101, uccKey.u32());
+        PacketReader uccKeyOk = new PacketReader(GamePackets.uccWebKeyOk(2, "KEY", 7));
+        assertEquals(GamePackets.SERVER_UCC_WEB_KEY, uccKeyOk.opcode());
+        assertEquals(0, uccKeyOk.u8());
+        assertEquals(1, uccKeyOk.u8());
+        assertEquals(2, uccKeyOk.i32());
+        assertEquals("KEY", uccKeyOk.pstr());
+        assertEquals(7, uccKeyOk.u8());
+        assertEquals(0, uccKeyOk.remaining());
         PacketReader workshopEv = new PacketReader(GamePackets.workshopEvent());
         assertEquals(GamePackets.SERVER_WORKSHOP_EVENT, workshopEv.opcode());
         assertEquals(0, workshopEv.i32());

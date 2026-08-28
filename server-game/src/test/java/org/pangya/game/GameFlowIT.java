@@ -5507,6 +5507,18 @@ class GameFlowIT {
             assertEquals(1, uccKey.u8());
             assertEquals(1, uccKey.u8());
             assertEquals(GamePackets.shopSys(GamePackets.UCC_WEB_KEY_ERR_UID), uccKey.u32());
+            int guestItemId = inv.warehouse(10002).stream()
+                    .filter(w -> w.typeid == GamePackets.TYPEID_AIR_KNIGHT)
+                    .findFirst()
+                    .orElseThrow()
+                    .id;
+            host.sendPlain(GamePackets.clientUccWebKey(0, 10002, 7, guestItemId));
+            PacketReader uccKeyOk = awaitOpcode(host, GamePackets.SERVER_UCC_WEB_KEY);
+            assertEquals(0, uccKeyOk.u8());
+            assertEquals(1, uccKeyOk.u8());
+            assertEquals(guestItemId, uccKeyOk.i32());
+            assertFalse(uccKeyOk.pstr().isEmpty());
+            assertEquals(7, uccKeyOk.u8());
             host.sendPlain(GamePackets.clientUccOpt(99));
             PacketReader ucc = awaitOpcode(host, GamePackets.SERVER_UCC);
             assertEquals(GamePackets.UCC_FAIL, ucc.u8());
