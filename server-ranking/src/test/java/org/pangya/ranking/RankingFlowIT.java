@@ -14,6 +14,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class RankingFlowIT {
 
@@ -76,6 +77,40 @@ class RankingFlowIT {
             assertEquals(1, page.u32());
             assertEquals(0, page.u32());
             assertEquals(42, page.i32());
+            assertTrue(page.u8() > 0); // level from SQL
+            page.u8();
+            page.u8();
+            assertEquals("testuser", page.pstr());
+            page.pstr(); // nickname
+
+            client.sendPlain(RankingPackets.clientSearchByNickname(
+                    "TestNick", new RankingPackets.SearchDados(7, 3, 0, 0, 0)));
+            PacketReader found = new PacketReader(client.awaitPlain(5, TimeUnit.SECONDS));
+            assertEquals(RankingPackets.SERVER_PAGE_NOT_FOUND, found.opcode());
+            assertEquals(0, found.u8());
+            assertEquals(7, found.u8());
+            assertEquals(3, found.u8());
+            found.u8();
+            found.u8();
+            assertEquals(1, found.u32());
+            assertEquals(1, found.u32());
+            assertEquals(1, found.u16());
+            assertEquals(10001, found.u32());
+            assertEquals(1, found.u32());
+            found.u32();
+            found.i32();
+            found.u8();
+            found.u8();
+            found.u8();
+            found.pstr();
+            found.pstr();
+            assertEquals(0, found.u16());
+
+            client.sendPlain(RankingPackets.clientSearchByNickname(
+                    "Nobody", new RankingPackets.SearchDados(7, 3, 0, 0, 0)));
+            PacketReader miss = new PacketReader(client.awaitPlain(5, TimeUnit.SECONDS));
+            assertEquals(RankingPackets.SERVER_PAGE_NOT_FOUND, miss.opcode());
+            assertEquals(1, miss.u8());
 
             client.sendPlain(new org.pangya.protocol.packet.PacketWriter()
                     .opcode(RankingPackets.CLIENT_REQUEST_PLAYER_INFO)

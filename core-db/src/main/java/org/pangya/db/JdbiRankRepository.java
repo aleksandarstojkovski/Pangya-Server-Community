@@ -83,6 +83,54 @@ public final class JdbiRankRepository implements RankRepository {
     }
 
     @Override
+    public Optional<RowSummary> rowSummary(long uid) {
+        return jdbi.withHandle(h -> h.createQuery("""
+                        SELECT a."ID", a."NICK", COALESCE(b."level", 0) AS level
+                          FROM pangya.account a
+                          LEFT JOIN pangya.user_info b ON a."UID" = b."UID"
+                         WHERE a."UID" = :uid
+                        """)
+                .bind("uid", uid)
+                .map((rs, ctx) -> new RowSummary(
+                        rs.getInt("level"),
+                        0,
+                        0,
+                        rs.getString("ID"),
+                        rs.getString("NICK")))
+                .findOne());
+    }
+
+    @Override
+    public Optional<RegistryRow> findInMenu(int menu, int item, long uid) {
+        return registry().stream()
+                .filter(r -> r.menu() == menu && r.item() == item && r.uid() == uid)
+                .findFirst();
+    }
+
+    @Override
+    public Optional<RegistryRow> findByPosition(int menu, int item, int position) {
+        return registry().stream()
+                .filter(r -> r.menu() == menu && r.item() == item && r.currentPosition() == position)
+                .findFirst();
+    }
+
+    @Override
+    public Optional<RegistryRow> findByNickname(int menu, int item, String nickname) {
+        if (nickname == null || nickname.isEmpty()) {
+            return Optional.empty();
+        }
+        return jdbi.withHandle(h -> h.createQuery("""
+                        SELECT a."UID"
+                          FROM pangya.account a
+                         WHERE a."NICK" = :nick
+                        """)
+                .bind("nick", nickname)
+                .mapTo(Long.class)
+                .findOne()
+                .flatMap(uid -> findInMenu(menu, item, uid)));
+    }
+
+    @Override
     public Optional<org.pangya.protocol.game.GamePackets.CharacterInfo> character(long uid) {
         Optional<org.pangya.protocol.game.GamePackets.CharacterInfo> snap = jdbi.withHandle(h -> h.createQuery("""
                         SELECT item_id, typeid,

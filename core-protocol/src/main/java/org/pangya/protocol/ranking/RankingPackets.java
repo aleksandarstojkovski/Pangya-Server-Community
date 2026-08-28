@@ -27,7 +27,18 @@ public final class RankingPackets {
     public static final int PPRT_NOT_RANK = 1;
     public static final int PPRT_NOT_TOP_RANK = 2;
 
+    /** C# {@code SEARCH_OPTION.SO_NICKNAME}. */
+    public static final int SEARCH_BY_NICKNAME = 0;
+    /** C# {@code SEARCH_OPTION.SO_POSITION}. */
+    public static final int SEARCH_BY_POSITION = 1;
+
     private RankingPackets() {}
+
+    public record RowSummary(int level, int term, int classType, String id, String nickname) {}
+
+    public record SearchDados(int menu, int item, int term, int classType, int page) {}
+
+    public record RegistryRowWithSummary(RegistryRow row, RowSummary summary) {}
 
     public static byte[] clientLogin(int uid, String id, int menu, int item, int term, int classType, int page) {
         return new PacketWriter()
@@ -63,7 +74,7 @@ public final class RankingPackets {
     }
 
     public static byte[] firstPage(
-            int menu, int item, int term, int classType, List<RegistryRow> rows, int page, int pages) {
+            int menu, int item, int term, int classType, List<RegistryRowWithSummary> rows, int page, int pages) {
         PacketWriter w = new PacketWriter()
                 .opcode(SERVER_SEND_FIRST_PAGE)
                 .u8(0)
@@ -77,16 +88,118 @@ public final class RankingPackets {
             w.u32(page);
             w.u32(pages);
             w.u16(rows.size());
-            for (RegistryRow row : rows) {
+            for (RegistryRowWithSummary entry : rows) {
+                RegistryRow row = entry.row();
                 w.u32((int) row.uid());
                 w.u32(row.currentPosition());
                 w.u32(row.lastPosition());
                 w.i32(row.value());
-                w.zero(7); // C# RankCharacter missing → 7 zero bytes
+                writeRowSummary(w, entry.summary());
             }
         }
         w.u8(PPRT_NOT_TOP_RANK);
         return w.toBytes();
+    }
+
+    /**
+     * C# {@code sendPageFoundPlayer}: {@code 0x138C} with the page containing the found player.
+     */
+    public static byte[] searchPageFound(
+            int menu,
+            int item,
+            int term,
+            int classType,
+            List<RegistryRowWithSummary> rows,
+            int page,
+            int pages,
+            int foundPositionInPage) {
+        PacketWriter w = new PacketWriter()
+                .opcode(SERVER_PAGE_NOT_FOUND)
+                .u8(0)
+                .u8(menu)
+                .u8(item)
+                .u8(term)
+                .u8(classType)
+                .u32(page)
+                .u32(pages)
+                .u16(rows.size());
+        for (RegistryRowWithSummary entry : rows) {
+            RegistryRow row = entry.row();
+            w.u32((int) row.uid());
+            w.u32(row.currentPosition());
+            w.u32(row.lastPosition());
+            w.i32(row.value());
+            writeRowSummary(w, entry.summary());
+        }
+        w.u16(foundPositionInPage);
+        return w.toBytes();
+    }
+
+    /** C# search catch / not found: {@code 0x138C} u8 1. */
+    public static byte[] searchPageError() {
+        return new PacketWriter().opcode(SERVER_PAGE_NOT_FOUND).u8(1).toBytes();
+    }
+
+    public static byte[] clientSearchByNickname(String nickname, SearchDados dados) {
+        PacketWriter w = new PacketWriter()
+                .opcode(CLIENT_REQ_SEARCH_PLAYER_IN_RANKING)
+                .u8(SEARCH_BY_NICKNAME)
+                .pstr(nickname);
+        writeSearchDados(w, dados);
+        return w.toBytes();
+    }
+
+    public static byte[] clientSearchByPosition(int position, SearchDados dados) {
+        PacketWriter w = new PacketWriter()
+                .opcode(CLIENT_REQ_SEARCH_PLAYER_IN_RANKING)
+                .u8(SEARCH_BY_POSITION)
+                .u32(position);
+        writeSearchDados(w, dados);
+        return w.toBytes();
+    }
+
+    public static SearchRequest readSearch(PacketReader reader) {
+        int option = reader.u8();
+        if (option == SEARCH_BY_NICKNAME) {
+            String nickname = reader.pstr();
+            SearchDados dados = readSearchDados(reader);
+            return new SearchRequest(option, nickname, 0, dados);
+        }
+        if (option == SEARCH_BY_POSITION) {
+            int position = reader.u32();
+            SearchDados dados = readSearchDados(reader);
+            return new SearchRequest(option, "", position, dados);
+        }
+        throw new IllegalArgumentException("invalid ranking search option " + option);
+    }
+
+    public static SearchDados readSearchDados(PacketReader reader) {
+        int menu = reader.remaining() >= 1 ? reader.u8() : 0;
+        int item = reader.remaining() >= 1 ? reader.u8() : 0;
+        int term = reader.remaining() >= 1 ? reader.u8() : 0;
+        int classType = reader.remaining() >= 1 ? reader.u8() : 0;
+        int page = reader.remaining() >= 4 ? reader.u32() : 0;
+        return new SearchDados(menu, item, term, classType, page);
+    }
+
+    private static void writeSearchDados(PacketWriter w, SearchDados dados) {
+        w.u8(dados.menu())
+                .u8(dados.item())
+                .u8(dados.term())
+                .u8(dados.classType())
+                .u32(dados.page());
+    }
+
+    private static void writeRowSummary(PacketWriter w, RowSummary summary) {
+        if (summary == null) {
+            w.zero(7);
+            return;
+        }
+        w.u8(summary.level())
+                .u8(summary.term())
+                .u8(summary.classType())
+                .pstr(summary.id() == null ? "" : summary.id())
+                .pstr(summary.nickname() == null ? "" : summary.nickname());
     }
 
     /**
@@ -148,4 +261,6 @@ public final class RankingPackets {
     }
 
     public record Login(int uid, String id, int menu, int item, int term, int classType, int page) {}
+
+    public record SearchRequest(int option, String nickname, int position, SearchDados dados) {}
 }

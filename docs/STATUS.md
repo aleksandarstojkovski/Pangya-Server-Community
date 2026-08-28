@@ -13,14 +13,14 @@ Conteggio Channel: **197** handler `packet_func_sv` registrati in `GameService.i
 
 ## Questo turno
 
-Fatto: login `pacote11F` tipo 3 — dopo channel list manda i16 3 + u32 rookie/beginner/advancer da SQL `pangya.tutorial` (C# LoginManager case 5). `LOGIN_DUMP_PACKET_COUNT` +1.
-Prossimo opcode/file C#: IFF pin/cube/`initComboDef`; GM default-throw; audit S5 Ranking/Messenger; capture JP S9.
+Fatto: S5 Ranking — `0x1389` row summary (level/term/class + PStr id/nick da SQL account) al posto dei 7 zero; CLIENT `0x02` search nickname/position → `0x138C` pagina trovata o u8 1 error.
+Prossimo opcode/file C#: IFF pin/cube/`initComboDef`; GM default-throw/equipDefault; Messenger `0x16`/`0x17`/`0x1E`/`0x23`; capture JP S9.
 Blocco: file IFF assenti (pin/cube live, `initComboDef`); nessuna capture client JP Season 9.
 
-Percentuale epic: **scheletro 85%** / **parità client reale 36%**.
+Percentuale epic: **scheletro 85%** / **parità client reale 37%**.
 
 - Scheletro: S0–S3 e S6 chiusi (Gradle, Cipher, Auth/Login, Practice, Ranking/Messenger core, metriche 3000, compose `/health`). S4/S5 aperti.
-- Parità client reale: ~173/197 Channel con happy-path; login dump include `pacote11F` tipo 3; SQL al posto IFF; zero fail-stub/pulse Channel noti ma IFF/capture ancora aperti.
+- Parità client reale: ~173/197 Channel con happy-path; login dump include `pacote11F` tipo 3; Ranking page/search con row summary SQL; zero fail-stub/pulse Channel noti ma IFF/capture/Messenger ancora aperti.
 
 ## Slice (non dichiarare S4 done)
 

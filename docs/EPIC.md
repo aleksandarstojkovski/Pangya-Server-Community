@@ -16,10 +16,10 @@ S4 profondità: **173** opcode success 1:1 / **0** opcode solo fail-stub / **0**
 
 | Campo | Valore |
 |-------|--------|
-| Fatto | Login `pacote11F` tipo 3 (i16 3 + TutorialInfo 12 byte da SQL) dopo channel list |
-| Prossimo opcode/file C# | IFF pin/cube/`initComboDef`, GM throws, S5 audit, capture JP S9 |
+| Fatto | S5 Ranking: `0x1389` row summary SQL + CLIENT `0x02` search → `0x138C` |
+| Prossimo opcode/file C# | IFF pin/cube/`initComboDef`, GM equipDefault, Messenger presence/PM, capture JP S9 |
 | Blocco | IFF assenti (pin/cube, `initComboDef`); nessuna capture JP S9 |
-| Percentuale epic | scheletro **85%** / parità client reale **36%** |
+| Percentuale epic | scheletro **85%** / parità client reale **37%** |
 | VM | Java 21.0.10, Docker 29.7.2, Compose v5.5.0, 4 CPU / 15 GiB |
 
 ## Mappa C# → Java
