@@ -75,6 +75,11 @@ public final class GamePackets {
     public static final int SERVER_EQUIP_ACK = 0x6B;
     public static final int SERVER_SYNC_SHOT = 0x6E;
     public static final int SERVER_REMAIN_TIME = 0x8D;
+    /**
+     * C# {@code pacote09A} / {@code SERVER_ADMIT_IDENTITY}. Same numeric as
+     * CLIENT PCBANG mascot-msg in C#, opposite direction.
+     */
+    public static final int SERVER_ADMIT_IDENTITY = 0x9A;
     public static final int SERVER_WEATHER = 0x9E;
     public static final int SERVER_END_SHOT = 0xCC;
     public static final int SERVER_BUY_ACK = 0x68;
@@ -981,6 +986,12 @@ public final class GamePackets {
     public static final int TICKER_FAIL_FUNDS = 4;
     /** C# {@code capability.game_master} bit. */
     public static final int CAPABILITY_GM = 4;
+    /** C# {@code uCapability.block_give_item_gm} bit 16. */
+    public static final int CAPABILITY_BLOCK_GIVEITEM = 16;
+    /** C# {@code uCapability.gm_normal} bit 128. */
+    public static final int CAPABILITY_GM_NORMAL = 128;
+    /** C# {@code uCapability.title_gm} setter {@code 32768}. */
+    public static final int CAPABILITY_TITLE_GM = 32768;
     /** C# {@code COMMON_CMD_GM.CCG_VISIBLE}. */
     public static final int GM_CMD_VISIBLE = 3;
     /** C# {@code COMMON_CMD_GM.CCG_WHISPER}. */
@@ -989,8 +1000,22 @@ public final class GamePackets {
     public static final int GM_CMD_CHANNEL = 5;
     /** C# {@code COMMON_CMD_GM.CCG_KICK}. */
     public static final int GM_CMD_KICK = 10;
+    /** C# {@code COMMON_CMD_GM.CCG_DESTROY} (empty then green OK). */
+    public static final int GM_CMD_DESTROY = 13;
+    /** C# {@code COMMON_CMD_GM.CCG_CHANGE_WIND_VERSUS}. */
+    public static final int GM_CMD_WIND = 14;
     /** C# {@code COMMON_CMD_GM.CCG_CHANGE_WEATHER}. */
     public static final int GM_CMD_WEATHER = 15;
+    /** C# {@code COMMON_CMD_GM.CCG_IDENTITY} (same numeric as {@code CCG_NOTICE}). */
+    public static final int GM_CMD_IDENTITY = 16;
+    /** C# {@code COMMON_CMD_GM.CCG_GIVEITEM}. */
+    public static final int GM_CMD_GIVEITEM = 18;
+    /** C# {@code COMMON_CMD_GM.CCG_GOLDENBELL}. */
+    public static final int GM_CMD_GOLDENBELL = 19;
+    /** C# {@code LIMIT_DEGREE} ({@code byte} 255). */
+    public static final int LIMIT_DEGREE = 255;
+    /** C# giveitem/goldenbell {@code item_qntd > 20000}. */
+    public static final int GM_GIVEITEM_MAX = 20000;
     /** C# lounge/game weather {@code 0x9E} type 0 (course). */
     public static final int WEATHER_NORMAL = 0;
     /** C# GM weather {@code 0x9E} type 1. */
@@ -1003,6 +1028,17 @@ public final class GamePackets {
     public static final String GM_CMD_OK = "Executed Command.";
     /** C# {@code SendChatNotice} catch else. */
     public static final String GM_CMD_FAIL = "Nao conseguiu executar o comando.";
+    /** C# catch decode 9 (blocked giveitem/goldenbell). */
+    public static final String GM_CMD_BLOCKED = "Nao pode executar esse comando, voce foi bloqueado pelo ADM.";
+    /**
+     * SQL {@code shop_catalog} stand-in for IFF {@code findCommomItem.Name}
+     * in GM giveitem/goldenbell mail text.
+     */
+    public static final String GM_SHOP_ITEM_NAME = "Pang Item";
+    /** C# {@code "GM Send Gift: item[ " + name + " ]"}. */
+    public static final String GM_GIVEITEM_MSG = "GM Send Gift: item[ " + GM_SHOP_ITEM_NAME + " ]";
+    /** C# {@code "GM enviou um item para voce: item[ " + name + " ]"}. */
+    public static final String GM_GOLDENBELL_MSG = "GM enviou um item para voce: item[ " + GM_SHOP_ITEM_NAME + " ]";
     /** C# {@code TranslationSubPacket.Msg_OFF}. */
     public static final int MSN_MSG_OFF = 0x111;
     /** C# {@code TranslationSubPacket.Friend_List} (not implemented in C#). */
@@ -2418,6 +2454,11 @@ public final class GamePackets {
     /** C# {@code 0x9E}: u16 weather + u8 type (0 course, 1 GM). */
     public static byte[] weather(int weather, int type) {
         return new PacketWriter().opcode(SERVER_WEATHER).u16(weather).u8(type).toBytes();
+    }
+
+    /** C# {@code pacote09A}: i32 capability. */
+    public static byte[] admitIdentity(int capability) {
+        return new PacketWriter().opcode(SERVER_ADMIT_IDENTITY).i32(capability).toBytes();
     }
 
     public static byte[] wind(int wind, int cardFlag, int degree, int reset) {
@@ -4488,6 +4529,47 @@ public final class GamePackets {
     /** C# CLIENT {@code 0x8F} {@code CCG_KICK}: i16 10 + u32 oid + u8 force. */
     public static byte[] clientGmKick(int oid, int force) {
         return new PacketWriter().opcode(CLIENT_GM_COMMAND).i16(GM_CMD_KICK).u32(oid).u8(force).toBytes();
+    }
+
+    /** C# CLIENT {@code 0x8F} {@code CCG_IDENTITY}: i16 16 + i32 cap + PStr nick. */
+    public static byte[] clientGmIdentity(int cap, String nick) {
+        return new PacketWriter()
+                .opcode(CLIENT_GM_COMMAND)
+                .i16(GM_CMD_IDENTITY)
+                .i32(cap)
+                .pstr(nick == null ? "" : nick)
+                .toBytes();
+    }
+
+    /** C# CLIENT {@code 0x8F} {@code CCG_GIVEITEM}: i16 18 + u32 oid + u32 typeid + u32 qntd. */
+    public static byte[] clientGmGiveitem(int oid, int typeid, int qntd) {
+        return new PacketWriter()
+                .opcode(CLIENT_GM_COMMAND)
+                .i16(GM_CMD_GIVEITEM)
+                .u32(oid)
+                .u32(typeid)
+                .u32(qntd)
+                .toBytes();
+    }
+
+    /** C# CLIENT {@code 0x8F} {@code CCG_GOLDENBELL}: i16 19 + u32 typeid + u32 qntd. */
+    public static byte[] clientGmGoldenbell(int typeid, int qntd) {
+        return new PacketWriter()
+                .opcode(CLIENT_GM_COMMAND)
+                .i16(GM_CMD_GOLDENBELL)
+                .u32(typeid)
+                .u32(qntd)
+                .toBytes();
+    }
+
+    /** C# CLIENT {@code 0x8F} {@code CCG_CHANGE_WIND_VERSUS}: i16 14 + u8 wind + u8 degree. */
+    public static byte[] clientGmWind(int wind, int degree) {
+        return new PacketWriter()
+                .opcode(CLIENT_GM_COMMAND)
+                .i16(GM_CMD_WIND)
+                .u8(wind)
+                .u8(degree)
+                .toBytes();
     }
 
     /** C# CLIENT {@code 0x156} empty. */

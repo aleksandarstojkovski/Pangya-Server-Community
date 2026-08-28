@@ -1269,7 +1269,12 @@ class GamePacketsTest {
         assertEquals(GamePackets.GM_CMD_WHISPER, 4);
         assertEquals(GamePackets.GM_CMD_CHANNEL, 5);
         assertEquals(GamePackets.GM_CMD_KICK, 10);
+        assertEquals(GamePackets.GM_CMD_DESTROY, 13);
+        assertEquals(GamePackets.GM_CMD_WIND, 14);
         assertEquals(GamePackets.GM_CMD_WEATHER, 15);
+        assertEquals(GamePackets.GM_CMD_IDENTITY, 16);
+        assertEquals(GamePackets.GM_CMD_GIVEITEM, 18);
+        assertEquals(GamePackets.GM_CMD_GOLDENBELL, 19);
         PacketReader gmVisible = new PacketReader(GamePackets.clientGmVisible(1));
         assertEquals(GamePackets.CLIENT_GM_COMMAND, gmVisible.opcode());
         assertEquals(GamePackets.GM_CMD_VISIBLE, gmVisible.i16());
@@ -1291,6 +1296,33 @@ class GamePacketsTest {
         assertEquals(GamePackets.GM_CMD_KICK, gmKick.i16());
         assertEquals(2, gmKick.u32());
         assertEquals(0, gmKick.u8());
+        PacketReader gmIdent = new PacketReader(GamePackets.clientGmIdentity(
+                GamePackets.CAPABILITY_GM_NORMAL, "TestNick"));
+        assertEquals(GamePackets.CLIENT_GM_COMMAND, gmIdent.opcode());
+        assertEquals(GamePackets.GM_CMD_IDENTITY, gmIdent.i16());
+        assertEquals(GamePackets.CAPABILITY_GM_NORMAL, gmIdent.i32());
+        assertEquals("TestNick", gmIdent.pstr());
+        PacketReader admit = new PacketReader(GamePackets.admitIdentity(128));
+        assertEquals(GamePackets.SERVER_ADMIT_IDENTITY, admit.opcode());
+        assertEquals(128, admit.i32());
+        PacketReader gmGive = new PacketReader(GamePackets.clientGmGiveitem(
+                2, GamePackets.TYPEID_SHOP_PANG_ITEM, 1));
+        assertEquals(GamePackets.CLIENT_GM_COMMAND, gmGive.opcode());
+        assertEquals(GamePackets.GM_CMD_GIVEITEM, gmGive.i16());
+        assertEquals(2, gmGive.u32());
+        assertEquals(GamePackets.TYPEID_SHOP_PANG_ITEM, gmGive.u32());
+        assertEquals(1, gmGive.u32());
+        PacketReader gmBell = new PacketReader(GamePackets.clientGmGoldenbell(
+                GamePackets.TYPEID_SHOP_PANG_ITEM, 1));
+        assertEquals(GamePackets.CLIENT_GM_COMMAND, gmBell.opcode());
+        assertEquals(GamePackets.GM_CMD_GOLDENBELL, gmBell.i16());
+        assertEquals(GamePackets.TYPEID_SHOP_PANG_ITEM, gmBell.u32());
+        assertEquals(1, gmBell.u32());
+        PacketReader gmWind = new PacketReader(GamePackets.clientGmWind(5, 90));
+        assertEquals(GamePackets.CLIENT_GM_COMMAND, gmWind.opcode());
+        assertEquals(GamePackets.GM_CMD_WIND, gmWind.i16());
+        assertEquals(5, gmWind.u8());
+        assertEquals(90, gmWind.u8());
         assertEquals("\\c0xff00ff00\\cExecuted Command.", GamePackets.chatColor(
                 GamePackets.CHAT_GREEN_HEX, GamePackets.GM_CMD_OK));
         assertEquals(GamePackets.CLIENT_ACTIVE_AUTO_COMMAND, 0x156);
@@ -1509,6 +1541,12 @@ class GamePacketsTest {
         assertEquals(GamePackets.SERVER_LOLO_TIPO, 0x229);
         assertEquals(GamePackets.GM_CMD_VISIBLE, 3);
         assertEquals(GamePackets.CAPABILITY_GM, 4);
+        assertEquals(GamePackets.CAPABILITY_GM_NORMAL, 128);
+        assertEquals(GamePackets.CAPABILITY_TITLE_GM, 32768);
+        assertEquals(GamePackets.SERVER_ADMIT_IDENTITY, 0x9A);
+        assertEquals(GamePackets.GM_CMD_IDENTITY, 16);
+        assertEquals(GamePackets.GM_GIVEITEM_MAX, 20000);
+        assertEquals(GamePackets.LIMIT_DEGREE, 255);
         assertEquals(GamePackets.CHAR_MASTERY_AWARD_TYPE, 0xCD);
         assertEquals(GamePackets.TYPEID_NURI, 0x4000000);
         assertEquals(GamePackets.CHAR_STATS_AWARD_TYPE, 0xC9);
@@ -1584,6 +1622,8 @@ class GamePacketsTest {
         assertEquals(0, cardPacket.u32());
         assertEquals(0, cardPacket.u8());
         assertEquals(GamePackets.CHAR_CARD_AWARD_TYPE, cardPacket.u8());
+        assertEquals(GamePackets.GM_CMD_BLOCKED,
+                "Nao pode executar esse comando, voce foi bloqueado pelo ADM.");
         assertEquals(GamePackets.SERVER_BUY_ACK, 0x68);
         assertEquals(GamePackets.CREATE_ROOM_FAILED, 0x07);
         assertEquals(GamePackets.SERVER_LAST5, 0x10E);

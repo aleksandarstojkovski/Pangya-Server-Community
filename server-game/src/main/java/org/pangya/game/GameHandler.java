@@ -267,7 +267,7 @@ public final class GameHandler {
             case GamePackets.CLIENT_COMET_REFILL -> cometRefill(session, reader);
             case GamePackets.CLIENT_BOX_MAIL -> openBoxMail(session, reader);
             case GamePackets.CLIENT_REFUSE_WHISPER -> refuseWhisper(session, reader);
-            case GamePackets.CLIENT_IDENTITY -> execIdentity(session);
+            case GamePackets.CLIENT_IDENTITY -> execIdentity(session, reader);
             case GamePackets.CLIENT_ENTER_LOBBY -> enterLobby(session);
             case GamePackets.CLIENT_LEAVE_LOBBY -> leaveLobby(session);
             case GamePackets.CLIENT_CHAT -> chat(session, reader);
@@ -3208,7 +3208,9 @@ public final class GameHandler {
      * success ends with green {@code Executed Command.}. {@code CCG_VISIBLE}
      * broadcasts lobby {@code 0x46} option 3; {@code CCG_WHISPER}/{@code CCG_CHANNEL}
      * set GM flags; {@code CCG_CHANGE_WEATHER} lounge {@code 0x9E} type 1;
-     * {@code CCG_KICK} leaves the target's room.
+     * {@code CCG_KICK} leaves the target's room; {@code CCG_IDENTITY} {@code 0x9A};
+     * {@code CCG_GIVEITEM}/{@code CCG_GOLDENBELL} mailbox; {@code CCG_CHANGE_WIND_VERSUS}
+     * Versus {@code 0x5B}; {@code CCG_DESTROY} is a no-op then green OK.
      */
     private void commonCmdGm(Session session, PacketReader reader) {
         if (!session.authorized() || reader.remaining() < 2) {
@@ -3224,11 +3226,19 @@ public final class GameHandler {
                 case GamePackets.GM_CMD_VISIBLE -> gmVisible(session, reader);
                 case GamePackets.GM_CMD_WHISPER -> gmWhisperChannel(session, reader, true);
                 case GamePackets.GM_CMD_CHANNEL -> gmWhisperChannel(session, reader, false);
+                case GamePackets.GM_CMD_DESTROY -> { }
                 case GamePackets.GM_CMD_WEATHER -> gmWeather(session, reader);
                 case GamePackets.GM_CMD_KICK -> gmKick(session, reader);
+                case GamePackets.GM_CMD_IDENTITY -> applyIdentity(session, reader);
+                case GamePackets.GM_CMD_GIVEITEM -> gmGiveitem(session, reader);
+                case GamePackets.GM_CMD_GOLDENBELL -> gmGoldenbell(session, reader);
+                case GamePackets.GM_CMD_WIND -> gmWindVersus(session, reader);
                 default -> throw new IllegalStateException("gm cmd " + cmd);
             }
             gmNotice(session, true);
+        } catch (GmBlockedException e) {
+            log.warn("gm cmd={} uid={} blocked: {}", cmd, session.player().uid, e.toString());
+            gmNotice(session, false, GamePackets.GM_CMD_BLOCKED);
         } catch (RuntimeException e) {
             log.warn("gm cmd={} uid={} failed: {}", cmd, session.player().uid, e.toString());
             gmNotice(session, false);
@@ -3236,13 +3246,17 @@ public final class GameHandler {
     }
 
     private void gmNotice(Session session, boolean ok) {
+        gmNotice(session, ok, GamePackets.GM_CMD_FAIL);
+    }
+
+    private void gmNotice(Session session, boolean ok, String fail) {
         String nick = session.player().nickname == null ? "" : session.player().nickname;
         session.send(GamePackets.chat(
                 GamePackets.CHAT_NOTICE,
                 nick,
                 GamePackets.chatColor(
                         ok ? GamePackets.CHAT_GREEN_HEX : GamePackets.CHAT_RED_HEX,
-                        ok ? GamePackets.GM_CMD_OK : GamePackets.GM_CMD_FAIL)));
+                        ok ? GamePackets.GM_CMD_OK : fail)));
     }
 
     private void gmVisible(Session session, PacketReader reader) {
@@ -3318,6 +3332,173 @@ public final class GameHandler {
             throw new IllegalStateException("kick room");
         }
         leaveRoom(target);
+    }
+
+    /**
+     * C# {@code requestExecCCGIdentity}: i32 cap + PStr nick. {@code cap == -1}
+     * restores GM if {@code gm_normal}; {@code cap.gm_normal} drops to normal.
+     * Success {@code 0x9A} then lobby {@code 0x46} option 3 (and room option 3).
+     */
+    private void applyIdentity(Session session, PacketReader reader) {
+        if (!inChannel(session) || reader.remaining() < 4) {
+            throw new IllegalStateException("identity");
+        }
+        int cap = reader.i32();
+        String nick = reader.pstr();
+        PlayerContext pi = session.player();
+        if (nick == null || nick.isEmpty()) {
+            throw new IllegalStateException("identity nick");
+        }
+        if (!nick.equals(pi.nickname == null ? "" : pi.nickname)) {
+            throw new IllegalStateException("identity nick mismatch");
+        }
+        boolean gmNormal = (pi.capability & GamePackets.CAPABILITY_GM_NORMAL) != 0;
+        boolean gameMaster = (pi.capability & GamePackets.CAPABILITY_GM) != 0;
+        if (!gmNormal && !gameMaster) {
+            throw new IllegalStateException("identity cap");
+        }
+        if (pi.roomNumber >= 0 && rooms.get(pi.roomNumber) == null) {
+            throw new IllegalStateException("identity room");
+        }
+        var db = repo.playerInfo(pi.uid).orElse(null);
+        if (db == null || (db.capability() & GamePackets.CAPABILITY_GM) == 0) {
+            throw new IllegalStateException("identity db");
+        }
+        boolean changed = false;
+        if (cap == -1) {
+            if (gmNormal) {
+                pi.capability |= GamePackets.CAPABILITY_GM | GamePackets.CAPABILITY_TITLE_GM;
+                pi.capability &= ~GamePackets.CAPABILITY_GM_NORMAL;
+                changed = true;
+            }
+        } else if ((cap & GamePackets.CAPABILITY_GM_NORMAL) != 0) {
+            pi.capability &= ~(GamePackets.CAPABILITY_GM | GamePackets.CAPABILITY_TITLE_GM);
+            pi.capability |= GamePackets.CAPABILITY_GM_NORMAL;
+            changed = true;
+        }
+        if (!changed) {
+            return;
+        }
+        session.send(GamePackets.admitIdentity(pi.capability));
+        if (pi.channelId >= 0) {
+            broadcastChannel(pi.channelId, GamePackets.lobbyUsers(
+                    GamePackets.LOBBY_USER_UPDATE, List.of(makeLobbyInfo(session))));
+        }
+        GameRoom room = rooms.get(pi.roomNumber);
+        if (room != null) {
+            GamePackets.PlayerRoomInfo pri = room.playerInfo(session);
+            if (pri != null) {
+                pri.capability = pi.capability;
+                room.putPlayerInfo(session, pri);
+                int base = GamePackets.usesCompactPlayerRoomInfo(room.tipo) ? 0x100 : 0;
+                room.broadcast(GamePackets.roomPlayers(base + 3, List.of(pri)));
+            }
+        }
+    }
+
+    /**
+     * C# {@code CCG_GIVEITEM}: u32 oid + u32 typeid + u32 qntd. IFF stand-in is
+     * {@code shop_catalog}. Mail is {@link MailBoxStore} like gift (no pang).
+     */
+    private void gmGiveitem(Session session, PacketReader reader) {
+        if ((session.player().capability & GamePackets.CAPABILITY_BLOCK_GIVEITEM) != 0) {
+            throw new GmBlockedException();
+        }
+        if (reader.remaining() < 12) {
+            throw new IllegalStateException("giveitem");
+        }
+        int oid = reader.u32();
+        int typeid = reader.u32();
+        int qntd = reader.u32();
+        Session target = sessions.findByOid(oid);
+        if (target == null || !target.authorized()) {
+            throw new IllegalStateException("giveitem oid");
+        }
+        validateGmGift(typeid, qntd);
+        gmMailItem(target, GamePackets.GM_GIVEITEM_MSG);
+    }
+
+    /**
+     * C# {@code CCG_GOLDENBELL}: u32 typeid + u32 qntd to every player in the room.
+     */
+    private void gmGoldenbell(Session session, PacketReader reader) {
+        if ((session.player().capability & GamePackets.CAPABILITY_BLOCK_GIVEITEM) != 0) {
+            throw new GmBlockedException();
+        }
+        if (!inChannel(session) || reader.remaining() < 8) {
+            throw new IllegalStateException("goldenbell");
+        }
+        GameRoom room = rooms.get(session.player().roomNumber);
+        if (room == null) {
+            throw new IllegalStateException("goldenbell room");
+        }
+        int typeid = reader.u32();
+        int qntd = reader.u32();
+        validateGmGift(typeid, qntd);
+        for (Session member : room.snapshot()) {
+            gmMailItem(member, GamePackets.GM_GOLDENBELL_MSG);
+        }
+    }
+
+    private void validateGmGift(int typeid, int qntd) {
+        if (typeid == 0) {
+            throw new IllegalStateException("gift typeid");
+        }
+        if (Integer.compareUnsigned(qntd, GamePackets.GM_GIVEITEM_MAX) > 0) {
+            throw new IllegalStateException("gift qntd");
+        }
+        if (inventory.shopItem(typeid).isEmpty()) {
+            throw new IllegalStateException("gift iff");
+        }
+    }
+
+    private void gmMailItem(Session target, String msg) {
+        mailboxes.add(target.player().uid, "", msg, 1);
+        if (target.authorized()) {
+            target.send(GamePackets.newMail(unreadMailBytes(target.player().uid)));
+        }
+    }
+
+    /**
+     * C# {@code requestExecCCGChangeWindVersus} intended tipo check (C# uses
+     * always-true {@code ||}). Stroke/Match/Pang Battle + in-game; packet
+     * {@code u8 wind + u8 degree}; {@code 0x5B} reset 1.
+     */
+    private void gmWindVersus(Session session, PacketReader reader) {
+        if (!inChannel(session) || reader.remaining() < 2) {
+            throw new IllegalStateException("wind");
+        }
+        GameRoom room = rooms.get(session.player().roomNumber);
+        if (room == null) {
+            throw new IllegalStateException("wind room");
+        }
+        if (room.tipo != GamePackets.TIPO_STROKE
+                && room.tipo != GamePackets.TIPO_MATCH
+                && room.tipo != GamePackets.TIPO_PANG_BATTLE) {
+            throw new IllegalStateException("wind tipo");
+        }
+        if (!room.inGame || room.course == null) {
+            throw new IllegalStateException("wind game");
+        }
+        if (room.turnOid == 0) {
+            throw new IllegalStateException("wind turn");
+        }
+        GameRoom.PlayerShot shot = room.shots.get(room.turnOid);
+        if (shot == null) {
+            throw new IllegalStateException("wind shot");
+        }
+        int wind = reader.u8() & 0xff;
+        int degree = (reader.u8() & 0xff) % GamePackets.LIMIT_DEGREE;
+        int numero = shot.hole > 0 ? shot.hole : 1;
+        if (!room.course.setWind(numero, wind)) {
+            throw new IllegalStateException("wind hole");
+        }
+        shot.degree = degree;
+        room.broadcast(GamePackets.wind(wind, 0, degree, 1));
+    }
+
+    private static final class GmBlockedException extends RuntimeException {
+        private static final long serialVersionUID = 1L;
     }
 
     /**
@@ -4439,11 +4620,17 @@ public final class GameHandler {
     }
 
     /**
-     * C# {@code requestExecCCGIdentity}: non-GM CHANNEL catch is silent.
+     * C# {@code packet041} / {@code requestExecCCGIdentity}: CHANNEL catch is silent
+     * (no green OK; that is only {@code 0x8F}).
      */
-    private void execIdentity(Session session) {
+    private void execIdentity(Session session, PacketReader reader) {
         if (!inChannel(session)) {
             return;
+        }
+        try {
+            applyIdentity(session, reader);
+        } catch (RuntimeException e) {
+            log.warn("identity uid={} failed: {}", session.player().uid, e.toString());
         }
     }
 

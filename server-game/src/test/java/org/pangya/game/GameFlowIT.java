@@ -566,6 +566,173 @@ class GameFlowIT {
                 assertEquals(
                         GamePackets.chatColor(GamePackets.CHAT_GREEN_HEX, GamePackets.GM_CMD_OK),
                         skipChatNotice(weatherOk));
+                host.sendPlain(GamePackets.clientGmVisible(1));
+                PacketReader shown = awaitOpcode(host, GamePackets.SERVER_USERLIST);
+                assertEquals(GamePackets.LOBBY_USER_UPDATE, shown.u8());
+                awaitOpcode(host, GamePackets.SERVER_CHAT);
+                host.sendPlain(GamePackets.clientGmIdentity(
+                        GamePackets.CAPABILITY_GM_NORMAL, "TestNick"));
+                PacketReader ident = awaitOpcode(host, GamePackets.SERVER_ADMIT_IDENTITY);
+                assertEquals(GamePackets.CAPABILITY_GM_NORMAL, ident.i32());
+                PacketReader identLobby = awaitOpcode(host, GamePackets.SERVER_USERLIST);
+                assertEquals(GamePackets.CAPABILITY_GM_NORMAL, lobbyCapability(identLobby));
+                PacketReader identOk = awaitOpcode(host, GamePackets.SERVER_CHAT);
+                assertEquals(
+                        GamePackets.chatColor(GamePackets.CHAT_GREEN_HEX, GamePackets.GM_CMD_OK),
+                        skipChatNotice(identOk));
+                host.sendPlain(GamePackets.clientGmIdentity(-1, "TestNick"));
+                PacketReader identFail = awaitOpcode(host, GamePackets.SERVER_CHAT);
+                assertEquals(
+                        GamePackets.chatColor(GamePackets.CHAT_RED_HEX, GamePackets.GM_CMD_FAIL),
+                        skipChatNotice(identFail));
+                host.sendPlain(GamePackets.clientIdentity(-1, "TestNick"));
+                PacketReader restored = awaitOpcode(host, GamePackets.SERVER_ADMIT_IDENTITY);
+                assertEquals(
+                        GamePackets.CAPABILITY_GM | GamePackets.CAPABILITY_TITLE_GM,
+                        restored.i32());
+                PacketReader restLobby = awaitOpcode(host, GamePackets.SERVER_USERLIST);
+                assertEquals(
+                        GamePackets.CAPABILITY_GM | GamePackets.CAPABILITY_TITLE_GM,
+                        lobbyCapability(restLobby));
+                host.sendPlain(GamePackets.clientGmIdentity(
+                        GamePackets.CAPABILITY_GM_NORMAL, "WrongNick"));
+                PacketReader nickFail = awaitOpcode(host, GamePackets.SERVER_CHAT);
+                assertEquals(
+                        GamePackets.chatColor(GamePackets.CHAT_RED_HEX, GamePackets.GM_CMD_FAIL),
+                        skipChatNotice(nickFail));
+                host.sendPlain(GamePackets.clientGmCommand(GamePackets.GM_CMD_DESTROY));
+                PacketReader destroyOk = awaitOpcode(host, GamePackets.SERVER_CHAT);
+                assertEquals(
+                        GamePackets.chatColor(GamePackets.CHAT_GREEN_HEX, GamePackets.GM_CMD_OK),
+                        skipChatNotice(destroyOk));
+            } finally {
+                repo.setCapability(10001, 0);
+            }
+        }
+    }
+
+    @Test
+    void gmGiveitemGoldenbellAndLoungeWindFail() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config);
+             PangyaFakeClient host = new PangyaFakeClient();
+             PangyaFakeClient guest = new PangyaFakeClient()) {
+            LoginRepository repo = new JdbiLoginRepository(DatabaseSupport.jdbi(ds));
+            repo.setCapability(10001, GamePackets.CAPABILITY_GM);
+            try {
+                loginTwoPlayers(ds, keys, host, guest, runtime.port());
+                int guestOid = oidOf(runtime, 10002);
+                host.sendPlain(GamePackets.clientGmGiveitem(
+                        guestOid, GamePackets.TYPEID_SHOP_PANG_ITEM, 1));
+                PacketReader mail = awaitOpcode(guest, GamePackets.SERVER_NEW_MAIL);
+                assertEquals(0, mail.i32());
+                assertEquals(1, mail.i32());
+                PacketReader giveOk = awaitOpcode(host, GamePackets.SERVER_CHAT);
+                assertEquals(
+                        GamePackets.chatColor(GamePackets.CHAT_GREEN_HEX, GamePackets.GM_CMD_OK),
+                        skipChatNotice(giveOk));
+                host.sendPlain(GamePackets.clientGmGiveitem(guestOid, 0, 1));
+                PacketReader typeidFail = awaitOpcode(host, GamePackets.SERVER_CHAT);
+                assertEquals(
+                        GamePackets.chatColor(GamePackets.CHAT_RED_HEX, GamePackets.GM_CMD_FAIL),
+                        skipChatNotice(typeidFail));
+                host.sendPlain(GamePackets.clientGmGiveitem(
+                        guestOid, GamePackets.TYPEID_SHOP_PANG_ITEM, GamePackets.GM_GIVEITEM_MAX + 1));
+                PacketReader qntdFail = awaitOpcode(host, GamePackets.SERVER_CHAT);
+                assertEquals(
+                        GamePackets.chatColor(GamePackets.CHAT_RED_HEX, GamePackets.GM_CMD_FAIL),
+                        skipChatNotice(qntdFail));
+                host.sendPlain(GamePackets.clientGmGiveitem(guestOid, 0x7FFF0001, 1));
+                PacketReader iffFail = awaitOpcode(host, GamePackets.SERVER_CHAT);
+                assertEquals(
+                        GamePackets.chatColor(GamePackets.CHAT_RED_HEX, GamePackets.GM_CMD_FAIL),
+                        skipChatNotice(iffFail));
+
+                host.sendPlain(GamePackets.clientCreateRoom(GamePackets.TIPO_LOUNGE, "GB", ""));
+                PacketReader lounge = awaitOpcode(host, GamePackets.SERVER_ROOM_ENTER_RESULT);
+                assertEquals(0, lounge.i16());
+                int numero = roomNumberFromInfo(lounge.readBytes(GamePackets.ROOM_INFO_BYTES));
+                guest.sendPlain(GamePackets.clientJoinRoom(numero, ""));
+                assertEquals(0, awaitOpcode(guest, GamePackets.SERVER_ROOM_ENTER_RESULT).i16());
+                host.sendPlain(GamePackets.clientGmGoldenbell(GamePackets.TYPEID_SHOP_PANG_ITEM, 1));
+                PacketReader hostMail = awaitOpcode(host, GamePackets.SERVER_NEW_MAIL);
+                assertEquals(0, hostMail.i32());
+                assertTrue(hostMail.i32() >= 1);
+                PacketReader guestMail = awaitOpcode(guest, GamePackets.SERVER_NEW_MAIL);
+                assertEquals(0, guestMail.i32());
+                assertTrue(guestMail.i32() >= 1);
+                PacketReader bellOk = awaitOpcode(host, GamePackets.SERVER_CHAT);
+                assertEquals(
+                        GamePackets.chatColor(GamePackets.CHAT_GREEN_HEX, GamePackets.GM_CMD_OK),
+                        skipChatNotice(bellOk));
+                host.sendPlain(GamePackets.clientGmWind(5, 90));
+                PacketReader windFail = awaitOpcode(host, GamePackets.SERVER_CHAT);
+                assertEquals(
+                        GamePackets.chatColor(GamePackets.CHAT_RED_HEX, GamePackets.GM_CMD_FAIL),
+                        skipChatNotice(windFail));
+            } finally {
+                repo.setCapability(10001, 0);
+            }
+        }
+    }
+
+    @Test
+    void gmVersusWindBroadcastsPacote05B() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config);
+             PangyaFakeClient host = new PangyaFakeClient();
+             PangyaFakeClient guest = new PangyaFakeClient()) {
+            LoginRepository repo = new JdbiLoginRepository(DatabaseSupport.jdbi(ds));
+            repo.setCapability(10001, GamePackets.CAPABILITY_GM);
+            try {
+                loginTwoPlayers(ds, keys, host, guest, runtime.port());
+                host.sendPlain(GamePackets.clientCreateRoom(GamePackets.TIPO_STROKE, "VS-W", ""));
+                PacketReader created = awaitOpcode(host, GamePackets.SERVER_ROOM_ENTER_RESULT);
+                assertEquals(0, created.i16());
+                int numero = roomNumberFromInfo(created.readBytes(GamePackets.ROOM_INFO_BYTES));
+                guest.sendPlain(GamePackets.clientJoinRoom(numero, ""));
+                assertEquals(0, awaitOpcode(guest, GamePackets.SERVER_ROOM_ENTER_RESULT).i16());
+                host.sendPlain(GamePackets.clientStartGame());
+                awaitOpcode(host, GamePackets.SERVER_START_GAME_FLAG);
+                awaitOpcode(host, GamePackets.SERVER_START_GAME_FLAG2);
+                awaitOpcode(host, GamePackets.SERVER_PANG_RATE);
+                awaitOpcode(host, GamePackets.SERVER_GAME_INIT);
+                awaitOpcode(host, GamePackets.SERVER_COURSE);
+                awaitOpcode(host, GamePackets.SERVER_MASCOT_SEED);
+                awaitOpcode(guest, GamePackets.SERVER_GAME_INIT);
+                host.sendPlain(GamePackets.clientInitHole(1, 0, 0, 4, 1.5f, 2.5f, 10f, 20f));
+                guest.sendPlain(GamePackets.clientInitHole(1, 0, 0, 4, 1.5f, 2.5f, 10f, 20f));
+                host.sendPlain(GamePackets.clientLoadOk());
+                guest.sendPlain(GamePackets.clientLoadOk());
+                awaitOpcode(host, GamePackets.SERVER_WEATHER);
+                awaitOpcode(host, GamePackets.SERVER_WIND);
+                awaitOpcode(host, GamePackets.SERVER_HOLE_TURN);
+                host.sendPlain(GamePackets.clientGmWind(5, 90));
+                PacketReader wind = awaitOpcode(host, GamePackets.SERVER_WIND);
+                assertEquals(5, wind.u8());
+                assertEquals(0, wind.u8());
+                assertEquals(90, wind.u16());
+                assertEquals(1, wind.u8());
+                PacketReader windOk = awaitOpcode(host, GamePackets.SERVER_CHAT);
+                assertEquals(
+                        GamePackets.chatColor(GamePackets.CHAT_GREEN_HEX, GamePackets.GM_CMD_OK),
+                        skipChatNotice(windOk));
             } finally {
                 repo.setCapability(10001, 0);
             }
@@ -2402,6 +2569,26 @@ class GameFlowIT {
         assertEquals(GamePackets.CHAT_NOTICE, chat.u8());
         chat.pstr();
         return chat.pstr();
+    }
+
+    private static int lobbyCapability(PacketReader update) {
+        assertEquals(GamePackets.LOBBY_USER_UPDATE, update.u8());
+        update.u8();
+        update.u32();
+        update.i32();
+        update.u16();
+        update.readBytes(22);
+        update.u8();
+        return update.i32();
+    }
+
+    private static int oidOf(GameRuntime runtime, long uid) {
+        for (var session : runtime.sessions().snapshot()) {
+            if (session.player().uid == uid) {
+                return session.oid();
+            }
+        }
+        throw new IllegalStateException("missing uid " + uid);
     }
 
     private static String env(String name, String fallback) {

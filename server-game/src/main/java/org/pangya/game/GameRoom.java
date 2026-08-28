@@ -352,8 +352,8 @@ final class GameRoom {
         int barState;
         /** C# {@code PlayerGameInfo.tempo} (1 after turn timer, distinct from shot tempo). */
         int turnTempo;
-        /** C# {@code pgi.data.time_out}. */
-        int timeOuts;
+        /** C# {@code PlayerGameInfo.degree} set by GM versus wind. */
+        int degree;
     }
 
     static final class PersonalShop {
