@@ -3227,11 +3227,12 @@ public final class JdbiInventoryRepository implements InventoryRepository {
     @Override
     public List<CoinCubeLocation> coinCubeLocations() {
         return jdbi.withHandle(h -> h.createQuery("""
-                        SELECT course, hole, tipo, tipo_location, rate, x, y, z
+                        SELECT "index", course, hole, tipo, tipo_location, rate, x, y, z
                           FROM pangya.pangya_coin_cube_location
                          ORDER BY course, hole, "index"
                         """)
                 .map((rs, ctx) -> new CoinCubeLocation(
+                        rs.getLong("index"),
                         rs.getShort("course"),
                         rs.getShort("hole"),
                         rs.getShort("tipo"),

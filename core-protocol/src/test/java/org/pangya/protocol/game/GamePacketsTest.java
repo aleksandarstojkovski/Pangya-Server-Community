@@ -1853,6 +1853,27 @@ class GamePacketsTest {
         assertEquals(GamePackets.DROP_TYPE_CUBE, endCube.u64());
         assertEquals((GamePackets.END_SHOT_DROP_SLOTS - 1) * GamePackets.DROP_ITEM_BYTES,
                 endCube.remaining());
+        PacketReader cubePick = new PacketReader(GamePackets.clientShotAckCubePick(1, 0, 99));
+        assertEquals(GamePackets.CLIENT_SHOT_ACK, cubePick.opcode());
+        GamePackets.ShotAckCubeCoin parsed = GamePackets.readShotAckCubeCoin(cubePick);
+        assertEquals(1, parsed.opt());
+        assertEquals(1, parsed.picks().size());
+        assertEquals(0, parsed.picks().getFirst().tipo());
+        assertEquals(99, parsed.picks().getFirst().id());
+        GamePackets.DropItem coinDrop = new GamePackets.DropItem(
+                GamePackets.TYPEID_COIN, 0, 1, 33, GamePackets.DROP_TYPE_COIN_EDGE);
+        byte[] endCoinPlain = GamePackets.endShot(1, List.of(coinDrop));
+        byte[] endCoinEnc = org.pangya.protocol.crypto.Cipher.serverEncrypt(endCoinPlain, 5, 0);
+        PacketReader endCoinDec = new PacketReader(
+                org.pangya.protocol.crypto.Cipher.decryptServer(endCoinEnc, 5));
+        assertEquals(GamePackets.SERVER_END_SHOT, endCoinDec.opcode());
+        assertEquals(1, endCoinDec.i32());
+        assertEquals(1, endCoinDec.u8());
+        assertEquals(GamePackets.TYPEID_COIN, endCoinDec.u32());
+        assertEquals(0, endCoinDec.u8());
+        assertEquals(1, endCoinDec.u8());
+        assertEquals(33, endCoinDec.i16());
+        assertEquals(GamePackets.DROP_TYPE_COIN_EDGE, endCoinDec.u64());
         PacketReader clientCutin = new PacketReader(GamePackets.clientCutin(10001, 1, 0, 0x04000000, 1));
         assertEquals(GamePackets.CLIENT_CUTIN, clientCutin.opcode());
         assertEquals(10001, clientCutin.u32());

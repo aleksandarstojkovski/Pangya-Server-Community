@@ -1,5 +1,6 @@
 package org.pangya.game;
 
+import org.pangya.game.catalog.CubeCoinResolver;
 import org.pangya.game.catalog.GlobalCatalogs;
 import org.pangya.db.InventoryRepository;
 import org.pangya.db.LoginRepository;
@@ -937,40 +938,28 @@ public final class GameHandler {
 
     /**
      * C# Versus/Tourney {@code requestFinishShot} {@code 0xCC}. Cube/coin
-     * {@code requestInitCubeCoin} is empty without IFF/SQL cube IDs; fail
-     * still sends oid + count 0. Versus {@code game_broadcast}; Tourney
-     * {@code session_send}. Versus duplicate {@code finish_shot2} is ignored.
+     * {@code requestInitCubeCoin} via {@link CubeCoinResolver} + SQL locations.
+     * Versus {@code game_broadcast}; Tourney {@code session_send}. Versus
+     * duplicate {@code finish_shot2} is ignored.
      */
     private void finishShot(Session session, PacketReader reader) {
         GameRoom room = inGameRoom(session);
         if (room == null) {
             return;
         }
+        GameRoom.PlayerShot shot = room.shots.computeIfAbsent(session.oid(), id -> new GameRoom.PlayerShot());
         if (GamePackets.usesVersusInitialData(room.tipo)) {
-            GameRoom.PlayerShot shot = room.shots.computeIfAbsent(session.oid(), id -> new GameRoom.PlayerShot());
             if (shot.finishShot2 == 1) {
                 return;
             }
             shot.finishShot2 = 1;
         }
-        skipCubeCoin(reader);
-        replyInGame(room, session, GamePackets.endShot(session.oid()));
-    }
-
-    /**
-     * C# {@code requestInitCubeCoin}: u8 opt + u8 count + count×(u8 tipo + u32 id).
-     * Unknown IDs throw inside C# and yield an empty drop list.
-     */
-    private static void skipCubeCoin(PacketReader reader) {
-        if (reader.remaining() < 2) {
-            return;
-        }
-        reader.u8();
-        int count = reader.u8();
-        int need = count * 5;
-        if (count > 0 && reader.remaining() >= need) {
-            reader.readBytes(need);
-        }
+        GamePackets.ShotAckCubeCoin cubeBody = GamePackets.readShotAckCubeCoin(reader);
+        int holeNum = shot.hole == 0 ? 1 : shot.hole;
+        int courseId = room.info.course & 0x7f;
+        List<GamePackets.DropItem> drops =
+                CubeCoinResolver.resolve(catalogs, courseId, holeNum, cubeBody);
+        replyInGame(room, session, GamePackets.endShot(session.oid(), drops));
     }
 
     /**

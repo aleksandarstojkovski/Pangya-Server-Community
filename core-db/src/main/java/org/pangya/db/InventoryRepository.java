@@ -606,6 +606,7 @@ public interface InventoryRepository {
 
     /** C# {@code pangya_coin_cube_location} row for {@code CubeCoinSystem}. */
     record CoinCubeLocation(
+            long index,
             short course,
             short hole,
             short tipo,

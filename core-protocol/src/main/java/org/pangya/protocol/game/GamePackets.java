@@ -555,8 +555,8 @@ public final class GamePackets {
     /**
      * C# {@code packet01C} {@code requestFinishShot}. Versus {@code game_broadcast}
      * {@link #SERVER_END_SHOT} {@code 0xCC}; Tourney {@code session_send}.
-     * Body is cube/coin opt+count; without IFF cube IDs the drop list is empty
-     * (oid + u8 0). Versus duplicate {@code finish_shot2} is silent.
+     * {@code requestInitCubeCoin} validates picks against SQL cube/coin ids;
+     * unknown ids yield oid + count 0. Versus duplicate {@code finish_shot2} is silent.
      */
     public static final int CLIENT_SHOT_ACK = 0x1C;
     public static final int CLIENT_TIMECHECK = 0x22;
@@ -6181,6 +6181,37 @@ public final class GamePackets {
             w.u8(0).u32(id);
         }
         return w.toBytes();
+    }
+
+    /** C# CLIENT {@code 0x1C} with explicit coin/cube tipo per pick. */
+    public static byte[] clientShotAckCubePick(int opt, int tipo, int id) {
+        return new PacketWriter()
+                .opcode(CLIENT_SHOT_ACK)
+                .u8(opt)
+                .u8(1)
+                .u8(tipo)
+                .u32(id)
+                .toBytes();
+    }
+
+    public record CubeCoinPick(int tipo, int id) {}
+
+    public record ShotAckCubeCoin(int opt, List<CubeCoinPick> picks) {}
+
+    public static ShotAckCubeCoin readShotAckCubeCoin(PacketReader reader) {
+        if (reader.remaining() < 2) {
+            return new ShotAckCubeCoin(0, List.of());
+        }
+        int opt = reader.u8();
+        int count = reader.u8() & 0xff;
+        List<CubeCoinPick> picks = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            if (reader.remaining() < 5) {
+                break;
+            }
+            picks.add(new CubeCoinPick(reader.u8(), reader.u32()));
+        }
+        return new ShotAckCubeCoin(opt, picks);
     }
 
     /**

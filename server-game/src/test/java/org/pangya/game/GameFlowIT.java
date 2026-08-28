@@ -1157,7 +1157,7 @@ class GameFlowIT {
             awaitOpcode(host, GamePackets.SERVER_WIND);
             awaitOpcode(host, GamePackets.SERVER_HOLE_TURN);
             int hostOid = oidOf(runtime, 10001);
-            host.sendPlain(GamePackets.clientShotAckCubes(1, 99));
+            host.sendPlain(GamePackets.clientShotAckCubes(1, 999999));
             PacketReader hostEnd = awaitOpcode(host, GamePackets.SERVER_END_SHOT);
             assertEquals(hostOid, hostEnd.i32());
             assertEquals(0, hostEnd.u8());
@@ -1170,6 +1170,59 @@ class GameFlowIT {
             assertEquals(GamePackets.SERVER_CAMERA, mira.opcode());
             assertEquals(hostOid, mira.i32());
             assertEquals(1.25f, mira.f32());
+        }
+    }
+
+    @Test
+    void versusFinishShotCoinDropFromSql() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config);
+             PangyaFakeClient host = new PangyaFakeClient();
+             PangyaFakeClient guest = new PangyaFakeClient()) {
+            loginTwoPlayers(ds, keys, host, guest, runtime.port());
+            host.sendPlain(GamePackets.clientCreateRoom(GamePackets.TIPO_STROKE, "Coin", ""));
+            PacketReader created = awaitOpcode(host, GamePackets.SERVER_ROOM_ENTER_RESULT);
+            assertEquals(0, created.i16());
+            int numero = roomNumberFromInfo(created.readBytes(GamePackets.ROOM_INFO_BYTES));
+            guest.sendPlain(GamePackets.clientJoinRoom(numero, ""));
+            assertEquals(0, awaitOpcode(guest, GamePackets.SERVER_ROOM_ENTER_RESULT).i16());
+            host.sendPlain(GamePackets.clientStartGame());
+            awaitOpcode(host, GamePackets.SERVER_START_GAME_FLAG);
+            awaitOpcode(host, GamePackets.SERVER_START_GAME_FLAG2);
+            awaitOpcode(host, GamePackets.SERVER_PANG_RATE);
+            awaitOpcode(host, GamePackets.SERVER_GAME_INIT);
+            awaitOpcode(host, GamePackets.SERVER_COURSE);
+            awaitOpcode(host, GamePackets.SERVER_MASCOT_SEED);
+            awaitOpcode(guest, GamePackets.SERVER_GAME_INIT);
+            host.sendPlain(GamePackets.clientInitHole(1, 0, 0, 4, 1.5f, 2.5f, 10f, 20f));
+            guest.sendPlain(GamePackets.clientInitHole(1, 0, 0, 4, 1.5f, 2.5f, 10f, 20f));
+            host.sendPlain(GamePackets.clientLoadOk());
+            guest.sendPlain(GamePackets.clientLoadOk());
+            awaitOpcode(host, GamePackets.SERVER_WEATHER);
+            awaitOpcode(host, GamePackets.SERVER_WIND);
+            awaitOpcode(host, GamePackets.SERVER_HOLE_TURN);
+            int hostOid = oidOf(runtime, 10001);
+            host.sendPlain(GamePackets.clientShotAckCubePick(1, 0, 99));
+            PacketReader hostEnd = awaitOpcode(host, GamePackets.SERVER_END_SHOT);
+            assertEquals(hostOid, hostEnd.i32());
+            assertEquals(1, hostEnd.u8());
+            assertEquals(GamePackets.TYPEID_COIN, hostEnd.u32());
+            assertEquals(0, hostEnd.u8());
+            assertEquals(1, hostEnd.u8());
+            int coinQntd = hostEnd.i16();
+            assertTrue(coinQntd >= 1 && coinQntd <= 50);
+            assertEquals(GamePackets.DROP_TYPE_COIN_EDGE, hostEnd.u64());
+            PacketReader guestEnd = awaitOpcode(guest, GamePackets.SERVER_END_SHOT);
+            assertEquals(hostOid, guestEnd.i32());
+            assertEquals(1, guestEnd.u8());
         }
     }
 
