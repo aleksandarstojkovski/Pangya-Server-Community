@@ -3158,9 +3158,19 @@ public final class GamePackets {
 
     /**
      * C# {@code GameBase.sendInitialData} {@code 0x52} + {@code CourseManager.makePacketHoleInfo}
-     * option 0. Cube count 0 is valid when IFF/cube files are absent.
+     * option 0. Empty cube lists send u8 0 per hole (valid when catalog inactive).
      */
     public static byte[] course(RoomInfo room, List<HoleInfo> holes, int seed) {
+        return course(room, holes, seed, null);
+    }
+
+    /**
+     * C# {@code makePacketHoleInfo} + {@code makePacketHoleSpinningCubeInfo}: per-hole u8
+     * count then count×(u32 tipo + u32 id + u32 unk + u32 course + u8 hole + u8 index +
+     * u16 flag + 3×f32 + u32 flag_location).
+     */
+    public static byte[] course(
+            RoomInfo room, List<HoleInfo> holes, int seed, List<List<CourseCubeEntry>> cubeByHole) {
         PacketWriter w = new PacketWriter().opcode(SERVER_COURSE);
         w.u8(room.course & 0x7f);
         w.u8(room.tipoShow);
@@ -3177,7 +3187,22 @@ public final class GamePackets {
         }
         w.u32(seed);
         for (int i = 0; i < holes.size(); i++) {
-            w.u8(0);
+            List<CourseCubeEntry> cubes =
+                    cubeByHole == null || i >= cubeByHole.size() ? List.of() : cubeByHole.get(i);
+            w.u8(cubes.size());
+            for (CourseCubeEntry cube : cubes) {
+                w.u32(cube.tipo())
+                        .u32(cube.id())
+                        .u32(cube.flagUnknown())
+                        .u32(cube.course())
+                        .u8(cube.hole())
+                        .u8(cube.seqIndex())
+                        .u16(cube.flagCubeCoin())
+                        .f32(cube.x())
+                        .f32(cube.y())
+                        .f32(cube.z())
+                        .u32(cube.flagLocation());
+            }
         }
         return w.toBytes();
     }
@@ -7449,6 +7474,20 @@ public final class GamePackets {
     public record LuckyPouchAward(int id, int typeid, int qntd, int qntdDep) {}
 
     public record HoleInfo(int id, int pin, int course, int numero, int weather, int wind, int degree) {}
+
+    /** C# {@code CubeEx} row in {@code makePacketHoleSpinningCubeInfo}. */
+    public record CourseCubeEntry(
+            int tipo,
+            int id,
+            int flagUnknown,
+            int course,
+            int hole,
+            int seqIndex,
+            int flagCubeCoin,
+            float x,
+            float y,
+            float z,
+            int flagLocation) {}
 
     /** C# {@code DropItem} 16-byte {@code ToArray} used in {@code 0xCC}. */
     public record DropItem(int typeid, int course, int hole, int qntd, long type) {}

@@ -164,9 +164,7 @@ class GameFlowIT {
                     assertEquals(n, course.u8());
                 }
                 assertEquals(GameCourse.SEED, course.u32());
-                for (int n = 0; n < GamePackets.COURSE_HOLE_COUNT; n++) {
-                    assertEquals(0, course.u8());
-                }
+                skipCourseCubeCounts(course);
                 assertEquals(0, course.remaining());
 
                 byte[] roomKey = new byte[16];
@@ -1199,7 +1197,9 @@ class GameFlowIT {
             awaitOpcode(host, GamePackets.SERVER_START_GAME_FLAG2);
             awaitOpcode(host, GamePackets.SERVER_PANG_RATE);
             awaitOpcode(host, GamePackets.SERVER_GAME_INIT);
-            awaitOpcode(host, GamePackets.SERVER_COURSE);
+            PacketReader coursePkt = awaitOpcode(host, GamePackets.SERVER_COURSE);
+            assertEquals(0, coursePkt.u8()); // Blue Lagoon
+            skipCoursePacketAfterCourseId(coursePkt);
             awaitOpcode(host, GamePackets.SERVER_MASCOT_SEED);
             awaitOpcode(guest, GamePackets.SERVER_GAME_INIT);
             host.sendPlain(GamePackets.clientInitHole(1, 0, 0, 4, 1.5f, 2.5f, 10f, 20f));
@@ -6520,6 +6520,43 @@ class GameFlowIT {
             Thread.sleep(50);
         }
         return runtime.sessions().size() == expected;
+    }
+
+    /** C# {@code makePacketHoleSpinningCubeInfo}: u8 count + entries for 18 holes. */
+    private static void skipCourseCubeCounts(PacketReader course) {
+        for (int n = 0; n < GamePackets.COURSE_HOLE_COUNT; n++) {
+            int count = course.u8();
+            for (int i = 0; i < count; i++) {
+                course.u32();
+                course.u32();
+                course.u32();
+                course.u32();
+                course.u8();
+                course.u8();
+                course.u16();
+                course.f32();
+                course.f32();
+                course.f32();
+                course.u32();
+            }
+        }
+    }
+
+    private static void skipCoursePacketAfterCourseId(PacketReader course) {
+        course.u8(); // tipoShow
+        course.u8(); // modo
+        course.u8(); // holes
+        course.u32();
+        course.u32();
+        course.u32();
+        for (int n = 0; n < GamePackets.COURSE_HOLE_COUNT; n++) {
+            course.u32();
+            course.u8();
+            course.u8();
+            course.u8();
+        }
+        course.u32(); // seed
+        skipCourseCubeCounts(course);
     }
 
     private static PacketReader awaitOpcode(PangyaFakeClient client, int opcode) throws InterruptedException {

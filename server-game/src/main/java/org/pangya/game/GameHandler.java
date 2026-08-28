@@ -638,7 +638,7 @@ public final class GameHandler {
         room.inGame = true;
         room.info.state = 0;
         room.startMillis = System.currentTimeMillis();
-        room.course = new GameCourse(room.info);
+        room.course = new GameCourse(room.info, catalogs);
         room.clearCharIntro();
         room.clearLoadHole();
         room.turnOid = 0;
@@ -660,7 +660,8 @@ public final class GameHandler {
             // C# TourneyBase.sendInitialData: 0x76 then per-player 0x52.
             room.broadcast(GamePackets.gameInitTourney(room.info.tipoShow));
             for (var member : room.snapshot()) {
-                member.send(GamePackets.course(room.info, room.course.holes, room.course.seed));
+                member.send(GamePackets.course(
+                        room.info, room.course.holes, room.course.seed, room.course.cubesByHole));
             }
         } else if (GamePackets.usesVersusInitialData(room.tipo)) {
             List<GamePackets.VersusPlayer> dump = new ArrayList<>();
@@ -669,7 +670,8 @@ public final class GameHandler {
             }
             room.broadcast(GamePackets.gameInitVersus(room.info.tipoShow, dump));
             for (var member : room.snapshot()) {
-                member.send(GamePackets.course(room.info, room.course.holes, room.course.seed));
+                member.send(GamePackets.course(
+                        room.info, room.course.holes, room.course.seed, room.course.cubesByHole));
                 member.send(GamePackets.mascotSeed(room.course.seed));
             }
         }

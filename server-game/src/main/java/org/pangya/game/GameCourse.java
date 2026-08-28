@@ -1,5 +1,7 @@
 package org.pangya.game;
 
+import org.pangya.game.catalog.CoinCubeGenerator;
+import org.pangya.game.catalog.GlobalCatalogs;
 import org.pangya.protocol.game.GamePackets;
 
 import java.util.ArrayList;
@@ -7,7 +9,7 @@ import java.util.List;
 
 /**
  * Synthetic C# {@code CourseManager} without IFF files: 18 holes, FRONT sequence 1..18,
- * pin {@code (n-1)%3}, cube count 0. Real pin/tee coords arrive later in CLIENT {@code 0x1A}.
+ * pin {@code (n-1)%3}. Cube/coin rows come from SQL via {@link CoinCubeGenerator}.
  */
 final class GameCourse {
 
@@ -16,12 +18,19 @@ final class GameCourse {
 
     final int seed;
     final List<GamePackets.HoleInfo> holes = new ArrayList<>(GamePackets.COURSE_HOLE_COUNT);
+    final List<List<GamePackets.CourseCubeEntry>> cubesByHole = new ArrayList<>(GamePackets.COURSE_HOLE_COUNT);
 
-    GameCourse(GamePackets.RoomInfo info) {
+    GameCourse(GamePackets.RoomInfo info, GlobalCatalogs catalogs) {
         this.seed = SEED;
         int course = info.course & 0x7f;
+        boolean coinCubeActive =
+                catalogs.coinCubeCourseActive().getOrDefault((short) course, false);
         for (int n = 1; n <= GamePackets.COURSE_HOLE_COUNT; n++) {
             holes.add(new GamePackets.HoleInfo(n, (n - 1) % 3, course, n, 0, 0, 0));
+            boolean enableCube = coinCubeActive && n % 3 == 0;
+            boolean enableCoin = coinCubeActive;
+            cubesByHole.add(CoinCubeGenerator.generate(
+                    catalogs, course, n, n - 1, enableCube, enableCoin));
         }
     }
 
