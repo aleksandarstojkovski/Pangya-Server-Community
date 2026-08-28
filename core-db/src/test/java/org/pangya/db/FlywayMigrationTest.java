@@ -228,6 +228,18 @@ class FlywayMigrationTest {
                             .mapTo(Integer.class)
                             .one());
             assertEquals(2, dailyIff);
+            int uccCols = jdbi.withHandle(h ->
+                    h.createQuery("""
+                            select count(*) from information_schema.columns
+                             where table_schema = 'pangya'
+                               and table_name = 'pangya_item_warehouse'
+                               and column_name in (
+                                   'ucc_name','ucc_trade','ucc_idx','ucc_status',
+                                   'ucc_seq','ucc_copier_nick','ucc_copier')
+                            """)
+                            .mapTo(Integer.class)
+                            .one());
+            assertEquals(7, uccCols);
             assertTrue(accounts >= 1);
         }
     }

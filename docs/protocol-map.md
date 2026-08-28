@@ -191,7 +191,7 @@ C#: `GameServer/PangyaEnums/PacketGame.cs` → Java `org.pangya.protocol.game.Ga
 | C | `CLIENT_EXTEND_RENTAL` | `0xE6` | item_id≤0 / missing / non-PART / no `iff_part` / valor≤0 / pang short → `0x18F` u8 1; success `0xC8` remaining+spent then `0x18F` u8 0 + typeid + id. SQL `iff_part.valor_rental` stand-in; +7 days `EndDate` |
 | C | `CLIENT_DELETE_RENTAL` | `0xE7` | item_id≤0 / missing / non-PART / no `iff_part` / valor≤0 → `0x190` u8 1; success u8 0 + typeid + id; SQL `valid=0` stand-in `CmdDeleteRental` |
 | C | `CLIENT_UCC_LOAD` | `0xFE` | no reply |
-| C | `CLIENT_UCC` | `0xB9` | unknown opt → `0x12E` sbyte -1; no channel; opposite CLIENT marker `0x12E` |
+| C | `CLIENT_UCC` | `0xB9` | option 1 i32 item id + owner: owned warehouse item → `0x12E` opt 1 + typeid + PStr idx + owner + WarehouseItem 196 with UCC fields. Unknown/missing → sbyte -1; no channel; opposite CLIENT marker `0x12E` |
 | C | `CLIENT_UCC_WEB_KEY` | `0xC9` | opt+uid+seq+item id; valida uid/item, owner online e warehouse item (`0x5100101`–`104`). Success genera web key e manda `0x153` u8 0 + 1 + i32 item + PStr key + seq; opposite `SERVER_ONELINE_MSG` |
 | C | `CLIENT_CHECK_ATTENDANCE` | `0x16E` | empty catalog → `0x248` u32 `~0`; success i32 0 + u8 login + now + after + counter (SQL catalog stand-in, no IFF/`addItem`); opposite `SERVER_LOCKER_ADD` |
 | C | `CLIENT_ATTENDANCE_LOGIN` | `0x16F` | empty catalog → `0x249` u32 `~0`; success i32 0 + ari (`after` draw); no mailbox GP/bot/fortune; opposite `SERVER_LOCKER_REMOVE` |
@@ -269,7 +269,7 @@ C#: `GameServer/PangyaEnums/PacketGame.cs` → Java `org.pangya.protocol.game.Ga
 | S | `SERVER_WORKSHOP_RECOVERY` | `0x246` | fail u32 sys; success u32 0 after `0x216` |
 | S | `SERVER_CLUBSET_RESET` | `0x247` | u32 sys |
 | S | `SERVER_MEMORIAL` | `0x264` | fail u32 sys; success u32 0 + count + i32 rarity/u32 typeid/u32 qntd rows |
-| S | `SERVER_UCC` | `0x12E` | fail sbyte -1; opposite CLIENT marker |
+| S | `SERVER_UCC` | `0x12E` | fail sbyte -1; info success opt/typeid/PStr idx/owner/WarehouseItem; opposite CLIENT marker |
 | S | `SERVER_UCC_WEB_KEY` | `0x153` | fail u8 1 + u8 1 + u32; success u8 0 + 1 + item id + PStr key + seq; opposite CLIENT daily-quest reward |
 | S | `SERVER_WORKSHOP_EVENT` | `0x24E` | i32 0 + i32 3000 + i32 0 + 4×u8 |
 | S | `SERVER_ATTENDANCE` | `0x248` | fail u32 `~0`; success i32 0 + `AttendanceRewardInfo` (no SYSTEMTIME) |

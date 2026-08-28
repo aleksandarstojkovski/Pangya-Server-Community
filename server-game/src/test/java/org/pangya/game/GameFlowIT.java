@@ -5196,6 +5196,70 @@ class GameFlowIT {
     }
 
     @Test
+    void uccInfoReturnsWarehouseMetadata() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config);
+             PangyaFakeClient client = new PangyaFakeClient()) {
+            InventoryRepository inv = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
+            inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_UCC_PART_TEST);
+            int itemId = inv.addWarehouseItem(10001, GamePackets.TYPEID_UCC_PART_TEST, 1);
+            DatabaseSupport.jdbi(ds).useHandle(h -> h.createUpdate("""
+                            UPDATE pangya.pangya_item_warehouse
+                               SET ucc_name = 'Design', ucc_idx = 'IDX123',
+                                   ucc_status = 1, ucc_seq = 7,
+                                   ucc_copier_nick = 'TestNick', ucc_copier = 10001
+                             WHERE "UID" = 10001 AND item_id = :id
+                            """)
+                    .bind("id", itemId)
+                    .execute());
+            try {
+                LoginRepository repo = new JdbiLoginRepository(DatabaseSupport.jdbi(ds));
+                String loginKey = repo.generateAuthKeyLogin(10001);
+                String gameKey = repo.generateAuthKeyGame(10001, 20202);
+                keys.putLoginKey(10001, loginKey);
+                keys.putGameKey(10001, 20202, gameKey);
+                loginToChannel(client, runtime.port(), "testuser", 10001, loginKey, gameKey);
+
+                client.sendPlain(GamePackets.clientUccInfo(itemId, 1));
+                PacketReader info = awaitOpcode(client, GamePackets.SERVER_UCC);
+                assertEquals(1, info.u8());
+                assertEquals(GamePackets.TYPEID_UCC_PART_TEST, info.u32());
+                assertEquals("IDX123", info.pstr());
+                assertEquals(1, info.u8());
+                assertEquals(itemId, info.i32());
+                assertEquals(GamePackets.TYPEID_UCC_PART_TEST, info.u32());
+                info.i32();
+                for (int i = 0; i < 5; i++) {
+                    info.i16();
+                }
+                info.u8();
+                info.u8();
+                info.u64();
+                info.u64();
+                info.u8();
+                assertEquals("Design", info.fixedStr(40));
+                assertEquals(0, info.u8());
+                assertEquals("IDX123", info.fixedStr(9));
+                assertEquals(1, info.u8());
+                assertEquals(7, info.i16());
+                assertEquals("TestNick", info.fixedStr(22));
+                assertEquals(10001, info.u32());
+                assertEquals(76, info.remaining());
+            } finally {
+                inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_UCC_PART_TEST);
+            }
+        }
+    }
+
+    @Test
     void dailyQuestDeleteItemOtherChannelMatchCsharp() throws Exception {
         String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
         String user = env("PANGYA_TEST_JDBC_USER", "pangya");

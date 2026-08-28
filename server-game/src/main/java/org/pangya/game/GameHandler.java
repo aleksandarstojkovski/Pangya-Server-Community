@@ -6283,15 +6283,26 @@ public final class GameHandler {
     }
 
     /**
-     * C# {@code HandleUCC}: unknown opt / IFF miss always catch
-     * {@code 0x12E} sbyte -1. No channel.
+     * C# {@code HandleUCC} option 1: i32 item id + owner byte, then {@code 0x12E}
+     * opt/typeid/PStr idx/owner/full WarehouseItem. Other options retain -1.
      */
     private void handleUcc(Session session, PacketReader reader) {
         if (!session.authorized()) {
             return;
         }
-        if (reader.remaining() >= 1) {
-            reader.u8();
+        if (reader.remaining() < 1) {
+            session.send(GamePackets.uccFail());
+            return;
+        }
+        int opt = reader.u8();
+        if (opt == 1 && reader.remaining() >= 5) {
+            int itemId = reader.i32();
+            int owner = reader.u8();
+            GamePackets.WarehouseItem item = warehouseById(session.player().uid, itemId);
+            if (item != null) {
+                session.send(GamePackets.uccInfo(item, owner));
+                return;
+            }
         }
         session.send(GamePackets.uccFail());
     }

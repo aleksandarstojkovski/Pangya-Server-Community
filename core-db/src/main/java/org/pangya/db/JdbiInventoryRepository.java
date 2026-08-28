@@ -29,7 +29,9 @@ public final class JdbiInventoryRepository implements InventoryRepository {
                         SELECT item_id, typeid, "C0", "C1", "C2", "C3", "C4", "Purchase", flag, "ItemType",
                                "ClubSet_WorkShop_C0", "ClubSet_WorkShop_C1", "ClubSet_WorkShop_C2",
                                "ClubSet_WorkShop_C3", "ClubSet_WorkShop_C4",
-                               "Mastery_Pts", "Recovery_Pts", "Level", "Up"
+                               "Mastery_Pts", "Recovery_Pts", "Level", "Up",
+                               ucc_name, ucc_trade, ucc_idx, ucc_status, ucc_seq,
+                               ucc_copier_nick, ucc_copier
                           FROM pangya.pangya_item_warehouse
                          WHERE "UID" = :uid AND valid = 1
                          ORDER BY item_id
@@ -47,6 +49,13 @@ public final class JdbiInventoryRepository implements InventoryRepository {
                     w.purchase = rs.getInt("Purchase");
                     w.flag = rs.getInt("flag");
                     w.type = rs.getInt("ItemType");
+                    w.uccName = rs.getString("ucc_name");
+                    w.uccTrade = rs.getInt("ucc_trade");
+                    w.uccIdx = rs.getString("ucc_idx");
+                    w.uccStatus = rs.getInt("ucc_status");
+                    w.uccSeq = rs.getInt("ucc_seq");
+                    w.uccCopierNick = rs.getString("ucc_copier_nick");
+                    w.uccCopier = rs.getInt("ucc_copier");
                     w.workshopC[0] = rs.getShort("ClubSet_WorkShop_C0");
                     w.workshopC[1] = rs.getShort("ClubSet_WorkShop_C1");
                     w.workshopC[2] = rs.getShort("ClubSet_WorkShop_C2");

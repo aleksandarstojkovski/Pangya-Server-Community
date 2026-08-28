@@ -1617,6 +1617,7 @@ public final class GamePackets {
     public static final int TYPEID_DAILY_QUEST_STUFF_TEST = 0x6B000201;
     public static final int TYPEID_DAILY_COUNTER_TEST = 0x6A000201;
     public static final int TYPEID_DAILY_REWARD_TEST = 0x1A000330;
+    public static final int TYPEID_UCC_PART_TEST = 0x08000340;
     /** C# transform lottery special typeids. */
     public static final int[] WORKSHOP_TRANSFORM_SPECIALS = {
         TYPEID_WINGTROSS_EVO, TYPEID_GIGA_YARD_TOTEM, TYPEID_DUOSTAR_MANAPIKAL
@@ -2585,6 +2586,13 @@ public final class GamePackets {
         public long applyDate;
         public long endDate;
         public int type;
+        public String uccName = "";
+        public int uccTrade;
+        public String uccIdx = "";
+        public int uccStatus;
+        public int uccSeq;
+        public String uccCopierNick = "";
+        public int uccCopier;
         public short[] workshopC = new short[5];
         /** C# {@code clubset_workshop.level}. Locker-remove constructs {@code -1}. */
         public int workshopLevel;
@@ -2608,13 +2616,13 @@ public final class GamePackets {
             w.i64(applyDate);
             w.i64(endDate);
             w.u8(type);
-            w.zero(40);
-            w.u8(0);
-            w.zero(9);
-            w.u8(0);
-            w.i16(0);
-            w.zero(22);
-            w.u32(0);
+            w.fixedStr(uccName, 40);
+            w.u8(uccTrade);
+            w.fixedStr(uccIdx, 9);
+            w.u8(uccStatus);
+            w.i16(uccSeq);
+            w.fixedStr(uccCopierNick, 22);
+            w.u32(uccCopier);
             w.zero(16 + 16 + 16);
             w.i16(0);
             for (short v : workshopC) {
@@ -4610,6 +4618,18 @@ public final class GamePackets {
     /** C# UCC catch {@code 0x12E} sbyte -1. */
     public static byte[] uccFail() {
         return new PacketWriter().opcode(SERVER_UCC).u8(UCC_FAIL).toBytes();
+    }
+
+    /** C# UCC option 1: opt + typeid + PStr idx + owner + WarehouseItem. */
+    public static byte[] uccInfo(WarehouseItem item, int owner) {
+        return new PacketWriter()
+                .opcode(SERVER_UCC)
+                .u8(1)
+                .u32(item.typeid)
+                .pstr(item.uccIdx)
+                .u8(owner)
+                .bytes(item.toArray())
+                .toBytes();
     }
 
     /**
@@ -6945,6 +6965,10 @@ public final class GamePackets {
     /** C# CLIENT {@code 0xB9}: u8 opt. */
     public static byte[] clientUccOpt(int opt) {
         return new PacketWriter().opcode(CLIENT_UCC).u8(opt).toBytes();
+    }
+
+    public static byte[] clientUccInfo(int itemId, int owner) {
+        return new PacketWriter().opcode(CLIENT_UCC).u8(1).i32(itemId).u8(owner).toBytes();
     }
 
     /**
