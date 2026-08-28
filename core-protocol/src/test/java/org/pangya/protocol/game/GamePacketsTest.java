@@ -1217,7 +1217,110 @@ class GamePacketsTest {
         assertEquals(GamePackets.SERVER_LAST5, 0x10E);
         assertEquals(GamePackets.TYPEID_GACHA_TICKET, 436207744);
         assertEquals(GamePackets.TYPEID_GACHA_SUB, 436207747);
+        assertEquals(GamePackets.SERVER_MY_ROOM_CHAR, GamePackets.CLIENT_WORKSHOP_TRANSFORM_CONFIRM);
+        assertEquals(GamePackets.SERVER_MY_ROOM_POSTERS, GamePackets.CLIENT_GZ_INITIAL);
+        assertEquals(GamePackets.SERVER_LOUNGE_STATE, GamePackets.CLIENT_RING_PAWS_RAINBOW);
+        assertEquals(GamePackets.SERVER_COMET_REFILL, GamePackets.CLIENT_RING_POWER);
+        assertEquals(GamePackets.SERVER_MY_ROOM_CHAR, 0x168);
+        assertEquals(GamePackets.SERVER_MY_ROOM_POSTERS, 0x12D);
+        assertEquals(GamePackets.SERVER_BIG_PAPEL, 0x26C);
+        assertEquals(GamePackets.SERVER_CHAR_MASTERY, 0x26E);
+        assertEquals(GamePackets.SERVER_CHAR_STATS_UP, 0x26F);
+        assertEquals(GamePackets.SERVER_CHAR_STATS_DOWN, 0x270);
+        assertEquals(GamePackets.SERVER_CHAR_CARD_EQUIP, 0x271);
+        assertEquals(GamePackets.SERVER_CHAR_CARD_PATCHER, 0x272);
+        assertEquals(GamePackets.SERVER_CHAR_CARD_REMOVE, 0x273);
+        assertEquals(GamePackets.SERVER_TIKI_SHOP_EXCHANGE, 0x274);
+        assertEquals(GamePackets.CLIENT_ENTER_MY_ROOM, 0xB7);
+        assertEquals(GamePackets.CLIENT_FINISH_GAME_CB, 0xCB);
+        assertEquals(GamePackets.CLIENT_FINISH_GAME_12C, 0x12C);
+        assertEquals(GamePackets.CLIENT_BIG_PAPEL, 0x186);
+        assertEquals(GamePackets.CLIENT_CHAR_MASTERY, 0x187);
+        assertEquals(GamePackets.CLIENT_CHAR_STATS_UP, 0x188);
+        assertEquals(GamePackets.CLIENT_CHAR_STATS_DOWN, 0x189);
+        assertEquals(GamePackets.CLIENT_CHAR_CARD_EQUIP, 0x18A);
+        assertEquals(GamePackets.CLIENT_CHAR_CARD_PATCHER, 0x18B);
+        assertEquals(GamePackets.CLIENT_CHAR_CARD_REMOVE, 0x18C);
+        assertEquals(GamePackets.CLIENT_TIKI_SHOP_EXCHANGE, 0x18D);
+        assertEquals(GamePackets.CLIENT_RING_PAWS_RAINBOW, 0x196);
+        assertEquals(GamePackets.CLIENT_RING_POWER, 0x197);
+        assertEquals(GamePackets.CLIENT_RING_MIRACLE, 0x198);
+        assertEquals(GamePackets.CLIENT_RING_PAWS_SET, 0x199);
+        assertEquals(GamePackets.MY_ROOM_POSTERS_OPTION, 1);
+        assertEquals(GamePackets.CHAR_MASTERY_ERR_CHAR, 0x5200651);
+        assertEquals(GamePackets.CHAR_MASTERY_ERR_DEFAULT, 0x5200650);
+        assertEquals(GamePackets.CHAR_STATS_UP_ERR_CHAR, 0x5200501);
+        assertEquals(GamePackets.CHAR_STATS_UP_ERR_DEFAULT, 0x5200500);
+        assertEquals(GamePackets.CHAR_STATS_DOWN_ERR_CHAR, 0x5200551);
+        assertEquals(GamePackets.CHAR_STATS_DOWN_ERR_DEFAULT, 0x5200550);
+        assertEquals(GamePackets.CHAR_CARD_ERR_IFF, 0x5200757);
+        assertEquals(GamePackets.CHAR_CARD_ERR_DEFAULT, 0x5200750);
+        assertEquals(GamePackets.CHAR_CARD_PATCHER_ERR, 0x5200810);
+        assertEquals(GamePackets.CHAR_CARD_PATCHER_DEFAULT, 0x5200800);
+        assertEquals(GamePackets.CHAR_CARD_REMOVE_ERR_CHAR, 0x5200851);
+        assertEquals(GamePackets.CHAR_CARD_REMOVE_DEFAULT, 0x5200850);
+        assertEquals(GamePackets.TIKI_SHOP_EXCHANGE_ERR_COUNT, 5200451);
+        assertEquals(GamePackets.TIKI_SHOP_EXCHANGE_ERR_TRUNCATED, 5200452);
+        assertEquals(GamePackets.TIKI_SHOP_EXCHANGE_ERR_ITEM, 0x52000901);
+        assertEquals(GamePackets.TIKI_SHOP_EXCHANGE_ERR_DEFAULT, 0x5200900);
+        assertEquals(GamePackets.TIKI_SHOP_EXCHANGE_ITEM_CHECK_BYTES, 8);
+        assertEquals(GamePackets.CARD_EQUIP_BYTES, 20);
+        PacketReader myRoomChar = new PacketReader(GamePackets.myRoomCharacter(new GamePackets.PlayerRoomInfo()));
+        assertEquals(GamePackets.SERVER_MY_ROOM_CHAR, myRoomChar.opcode());
+        assertEquals(GamePackets.PLAYER_ROOM_INFO_EX_BYTES, myRoomChar.remaining());
+        PacketReader myRoomPosters = new PacketReader(GamePackets.myRoomPosters(1, 0));
+        assertEquals(GamePackets.SERVER_MY_ROOM_POSTERS, myRoomPosters.opcode());
+        assertEquals(1, myRoomPosters.u32());
+        assertEquals(0, myRoomPosters.u16());
+        PacketReader bigPapel = new PacketReader(GamePackets.sysAck(
+                GamePackets.SERVER_BIG_PAPEL, GamePackets.shopSys(GamePackets.PAPEL_PLAY_ERR_BALLS)));
+        assertEquals(GamePackets.SERVER_BIG_PAPEL, bigPapel.opcode());
+        assertEquals(GamePackets.PAPEL_PLAY_ERR_BALLS & 0xFFFF, bigPapel.u32());
+        PacketReader mastery = new PacketReader(GamePackets.sysAck(
+                GamePackets.SERVER_CHAR_MASTERY, GamePackets.shopSys(GamePackets.CHAR_MASTERY_ERR_CHAR)));
+        assertEquals(GamePackets.SERVER_CHAR_MASTERY, mastery.opcode());
+        assertEquals(GamePackets.CHAR_MASTERY_ERR_CHAR & 0xFFFF, mastery.u32());
+        PacketReader statsUp = new PacketReader(GamePackets.sysAck(
+                GamePackets.SERVER_CHAR_STATS_UP, GamePackets.shopSys(GamePackets.CHAR_STATS_UP_ERR_CHAR)));
+        assertEquals(GamePackets.SERVER_CHAR_STATS_UP, statsUp.opcode());
+        assertEquals(GamePackets.CHAR_STATS_UP_ERR_CHAR & 0xFFFF, statsUp.u32());
+        PacketReader statsDown = new PacketReader(GamePackets.sysAck(
+                GamePackets.SERVER_CHAR_STATS_DOWN, GamePackets.shopSys(GamePackets.CHAR_STATS_DOWN_ERR_CHAR)));
+        assertEquals(GamePackets.SERVER_CHAR_STATS_DOWN, statsDown.opcode());
+        assertEquals(GamePackets.CHAR_STATS_DOWN_ERR_CHAR & 0xFFFF, statsDown.u32());
+        PacketReader cardEquip = new PacketReader(GamePackets.sysAck(
+                GamePackets.SERVER_CHAR_CARD_EQUIP, GamePackets.shopSys(GamePackets.CHAR_CARD_ERR_IFF)));
+        assertEquals(GamePackets.SERVER_CHAR_CARD_EQUIP, cardEquip.opcode());
+        assertEquals(GamePackets.CHAR_CARD_ERR_IFF & 0xFFFF, cardEquip.u32());
+        PacketReader patcher = new PacketReader(GamePackets.sysAck(
+                GamePackets.SERVER_CHAR_CARD_PATCHER, GamePackets.shopSys(GamePackets.CHAR_CARD_PATCHER_ERR)));
+        assertEquals(GamePackets.SERVER_CHAR_CARD_PATCHER, patcher.opcode());
+        assertEquals(GamePackets.CHAR_CARD_PATCHER_ERR & 0xFFFF, patcher.u32());
+        PacketReader cardRemove = new PacketReader(GamePackets.sysAck(
+                GamePackets.SERVER_CHAR_CARD_REMOVE, GamePackets.shopSys(GamePackets.CHAR_CARD_REMOVE_ERR_CHAR)));
+        assertEquals(GamePackets.SERVER_CHAR_CARD_REMOVE, cardRemove.opcode());
+        assertEquals(GamePackets.CHAR_CARD_REMOVE_ERR_CHAR & 0xFFFF, cardRemove.u32());
+        PacketReader tikiShop = new PacketReader(GamePackets.sysAck(
+                GamePackets.SERVER_TIKI_SHOP_EXCHANGE,
+                GamePackets.shopSys(GamePackets.TIKI_SHOP_EXCHANGE_ERR_COUNT)));
+        assertEquals(GamePackets.SERVER_TIKI_SHOP_EXCHANGE, tikiShop.opcode());
+        assertEquals(GamePackets.TIKI_SHOP_EXCHANGE_ERR_COUNT & 0xFFFF, tikiShop.u32());
+        PacketReader clientMastery = new PacketReader(GamePackets.clientCharMastery(0, 0));
+        assertEquals(GamePackets.CLIENT_CHAR_MASTERY, clientMastery.opcode());
+        assertEquals(0, clientMastery.u32());
+        assertEquals(0, clientMastery.u32());
+        PacketReader clientStats = new PacketReader(GamePackets.clientCharStats(GamePackets.CLIENT_CHAR_STATS_UP, 0));
+        assertEquals(GamePackets.CLIENT_CHAR_STATS_UP, clientStats.opcode());
+        assertEquals(0, clientStats.u32());
+        assertEquals(GamePackets.CHARACTER_INFO_BYTES, clientStats.remaining());
+        PacketReader clientCard = new PacketReader(GamePackets.clientCardEquip(GamePackets.CLIENT_CHAR_CARD_EQUIP));
+        assertEquals(GamePackets.CLIENT_CHAR_CARD_EQUIP, clientCard.opcode());
+        assertEquals(GamePackets.CARD_EQUIP_BYTES, clientCard.remaining());
+        PacketReader clientTiki = new PacketReader(GamePackets.clientTikiShopCount(0));
+        assertEquals(GamePackets.CLIENT_TIKI_SHOP_EXCHANGE, clientTiki.opcode());
+        assertEquals(0, clientTiki.u32());
         assertEquals(GamePackets.SERVER_BUY_ACK, 0x68);
         assertEquals(GamePackets.CREATE_ROOM_FAILED, 0x07);
+        assertEquals(GamePackets.SERVER_LAST5, 0x10E);
     }
 }

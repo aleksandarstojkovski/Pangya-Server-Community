@@ -201,6 +201,33 @@ public final class GamePackets {
     public static final int SERVER_GP_LOBBY = 0x250;
     /** C# Grand Prix leave lobby {@code 0x251} u32 0. */
     public static final int SERVER_GP_LEAVE = 0x251;
+    /**
+     * C# My Room enter character {@code 0x168} {@code PlayerRoomInfoEx}.
+     * Same numeric as {@link #CLIENT_WORKSHOP_TRANSFORM_CONFIRM}, opposite
+     * direction.
+     */
+    public static final int SERVER_MY_ROOM_CHAR = 0x168;
+    /**
+     * C# My Room posters {@code 0x12D}. Same numeric as
+     * {@link #CLIENT_GZ_INITIAL}, opposite direction.
+     */
+    public static final int SERVER_MY_ROOM_POSTERS = 0x12D;
+    /** C# big Papel catch {@code 0x26C}. */
+    public static final int SERVER_BIG_PAPEL = 0x26C;
+    /** C# character mastery expand catch {@code 0x26E}. */
+    public static final int SERVER_CHAR_MASTERY = 0x26E;
+    /** C# character stats-up catch {@code 0x26F}. */
+    public static final int SERVER_CHAR_STATS_UP = 0x26F;
+    /** C# character stats-down catch {@code 0x270}. */
+    public static final int SERVER_CHAR_STATS_DOWN = 0x270;
+    /** C# character card-equip catch {@code 0x271}. */
+    public static final int SERVER_CHAR_CARD_EQUIP = 0x271;
+    /** C# character card-equip patcher catch {@code 0x272}. */
+    public static final int SERVER_CHAR_CARD_PATCHER = 0x272;
+    /** C# character remove-card catch {@code 0x273}. */
+    public static final int SERVER_CHAR_CARD_REMOVE = 0x273;
+    /** C# Tiki shop exchange catch {@code 0x274}. */
+    public static final int SERVER_TIKI_SHOP_EXCHANGE = 0x274;
     /** C# {@code pacote0AA} / {@code SERVER_NEW_ITEM}. */
     public static final int SERVER_NEW_ITEM = 0xAA;
     /** C# pang spent after shop buy ({@code 0xC8} + remaining + spent). */
@@ -642,6 +669,55 @@ public final class GamePackets {
     public static final int CLIENT_ASSIST_GREEN = 0x185;
     /** C# {@code packet192} Event Arin 2014 log only. */
     public static final int CLIENT_EVENT_ARIN = 0x192;
+    /**
+     * C# {@code packet0B7} {@code requestEnterMyRoom}. Channel required.
+     * {@code 0x168} {@code PlayerRoomInfoEx} then {@code 0x12D} option 1 +
+     * poster count.
+     */
+    public static final int CLIENT_ENTER_MY_ROOM = 0xB7;
+    /**
+     * C# {@code packet0CB} {@code requestFinishGame}. Same as
+     * {@link #CLIENT_MY_STATISTICS}; not-in-game silent.
+     */
+    public static final int CLIENT_FINISH_GAME_CB = 0xCB;
+    /**
+     * C# {@code packet12C} {@code requestFinishGame}. Same as
+     * {@link #CLIENT_MY_STATISTICS}; not-in-game silent.
+     */
+    public static final int CLIENT_FINISH_GAME_12C = 0x12C;
+    /** C# {@code packet186} big Papel. Empty balls → {@code 0x26C}. */
+    public static final int CLIENT_BIG_PAPEL = 0x186;
+    /** C# {@code packet187} character mastery expand. Missing char → {@code 0x26E}. */
+    public static final int CLIENT_CHAR_MASTERY = 0x187;
+    /** C# {@code packet188} character stats up. Missing char → {@code 0x26F}. */
+    public static final int CLIENT_CHAR_STATS_UP = 0x188;
+    /** C# {@code packet189} character stats down. Missing char → {@code 0x270}. */
+    public static final int CLIENT_CHAR_STATS_DOWN = 0x189;
+    /** C# {@code packet18A} character card equip. IFF miss → {@code 0x271}. */
+    public static final int CLIENT_CHAR_CARD_EQUIP = 0x18A;
+    /** C# {@code packet18B} card equip with patcher. Missing patcher → {@code 0x272}. */
+    public static final int CLIENT_CHAR_CARD_PATCHER = 0x18B;
+    /** C# {@code packet18C} character remove card. Missing char → {@code 0x273}. */
+    public static final int CLIENT_CHAR_CARD_REMOVE = 0x18C;
+    /**
+     * C# {@code packet18D} Tiki shop exchange. Count 0 → {@code 0x274}.
+     * Distinct from {@link #CLIENT_TIKI_EXCHANGE_ITEM} {@code 0x129}.
+     */
+    public static final int CLIENT_TIKI_SHOP_EXCHANGE = 0x18D;
+    /**
+     * C# {@code packet196} ring paws rainbow. Same numeric as
+     * {@link #SERVER_LOUNGE_STATE}, opposite direction. Not-in-room silent.
+     */
+    public static final int CLIENT_RING_PAWS_RAINBOW = 0x196;
+    /**
+     * C# {@code packet197} ring power gauge. Same numeric as
+     * {@link #SERVER_COMET_REFILL}, opposite direction. Not-in-room silent.
+     */
+    public static final int CLIENT_RING_POWER = 0x197;
+    /** C# {@code packet198} ring miracle sign. Not-in-room silent. */
+    public static final int CLIENT_RING_MIRACLE = 0x198;
+    /** C# {@code packet199} ring paws set. Not-in-room silent. */
+    public static final int CLIENT_RING_PAWS_SET = 0x199;
     /** C# {@code packet041} GM identity. Non-GM CHANNEL catch is silent. */
     public static final int CLIENT_IDENTITY = 0x41;
     /** C# {@code packet0CD} Dolfini locker item page. */
@@ -1155,6 +1231,50 @@ public final class GamePackets {
     public static final int WORKSHOP_EVENT_BARRA_MAX = 100;
     /** C# {@code barraMax} / last-byte literals. */
     public static final int WORKSHOP_EVENT_BARRA = 10;
+    /** C# My Room posters option 1. */
+    public static final int MY_ROOM_POSTERS_OPTION = 1;
+    /** C# character mastery missing character CHANNEL sys. */
+    public static final int CHAR_MASTERY_ERR_CHAR = 0x5200651;
+    /** C# character mastery catch else. */
+    public static final int CHAR_MASTERY_ERR_DEFAULT = 0x5200650;
+    /** C# character stats-up missing character CHANNEL sys. */
+    public static final int CHAR_STATS_UP_ERR_CHAR = 0x5200501;
+    /** C# character stats-up catch else. */
+    public static final int CHAR_STATS_UP_ERR_DEFAULT = 0x5200500;
+    /** C# character stats-down missing character CHANNEL sys. */
+    public static final int CHAR_STATS_DOWN_ERR_CHAR = 0x5200551;
+    /** C# character stats-down catch else. */
+    public static final int CHAR_STATS_DOWN_ERR_DEFAULT = 0x5200550;
+    /** C# card-equip IFF miss CHANNEL sys. */
+    public static final int CHAR_CARD_ERR_IFF = 0x5200757;
+    /** C# card-equip catch else. */
+    public static final int CHAR_CARD_ERR_DEFAULT = 0x5200750;
+    /** C# card-equip patcher missing item CHANNEL sys. */
+    public static final int CHAR_CARD_PATCHER_ERR = 0x5200810;
+    /** C# card-equip patcher catch else. */
+    public static final int CHAR_CARD_PATCHER_DEFAULT = 0x5200800;
+    /** C# remove-card missing character CHANNEL sys. */
+    public static final int CHAR_CARD_REMOVE_ERR_CHAR = 0x5200851;
+    /** C# remove-card catch else. */
+    public static final int CHAR_CARD_REMOVE_DEFAULT = 0x5200850;
+    /**
+     * C# Tiki shop exchange count 0/{@code >5} CHANNEL sys {@code 5200451}
+     * (same numeric as {@link #CADIE_ERR_COUNT}).
+     */
+    public static final int TIKI_SHOP_EXCHANGE_ERR_COUNT = 5200451;
+    /**
+     * C# Tiki shop exchange truncated body CHANNEL sys {@code 5200452}
+     * ({@code BytesRemaining < count * 8}).
+     */
+    public static final int TIKI_SHOP_EXCHANGE_ERR_TRUNCATED = 5200452;
+    /** C# Tiki shop exchange missing item CHANNEL sys. */
+    public static final int TIKI_SHOP_EXCHANGE_ERR_ITEM = 0x52000901;
+    /** C# Tiki shop exchange catch else. */
+    public static final int TIKI_SHOP_EXCHANGE_ERR_DEFAULT = 0x5200900;
+    /** C# truncated check uses 8 bytes per item even though {@code ToRead} is 12. */
+    public static final int TIKI_SHOP_EXCHANGE_ITEM_CHECK_BYTES = 8;
+    /** C# {@code CardEquip}/{@code CardRemove} {@code ToRead} is 5×u32. */
+    public static final int CARD_EQUIP_BYTES = 20;
     /** C# My Room deny option. */
     public static final int MY_ROOM_DENY = 0;
     /** C# {@code IFF_GROUP.ITEM}. {@code (typeid & 0xFC000000) >> 26}. */
@@ -2516,6 +2636,23 @@ public final class GamePackets {
         w.u32(0);
         w.f32(avgScore);
         return w.toBytes();
+    }
+
+    /** C# My Room enter {@code 0x168} + {@code PlayerRoomInfoEx.ToArrayEx}. */
+    public static byte[] myRoomCharacter(PlayerRoomInfo pri) {
+        return new PacketWriter()
+                .opcode(SERVER_MY_ROOM_CHAR)
+                .bytes(pri.toArrayEx())
+                .toBytes();
+    }
+
+    /** C# My Room posters {@code 0x12D}: u32 option + u16 count. */
+    public static byte[] myRoomPosters(int option, int count) {
+        return new PacketWriter()
+                .opcode(SERVER_MY_ROOM_POSTERS)
+                .u32(option)
+                .u16(count)
+                .toBytes();
     }
 
     /** C# {@code 0x20E}: two int32 zeros. */
@@ -3977,6 +4114,32 @@ public final class GamePackets {
     /** C# CLIENT {@code 0x179}: u32 GP typeid. */
     public static byte[] clientGpEnter(int typeid) {
         return new PacketWriter().opcode(CLIENT_GP_ENTER).u32(typeid).toBytes();
+    }
+
+    /** C# CLIENT {@code 0x187}: u32 typeid + i32 id. */
+    public static byte[] clientCharMastery(int typeid, int id) {
+        return new PacketWriter().opcode(CLIENT_CHAR_MASTERY).u32(typeid).i32(id).toBytes();
+    }
+
+    /**
+     * C# CLIENT {@code 0x188}/{@code 0x189}: u32 stat + {@code CharacterInfo.ToRead}.
+     */
+    public static byte[] clientCharStats(int opcode, int stat) {
+        return new PacketWriter()
+                .opcode(opcode)
+                .u32(stat)
+                .zero(CHARACTER_INFO_BYTES)
+                .toBytes();
+    }
+
+    /** C# CLIENT {@code 0x18A}/{@code 0x18B}/{@code 0x18C}: 5×u32 {@code ToRead}. */
+    public static byte[] clientCardEquip(int opcode) {
+        return new PacketWriter().opcode(opcode).zero(CARD_EQUIP_BYTES).toBytes();
+    }
+
+    /** C# CLIENT {@code 0x18D}: u32 count. */
+    public static byte[] clientTikiShopCount(int count) {
+        return new PacketWriter().opcode(CLIENT_TIKI_SHOP_EXCHANGE).u32(count).toBytes();
     }
 
     /** C# CLIENT {@code 0xE5}/{@code 0xFE} empty. */

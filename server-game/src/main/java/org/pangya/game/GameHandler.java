@@ -234,6 +234,21 @@ public final class GameHandler {
             case GamePackets.CLIENT_TOGGLE_ASSIST -> { }
             case GamePackets.CLIENT_ASSIST_GREEN -> { }
             case GamePackets.CLIENT_EVENT_ARIN -> { }
+            case GamePackets.CLIENT_ENTER_MY_ROOM -> enterMyRoom(session);
+            case GamePackets.CLIENT_FINISH_GAME_CB -> finishGame(session, reader);
+            case GamePackets.CLIENT_FINISH_GAME_12C -> finishGame(session, reader);
+            case GamePackets.CLIENT_BIG_PAPEL -> playBigPapelShop(session);
+            case GamePackets.CLIENT_CHAR_MASTERY -> characterMasteryExpand(session, reader);
+            case GamePackets.CLIENT_CHAR_STATS_UP -> characterStatsUp(session, reader);
+            case GamePackets.CLIENT_CHAR_STATS_DOWN -> characterStatsDown(session, reader);
+            case GamePackets.CLIENT_CHAR_CARD_EQUIP -> characterCardEquip(session, reader);
+            case GamePackets.CLIENT_CHAR_CARD_PATCHER -> characterCardPatcher(session, reader);
+            case GamePackets.CLIENT_CHAR_CARD_REMOVE -> characterRemoveCard(session, reader);
+            case GamePackets.CLIENT_TIKI_SHOP_EXCHANGE -> tikiShopExchange(session, reader);
+            case GamePackets.CLIENT_RING_PAWS_RAINBOW -> { }
+            case GamePackets.CLIENT_RING_POWER -> { }
+            case GamePackets.CLIENT_RING_MIRACLE -> { }
+            case GamePackets.CLIENT_RING_PAWS_SET -> { }
             case GamePackets.CLIENT_WORKSHOP_TRANSFORM_CONFIRM -> workshopTransformConfirm(session);
             case GamePackets.CLIENT_WORKSHOP_TRANSFORM_CANCEL -> workshopTransformCancel(session);
             case GamePackets.CLIENT_WORKSHOP_RECOVERY -> workshopRecovery(session, reader);
@@ -3647,6 +3662,215 @@ public final class GameHandler {
         session.send(GamePackets.sysAck(
                 GamePackets.SERVER_START_GAME_FAIL,
                 GamePackets.shopSys(GamePackets.GP_ENTER_ERR_IFF)));
+    }
+
+    /**
+     * C# {@code requestEnterMyRoom}: {@code 0x168} {@code PlayerRoomInfoEx}
+     * then {@code 0x12D} option 1 + empty posters. Catch silent.
+     */
+    private void enterMyRoom(Session session) {
+        if (!inChannel(session)) {
+            return;
+        }
+        session.send(GamePackets.myRoomCharacter(makeMyRoomPlayerInfo(session)));
+        session.send(GamePackets.myRoomPosters(GamePackets.MY_ROOM_POSTERS_OPTION, 0));
+    }
+
+    /**
+     * C# My Room {@code PlayerRoomInfoEx}: position 0, master+ready, place 0x0A.
+     */
+    private GamePackets.PlayerRoomInfo makeMyRoomPlayerInfo(Session session) {
+        PlayerContext pi = session.player();
+        GamePackets.PlayerRoomInfo pri = new GamePackets.PlayerRoomInfo();
+        pri.oid = session.oid();
+        pri.nickname = pi.nickname == null ? "" : pi.nickname;
+        pri.position = 0;
+        pri.capability = pi.capability;
+        pri.uid = (int) pi.uid;
+        pri.level = pi.level;
+        pri.place = 10;
+        pri.stateFlag = GamePackets.PLAYER_MASTER_BIT | GamePackets.PLAYER_READY_BIT;
+        GamePackets.UserEquip equip = inventory.userEquip(pi.uid);
+        System.arraycopy(equip.skinTypeid, 0, pri.skin, 0, Math.min(6, equip.skinTypeid.length));
+        pri.skin[4] = 0;
+        pri.title = equip.skinTypeid.length > 5 ? equip.skinTypeid[5] : 0;
+        for (GamePackets.CharacterInfo c : inventory.characters(pi.uid)) {
+            if (c.id == equip.characterId || pri.character == null) {
+                pri.character = c;
+                pri.charTypeid = c.typeid;
+                if (c.id == equip.characterId) {
+                    break;
+                }
+            }
+        }
+        for (GamePackets.MascotInfo m : inventory.mascots(pi.uid)) {
+            if (m.id == equip.mascotId) {
+                pri.mascotTypeid = m.typeid;
+                break;
+            }
+        }
+        return pri;
+    }
+
+    /**
+     * C# {@code requestPlayBigPapelShop}: empty balls → {@code 0x26C}
+     * {@code shopSys(0x5900103)}.
+     */
+    private void playBigPapelShop(Session session) {
+        if (!inChannel(session)) {
+            return;
+        }
+        session.send(GamePackets.sysAck(
+                GamePackets.SERVER_BIG_PAPEL, GamePackets.shopSys(GamePackets.PAPEL_PLAY_ERR_BALLS)));
+    }
+
+    /**
+     * C# {@code requestCharacterMasteryExpand}: missing character → {@code 0x26E}
+     * {@code shopSys(0x5200651)}.
+     */
+    private void characterMasteryExpand(Session session, PacketReader reader) {
+        if (!inChannel(session)) {
+            return;
+        }
+        if (reader.remaining() < 8) {
+            session.send(GamePackets.sysAck(
+                    GamePackets.SERVER_CHAR_MASTERY, GamePackets.CHAR_MASTERY_ERR_DEFAULT));
+            return;
+        }
+        reader.u32();
+        reader.i32();
+        session.send(GamePackets.sysAck(
+                GamePackets.SERVER_CHAR_MASTERY,
+                GamePackets.shopSys(GamePackets.CHAR_MASTERY_ERR_CHAR)));
+    }
+
+    /**
+     * C# {@code requestCharacterStatsUp}: missing character → {@code 0x26F}
+     * {@code shopSys(0x5200501)}.
+     */
+    private void characterStatsUp(Session session, PacketReader reader) {
+        if (!inChannel(session)) {
+            return;
+        }
+        if (reader.remaining() < 4 + GamePackets.CHARACTER_INFO_BYTES) {
+            session.send(GamePackets.sysAck(
+                    GamePackets.SERVER_CHAR_STATS_UP, GamePackets.CHAR_STATS_UP_ERR_DEFAULT));
+            return;
+        }
+        reader.u32();
+        GamePackets.CharacterInfo.read(reader);
+        session.send(GamePackets.sysAck(
+                GamePackets.SERVER_CHAR_STATS_UP,
+                GamePackets.shopSys(GamePackets.CHAR_STATS_UP_ERR_CHAR)));
+    }
+
+    /**
+     * C# {@code requestCharacterStatsDown}: missing character → {@code 0x270}
+     * {@code shopSys(0x5200551)}.
+     */
+    private void characterStatsDown(Session session, PacketReader reader) {
+        if (!inChannel(session)) {
+            return;
+        }
+        if (reader.remaining() < 4 + GamePackets.CHARACTER_INFO_BYTES) {
+            session.send(GamePackets.sysAck(
+                    GamePackets.SERVER_CHAR_STATS_DOWN, GamePackets.CHAR_STATS_DOWN_ERR_DEFAULT));
+            return;
+        }
+        reader.u32();
+        GamePackets.CharacterInfo.read(reader);
+        session.send(GamePackets.sysAck(
+                GamePackets.SERVER_CHAR_STATS_DOWN,
+                GamePackets.shopSys(GamePackets.CHAR_STATS_DOWN_ERR_CHAR)));
+    }
+
+    /**
+     * C# {@code requestCharacterCardEquip}: IFF miss → {@code 0x271}
+     * {@code shopSys(0x5200757)}.
+     */
+    private void characterCardEquip(Session session, PacketReader reader) {
+        if (!inChannel(session)) {
+            return;
+        }
+        if (reader.remaining() < GamePackets.CARD_EQUIP_BYTES) {
+            session.send(GamePackets.sysAck(
+                    GamePackets.SERVER_CHAR_CARD_EQUIP, GamePackets.CHAR_CARD_ERR_DEFAULT));
+            return;
+        }
+        reader.readBytes(GamePackets.CARD_EQUIP_BYTES);
+        session.send(GamePackets.sysAck(
+                GamePackets.SERVER_CHAR_CARD_EQUIP,
+                GamePackets.shopSys(GamePackets.CHAR_CARD_ERR_IFF)));
+    }
+
+    /**
+     * C# {@code requestCharacterCardEquipWithPatcher}: missing Club Patcher
+     * → {@code 0x272} {@code shopSys(0x5200810)}.
+     */
+    private void characterCardPatcher(Session session, PacketReader reader) {
+        if (!inChannel(session)) {
+            return;
+        }
+        if (reader.remaining() < GamePackets.CARD_EQUIP_BYTES) {
+            session.send(GamePackets.sysAck(
+                    GamePackets.SERVER_CHAR_CARD_PATCHER, GamePackets.CHAR_CARD_PATCHER_DEFAULT));
+            return;
+        }
+        reader.readBytes(GamePackets.CARD_EQUIP_BYTES);
+        session.send(GamePackets.sysAck(
+                GamePackets.SERVER_CHAR_CARD_PATCHER,
+                GamePackets.shopSys(GamePackets.CHAR_CARD_PATCHER_ERR)));
+    }
+
+    /**
+     * C# {@code requestCharacterRemoveCard}: missing character → {@code 0x273}
+     * {@code shopSys(0x5200851)}.
+     */
+    private void characterRemoveCard(Session session, PacketReader reader) {
+        if (!inChannel(session)) {
+            return;
+        }
+        if (reader.remaining() < GamePackets.CARD_EQUIP_BYTES) {
+            session.send(GamePackets.sysAck(
+                    GamePackets.SERVER_CHAR_CARD_REMOVE, GamePackets.CHAR_CARD_REMOVE_DEFAULT));
+            return;
+        }
+        reader.readBytes(GamePackets.CARD_EQUIP_BYTES);
+        session.send(GamePackets.sysAck(
+                GamePackets.SERVER_CHAR_CARD_REMOVE,
+                GamePackets.shopSys(GamePackets.CHAR_CARD_REMOVE_ERR_CHAR)));
+    }
+
+    /**
+     * C# {@code requestTikiShopExchangeItem}: count 0/{@code >5} → {@code 0x274}
+     * {@code shopSys(5200451)}.
+     */
+    private void tikiShopExchange(Session session, PacketReader reader) {
+        if (!inChannel(session)) {
+            return;
+        }
+        if (reader.remaining() < 4) {
+            session.send(GamePackets.sysAck(
+                    GamePackets.SERVER_TIKI_SHOP_EXCHANGE,
+                    GamePackets.TIKI_SHOP_EXCHANGE_ERR_DEFAULT));
+            return;
+        }
+        int count = reader.u32();
+        if (count == 0 || count > 5) {
+            session.send(GamePackets.sysAck(
+                    GamePackets.SERVER_TIKI_SHOP_EXCHANGE,
+                    GamePackets.shopSys(GamePackets.TIKI_SHOP_EXCHANGE_ERR_COUNT)));
+            return;
+        }
+        if (reader.remaining() < count * GamePackets.TIKI_SHOP_EXCHANGE_ITEM_CHECK_BYTES) {
+            session.send(GamePackets.sysAck(
+                    GamePackets.SERVER_TIKI_SHOP_EXCHANGE,
+                    GamePackets.shopSys(GamePackets.TIKI_SHOP_EXCHANGE_ERR_TRUNCATED)));
+            return;
+        }
+        session.send(GamePackets.sysAck(
+                GamePackets.SERVER_TIKI_SHOP_EXCHANGE,
+                GamePackets.shopSys(GamePackets.TIKI_SHOP_EXCHANGE_ERR_ITEM)));
     }
 
     /**

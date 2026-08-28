@@ -1525,6 +1525,79 @@ class GameFlowIT {
             PacketReader gpRoom = awaitOpcode(host, GamePackets.SERVER_START_GAME_FAIL);
             assertEquals(GamePackets.shopSys(GamePackets.GP_ENTER_ERR_IFF), gpRoom.u32());
 
+            host.sendPlain(GamePackets.clientEmpty(GamePackets.CLIENT_ENTER_MY_ROOM));
+            PacketReader myRoomChar = awaitOpcode(host, GamePackets.SERVER_MY_ROOM_CHAR);
+            assertEquals(GamePackets.PLAYER_ROOM_INFO_EX_BYTES, myRoomChar.remaining());
+            PacketReader myRoomPosters = awaitOpcode(host, GamePackets.SERVER_MY_ROOM_POSTERS);
+            assertEquals(GamePackets.MY_ROOM_POSTERS_OPTION, myRoomPosters.u32());
+            assertEquals(0, myRoomPosters.u16());
+
+            host.sendPlain(GamePackets.clientEmpty(GamePackets.CLIENT_BIG_PAPEL));
+            PacketReader bigPapel = awaitOpcode(host, GamePackets.SERVER_BIG_PAPEL);
+            assertEquals(GamePackets.shopSys(GamePackets.PAPEL_PLAY_ERR_BALLS), bigPapel.u32());
+
+            host.sendPlain(GamePackets.clientCharMastery(0, 0));
+            PacketReader mastery = awaitOpcode(host, GamePackets.SERVER_CHAR_MASTERY);
+            assertEquals(GamePackets.shopSys(GamePackets.CHAR_MASTERY_ERR_CHAR), mastery.u32());
+            host.sendPlain(GamePackets.clientEmpty(GamePackets.CLIENT_CHAR_MASTERY));
+            PacketReader masteryTrunc = awaitOpcode(host, GamePackets.SERVER_CHAR_MASTERY);
+            assertEquals(GamePackets.CHAR_MASTERY_ERR_DEFAULT, masteryTrunc.u32());
+
+            host.sendPlain(GamePackets.clientCharStats(GamePackets.CLIENT_CHAR_STATS_UP, 0));
+            PacketReader statsUp = awaitOpcode(host, GamePackets.SERVER_CHAR_STATS_UP);
+            assertEquals(GamePackets.shopSys(GamePackets.CHAR_STATS_UP_ERR_CHAR), statsUp.u32());
+            host.sendPlain(GamePackets.clientEmpty(GamePackets.CLIENT_CHAR_STATS_UP));
+            PacketReader statsUpTrunc = awaitOpcode(host, GamePackets.SERVER_CHAR_STATS_UP);
+            assertEquals(GamePackets.CHAR_STATS_UP_ERR_DEFAULT, statsUpTrunc.u32());
+
+            host.sendPlain(GamePackets.clientCharStats(GamePackets.CLIENT_CHAR_STATS_DOWN, 0));
+            PacketReader statsDown = awaitOpcode(host, GamePackets.SERVER_CHAR_STATS_DOWN);
+            assertEquals(GamePackets.shopSys(GamePackets.CHAR_STATS_DOWN_ERR_CHAR), statsDown.u32());
+            host.sendPlain(GamePackets.clientEmpty(GamePackets.CLIENT_CHAR_STATS_DOWN));
+            PacketReader statsDownTrunc = awaitOpcode(host, GamePackets.SERVER_CHAR_STATS_DOWN);
+            assertEquals(GamePackets.CHAR_STATS_DOWN_ERR_DEFAULT, statsDownTrunc.u32());
+
+            host.sendPlain(GamePackets.clientCardEquip(GamePackets.CLIENT_CHAR_CARD_EQUIP));
+            PacketReader cardEquip = awaitOpcode(host, GamePackets.SERVER_CHAR_CARD_EQUIP);
+            assertEquals(GamePackets.shopSys(GamePackets.CHAR_CARD_ERR_IFF), cardEquip.u32());
+            host.sendPlain(GamePackets.clientEmpty(GamePackets.CLIENT_CHAR_CARD_EQUIP));
+            PacketReader cardEquipTrunc = awaitOpcode(host, GamePackets.SERVER_CHAR_CARD_EQUIP);
+            assertEquals(GamePackets.CHAR_CARD_ERR_DEFAULT, cardEquipTrunc.u32());
+
+            host.sendPlain(GamePackets.clientCardEquip(GamePackets.CLIENT_CHAR_CARD_PATCHER));
+            PacketReader patcher = awaitOpcode(host, GamePackets.SERVER_CHAR_CARD_PATCHER);
+            assertEquals(GamePackets.shopSys(GamePackets.CHAR_CARD_PATCHER_ERR), patcher.u32());
+            host.sendPlain(GamePackets.clientEmpty(GamePackets.CLIENT_CHAR_CARD_PATCHER));
+            PacketReader patcherTrunc = awaitOpcode(host, GamePackets.SERVER_CHAR_CARD_PATCHER);
+            assertEquals(GamePackets.CHAR_CARD_PATCHER_DEFAULT, patcherTrunc.u32());
+
+            host.sendPlain(GamePackets.clientCardEquip(GamePackets.CLIENT_CHAR_CARD_REMOVE));
+            PacketReader cardRemove = awaitOpcode(host, GamePackets.SERVER_CHAR_CARD_REMOVE);
+            assertEquals(GamePackets.shopSys(GamePackets.CHAR_CARD_REMOVE_ERR_CHAR), cardRemove.u32());
+            host.sendPlain(GamePackets.clientEmpty(GamePackets.CLIENT_CHAR_CARD_REMOVE));
+            PacketReader cardRemoveTrunc = awaitOpcode(host, GamePackets.SERVER_CHAR_CARD_REMOVE);
+            assertEquals(GamePackets.CHAR_CARD_REMOVE_DEFAULT, cardRemoveTrunc.u32());
+
+            host.sendPlain(GamePackets.clientTikiShopCount(0));
+            PacketReader tikiCount = awaitOpcode(host, GamePackets.SERVER_TIKI_SHOP_EXCHANGE);
+            assertEquals(GamePackets.shopSys(GamePackets.TIKI_SHOP_EXCHANGE_ERR_COUNT), tikiCount.u32());
+            host.sendPlain(GamePackets.clientTikiShopCount(6));
+            PacketReader tikiOver = awaitOpcode(host, GamePackets.SERVER_TIKI_SHOP_EXCHANGE);
+            assertEquals(GamePackets.shopSys(GamePackets.TIKI_SHOP_EXCHANGE_ERR_COUNT), tikiOver.u32());
+            host.sendPlain(GamePackets.clientTikiShopCount(1));
+            PacketReader tikiTrunc = awaitOpcode(host, GamePackets.SERVER_TIKI_SHOP_EXCHANGE);
+            assertEquals(GamePackets.shopSys(GamePackets.TIKI_SHOP_EXCHANGE_ERR_TRUNCATED), tikiTrunc.u32());
+            host.sendPlain(GamePackets.clientEmpty(GamePackets.CLIENT_TIKI_SHOP_EXCHANGE));
+            PacketReader tikiDefault = awaitOpcode(host, GamePackets.SERVER_TIKI_SHOP_EXCHANGE);
+            assertEquals(GamePackets.TIKI_SHOP_EXCHANGE_ERR_DEFAULT, tikiDefault.u32());
+
+            host.sendPlain(GamePackets.clientEmpty(GamePackets.CLIENT_RING_PAWS_RAINBOW));
+            host.sendPlain(GamePackets.clientEmpty(GamePackets.CLIENT_RING_POWER));
+            host.sendPlain(GamePackets.clientEmpty(GamePackets.CLIENT_RING_MIRACLE));
+            host.sendPlain(GamePackets.clientEmpty(GamePackets.CLIENT_RING_PAWS_SET));
+            host.sendPlain(GamePackets.clientEmpty(GamePackets.CLIENT_FINISH_GAME_CB));
+            host.sendPlain(GamePackets.clientEmpty(GamePackets.CLIENT_FINISH_GAME_12C));
+
             host.sendPlain(GamePackets.clientDeleteItem(1, 1));
             PacketReader deleted = awaitOpcode(host, GamePackets.SERVER_DELETE_ITEM);
             assertEquals(GamePackets.DELETE_ITEM_FAIL, deleted.u8());
