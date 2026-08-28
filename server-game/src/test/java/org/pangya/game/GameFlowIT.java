@@ -91,6 +91,13 @@ class GameFlowIT {
                 assertEquals(GamePackets.SERVER_CHANNEL_ENTER_ACK, entered.opcode());
                 assertEquals(GamePackets.CHANNEL_ENTER_OK, entered.u8());
 
+                client.sendPlain(GamePackets.clientLobbyItem(GamePackets.ITEM_CHARACTER, 1));
+                PacketReader lobbyItem = awaitOpcode(client, GamePackets.SERVER_ROOM_USER_INFO_CHANGED);
+                assertEquals(0, lobbyItem.i32());
+                assertEquals(GamePackets.ITEM_CHARACTER, lobbyItem.u8());
+                assertTrue(lobbyItem.i32() > 0);
+                assertEquals(GamePackets.CHARACTER_INFO_BYTES, lobbyItem.remaining());
+
                 client.sendPlain(GamePackets.clientCreatePractice("practice", "secret"));
                 PacketReader room = awaitOpcode(client, GamePackets.SERVER_ROOM_ENTER_RESULT);
                 assertEquals(0, room.i16());
@@ -99,6 +106,13 @@ class GameFlowIT {
                 assertEquals("Single Player Practice Mode", nameFromRoomInfo(practiceInfo));
                 int practiceNum = roomNumberFromInfo(practiceInfo);
                 assertTrue(practiceNum >= 1);
+
+                client.sendPlain(GamePackets.clientRoomItem(GamePackets.ITEM_CHARACTER, 1));
+                PacketReader roomItem = awaitOpcode(client, GamePackets.SERVER_ROOM_USER_INFO_CHANGED);
+                assertEquals(0, roomItem.i32());
+                assertEquals(GamePackets.ITEM_CHARACTER, roomItem.u8());
+                assertTrue(roomItem.i32() > 0);
+                assertEquals(GamePackets.CHARACTER_INFO_BYTES, roomItem.remaining());
 
                 client.sendPlain(GamePackets.clientStartGame());
                 PacketReader start1 = awaitOpcode(client, GamePackets.SERVER_START_GAME_FLAG);
@@ -191,6 +205,25 @@ class GameFlowIT {
                 assertEquals(GamePackets.SERVER_END_SHOT, end.opcode());
                 assertEquals(1, end.i32());
                 assertEquals(0, end.u8());
+
+                client.sendPlain(GamePackets.clientHoleStat());
+                client.sendPlain(GamePackets.clientFinishGame());
+                PacketReader prizes = awaitOpcode(client, GamePackets.SERVER_PRIZE_LIST);
+                assertEquals(0, prizes.u8());
+                assertEquals(0, prizes.u16());
+                PacketReader result = awaitOpcode(client, GamePackets.SERVER_GAME_RESULT);
+                assertEquals(0, result.i32());
+                result.u32();
+                result.u8();
+                assertEquals(2, result.u8());
+                PacketReader stats = awaitOpcode(client, GamePackets.SERVER_MY_STATISTICS);
+                assertEquals(GamePackets.USER_INFO_BYTES + GamePackets.TROPHY_BYTES
+                        + GamePackets.MAP_STATISTICS_EMPTY_BYTES, stats.remaining());
+                PacketReader treasure = awaitOpcode(client, GamePackets.SERVER_UPDATE_TREASURE_GIFT_LIST);
+                assertEquals(0, treasure.u8());
+                PacketReader pang = awaitOpcode(client, GamePackets.SERVER_PANG_SPENT);
+                pang.u64();
+                assertEquals(0, pang.u64());
 
                 client.sendPlain(GamePackets.clientEquipCharacter(1));
                 PacketReader equipped = awaitOpcode(client, GamePackets.SERVER_EQUIP_ACK);
@@ -319,6 +352,14 @@ class GameFlowIT {
             PacketReader mira = awaitOpcode(guest, GamePackets.SERVER_CAMERA);
             mira.i32();
             assertEquals(0.5f, mira.f32());
+            host.sendPlain(GamePackets.clientPause(GamePackets.PAUSE_PAUSE));
+            PacketReader paused = awaitOpcode(guest, GamePackets.SERVER_PAUSE);
+            assertTrue(paused.i32() > 0);
+            assertEquals(GamePackets.PAUSE_PAUSE, paused.u8());
+            host.sendPlain(GamePackets.clientPause(GamePackets.PAUSE_RESUME));
+            PacketReader resumed = awaitOpcode(guest, GamePackets.SERVER_PAUSE);
+            resumed.i32();
+            assertEquals(GamePackets.PAUSE_RESUME, resumed.u8());
         }
     }
 

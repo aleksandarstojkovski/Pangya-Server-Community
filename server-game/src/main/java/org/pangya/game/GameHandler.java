@@ -119,6 +119,11 @@ public final class GameHandler {
             case GamePackets.CLIENT_CHAT -> chat(session, reader);
             case GamePackets.CLIENT_SET_READY -> setReady(session, reader);
             case GamePackets.CLIENT_CHANGE_ROOM_INFO -> changeRoomInfo(session, reader);
+            case GamePackets.CLIENT_MY_STATISTICS -> finishGame(session, reader);
+            case GamePackets.CLIENT_HOLE_STAT -> finishHoleData(session, reader);
+            case GamePackets.CLIENT_PAUSE -> pauseGame(session, reader);
+            case GamePackets.CLIENT_LOBBY_USERINFO_CHANGED -> changeLobbyItem(session, reader);
+            case GamePackets.CLIENT_REQUEST_USERINFO_CHANGED -> changeRoomItem(session, reader);
             case GamePackets.CLIENT_KEEPALIVE -> { }
             case GamePackets.CLIENT_WHISPER -> whisper(session, reader);
             case GamePackets.CLIENT_REQUEST_CASH -> requestCash(session);
@@ -573,6 +578,219 @@ public final class GameHandler {
             return;
         }
         session.send(GamePackets.endShot(session.oid()));
+    }
+
+    /**
+     * C# {@code packet006} / {@code requestFinishGame}: {@code UserInfoEx} 265 then
+     * Practice {@code finish_game(6)} → {@code 0xCE}/{@code 0x79}/{@code 0x45}/{@code 0x134}/{@code 0xC8}.
+     */
+    private void finishGame(Session session, PacketReader reader) {
+        GameRoom room = inGameRoom(session);
+        if (room == null || reader.remaining() < GamePackets.USER_INFO_BYTES) {
+            return;
+        }
+        reader.readBytes(GamePackets.USER_INFO_BYTES);
+        session.send(GamePackets.prizeList(new int[0]));
+        session.send(GamePackets.gameResult(0, room.info.trophy, 0, 2));
+        session.send(GamePackets.myStatistics(GamePackets.userInfoPublic(session.player().level)));
+        session.send(GamePackets.treasureHunterItem());
+        session.send(GamePackets.pangSpent(inventory.pang(session.player().uid), 0));
+        finishGameRoom(room);
+    }
+
+    /**
+     * C# {@code packet031} / {@code requestFinishHoleData}: stores {@code UserInfoEx}, no reply.
+     */
+    private void finishHoleData(Session session, PacketReader reader) {
+        GameRoom room = inGameRoom(session);
+        if (room == null || reader.remaining() < GamePackets.USER_INFO_BYTES) {
+            return;
+        }
+        reader.readBytes(GamePackets.USER_INFO_BYTES);
+    }
+
+    /**
+     * C# Versus {@code requestUnOrPause}: u8 opt → broadcast {@code 0x8B} oid + opt.
+     * Tourney/Practice inherit {@code GameBase} no-op.
+     */
+    private void pauseGame(Session session, PacketReader reader) {
+        GameRoom room = inGameRoom(session);
+        if (room == null || reader.remaining() < 1 || !GamePackets.usesVersusInitialData(room.tipo)) {
+            return;
+        }
+        int opt = reader.u8();
+        if (opt == GamePackets.PAUSE_PAUSE) {
+            if (room.pauseCount >= GamePackets.VERSUS_PAUSE_MAX) {
+                return;
+            }
+            room.pauseCount++;
+        } else if (opt != GamePackets.PAUSE_RESUME) {
+            return;
+        }
+        room.broadcast(GamePackets.pause(session.oid(), opt));
+    }
+
+    /**
+     * C# {@code packet00B} / {@code requestChangePlayerItemChannel}: lobby appearance
+     * via {@code pacote04B} plus lobby {@code 0x46} option 3.
+     */
+    private void changeLobbyItem(Session session, PacketReader reader) {
+        if (!session.authorized() || reader.remaining() < 1) {
+            return;
+        }
+        int type = reader.u8();
+        ItemChange change = applyItemChange(session, type, reader);
+        session.send(GamePackets.roomUserInfoChanged(change.err, type, session.oid(), change.extra));
+        if (change.err == 0) {
+            sendLobbyPlayerInfo(session, GamePackets.LOBBY_USER_UPDATE);
+        }
+    }
+
+    /**
+     * C# {@code packet00C} / {@code requestChangePlayerItemRoom}: in-room {@code TYPE_CHANGE}
+     * then broadcast {@code pacote04B}. {@code TC_ALL} only applies equips (Java {@code 0x0E}
+     * already sent initial data). Lounge effect needs IFF parts and stays a no-op.
+     */
+    private void changeRoomItem(Session session, PacketReader reader) {
+        if (!session.authorized() || reader.remaining() < 1) {
+            return;
+        }
+        PlayerContext pi = session.player();
+        GameRoom room = rooms.get(pi.roomNumber);
+        if (room == null) {
+            if (pi.inLobby) {
+                return;
+            }
+            session.send(GamePackets.roomUserInfoChanged(1, 0xff, session.oid(), new byte[0]));
+            return;
+        }
+        int type = reader.u8();
+        if (type == GamePackets.ITEM_ALL) {
+            if (reader.remaining() < 16) {
+                return;
+            }
+            applyItemChange(session, GamePackets.ITEM_CHARACTER, reader.i32());
+            applyItemChange(session, GamePackets.ITEM_CADDIE, reader.i32());
+            applyItemChange(session, GamePackets.ITEM_CLUBSET, reader.i32());
+            applyItemChange(session, GamePackets.ITEM_BALL, reader.i32());
+            room.putPlayerInfo(session, makePlayerInfo(session, room));
+            return;
+        }
+        if (type == GamePackets.ITEM_LOUNGE_EFFECT) {
+            if (reader.remaining() >= 8) {
+                reader.readBytes(8);
+            }
+            session.send(GamePackets.roomUserInfoChanged(1, type, session.oid(), new byte[0]));
+            return;
+        }
+        ItemChange change = applyItemChange(session, type, reader);
+        if (change.err == 0) {
+            room.putPlayerInfo(session, makePlayerInfo(session, room));
+            room.broadcast(GamePackets.roomUserInfoChanged(0, type, session.oid(), change.extra));
+        } else {
+            session.send(GamePackets.roomUserInfoChanged(change.err, type, session.oid(), new byte[0]));
+        }
+    }
+
+    private ItemChange applyItemChange(Session session, int type, PacketReader reader) {
+        int id = reader.remaining() >= 4 ? reader.i32() : 0;
+        return applyItemChange(session, type, id);
+    }
+
+    private ItemChange applyItemChange(Session session, int type, int id) {
+        long uid = session.player().uid;
+        try {
+            return switch (type) {
+                case GamePackets.ITEM_CADDIE -> {
+                    if (id != 0 && inventory.caddies(uid).stream().noneMatch(c -> c.id == id)) {
+                        yield ItemChange.fail(2);
+                    }
+                    inventory.equipCaddie(uid, id);
+                    byte[] extra = inventory.caddies(uid).stream()
+                            .filter(c -> c.id == id)
+                            .findFirst()
+                            .map(GamePackets.CaddieInfo::toArray)
+                            .orElse(new byte[GamePackets.CADDIE_INFO_BYTES]);
+                    yield ItemChange.ok(extra);
+                }
+                case GamePackets.ITEM_BALL -> {
+                    if (id != 0 && inventory.warehouse(uid).stream().noneMatch(w -> w.typeid == id)) {
+                        yield ItemChange.fail(2);
+                    }
+                    GamePackets.UserEquip equip = inventory.userEquip(uid);
+                    inventory.equipBallAndClub(uid, id, equip.clubsetId);
+                    yield ItemChange.ok(u32le(id));
+                }
+                case GamePackets.ITEM_CLUBSET -> {
+                    var found = inventory.warehouse(uid).stream().filter(w -> w.id == id).findFirst();
+                    if (id == 0 || found.isEmpty()) {
+                        yield ItemChange.fail(2);
+                    }
+                    GamePackets.UserEquip equip = inventory.userEquip(uid);
+                    inventory.equipBallAndClub(uid, equip.ballTypeid, id);
+                    yield ItemChange.ok(GamePackets.ClubSetInfo.fromWarehouse(found.get()).toArray());
+                }
+                case GamePackets.ITEM_CHARACTER -> {
+                    var found = inventory.characters(uid).stream().filter(c -> c.id == id).findFirst();
+                    if (found.isEmpty()) {
+                        yield ItemChange.fail(2);
+                    }
+                    inventory.equipCharacter(uid, id);
+                    yield ItemChange.ok(found.get().toArray());
+                }
+                case GamePackets.ITEM_MASCOT -> {
+                    var found = inventory.mascots(uid).stream().filter(m -> m.id == id).findFirst();
+                    if (id != 0 && found.isEmpty()) {
+                        yield ItemChange.fail(2);
+                    }
+                    inventory.equipMascot(uid, id);
+                    byte[] extra = found.map(GamePackets.MascotInfo::toArray)
+                            .orElse(new byte[GamePackets.MASCOT_INFO_BYTES]);
+                    yield ItemChange.ok(extra);
+                }
+                default -> ItemChange.fail(13);
+            };
+        } catch (RuntimeException e) {
+            log.warn("item change type={} uid={} failed: {}", type, uid, e.toString());
+            return ItemChange.fail(1);
+        }
+    }
+
+    /**
+     * C# {@code room.finish_game}: waiting state + {@code pacote04A} + per-player {@code 0x48} option 3.
+     */
+    private void finishGameRoom(GameRoom room) {
+        room.inGame = false;
+        room.info.state = 1;
+        room.course = null;
+        room.pauseCount = 0;
+        room.shots.clear();
+        for (Session member : room.snapshot()) {
+            GamePackets.PlayerRoomInfo pri = room.playerInfo(member);
+            if (pri == null) {
+                continue;
+            }
+            if (room.tipo == GamePackets.TIPO_PRACTICE
+                    || room.tipo == GamePackets.TIPO_GRAND_ZODIAC_PRACTICE) {
+                pri.place = 2;
+            } else {
+                pri.place = 0;
+            }
+            room.putPlayerInfo(member, pri);
+            room.broadcast(GamePackets.roomPlayers(3, List.of(pri)));
+        }
+        room.broadcast(GamePackets.roomUpdate(room.info));
+        sendLobbyRoomInfo(room, GamePackets.ROOM_LIST_UPDATE);
+    }
+
+    private record ItemChange(int err, byte[] extra) {
+        static ItemChange ok(byte[] extra) {
+            return new ItemChange(0, extra == null ? new byte[0] : extra);
+        }
+
+        static ItemChange fail(int err) {
+            return new ItemChange(err, new byte[0]);
+        }
     }
 
     private void equipItem(Session session, PacketReader reader) {

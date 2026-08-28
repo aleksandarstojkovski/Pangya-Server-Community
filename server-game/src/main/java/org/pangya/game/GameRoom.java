@@ -23,6 +23,8 @@ final class GameRoom {
     volatile boolean inGame;
     volatile long startMillis;
     volatile GameCourse course;
+    /** C# Versus {@code m_count_pause}; max {@link GamePackets#VERSUS_PAUSE_MAX}. */
+    volatile int pauseCount;
 
     GameRoom(GamePackets.CreateRoom req, int numero, int masterUid, int ratePang, int rateExp, int channelId) {
         this.tipo = req.tipo();

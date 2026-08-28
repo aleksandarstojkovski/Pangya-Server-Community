@@ -432,4 +432,104 @@ class GamePacketsTest {
         assertEquals(16, clock.remaining());
         assertTrue(clock.u16() >= 2026);
     }
+
+    @Test
+    void finishGameAndItemSwapPacketsMatchCsharp() {
+        PacketReader finish = new PacketReader(GamePackets.clientFinishGame());
+        assertEquals(GamePackets.CLIENT_MY_STATISTICS, finish.opcode());
+        assertEquals(GamePackets.USER_INFO_BYTES, finish.remaining());
+
+        PacketReader hole = new PacketReader(GamePackets.clientHoleStat());
+        assertEquals(GamePackets.CLIENT_HOLE_STAT, hole.opcode());
+        assertEquals(GamePackets.USER_INFO_BYTES, hole.remaining());
+
+        PacketReader pause = new PacketReader(GamePackets.clientPause(GamePackets.PAUSE_PAUSE));
+        assertEquals(GamePackets.CLIENT_PAUSE, pause.opcode());
+        assertEquals(GamePackets.PAUSE_PAUSE, pause.u8());
+
+        PacketReader lobbyItem = new PacketReader(GamePackets.clientLobbyItem(GamePackets.ITEM_CHARACTER, 1));
+        assertEquals(GamePackets.CLIENT_LOBBY_USERINFO_CHANGED, lobbyItem.opcode());
+        assertEquals(GamePackets.ITEM_CHARACTER, lobbyItem.u8());
+        assertEquals(1, lobbyItem.i32());
+
+        PacketReader roomItem = new PacketReader(GamePackets.clientRoomItem(GamePackets.ITEM_CADDIE, 0));
+        assertEquals(GamePackets.CLIENT_REQUEST_USERINFO_CHANGED, roomItem.opcode());
+        assertEquals(GamePackets.ITEM_CADDIE, roomItem.u8());
+        assertEquals(0, roomItem.i32());
+
+        PacketReader all = new PacketReader(GamePackets.clientRoomItemAll(1, 0, 2, GamePackets.TYPEID_DEFAULT_BALL));
+        assertEquals(GamePackets.CLIENT_REQUEST_USERINFO_CHANGED, all.opcode());
+        assertEquals(GamePackets.ITEM_ALL, all.u8());
+        assertEquals(1, all.i32());
+        assertEquals(0, all.i32());
+        assertEquals(2, all.i32());
+        assertEquals(GamePackets.TYPEID_DEFAULT_BALL, all.i32());
+
+        PacketReader stats = new PacketReader(GamePackets.myStatistics(GamePackets.userInfoPublic(1)));
+        assertEquals(GamePackets.SERVER_MY_STATISTICS, stats.opcode());
+        assertEquals(GamePackets.USER_INFO_BYTES + GamePackets.TROPHY_BYTES
+                + GamePackets.MAP_STATISTICS_EMPTY_BYTES, stats.remaining());
+        stats.readBytes(GamePackets.USER_INFO_BYTES);
+        stats.readBytes(GamePackets.TROPHY_BYTES);
+        for (int i = 0; i < GamePackets.MAP_STATISTICS_EMPTY_BYTES; i++) {
+            assertEquals(0xff, stats.u8());
+        }
+
+        PacketReader prizes = new PacketReader(GamePackets.prizeList(new int[0]));
+        assertEquals(GamePackets.SERVER_PRIZE_LIST, prizes.opcode());
+        assertEquals(0, prizes.u8());
+        assertEquals(0, prizes.u16());
+        assertEquals(0, prizes.remaining());
+
+        PacketReader result = new PacketReader(GamePackets.gameResult(0, 0, 0, 2));
+        assertEquals(GamePackets.SERVER_GAME_RESULT, result.opcode());
+        assertEquals(0, result.i32());
+        assertEquals(0, result.u32());
+        assertEquals(0, result.u8());
+        assertEquals(2, result.u8());
+        assertEquals(GamePackets.MEDAL_COUNT * GamePackets.MEDAL_BYTES
+                + GamePackets.USER_MEDAL_BYTES, result.remaining());
+        assertEquals(-1, result.i32());
+        assertEquals(0, result.u32());
+
+        PacketReader treasure = new PacketReader(GamePackets.treasureHunterItem());
+        assertEquals(GamePackets.SERVER_UPDATE_TREASURE_GIFT_LIST, treasure.opcode());
+        assertEquals(0, treasure.u8());
+
+        PacketReader paused = new PacketReader(GamePackets.pause(7, GamePackets.PAUSE_PAUSE));
+        assertEquals(GamePackets.SERVER_PAUSE, paused.opcode());
+        assertEquals(7, paused.i32());
+        assertEquals(GamePackets.PAUSE_PAUSE, paused.u8());
+
+        byte[] extra = new byte[GamePackets.CHARACTER_INFO_BYTES];
+        PacketReader changed = new PacketReader(GamePackets.roomUserInfoChanged(0, GamePackets.ITEM_CHARACTER, 7, extra));
+        assertEquals(GamePackets.SERVER_ROOM_USER_INFO_CHANGED, changed.opcode());
+        assertEquals(0, changed.i32());
+        assertEquals(GamePackets.ITEM_CHARACTER, changed.u8());
+        assertEquals(7, changed.i32());
+        assertEquals(GamePackets.CHARACTER_INFO_BYTES, changed.remaining());
+
+        PacketReader failed = new PacketReader(GamePackets.roomUserInfoChanged(2, GamePackets.ITEM_CADDIE, 0, new byte[0]));
+        assertEquals(GamePackets.SERVER_ROOM_USER_INFO_CHANGED, failed.opcode());
+        assertEquals(2, failed.i32());
+        assertEquals(0, failed.remaining());
+
+        PacketReader holeFinish = new PacketReader(GamePackets.updateHole(7, 1, 3, -1, 10, 2, 1));
+        assertEquals(GamePackets.SERVER_UPDATE_HOLE, holeFinish.opcode());
+        assertEquals(7, holeFinish.i32());
+        assertEquals(1, holeFinish.u8());
+        assertEquals(3, holeFinish.u8());
+        assertEquals(-1, holeFinish.i32());
+        assertEquals(10, holeFinish.u64());
+        assertEquals(2, holeFinish.u64());
+        assertEquals(1, holeFinish.u8());
+
+        PacketReader state = new PacketReader(GamePackets.gamePlayerState(7, 2));
+        assertEquals(GamePackets.SERVER_GAME_PLAYER_STATE, state.opcode());
+        assertEquals(7, state.i32());
+        assertEquals(2, state.u8());
+        assertEquals(2, GamePackets.lastHole().length);
+        assertEquals(GamePackets.SERVER_BUY_ACK, 0x68);
+        assertEquals(GamePackets.CREATE_ROOM_FAILED, 0x07);
+    }
 }

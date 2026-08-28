@@ -20,7 +20,25 @@ public final class GamePackets {
     public static final int SERVER_ROOM_PLAYERS = 0x48;
     public static final int SERVER_ROOM_ENTER_RESULT = 0x49;
     public static final int SERVER_ROOM_UPDATE = 0x4A;
+    /** C# {@code SERVER_ROOM_USER_INFO_CHANGED} / {@code pacote04B}. */
+    public static final int SERVER_ROOM_USER_INFO_CHANGED = 0x4B;
     public static final int SERVER_EXIT_ROOM = 0x4C;
+    /** C# {@code SERVER_MY_STATISTICS} / {@code sendUpdateInfoAndMapStatistics}. */
+    public static final int SERVER_MY_STATISTICS = 0x45;
+    /** C# {@code sendUpdateState}: oid + u8 (2 finished / 3 left). */
+    public static final int SERVER_GAME_PLAYER_STATE = 0x6C;
+    /** C# {@code updateFinishHole} / {@code SERVER_UPDATE_HOLE}. */
+    public static final int SERVER_UPDATE_HOLE = 0x6D;
+    /** C# {@code sendPlacar} / {@code SERVER_GAME_RESULT}. */
+    public static final int SERVER_GAME_RESULT = 0x79;
+    /** C# {@code SERVER_PAUSE} Versus {@code 0x8B}. */
+    public static final int SERVER_PAUSE = 0x8B;
+    /** C# {@code sendDropItem} / {@code SERVER_PRIZE_LIST}. */
+    public static final int SERVER_PRIZE_LIST = 0xCE;
+    /** C# {@code requestSendTreasureHunterItem} / {@code SERVER_UPDATE_TREASURE_GIFT_LIST}. */
+    public static final int SERVER_UPDATE_TREASURE_GIFT_LIST = 0x134;
+    /** C# empty last-hole notify after the final Tourney hole. */
+    public static final int SERVER_LAST_HOLE = 0x199;
     public static final int SERVER_PANG_RATE = 0x77;
     public static final int SERVER_COURSE = 0x52;
     public static final int SERVER_WIND = 0x5B;
@@ -75,11 +93,17 @@ public final class GamePackets {
     public static final int CLIENT_REQUEST_LOGIN = 0x02;
     public static final int CLIENT_CHAT = 0x03;
     public static final int CLIENT_ENTER_CHANNEL = 0x04;
+    /** C# {@code CLIENT_MY_STATISTICS} / {@code packet006} {@code requestFinishGame}. */
+    public static final int CLIENT_MY_STATISTICS = 0x06;
     /** C# {@code CLIENT_REQUEST_USERINFO_OFFLINE} / {@code packet007} {@code requestCheckNick}. */
     public static final int CLIENT_REQUEST_USERINFO_OFFLINE = 0x07;
     public static final int CLIENT_REQUEST_CREATE_ROOM = 0x08;
     public static final int CLIENT_REQUEST_JOIN_ROOM = 0x09;
     public static final int CLIENT_CHANGE_ROOM_INFO = 0x0A;
+    /** C# {@code CLIENT_LOBBY_USERINFO_CHANGED} / {@code packet00B}. */
+    public static final int CLIENT_LOBBY_USERINFO_CHANGED = 0x0B;
+    /** C# {@code CLIENT_REQUEST_USERINFO_CHANGED} / {@code packet00C} in-room equip. */
+    public static final int CLIENT_REQUEST_USERINFO_CHANGED = 0x0C;
     public static final int CLIENT_SET_READY = 0x0D;
     public static final int CLIENT_REQUEST_START_GAME = 0x0E;
     public static final int CLIENT_EXIT_ROOM = 0x0F;
@@ -111,6 +135,10 @@ public final class GamePackets {
     public static final int CLIENT_REQUEST_DETAIL_ROOM_INFO = 0x2D;
     public static final int CLIENT_REQUEST_CASH = 0x3D;
     public static final int CLIENT_REQUEST_USERINFO = 0x2F;
+    /** C# {@code CLIENT_PAUSE} / {@code packet030} Versus {@code requestUnOrPause}. */
+    public static final int CLIENT_PAUSE = 0x30;
+    /** C# {@code CLIENT_HOLE_STAT} / {@code packet031} {@code requestFinishHoleData}. */
+    public static final int CLIENT_HOLE_STAT = 0x31;
     public static final int CLIENT_UPDATE_MACRO = 0x69;
     public static final int CLIENT_REQUEST_SERVER_LIST = 0x43;
     public static final int CLIENT_REQUEST_RANK = 0x47;
@@ -242,6 +270,32 @@ public final class GamePackets {
     public static final int SHOT_SYNC_BYTES = 54;
     /** C# {@code pacote06B} success err_code. */
     public static final int EQUIP_OK = 4;
+    /** C# {@code ChangePlayerItemRoom.TYPE_CHANGE} / Channel {@code 0x0B} types. */
+    public static final int ITEM_CADDIE = 1;
+    public static final int ITEM_BALL = 2;
+    public static final int ITEM_CLUBSET = 3;
+    public static final int ITEM_CHARACTER = 4;
+    public static final int ITEM_MASCOT = 5;
+    public static final int ITEM_LOUNGE_EFFECT = 6;
+    public static final int ITEM_ALL = 7;
+    /** C# {@code TourneyBase.m_medal} length. */
+    public static final int MEDAL_COUNT = 12;
+    /** C# {@code Medal.ToArray}: i32 oid + u32 typeid. */
+    public static final int MEDAL_BYTES = 8;
+    /** C# {@code stMedal.ToArray}: 6×int32. */
+    public static final int USER_MEDAL_BYTES = 24;
+    /** C# {@code MapStatistics.ToArray} Debug.Assert size. */
+    public static final int MAP_STATISTICS_BYTES = 43;
+    /**
+     * C# empty map-stat markers: 6 season/rest pairs as sbyte {@code -1}
+     * (normal, natural, assist-normal, assist-natural, GP, GP-assist).
+     */
+    public static final int MAP_STATISTICS_EMPTY_BYTES = 12;
+    /** C# Versus {@code requestUnOrPause} opt 0 resume / 1 pause. */
+    public static final int PAUSE_RESUME = 0;
+    public static final int PAUSE_PAUSE = 1;
+    /** C# Versus max successful pauses before the request is rejected. */
+    public static final int VERSUS_PAUSE_MAX = 3;
     /** C# {@code requestBuyItemShop} {@code 0x68} option codes. */
     public static final int BUY_FAIL_INIT = 1;
     public static final int BUY_FAIL_PRICE = 2;
@@ -1111,6 +1165,104 @@ public final class GamePackets {
         return w.toBytes();
     }
 
+    /**
+     * C# {@code pacote04B}: i32 error; on 0, type + oid + type-specific extra.
+     */
+    public static byte[] roomUserInfoChanged(int error, int type, int oid, byte[] extra) {
+        PacketWriter w = new PacketWriter().opcode(SERVER_ROOM_USER_INFO_CHANGED).i32(error);
+        if (error == 0) {
+            w.u8(type);
+            w.i32(oid);
+            if (extra != null) {
+                w.bytes(extra);
+            }
+        }
+        return w.toBytes();
+    }
+
+    /**
+     * C# {@code sendUpdateInfoAndMapStatistics} with empty map stats:
+     * UserInfo 265 + TrofelInfo 78 + 12× sbyte {@code -1}.
+     */
+    public static byte[] myStatistics(byte[] userInfo) {
+        PacketWriter w = new PacketWriter().opcode(SERVER_MY_STATISTICS);
+        w.bytes(userInfo != null && userInfo.length == USER_INFO_BYTES
+                ? userInfo
+                : userInfoPublic(0));
+        w.zero(TROPHY_BYTES);
+        for (int i = 0; i < MAP_STATISTICS_EMPTY_BYTES; i++) {
+            w.u8(0xff);
+        }
+        return w.toBytes();
+    }
+
+    /** C# {@code sendDropItem}: u8 0 + u16 count + typeids. */
+    public static byte[] prizeList(int[] typeids) {
+        int count = typeids == null ? 0 : typeids.length;
+        PacketWriter w = new PacketWriter().opcode(SERVER_PRIZE_LIST).u8(0).u16(count);
+        if (typeids != null) {
+            for (int typeid : typeids) {
+                w.u32(typeid);
+            }
+        }
+        return w.toBytes();
+    }
+
+    /**
+     * C# {@code sendPlacar}: exp + room trophy + player trophy + team + 12 medals +
+     * {@code UserInfo.medal}.
+     */
+    public static byte[] gameResult(int exp, int roomTrophy, int playerTrophy, int team) {
+        PacketWriter w = new PacketWriter().opcode(SERVER_GAME_RESULT);
+        w.i32(exp);
+        w.u32(roomTrophy);
+        w.u8(playerTrophy);
+        w.u8(team);
+        for (int i = 0; i < MEDAL_COUNT; i++) {
+            w.i32(-1);
+            w.u32(0);
+        }
+        w.zero(USER_MEDAL_BYTES);
+        return w.toBytes();
+    }
+
+    /** C# {@code requestSendTreasureHunterItem} with an empty drop list. */
+    public static byte[] treasureHunterItem() {
+        return new PacketWriter().opcode(SERVER_UPDATE_TREASURE_GIFT_LIST).u8(0).toBytes();
+    }
+
+    /** C# Versus {@code 0x8B}: i32 oid + u8 opt (0 resume / 1 pause). */
+    public static byte[] pause(int oid, int opt) {
+        return new PacketWriter().opcode(SERVER_PAUSE).i32(oid).u8(opt).toBytes();
+    }
+
+    /**
+     * C# {@code updateFinishHole} {@code 0x6D}: oid + hole + shots + score + pang +
+     * bonus + option (1 finished / 0 not).
+     */
+    public static byte[] updateHole(int oid, int hole, int shots, int score, long pang, long bonus, int option) {
+        return new PacketWriter()
+                .opcode(SERVER_UPDATE_HOLE)
+                .i32(oid)
+                .u8(hole)
+                .u8(shots)
+                .i32(score)
+                .u64(pang)
+                .u64(bonus)
+                .u8(option)
+                .toBytes();
+    }
+
+    /** C# {@code sendUpdateState} {@code 0x6C}: oid + u8 (2 finished / 3 left). */
+    public static byte[] gamePlayerState(int oid, int option) {
+        return new PacketWriter().opcode(SERVER_GAME_PLAYER_STATE).i32(oid).u8(option).toBytes();
+    }
+
+    /** C# empty {@code 0x199} after the last Tourney hole. */
+    public static byte[] lastHole() {
+        return new PacketWriter().opcode(SERVER_LAST_HOLE).toBytes();
+    }
+
     /** C# {@code requestBuyItemShop} {@code 0x68} uint32 option. Extra pang/cookie only on option 0. */
     public static byte[] buyFailed(int code) {
         return new PacketWriter().opcode(SERVER_BUY_ACK).u32(code).toBytes();
@@ -1723,6 +1875,45 @@ public final class GamePackets {
 
     public static byte[] clientEquipMascot(int mascotId) {
         return new PacketWriter().opcode(CLIENT_REQUEST_EQUIP_ITEM).u8(8).i32(mascotId).toBytes();
+    }
+
+    /** C# CLIENT {@code 0x06}: {@code UserInfoEx.ToRead} 265 bytes. */
+    public static byte[] clientFinishGame() {
+        return new PacketWriter().opcode(CLIENT_MY_STATISTICS).zero(USER_INFO_BYTES).toBytes();
+    }
+
+    /** C# CLIENT {@code 0x31}: {@code UserInfoEx.ToRead} 265 bytes, no reply. */
+    public static byte[] clientHoleStat() {
+        return new PacketWriter().opcode(CLIENT_HOLE_STAT).zero(USER_INFO_BYTES).toBytes();
+    }
+
+    /** C# CLIENT {@code 0x30}: u8 opt (0 resume / 1 pause). */
+    public static byte[] clientPause(int opt) {
+        return new PacketWriter().opcode(CLIENT_PAUSE).u8(opt).toBytes();
+    }
+
+    /** C# CLIENT {@code 0x0B}: u8 type + i32 id/typeid. */
+    public static byte[] clientLobbyItem(int type, int id) {
+        return new PacketWriter().opcode(CLIENT_LOBBY_USERINFO_CHANGED).u8(type).i32(id).toBytes();
+    }
+
+    /** C# CLIENT {@code 0x0C}: {@code TYPE_CHANGE} + i32 id (or u32 ball typeid). */
+    public static byte[] clientRoomItem(int type, int id) {
+        return new PacketWriter().opcode(CLIENT_REQUEST_USERINFO_CHANGED).u8(type).i32(id).toBytes();
+    }
+
+    /**
+     * C# CLIENT {@code 0x0C} {@code TC_ALL}: character, caddie, clubset, ball.
+     */
+    public static byte[] clientRoomItemAll(int character, int caddie, int clubset, int ball) {
+        return new PacketWriter()
+                .opcode(CLIENT_REQUEST_USERINFO_CHANGED)
+                .u8(ITEM_ALL)
+                .i32(character)
+                .i32(caddie)
+                .i32(clubset)
+                .u32(ball)
+                .toBytes();
     }
 
     /**
