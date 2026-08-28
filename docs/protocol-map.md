@@ -90,11 +90,16 @@ Fail `SendLoginAck` writes **uint32** ack. Success `pacote044` option 0 + `princ
 
 `pacote04E`: byte option (1=ok, 2=full, 3=not found). Enter channel: CLIENT `0x04` + byte channel id.
 
-Practice create CLIENT `0x08` with `tipo==19`. S3 `pacote049` stub: int16 0 + uint16 roomNumber + byte tipo. Full `Room.getInfo().ToArray()` is S4. Leave CLIENT `0x130` clears Practice state (C# `Channel.requestLeavePractice`).
+Practice create CLIENT `0x08` with `tipo==19`. Success `pacote049`: int16 0 + `RoomInfoEx.ToArray()` (210 bytes: nome 40, senha 24, flags, 16-byte key, holes, `tipo_show`, numero, modo, map, times, guild 66, rates, master, `tipo_ex`, artefato, natural, GP 16). Practice `tipo_show=4` (Tourney display), `tipo_ex=19`. Leave CLIENT `0x130`. Exit room CLIENT `0x0F`. Start-game CLIENT `0x0E` → empty `0x230` + empty `0x231` + `0x77` uint32 pang rate. Solo start is allowed only for Practice/GP/Grand Zodiac; Versus with one player returns `0x253` uint32 `0x5900202`.
 
 ## Ranking
 
 C#: `RankingServer/PangyaEnums/PacketRanking.cs`
+
+Hello is `makeRaw` `0x1388` + int32 key + byte 5 + PStr(`1970-01-01 00:00:00.000`) (C# `formatDateLocal(0)` as UTC).
+
+CLIENT `0x00`: uint32 uid, PStr id, byte menu, byte item, byte term_s5, byte class, uint32 page.
+Success `0x1389`: byte 0, four search bytes, 10 zero bytes (empty registry page/pages/count), byte `PPRT_NOT_TOP_RANK` (2). Error: byte option + 14 zeros.
 
 | Dir | C# | Opcode |
 |-----|----|--------|
@@ -108,6 +113,11 @@ C#: `RankingServer/PangyaEnums/PacketRanking.cs`
 ## Messenger
 
 C#: `MessengerServer/PangyaEnums/Definition.cs`
+
+Hello is `makeRaw` `0x2E` + byte 1 + byte 1 + uint32 key.
+
+CLIENT `0x12`: uint32 uid, PStr nickname. Success `0x2F` byte 0 + uint32 uid. Fail byte 1.
+Friend list CLIENT `0x14` → `0x30` sub `0x115` + uid + state 4 + OK + 75-byte empty `ChannelPlayerInfo`.
 
 | Dir | C# | Opcode |
 |-----|----|--------|

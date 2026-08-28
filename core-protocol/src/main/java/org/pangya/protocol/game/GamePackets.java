@@ -8,7 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * GB {@code PacketGame.cs} subset for S3 (login, channel, Practice room).
+ * GB {@code PacketGame.cs} subset for S3/S4 (login, channel, rooms, start-game).
  * C# {@code RoomInfo.TIPO.PRACTICE} = 19 (SSC is 18).
  */
 public final class GamePackets {
@@ -18,10 +18,17 @@ public final class GamePackets {
     public static final int SERVER_CHANNEL_LIST = 0x4D;
     public static final int SERVER_CHANNEL_ENTER_ACK = 0x4E;
     public static final int SERVER_ROOM_ENTER_RESULT = 0x49;
+    public static final int SERVER_ROOM_UPDATE = 0x4A;
+    public static final int SERVER_PANG_RATE = 0x77;
+    public static final int SERVER_START_GAME_FLAG = 0x230;
+    public static final int SERVER_START_GAME_FLAG2 = 0x231;
+    public static final int SERVER_START_GAME_FAIL = 0x253;
 
     public static final int CLIENT_REQUEST_LOGIN = 0x02;
     public static final int CLIENT_ENTER_CHANNEL = 0x04;
     public static final int CLIENT_REQUEST_CREATE_ROOM = 0x08;
+    public static final int CLIENT_REQUEST_START_GAME = 0x0E;
+    public static final int CLIENT_EXIT_ROOM = 0x0F;
     public static final int CLIENT_LEAVE_PRACTICE = 0x130;
 
     public static final int ACK_LOGIN_OK = 0;
@@ -51,10 +58,29 @@ public final class GamePackets {
 
     public static final int TIPO_STROKE = 0;
     public static final int TIPO_MATCH = 1;
+    public static final int TIPO_LOUNGE = 2;
     public static final int TIPO_TOURNEY = 4;
+    public static final int TIPO_TOURNEY_TEAM = 5;
+    public static final int TIPO_GUILD_BATTLE = 6;
+    public static final int TIPO_PANG_BATTLE = 7;
+    public static final int TIPO_APPROACH = 10;
+    public static final int TIPO_GRAND_ZODIAC_INT = 11;
+    public static final int TIPO_GRAND_ZODIAC_ADV = 13;
+    public static final int TIPO_GRAND_ZODIAC_PRACTICE = 14;
+    public static final int TIPO_SPECIAL_SHUFFLE_COURSE = 18;
     public static final int TIPO_PRACTICE = 19;
     public static final int TIPO_GRAND_PRIX = 20;
     public static final int TIPO_MAX = 20;
+
+    /** C# {@code RoomInfoEx.ToArray} (nome 40 + senha 24 + … + grand_prix 16). */
+    public static final int ROOM_INFO_BYTES = 210;
+    /** C# {@code MascotInfo.ToArray}. */
+    public static final int MASCOT_INFO_BYTES = 62;
+    /** C# {@code CardInfo.ToArray}. */
+    public static final int CARD_INFO_BYTES = 58;
+
+    /** C# start-game fail when the room is not ready ({@code 0x5900202}). */
+    public static final int START_GAME_NOT_READY = 0x5900202;
 
     /** C# {@code AIR_KNIGHT_SET} / IFF CLUBSET << 26. */
     public static final int TYPEID_AIR_KNIGHT = 0x10000000;
@@ -140,7 +166,24 @@ public final class GamePackets {
 
     /** C# {@code pacote0E1} + {@code MascotManager.Build} count 0. */
     public static byte[] emptyMascots() {
-        return new PacketWriter().opcode(0xE1).u16(0).toBytes();
+        return mascots(List.of());
+    }
+
+    public static byte[] mascots(List<MascotInfo> items) {
+        PacketWriter w = new PacketWriter().opcode(0xE1).u16(items.size() & 0xff);
+        for (MascotInfo m : items) {
+            w.bytes(m.toArray());
+        }
+        return w.toBytes();
+    }
+
+    /** C# {@code pacote138}: int32 option + uint16 count + {@code CardInfo} rows. */
+    public static byte[] cards(List<CardInfo> items) {
+        PacketWriter w = new PacketWriter().opcode(0x138).i32(0).u16(items.size());
+        for (CardInfo c : items) {
+            w.bytes(c.toArray());
+        }
+        return w.toBytes();
     }
 
     public static byte[] warehouse(List<WarehouseItem> items) {
@@ -173,6 +216,10 @@ public final class GamePackets {
 
     /** Remaining C# {@code LoginTask.sendCompleteData} packets after the channel list. */
     public static List<byte[]> loginDumpTail(int uid, long pang, long cookie, int level) {
+        return loginDumpTail(uid, pang, cookie, level, List.of());
+    }
+
+    public static List<byte[]> loginDumpTail(int uid, long pang, long cookie, int level, List<CardInfo> cardList) {
         List<byte[]> out = new ArrayList<>();
         out.add(new PacketWriter().opcode(0x102).i32(0).i32(0).u64(pang).u64(cookie).toBytes());
         PacketWriter th = new PacketWriter().opcode(0x131).u8(1).u8(MS_NUM_MAPS);
@@ -183,7 +230,7 @@ public final class GamePackets {
         out.add(new PacketWriter().opcode(0x21D).u32(0).u32(0).u32(0).toBytes());
         out.add(new PacketWriter().opcode(0x21E).u32(0).u32(0).u32(0).toBytes());
         out.add(new PacketWriter().opcode(0x144).u8(0).toBytes());
-        out.add(new PacketWriter().opcode(0x138).i32(0).u16(0).toBytes());
+        out.add(cards(cardList));
         out.add(new PacketWriter().opcode(0x136).toBytes());
         out.add(new PacketWriter().opcode(0x137).u16(0).toBytes());
         out.add(new PacketWriter().opcode(0x13F).u8(0).toBytes());
@@ -477,16 +524,64 @@ public final class GamePackets {
     }
 
     /**
-     * S3 stub of {@code pacote049} success: int16 0, uint16 room number, byte tipo.
-     * Full {@code Room.getInfo().ToArray()} lands with S4 room serialization.
+     * C# {@code pacote049} success: int16 0 + {@code Room.getInfo().ToArray()} (210 bytes).
      */
-    public static byte[] practiceRoomEntered(int roomNumber, int tipo) {
+    public static byte[] roomEntered(RoomInfo room) {
         return new PacketWriter()
                 .opcode(SERVER_ROOM_ENTER_RESULT)
                 .i16(0)
-                .u16(roomNumber)
-                .u8(tipo)
+                .bytes(room.toArray())
                 .toBytes();
+    }
+
+    /** C# {@code Room::setTipo}: tipo_show for the lobby list. */
+    public static int tipoShow(int tipo) {
+        if (tipo > TIPO_GRAND_ZODIAC_PRACTICE) {
+            return TIPO_TOURNEY;
+        }
+        if (tipo == TIPO_GRAND_ZODIAC_ADV || tipo == TIPO_GRAND_ZODIAC_PRACTICE) {
+            return TIPO_GRAND_ZODIAC_INT;
+        }
+        return tipo;
+    }
+
+    /** C# {@code Room::setTipo}: tipo_ex is 255 unless tipo ≥ Grand Zodiac INT. */
+    public static int tipoEx(int tipo) {
+        return tipo >= TIPO_GRAND_ZODIAC_INT ? tipo : 255;
+    }
+
+    /** C# {@code requestStartGame} allows a single player for these tipos. */
+    public static boolean allowsSoloStart(int tipo) {
+        return tipo == TIPO_PRACTICE
+                || tipo == TIPO_GRAND_PRIX
+                || tipo == TIPO_GRAND_ZODIAC_INT
+                || tipo == TIPO_GRAND_ZODIAC_ADV
+                || tipo == TIPO_GRAND_ZODIAC_PRACTICE;
+    }
+
+    /** C# start-game success: empty {@code 0x230}, empty {@code 0x231}, {@code 0x77} pang rate. */
+    public static byte[] startGameFlag() {
+        return new PacketWriter().opcode(SERVER_START_GAME_FLAG).toBytes();
+    }
+
+    public static byte[] startGameFlag2() {
+        return new PacketWriter().opcode(SERVER_START_GAME_FLAG2).toBytes();
+    }
+
+    public static byte[] pangRate(int rate) {
+        return new PacketWriter().opcode(SERVER_PANG_RATE).u32(rate).toBytes();
+    }
+
+    public static byte[] startGameFailed(int code) {
+        return new PacketWriter().opcode(SERVER_START_GAME_FAIL).u32(code).toBytes();
+    }
+
+    public static byte[] clientStartGame() {
+        return new PacketWriter().opcode(CLIENT_REQUEST_START_GAME).toBytes();
+    }
+
+    public static byte[] clientExitRoom() {
+        return new PacketWriter().opcode(CLIENT_EXIT_ROOM).toBytes();
     }
 
     /** C# {@code pacote049} error path: single option byte (not int16). */
@@ -576,7 +671,9 @@ public final class GamePackets {
         int natural = reader.u32();
         String name = reader.remaining() >= 2 ? reader.pstr() : "";
         String password = reader.remaining() >= 2 ? reader.pstr() : "";
-        return new CreateRoom(option, timeVs, time30s, maxPlayer, tipo, holes, course, modo, natural, name, password);
+        int artefato = reader.remaining() >= 4 ? reader.u32() : 0;
+        return new CreateRoom(
+                option, timeVs, time30s, maxPlayer, tipo, holes, course, modo, natural, name, password, artefato);
     }
 
     public record GameLogin(
@@ -601,7 +698,144 @@ public final class GamePackets {
             int modo,
             int natural,
             String name,
-            String password) {}
+            String password,
+            int artefato) {}
+
+    public static final class MascotInfo {
+        public int id;
+        public int typeid;
+        public int level;
+        public int exp;
+        public String message = "";
+        public int tipo;
+        public int pcBangMascot;
+
+        public byte[] toArray() {
+            PacketWriter w = new PacketWriter();
+            w.i32(id);
+            w.u32(typeid);
+            w.u8(level);
+            w.u32(exp);
+            w.fixedStr(message, 30);
+            w.u16(tipo);
+            w.zero(16);
+            w.u8(pcBangMascot);
+            byte[] body = w.toBytes();
+            if (body.length != MASCOT_INFO_BYTES) {
+                throw new IllegalStateException("MascotInfo size " + body.length);
+            }
+            return body;
+        }
+    }
+
+    public static final class CardInfo {
+        public int id;
+        public int typeid;
+        public int slot;
+        public int efeito;
+        public int efeitoQntd;
+        public int qntd;
+        public int type;
+        public int useYn;
+
+        public byte[] toArray() {
+            PacketWriter w = new PacketWriter();
+            w.i32(id);
+            w.u32(typeid);
+            w.u32(slot);
+            w.u32(efeito);
+            w.u32(efeitoQntd);
+            w.i32(qntd);
+            w.zero(16);
+            w.zero(16);
+            w.u8(type);
+            w.u8(useYn);
+            byte[] body = w.toBytes();
+            if (body.length != CARD_INFO_BYTES) {
+                throw new IllegalStateException("CardInfo size " + body.length);
+            }
+            return body;
+        }
+    }
+
+    /**
+     * C# {@code RoomInfoEx.ToArray} used by {@code pacote049}.
+     * Guild {@code ToArray} writes uid pair + two 17-byte names + two 12-byte marks (no index).
+     */
+    public static final class RoomInfo {
+        public String name = "";
+        public String password = "";
+        public int senhaFlag = 1;
+        public int state = 1;
+        public int flag;
+        public int maxPlayer;
+        public int numPlayer;
+        public byte[] key = new byte[16];
+        public int galleryNum;
+        public int thirtyS = 30;
+        public int holes;
+        public int tipoShow;
+        public int numero;
+        public int modo;
+        public int course;
+        public int timeVs;
+        public int time30s;
+        public int trophy;
+        public int stateFlag;
+        public int ratePang;
+        public int rateExp;
+        public int master;
+        public int tipoEx = 255;
+        public int artefato;
+        public int natural;
+        public int gpDadosTypeid;
+        public int gpRankTypeid;
+        public int gpTempo;
+        public int gpActive;
+
+        public byte[] toArray() {
+            PacketWriter w = new PacketWriter();
+            w.fixedStr(name, 40);
+            w.fixedStr(password, 24);
+            w.u8(senhaFlag);
+            w.u8(state);
+            w.u8(flag);
+            w.u8(maxPlayer);
+            w.u8(numPlayer);
+            w.bytes(key, 16);
+            w.u8(galleryNum);
+            w.u8(thirtyS);
+            w.u8(holes);
+            w.u8(tipoShow);
+            w.u16(numero);
+            w.u8(modo);
+            w.u8(course & 0x7f);
+            w.u32(timeVs);
+            w.u32(time30s);
+            w.u32(trophy);
+            w.i16(stateFlag);
+            w.i32(0).i32(0);
+            w.fixedStr("", 17);
+            w.fixedStr("", 17);
+            w.fixedStr("", 12);
+            w.fixedStr("", 12);
+            w.u32(ratePang);
+            w.u32(rateExp);
+            w.i32(master);
+            w.u8(tipoEx);
+            w.u32(artefato);
+            w.u32(natural);
+            w.u32(gpDadosTypeid);
+            w.u32(gpRankTypeid);
+            w.u32(gpTempo);
+            w.u32(gpActive);
+            byte[] body = w.toBytes();
+            if (body.length != ROOM_INFO_BYTES) {
+                throw new IllegalStateException("RoomInfo size " + body.length);
+            }
+            return body;
+        }
+    }
 
     public static final class ChannelInfo {
         public String name = "";

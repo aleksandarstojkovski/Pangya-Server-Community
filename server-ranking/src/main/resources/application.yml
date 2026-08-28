@@ -1,7 +1,14 @@
 server:
   name: ranking
+  uid: 4774
+  tipo: 4
   port: 4774
   healthPort: 9474
+  ip: 127.0.0.1
+  maxUser: 2001
+  version: RS.Release.2.0
+  clientVersion: "852.00"
+  packetVersion: 2016110200
 database:
   url: jdbc:postgresql://postgres:5432/pangya
   user: pangya
@@ -9,5 +16,6 @@ database:
 redis:
   uri: redis://redis:6379
 auth:
+  enabled: true
   host: auth
   port: 7777

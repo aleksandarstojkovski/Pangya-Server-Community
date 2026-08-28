@@ -82,6 +82,17 @@ class GamePacketsTest {
         GamePackets.CaddieInfo cad = new GamePackets.CaddieInfo();
         assertEquals(GamePackets.CADDIE_INFO_BYTES, cad.toArray().length);
         assertEquals(GamePackets.USER_EQUIP_BYTES, new GamePackets.UserEquip().toArray().length);
+        assertEquals(GamePackets.MASCOT_INFO_BYTES, new GamePackets.MascotInfo().toArray().length);
+        assertEquals(GamePackets.CARD_INFO_BYTES, new GamePackets.CardInfo().toArray().length);
+        GamePackets.RoomInfo room = new GamePackets.RoomInfo();
+        room.name = "VS";
+        room.numero = 1;
+        room.tipoShow = GamePackets.tipoShow(GamePackets.TIPO_STROKE);
+        room.tipoEx = GamePackets.tipoEx(GamePackets.TIPO_STROKE);
+        assertEquals(GamePackets.ROOM_INFO_BYTES, room.toArray().length);
+        assertEquals(GamePackets.TIPO_TOURNEY, GamePackets.tipoShow(GamePackets.TIPO_PRACTICE));
+        assertEquals(19, GamePackets.tipoEx(GamePackets.TIPO_PRACTICE));
+        assertEquals(255, GamePackets.tipoEx(GamePackets.TIPO_STROKE));
         List<byte[]> tail = GamePackets.loginDumpTail(10001, 0, 0, 1);
         assertEquals(0x102, new PacketReader(tail.get(0)).opcode());
         assertEquals(0x1B1, new PacketReader(tail.getLast()).opcode());

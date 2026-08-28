@@ -40,6 +40,22 @@ class PangyaProcessTest {
     }
 
     @Test
+    void metricsEndpointScrapesSessionGauge() throws Exception {
+        int health = freePort();
+        PangyaMetrics metrics = new PangyaMetrics("test", () -> 7);
+        try (HealthHttp http = new HealthHttp(health, "test", metrics)) {
+            HttpResponse<String> response = HttpClient.newHttpClient().send(
+                    HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + health + "/metrics"))
+                            .GET()
+                            .timeout(Duration.ofSeconds(2))
+                            .build(),
+                    HttpResponse.BodyHandlers.ofString());
+            assertEquals(200, response.statusCode());
+            assertTrue(response.body().contains("pangya_sessions"));
+        }
+    }
+
+    @Test
     void yamlDefaultsLoad() {
         AppConfig config = AppConfig.load("does-not-exist.yml");
         assertEquals("pangya", config.serverName());

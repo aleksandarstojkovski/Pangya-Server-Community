@@ -29,12 +29,14 @@ public final class PangyaFakeClient implements AutoCloseable {
     public enum HelloKind {
         LOGIN,
         GAME,
-        AUTH
+        AUTH,
+        RANKING,
+        MESSENGER
     }
 
     private final EventLoopGroup group = new NioEventLoopGroup(1);
     private final BlockingQueue<byte[]> hellos = new ArrayBlockingQueue<>(4);
-    private final BlockingQueue<byte[]> plains = new ArrayBlockingQueue<>(32);
+    private final BlockingQueue<byte[]> plains = new ArrayBlockingQueue<>(64);
     private volatile Channel channel;
     private volatile int key = -1;
     private volatile HelloKind kind = HelloKind.LOGIN;
@@ -76,20 +78,39 @@ public final class PangyaFakeClient implements AutoCloseable {
         }
         if (kind == HelloKind.LOGIN) {
             key = hello[6] & 0xff;
-        } else if (kind == HelloKind.AUTH) {
-            byte[] payload = PacketIo.slice(hello, 4, hello.length - 4);
-            PacketReader r = new PacketReader(payload);
-            r.opcode();
-            key = r.u32() & 0xff;
         } else {
             byte[] payload = PacketIo.slice(hello, 4, hello.length - 4);
             PacketReader r = new PacketReader(payload);
             int opcode = r.opcode();
-            r.u8();
-            r.u8();
-            key = r.u8();
-            if (opcode != 0x3F) {
-                throw new IllegalStateException("expected game hello 0x3F, got 0x" + Integer.toHexString(opcode));
+            switch (kind) {
+                case AUTH -> {
+                    key = r.u32() & 0xff;
+                }
+                case RANKING -> {
+                    key = r.u32() & 0xff;
+                    if (opcode != 0x1388) {
+                        throw new IllegalStateException(
+                                "expected ranking hello 0x1388, got 0x" + Integer.toHexString(opcode));
+                    }
+                }
+                case MESSENGER -> {
+                    r.u8();
+                    r.u8();
+                    key = r.u32() & 0xff;
+                    if (opcode != 0x2E) {
+                        throw new IllegalStateException(
+                                "expected messenger hello 0x2E, got 0x" + Integer.toHexString(opcode));
+                    }
+                }
+                default -> {
+                    r.u8();
+                    r.u8();
+                    key = r.u8();
+                    if (opcode != 0x3F) {
+                        throw new IllegalStateException(
+                                "expected game hello 0x3F, got 0x" + Integer.toHexString(opcode));
+                    }
+                }
             }
         }
         return hello;

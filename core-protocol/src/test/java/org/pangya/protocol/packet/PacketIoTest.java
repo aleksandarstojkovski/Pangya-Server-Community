@@ -29,4 +29,23 @@ class PacketIoTest {
         assertEquals(1, hello[7] & 0xff);
         assertEquals(3, hello[8] & 0xff);
     }
+
+    @Test
+    void rankingHelloIsRaw0x1388WithType5() {
+        byte[] hello = PacketIo.rankingHello(4);
+        assertEquals(0x88, hello[4] & 0xff);
+        assertEquals(0x13, hello[5] & 0xff);
+        assertEquals(4, hello[6] & 0xff);
+        assertEquals(5, hello[10] & 0xff);
+    }
+
+    @Test
+    void messengerHelloIsRaw0x2EWithU32Key() {
+        byte[] hello = PacketIo.messengerHello(9);
+        assertEquals(0x2E, hello[4] & 0xff);
+        assertEquals(0x00, hello[5] & 0xff);
+        assertEquals(1, hello[6] & 0xff);
+        assertEquals(1, hello[7] & 0xff);
+        assertEquals(9, hello[8] & 0xff);
+    }
 }

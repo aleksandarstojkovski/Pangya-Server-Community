@@ -51,6 +51,7 @@ public final class PangyaNettyServer implements AutoCloseable {
         ServerBootstrap b = new ServerBootstrap();
         b.group(boss, worker)
                 .channel(NioServerSocketChannel.class)
+                .option(ChannelOption.SO_BACKLOG, 4096)
                 .childOption(ChannelOption.TCP_NODELAY, true)
                 .childOption(ChannelOption.SO_KEEPALIVE, true)
                 .childHandler(new ChannelInitializer<SocketChannel>() {
@@ -92,6 +93,8 @@ public final class PangyaNettyServer implements AutoCloseable {
                     PacketIo.u32le(session.key()),
                     PacketIo.u32le(authUid)
             ));
+            case RANKING -> PacketIo.rankingHello(session.key());
+            case MESSENGER -> PacketIo.messengerHello(session.key());
         };
         ch.writeAndFlush(ch.alloc().buffer(hello.length).writeBytes(hello));
     }

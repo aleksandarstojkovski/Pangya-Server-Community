@@ -77,6 +77,16 @@ public final class PacketWriter {
         return this;
     }
 
+    /** C# {@code WriteBytes(buf, length)} / {@code WriteStr(s, length)}: zero-padded field. */
+    public PacketWriter bytes(byte[] value, int length) {
+        byte[] field = new byte[length];
+        if (value != null) {
+            System.arraycopy(value, 0, field, 0, Math.min(value.length, length));
+        }
+        out.writeBytes(field);
+        return this;
+    }
+
     public PacketWriter zero(int n) {
         if (n > 0) {
             out.writeBytes(new byte[n]);

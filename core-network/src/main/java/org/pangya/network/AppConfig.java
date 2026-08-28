@@ -101,6 +101,16 @@ public final class AppConfig {
         return nestedInt("server", "packetVersion", 2016110200);
     }
 
+    /** C# {@code ServerInfo.rate.pang}; default 100. */
+    public int ratePang() {
+        return nestedInt("server", "ratePang", 100);
+    }
+
+    /** C# {@code ServerInfo.rate.exp}; default 100. */
+    public int rateExp() {
+        return nestedInt("server", "rateExp", 100);
+    }
+
     public int tipo() {
         return nestedInt("server", "tipo", 0);
     }

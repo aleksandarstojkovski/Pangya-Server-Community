@@ -95,6 +95,32 @@ public final class PacketIo {
         return makeRaw(payload);
     }
 
+    /**
+     * RankingServer onAcceptCompleted: raw {@code 0x1388} + int32 key + byte 5 + PStr(epoch).
+     * C# {@code UtilTime.formatDateLocal(0)} as UTC {@code yyyy-MM-dd HH:mm:ss.SSS}.
+     */
+    public static final String RANKING_EPOCH = "1970-01-01 00:00:00.000";
+
+    public static byte[] rankingHello(int key) {
+        byte[] payload = concat(
+                opcode(0x1388),
+                u32le(key),
+                new byte[] {5},
+                pstr(RANKING_EPOCH)
+        );
+        return makeRaw(payload);
+    }
+
+    /** MessengerServer onAcceptCompleted: raw {@code 0x2E} + byte 1 + byte 1 + uint32 key. */
+    public static byte[] messengerHello(int key) {
+        byte[] payload = concat(
+                opcode(0x2E),
+                new byte[] {1, 1},
+                u32le(key)
+        );
+        return makeRaw(payload);
+    }
+
     public static int clientFrameLength(byte[] buf, int offset) {
         int lenField = readU16le(buf, offset + 1);
         return lenField + 4;

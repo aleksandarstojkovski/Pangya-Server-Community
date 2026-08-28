@@ -9,7 +9,7 @@ git clone --depth 1 --branch Develop https://github.com/luismk/Pangya-Server-Com
 ## Commands
 
 ```bash
-# S3 verify (postgres + redis + Flyway + Auth/Login/Game fake client)
+# S3 verify (postgres + redis + Flyway + Auth/Login/Game/Ranking/Messenger fake client)
 ./scripts/verify.sh
 
 # Full Gradle tests

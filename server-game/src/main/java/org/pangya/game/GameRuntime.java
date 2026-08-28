@@ -8,6 +8,7 @@ import org.pangya.db.JdbiLoginRepository;
 import org.pangya.db.LoginRepository;
 import org.pangya.network.AppConfig;
 import org.pangya.network.HealthHttp;
+import org.pangya.network.PangyaMetrics;
 import org.pangya.network.auth.AuthServerConnector;
 import org.pangya.network.ddos.IpDdosFilter;
 import org.pangya.network.netty.PangyaNettyServer;
@@ -44,7 +45,8 @@ public final class GameRuntime implements AutoCloseable {
         GameHandler handler = new GameHandler(config, repo, inventory, redis, sessions, GameHandler.loadChannels(config));
         this.netty = new PangyaNettyServer(ServerKind.GAME, sessions, handler::onPacket);
         this.netty.bind(config.port());
-        this.health = new HealthHttp(config.healthPort(), config.serverName());
+        PangyaMetrics metrics = new PangyaMetrics(config.serverName(), sessions::size);
+        this.health = new HealthHttp(config.healthPort(), config.serverName(), metrics);
         if (config.authEnabled()) {
             this.auth = new AuthServerConnector(config, repo::generateAuthServerKey);
             this.auth.start();

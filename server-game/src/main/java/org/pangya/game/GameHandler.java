@@ -16,11 +16,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * GB {@code GameServer.requestLogin} + channel enter + room create (all {@code RoomInfo.TIPO})
- * / Practice leave. Live warehouse/character come from SQL; remaining match play is S4+.
+ * GB {@code GameServer.requestLogin} + channel enter + {@code Channel.requestMakeRoom}
+ * ({@code Room.getInfo().ToArray()}) + start-game flags + Practice leave.
  */
 public final class GameHandler {
 
@@ -33,6 +34,7 @@ public final class GameHandler {
     private final SessionManager sessions;
     private final List<GamePackets.ChannelInfo> channels;
     private final AtomicInteger nextRoom = new AtomicInteger(1);
+    private final ConcurrentHashMap<Integer, GameRoom> rooms = new ConcurrentHashMap<>();
 
     public GameHandler(
             AppConfig config,
@@ -81,6 +83,8 @@ public final class GameHandler {
             case GamePackets.CLIENT_REQUEST_LOGIN -> requestLogin(session, reader);
             case GamePackets.CLIENT_ENTER_CHANNEL -> enterChannel(session, reader);
             case GamePackets.CLIENT_REQUEST_CREATE_ROOM -> createRoom(session, reader);
+            case GamePackets.CLIENT_REQUEST_START_GAME -> startGame(session);
+            case GamePackets.CLIENT_EXIT_ROOM -> leaveRoom(session);
             case GamePackets.CLIENT_LEAVE_PRACTICE -> leavePractice(session);
             default -> log.debug("unhandled game opcode 0x{}", Integer.toHexString(opcode));
         }
@@ -205,10 +209,11 @@ public final class GameHandler {
             session.send(GamePackets.characters(characters));
             session.send(GamePackets.caddies(caddies));
             session.send(GamePackets.userEquip(inventory.userEquip(pi.uid)));
-            session.send(GamePackets.emptyMascots());
+            session.send(GamePackets.mascots(inventory.mascots(pi.uid)));
             session.send(GamePackets.channelList(channels));
             for (byte[] extra : GamePackets.loginDumpTail(
-                    (int) pi.uid, inventory.pang(pi.uid), inventory.cookie(pi.uid), pi.level)) {
+                    (int) pi.uid, inventory.pang(pi.uid), inventory.cookie(pi.uid), pi.level,
+                    inventory.cards(pi.uid))) {
                 session.send(extra);
             }
             log.info("game login id={} uid={}", pi.id, pi.uid);
@@ -262,19 +267,59 @@ public final class GameHandler {
         }
         int number = nextRoom.getAndIncrement() & 0xffff;
         PlayerContext pi = session.player();
+        GameRoom created = new GameRoom(room, number, (int) pi.uid, config.ratePang(), config.rateExp());
+        rooms.put(number, created);
         pi.roomNumber = number;
         pi.inPractice = room.tipo() == GamePackets.TIPO_PRACTICE;
-        session.send(GamePackets.practiceRoomEntered(number, room.tipo()));
+        session.send(GamePackets.roomEntered(created.info));
         log.info("room {} tipo={} uid={}", number, room.tipo(), pi.uid);
     }
 
-    private void leavePractice(Session session) {
-        PlayerContext pi = session.player();
-        if (!session.authorized() || !pi.inPractice) {
+    private void startGame(Session session) {
+        if (!session.authorized()) {
             return;
         }
+        PlayerContext pi = session.player();
+        GameRoom room = rooms.get(pi.roomNumber);
+        if (room == null) {
+            session.send(GamePackets.startGameFailed(GamePackets.START_GAME_NOT_READY));
+            return;
+        }
+        if (room.info.master != (int) pi.uid) {
+            session.send(GamePackets.startGameFailed(GamePackets.START_GAME_NOT_READY));
+            return;
+        }
+        if (room.info.numPlayer < 2 && !GamePackets.allowsSoloStart(room.tipo)) {
+            session.send(GamePackets.startGameFailed(GamePackets.START_GAME_NOT_READY));
+            return;
+        }
+        if (room.inGame) {
+            session.send(GamePackets.startGameFailed(GamePackets.START_GAME_NOT_READY));
+            return;
+        }
+        room.inGame = true;
+        room.info.state = 0;
+        session.send(GamePackets.startGameFlag());
+        session.send(GamePackets.startGameFlag2());
+        session.send(GamePackets.pangRate(room.info.ratePang));
+        log.info("start game room {} tipo={} uid={}", room.info.numero, room.tipo, pi.uid);
+    }
+
+    private void leaveRoom(Session session) {
+        PlayerContext pi = session.player();
+        if (!session.authorized() || pi.roomNumber < 0) {
+            return;
+        }
+        rooms.remove(pi.roomNumber);
         pi.inPractice = false;
         pi.roomNumber = -1;
+    }
+
+    private void leavePractice(Session session) {
+        if (!session.authorized() || !session.player().inPractice) {
+            return;
+        }
+        leaveRoom(session);
     }
 
     private GamePackets.ChannelInfo findChannel(int id) {

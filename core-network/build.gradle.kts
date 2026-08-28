@@ -8,6 +8,7 @@ dependencies {
     api(libs.netty.all)
     api(libs.snakeyaml)
     api(libs.micrometer.core)
+    api(libs.micrometer.prometheus)
     api(libs.jedis)
     implementation(libs.bundles.logging)
     testImplementation(libs.bundles.test)

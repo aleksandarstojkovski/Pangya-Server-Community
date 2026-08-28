@@ -15,6 +15,10 @@ public interface InventoryRepository {
 
     GamePackets.UserEquip userEquip(long uid);
 
+    List<GamePackets.MascotInfo> mascots(long uid);
+
+    List<GamePackets.CardInfo> cards(long uid);
+
     long pang(long uid);
 
     long cookie(long uid);

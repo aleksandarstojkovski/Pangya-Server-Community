@@ -94,8 +94,20 @@ class GameFlowIT {
                 PacketReader room = new PacketReader(client.awaitPlain(5, TimeUnit.SECONDS));
                 assertEquals(GamePackets.SERVER_ROOM_ENTER_RESULT, room.opcode());
                 assertEquals(0, room.i16());
-                assertTrue(room.u16() >= 1);
-                assertEquals(GamePackets.TIPO_PRACTICE, room.u8());
+                assertEquals(GamePackets.ROOM_INFO_BYTES, room.remaining());
+                byte[] practiceInfo = room.readBytes(GamePackets.ROOM_INFO_BYTES);
+                assertEquals("Single Player Practice Mode", nameFromRoomInfo(practiceInfo));
+                int practiceNum = roomNumberFromInfo(practiceInfo);
+                assertTrue(practiceNum >= 1);
+
+                client.sendPlain(GamePackets.clientStartGame());
+                PacketReader start1 = new PacketReader(client.awaitPlain(5, TimeUnit.SECONDS));
+                assertEquals(GamePackets.SERVER_START_GAME_FLAG, start1.opcode());
+                PacketReader start2 = new PacketReader(client.awaitPlain(5, TimeUnit.SECONDS));
+                assertEquals(GamePackets.SERVER_START_GAME_FLAG2, start2.opcode());
+                PacketReader rate = new PacketReader(client.awaitPlain(5, TimeUnit.SECONDS));
+                assertEquals(GamePackets.SERVER_PANG_RATE, rate.opcode());
+                assertEquals(100, rate.u32());
 
                 client.sendPlain(GamePackets.clientLeavePractice());
                 client.drainPlain(200);
@@ -104,8 +116,15 @@ class GameFlowIT {
                 PacketReader stroke = new PacketReader(client.awaitPlain(5, TimeUnit.SECONDS));
                 assertEquals(GamePackets.SERVER_ROOM_ENTER_RESULT, stroke.opcode());
                 assertEquals(0, stroke.i16());
-                assertTrue(stroke.u16() >= 1);
-                assertEquals(GamePackets.TIPO_STROKE, stroke.u8());
+                assertEquals(GamePackets.ROOM_INFO_BYTES, stroke.remaining());
+                byte[] strokeInfo = stroke.readBytes(GamePackets.ROOM_INFO_BYTES);
+                assertEquals("VS", nameFromRoomInfo(strokeInfo));
+                assertTrue(roomNumberFromInfo(strokeInfo) >= 1);
+
+                client.sendPlain(GamePackets.clientStartGame());
+                PacketReader denied = new PacketReader(client.awaitPlain(5, TimeUnit.SECONDS));
+                assertEquals(GamePackets.SERVER_START_GAME_FAIL, denied.opcode());
+                assertEquals(GamePackets.START_GAME_NOT_READY, denied.u32());
             }
 
             assertTrue(awaitSessionCount(runtime, 0, 5, TimeUnit.SECONDS), "kill session must drop the player");
@@ -165,6 +184,18 @@ class GameFlowIT {
             assertEquals(GamePackets.ACK_SECURITY_KEY, r.u32());
             assertFalse(runtime.sessions().snapshot().stream().anyMatch(s -> s.authorized()));
         }
+    }
+
+    private static String nameFromRoomInfo(byte[] info) {
+        int end = 0;
+        while (end < 40 && info[end] != 0) {
+            end++;
+        }
+        return new String(info, 0, end, org.pangya.protocol.packet.PacketIo.SHIFT_JIS);
+    }
+
+    private static int roomNumberFromInfo(byte[] info) {
+        return org.pangya.protocol.packet.PacketIo.readU16le(info, 89);
     }
 
     private static boolean awaitSessionCount(GameRuntime runtime, int expected, long timeout, TimeUnit unit)

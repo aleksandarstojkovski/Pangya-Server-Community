@@ -146,6 +146,54 @@ public final class JdbiInventoryRepository implements InventoryRepository {
     }
 
     @Override
+    public List<GamePackets.MascotInfo> mascots(long uid) {
+        return jdbi.withHandle(h -> h.createQuery("""
+                        SELECT item_id, typeid, "mLevel", "mExp", "Tipo", "Message"
+                          FROM pangya.pangya_mascot_info
+                         WHERE "UID" = :uid AND "Valid" = 1
+                         ORDER BY item_id
+                        """)
+                .bind("uid", uid)
+                .map((rs, ctx) -> {
+                    GamePackets.MascotInfo m = new GamePackets.MascotInfo();
+                    m.id = rs.getInt("item_id");
+                    m.typeid = rs.getInt("typeid");
+                    m.level = rs.getInt("mLevel");
+                    m.exp = rs.getInt("mExp");
+                    m.tipo = rs.getInt("Tipo");
+                    m.message = rs.getString("Message");
+                    return m;
+                })
+                .list());
+    }
+
+    @Override
+    public List<GamePackets.CardInfo> cards(long uid) {
+        return jdbi.withHandle(h -> h.createQuery("""
+                        SELECT card_itemid, card_typeid, "Slot", "Efeito", "Efeito_Qntd", "QNTD",
+                               card_type, "USE_YN"
+                          FROM pangya.pangya_card
+                         WHERE "UID" = :uid
+                         ORDER BY card_itemid
+                        """)
+                .bind("uid", uid)
+                .map((rs, ctx) -> {
+                    GamePackets.CardInfo c = new GamePackets.CardInfo();
+                    c.id = rs.getInt("card_itemid");
+                    c.typeid = rs.getInt("card_typeid");
+                    c.slot = rs.getInt("Slot");
+                    c.efeito = rs.getInt("Efeito");
+                    c.efeitoQntd = rs.getInt("Efeito_Qntd");
+                    c.qntd = rs.getInt("QNTD");
+                    c.type = rs.getInt("card_type");
+                    String yn = rs.getString("USE_YN");
+                    c.useYn = "Y".equalsIgnoreCase(yn) || "1".equals(yn) ? 1 : 0;
+                    return c;
+                })
+                .list());
+    }
+
+    @Override
     public long pang(long uid) {
         return jdbi.withHandle(h -> h.createQuery("SELECT COALESCE(\"Pang\", 0) FROM pangya.user_info WHERE \"UID\" = :uid")
                 .bind("uid", uid)

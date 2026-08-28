@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
 # Local CI: Gradle tests + docker compose health for the current slice.
-# S3: postgres/redis healthy + protocol/network/db + Auth/Login/Game fake-client tests
+# S0–S5: postgres/redis + protocol/network/db + Auth/Login/Game/Ranking/Messenger
+# S6: SessionLoadIT 3000 hellos + /metrics
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
+
+ulimit -n 8192 2>/dev/null || true
 
 echo "== docker compose postgres+redis =="
 docker compose up -d postgres redis
@@ -23,14 +26,17 @@ for i in $(seq 1 60); do
   sleep 2
 done
 
-echo "== gradle test (S0–S3 modules) =="
+echo "== gradle test (S0–S6 modules) =="
 ./gradlew --no-daemon \
+  -Dpangya.load.sessions=3000 \
   :core-protocol:test \
   :core-network:test \
   :core-db:test \
   :server-login:test \
   :server-auth:test \
-  :server-game:test
+  :server-game:test \
+  :server-ranking:test \
+  :server-messenger:test
 
 echo "== docker compose ps =="
 docker compose ps

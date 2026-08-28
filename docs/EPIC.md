@@ -8,8 +8,8 @@ Questo repo è **solo** la riscrittura Java.
 
 | Campo | Valore |
 |-------|--------|
-| Slice completata | **S0 + S1 + S2 + S3** verdi; **S4** inventario live + stub tutte le room tipo |
-| Prossima | **S4** hole/shot Versus/Tourney + `Room.getInfo()` + card/achievement da DB |
+| Slice completata | **S0 + S1 + S2 + S3** verdi; **S4** `Room.getInfo()` + start-game; **S5** Ranking/Messenger login |
+| Prossima | **S4** hole/shot Versus/Tourney + card/achievement managers + **S6** compose 5-server health |
 | Blocked | nessuno |
 | VM | Java 21.0.10, Docker 29.7.2, Compose v5.5.0, 4 CPU / 15 GiB |
 
@@ -143,7 +143,7 @@ Create-user flag C# (`CREATEUSER=1`) **non** portato in S2: account assente → 
 
 ## Inventario Practice (S3)
 
-C# `LoginTask.sendCompleteData` invia `pacote044` option 0 con `principal()` (12512 byte dopo opcode+option) + warehouse `0x73` + characters `0x70` + caddies `0x71` + equip `0x72` + mascot `0xE1` + `pacote04D` + coda (`0x102`…`0x1B1`). Java carica warehouse/character/caddie/`user_equip` da SQL (seed V4: Nuri `0x4000000`, Air Knight `0x10000000`, ball `0x14000000`). Achievement/card/mascot ancora liste vuote. Create-room accetta tutti i `RoomInfo.TIPO` 0–20 con stub `0x49` (serializzazione `Room.getInfo()` e hole/shot restano S4).
+C# `LoginTask.sendCompleteData` invia `pacote044` option 0 con `principal()` (12512 byte dopo opcode+option) + warehouse `0x73` + characters `0x70` + caddies `0x71` + equip `0x72` + mascot `0xE1` + `pacote04D` + coda (`0x102`…`0x1B1`). Java carica warehouse/character/caddie/`user_equip`/mascot/card da SQL (seed V4: Nuri `0x4000000`, Air Knight `0x10000000`, ball `0x14000000`). Create-room accetta tutti i `RoomInfo.TIPO` 0–20 e risponde `pacote049` con `Room.getInfo().ToArray()` (210 byte). Start-game `0x0E` manda `0x230`+`0x231`+`0x77` per Practice/GP/GZ; Versus/Tourney a un giocatore fallisce con `0x253` come C#. Hole/shot IFF restano aperti.
 
 ## S3 evidenza (2026-08-28)
 
@@ -159,4 +159,4 @@ C# `LoginTask.sendCompleteData` invia `pacote044` option 0 con `principal()` (12
 
 ## Note GC / Netty (S6)
 
-TBD dopo test carico.
+Prometheus `/metrics` su ogni health port (`pangya_sessions`, `pangya_uptime_seconds`). `SessionLoadIT` apre 3000 hello Login (filtro anti-DDoS disattivato per il test sintetico da un solo IP). Compose health dei 5 server: `docker compose up --build` + `/health` su 9077/9103/9202/9474/9302.

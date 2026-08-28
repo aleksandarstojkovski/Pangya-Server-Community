@@ -5,6 +5,7 @@ import org.pangya.protocol.game.GamePackets;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class InventoryRepositoryTest {
 
@@ -26,6 +27,8 @@ class InventoryRepositoryTest {
             GamePackets.UserEquip equip = repo.userEquip(10001);
             assertEquals(chars.getFirst().id, equip.characterId);
             assertEquals(warehouse.getFirst().id, equip.clubsetId);
+            assertTrue(repo.mascots(10001).isEmpty());
+            assertTrue(repo.cards(10001).isEmpty());
         }
     }
 
