@@ -975,6 +975,18 @@ class GamePacketsTest {
         PacketReader clubFail = new PacketReader(GamePackets.clubStatsFail());
         assertEquals(GamePackets.SERVER_CLUB_STATS, clubFail.opcode());
         assertEquals(GamePackets.CLUB_STATS_ERR, clubFail.u8());
+        PacketReader clubOk = new PacketReader(GamePackets.clubStatsOk(
+                GamePackets.CLUB_STATS_UP,
+                GamePackets.CLUB_STATS_CLUBSET,
+                GamePackets.CHAR_STATS_POWER,
+                2,
+                GamePackets.CHAR_STATS_ENCHANT_PANG));
+        assertEquals(GamePackets.SERVER_CLUB_STATS, clubOk.opcode());
+        assertEquals(GamePackets.CLUB_STATS_UP, clubOk.u8());
+        assertEquals(GamePackets.CLUB_STATS_CLUBSET, clubOk.u8());
+        assertEquals(GamePackets.CHAR_STATS_POWER, clubOk.u8());
+        assertEquals(2, clubOk.i32());
+        assertEquals(GamePackets.CHAR_STATS_ENCHANT_PANG, clubOk.u64());
         PacketReader intrusion = new PacketReader(GamePackets.intrusionFail(GamePackets.INTRUSION_SYS));
         assertEquals(GamePackets.SERVER_INTRUSION, intrusion.opcode());
         assertEquals(GamePackets.INTRUSION_ERR, intrusion.u8());
@@ -2224,6 +2236,10 @@ class GamePacketsTest {
         assertEquals(GamePackets.SERVER_DELETE_CARD, 0x139);
         assertEquals(GamePackets.LOCKER_MOVE_ADD, 1);
         assertEquals(GamePackets.LOCKER_REMOVE_GROUP, 3);
+        assertEquals(GamePackets.CLUB_STATS_UP, 1);
+        assertEquals(GamePackets.CLUB_STATS_DOWN, 2);
+        assertEquals(GamePackets.CLUB_STATS_CLUBSET, 1);
+        assertEquals(GamePackets.enchantTypeid(GamePackets.CHAR_STATS_POWER, 0), 0x34000000);
         assertEquals(GamePackets.SERVER_BUY_ACK, 0x68);
         assertEquals(GamePackets.CREATE_ROOM_FAILED, 0x07);
         assertEquals(GamePackets.SERVER_LAST5, 0x10E);

@@ -147,7 +147,7 @@ C#: `GameServer/PangyaEnums/PacketGame.cs` → Java `org.pangya.protocol.game.Ga
 | C | `CLIENT_CADIE` | `0x158` | count 0/`>4` → `0x22F` sys `5200451&0xFFFF`; truncated/SQL miss `5200452&0xFFFF`; success `0x216` awards + `0x22F` u32 0 + seq + item |
 | C | `CLIENT_REQUEST_MESSENGER_SERVER_LIST` | `0x8B` | `0xFC` u8 count + 92-byte `ServerInfo` (type 3); empty still sends 0 |
 | C | `CLIENT_REQUEST_REFRESH_GACHA_TICKETS` | `0x9E` | `0x102` i32×2 tickets + pang + cookie; catch `0x44` u8 `0xE2` |
-| C | `CLIENT_ENCHANT` | `0x4B` | missing warehouse/IFF → `0xA5` u8 0 |
+| C | `CLIENT_ENCHANT` | `0x4B` | opt 1/3 ClubSet: missing warehouse/IFF/enchant/slots/pang → `0xA5` u8 0; success u8 `opt/2+1` + u8 `opt%2` + u8 stat + i32 id + i64 pang. SQL `iff_clubset` SlotStats + `iff_enchant`. Catch always u8 0 |
 | C | `CLIENT_INTRUSION` | `0x9D` | missing room → `0x113` u8 6 + u8 1 |
 | C | `CLIENT_REQ_NEW_BONGDARISHOP_PLAY_NORMAL` | `0x14B` | SQL catalog: `0x216` awards + `0xFB` -1/-3 + `0x21B` u32 0 + coupon 0 + balls; funds `shopSys(0x5900102)` |
 | C | `CLIENT_WEB_AUTH_KEY` | `0xFB` | no channel; `0x1AD` i32 1 + PStr 6-char key (empty key writes i16 0) |
@@ -226,7 +226,7 @@ C#: `GameServer/PangyaEnums/PacketGame.cs` → Java `org.pangya.protocol.game.Ga
 | C | `CLIENT_REQUEST_KICK` | `0x61` | log only |
 | S | `SERVER_MESSENGER_LIST` | `0xFC` | u8 count + 92-byte rows |
 | S | `SERVER_GACHA_COUPON` | `0x102` | i32 normal + i32 partial + u64 pang + u64 cookie |
-| S | `SERVER_CLUB_STATS` | `0xA5` | fail u8 0 |
+| S | `SERVER_CLUB_STATS` | `0xA5` | fail u8 0; success kind + ClubSet + stat + id + pang |
 | S | `SERVER_INTRUSION` | `0x113` | fail u8 6 + u8 sys |
 | S | `SERVER_PAPEL_PLAY` | `0x21B` | u32 0 + i32 coupon + count + balls + pang + cookie; fail u32 sys |
 | S | `SERVER_PAPEL_REMAIN` | `0xFB` | i32 remain + i32 flag; unlimited -1/-3; opposite CLIENT web-key `0xFB` |

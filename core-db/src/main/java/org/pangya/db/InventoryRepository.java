@@ -219,6 +219,22 @@ public interface InventoryRepository {
 
     void deleteClubSetIff(int typeid);
 
+    /**
+     * C# {@code sIff.findClubSet}: SQL {@code iff_clubset} Stats/SlotStats stand-in.
+     * Empty when the typeid is missing.
+     */
+    Optional<ClubSetIff> clubSetIff(int typeid);
+
+    void upsertClubSetIff(int typeid, int tipo, short[] stats, short[] slots);
+
+    /** C# {@code CmdUpdateClubSetStats}: warehouse {@code C0}–{@code C4}. */
+    void setWarehouseClubC(long uid, int itemId, short[] c);
+
+    /**
+     * C# {@code sIff.findEnchant}: SQL {@code iff_enchant.pang}. Empty when missing.
+     */
+    OptionalLong enchantPang(int typeid);
+
     /** C# {@code CmdUpdateClubSetWorkshop} recovery_pts. */
     void setClubSetRecoveryPts(long uid, int itemId, int recoveryPts);
 
@@ -411,6 +427,12 @@ public interface InventoryRepository {
 
     /** C# {@code AttendanceRewardItemCtx}: catalog draw row. */
     record AttendanceCatalogItem(int typeid, int qntd, int tipo) {}
+
+    /**
+     * C# IFF {@code ClubSet}: {@code work_shop.tipo}, {@code Stats.getSlot},
+     * {@code SlotStats.getSlot}.
+     */
+    record ClubSetIff(int tipo, short[] stats, short[] slots) {}
 
     /** C# IFF {@code TimeLimitItem}: {@code type}, {@code percent}, {@code time} minutes. */
     record TimeLimitItem(int typeid, int tipo, int percent, int timeMinutes) {}

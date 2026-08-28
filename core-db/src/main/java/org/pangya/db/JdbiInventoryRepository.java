@@ -2487,6 +2487,100 @@ public final class JdbiInventoryRepository implements InventoryRepository {
     }
 
     @Override
+    public Optional<ClubSetIff> clubSetIff(int typeid) {
+        return jdbi.withHandle(h -> h.createQuery("""
+                        SELECT work_shop_tipo, stats0, stats1, stats2, stats3, stats4,
+                               slot0, slot1, slot2, slot3, slot4
+                          FROM pangya.iff_clubset
+                         WHERE typeid = :typeid
+                        """)
+                .bind("typeid", typeid)
+                .map((rs, ctx) -> new ClubSetIff(
+                        rs.getInt("work_shop_tipo"),
+                        new short[] {
+                            rs.getShort("stats0"),
+                            rs.getShort("stats1"),
+                            rs.getShort("stats2"),
+                            rs.getShort("stats3"),
+                            rs.getShort("stats4")
+                        },
+                        new short[] {
+                            rs.getShort("slot0"),
+                            rs.getShort("slot1"),
+                            rs.getShort("slot2"),
+                            rs.getShort("slot3"),
+                            rs.getShort("slot4")
+                        }))
+                .findOne());
+    }
+
+    @Override
+    public void upsertClubSetIff(int typeid, int tipo, short[] stats, short[] slots) {
+        short[] st = pad5(stats);
+        short[] sl = pad5(slots);
+        jdbi.useHandle(h -> h.createUpdate("""
+                        INSERT INTO pangya.iff_clubset (
+                            typeid, work_shop_tipo,
+                            stats0, stats1, stats2, stats3, stats4,
+                            slot0, slot1, slot2, slot3, slot4)
+                        VALUES (
+                            :typeid, :tipo,
+                            :s0, :s1, :s2, :s3, :s4,
+                            :l0, :l1, :l2, :l3, :l4)
+                        ON CONFLICT (typeid) DO UPDATE SET
+                            work_shop_tipo = EXCLUDED.work_shop_tipo,
+                            stats0 = EXCLUDED.stats0, stats1 = EXCLUDED.stats1,
+                            stats2 = EXCLUDED.stats2, stats3 = EXCLUDED.stats3,
+                            stats4 = EXCLUDED.stats4,
+                            slot0 = EXCLUDED.slot0, slot1 = EXCLUDED.slot1,
+                            slot2 = EXCLUDED.slot2, slot3 = EXCLUDED.slot3,
+                            slot4 = EXCLUDED.slot4
+                        """)
+                .bind("typeid", typeid)
+                .bind("tipo", tipo)
+                .bind("s0", st[0]).bind("s1", st[1]).bind("s2", st[2])
+                .bind("s3", st[3]).bind("s4", st[4])
+                .bind("l0", sl[0]).bind("l1", sl[1]).bind("l2", sl[2])
+                .bind("l3", sl[3]).bind("l4", sl[4])
+                .execute());
+    }
+
+    @Override
+    public void setWarehouseClubC(long uid, int itemId, short[] c) {
+        short[] v = pad5(c);
+        jdbi.useHandle(h -> h.createUpdate("""
+                        UPDATE pangya.pangya_item_warehouse
+                           SET "C0" = :c0, "C1" = :c1, "C2" = :c2, "C3" = :c3, "C4" = :c4
+                         WHERE "UID" = :uid AND item_id = :id
+                        """)
+                .bind("uid", uid)
+                .bind("id", itemId)
+                .bind("c0", v[0]).bind("c1", v[1]).bind("c2", v[2])
+                .bind("c3", v[3]).bind("c4", v[4])
+                .execute());
+    }
+
+    @Override
+    public OptionalLong enchantPang(int typeid) {
+        return jdbi.withHandle(h -> h.createQuery("""
+                        SELECT pang FROM pangya.iff_enchant WHERE typeid = :typeid
+                        """)
+                .bind("typeid", typeid)
+                .mapTo(Long.class)
+                .findOne())
+                .map(OptionalLong::of)
+                .orElseGet(OptionalLong::empty);
+    }
+
+    private static short[] pad5(short[] src) {
+        short[] out = new short[5];
+        if (src != null) {
+            System.arraycopy(src, 0, out, 0, Math.min(5, src.length));
+        }
+        return out;
+    }
+
+    @Override
     public void setClubSetRecoveryPts(long uid, int itemId, int recoveryPts) {
         jdbi.useHandle(h -> h.createUpdate("""
                         UPDATE pangya.pangya_item_warehouse

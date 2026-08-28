@@ -336,6 +336,30 @@ class InventoryRepositoryTest {
                 repo.setClubSetMasteryPts(10001, clubId, 0);
                 repo.deleteClubSetIff(GamePackets.TYPEID_AIR_KNIGHT);
             }
+            repo.deleteClubSetIff(GamePackets.TYPEID_AIR_KNIGHT);
+            repo.upsertClubSetIff(
+                    GamePackets.TYPEID_AIR_KNIGHT,
+                    0,
+                    new short[5],
+                    new short[] {1, 0, 0, 0, 0});
+            try {
+                var iff = repo.clubSetIff(GamePackets.TYPEID_AIR_KNIGHT).orElseThrow();
+                assertEquals(1, iff.slots()[0]);
+                assertEquals(0, iff.stats()[0]);
+                assertEquals(
+                        GamePackets.CHAR_STATS_ENCHANT_PANG,
+                        repo.enchantPang(GamePackets.enchantTypeid(GamePackets.CHAR_STATS_POWER, 0))
+                                .orElseThrow());
+                repo.setWarehouseClubC(10001, clubId, new short[] {1, 0, 0, 0, 0});
+                assertEquals(1, repo.warehouse(10001).stream()
+                        .filter(w -> w.id == clubId)
+                        .findFirst()
+                        .orElseThrow()
+                        .c[0]);
+            } finally {
+                repo.setWarehouseClubC(10001, clubId, new short[5]);
+                repo.deleteClubSetIff(GamePackets.TYPEID_AIR_KNIGHT);
+            }
             repo.deletePartIff(GamePackets.TYPEID_RENTAL_PART);
             repo.upsertPartValorRental(GamePackets.TYPEID_RENTAL_PART, 100);
             try {

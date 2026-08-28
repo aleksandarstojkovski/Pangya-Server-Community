@@ -2137,6 +2137,87 @@ class GameFlowIT {
     }
 
     @Test
+    void clubSetEnchantUpAndDownPower() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config);
+             PangyaFakeClient client = new PangyaFakeClient()) {
+            InventoryRepository inv = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
+            long pang = inv.pang(10001);
+            long cookie = inv.cookie(10001);
+            GamePackets.WarehouseItem club = inv.warehouse(10001).stream()
+                    .filter(w -> w.typeid == GamePackets.TYPEID_AIR_KNIGHT)
+                    .findFirst()
+                    .orElseThrow();
+            int clubId = club.id;
+            short[] origC = club.c.clone();
+            inv.deleteClubSetIff(GamePackets.TYPEID_AIR_KNIGHT);
+            try {
+                LoginRepository repo = new JdbiLoginRepository(DatabaseSupport.jdbi(ds));
+                String loginKey = repo.generateAuthKeyLogin(10001);
+                String gameKey = repo.generateAuthKeyGame(10001, 20202);
+                keys.putLoginKey(10001, loginKey);
+                keys.putGameKey(10001, 20202, gameKey);
+                loginToChannel(client, runtime.port(), "testuser", 10001, loginKey, gameKey);
+
+                client.sendPlain(GamePackets.clientEnchant(
+                        1, GamePackets.CHAR_STATS_POWER, clubId));
+                PacketReader missingIff = awaitOpcode(client, GamePackets.SERVER_CLUB_STATS);
+                assertEquals(GamePackets.CLUB_STATS_ERR, missingIff.u8());
+
+                inv.upsertClubSetIff(
+                        GamePackets.TYPEID_AIR_KNIGHT,
+                        0,
+                        new short[5],
+                        new short[] {1, 0, 0, 0, 0});
+                client.sendPlain(GamePackets.clientEnchant(
+                        1, GamePackets.CHAR_STATS_POWER, clubId));
+                PacketReader up = awaitOpcode(client, GamePackets.SERVER_CLUB_STATS);
+                assertEquals(GamePackets.CLUB_STATS_UP, up.u8());
+                assertEquals(GamePackets.CLUB_STATS_CLUBSET, up.u8());
+                assertEquals(GamePackets.CHAR_STATS_POWER, up.u8());
+                assertEquals(clubId, up.i32());
+                assertEquals(GamePackets.CHAR_STATS_ENCHANT_PANG, up.u64());
+                assertEquals(pang - GamePackets.CHAR_STATS_ENCHANT_PANG, inv.pang(10001));
+                assertEquals(1, inv.warehouse(10001).stream()
+                        .filter(w -> w.id == clubId)
+                        .findFirst()
+                        .orElseThrow()
+                        .c[0]);
+
+                client.sendPlain(GamePackets.clientEnchant(
+                        3, GamePackets.CHAR_STATS_POWER, clubId));
+                PacketReader down = awaitOpcode(client, GamePackets.SERVER_CLUB_STATS);
+                assertEquals(GamePackets.CLUB_STATS_DOWN, down.u8());
+                assertEquals(GamePackets.CLUB_STATS_CLUBSET, down.u8());
+                assertEquals(GamePackets.CHAR_STATS_POWER, down.u8());
+                assertEquals(clubId, down.i32());
+                assertEquals(0, down.u64());
+                assertEquals(0, inv.warehouse(10001).stream()
+                        .filter(w -> w.id == clubId)
+                        .findFirst()
+                        .orElseThrow()
+                        .c[0]);
+
+                client.sendPlain(GamePackets.clientEnchant(1, GamePackets.CHAR_STATS_POWER, 0));
+                PacketReader zero = awaitOpcode(client, GamePackets.SERVER_CLUB_STATS);
+                assertEquals(GamePackets.CLUB_STATS_ERR, zero.u8());
+            } finally {
+                inv.setPangCookie(10001, pang, cookie);
+                inv.setWarehouseClubC(10001, clubId, origC);
+                inv.deleteClubSetIff(GamePackets.TYPEID_AIR_KNIGHT);
+            }
+        }
+    }
+
+    @Test
     void makeTutorialRookieAcksFlagsAndMailsReward() throws Exception {
         String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
         String user = env("PANGYA_TEST_JDBC_USER", "pangya");

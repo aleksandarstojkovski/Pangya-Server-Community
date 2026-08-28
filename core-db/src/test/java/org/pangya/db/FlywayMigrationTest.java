@@ -106,6 +106,12 @@ class FlywayMigrationTest {
                             .mapTo(Integer.class)
                             .one());
             assertEquals(0, clubset);
+            int clubsetSlots = jdbi.withHandle(h ->
+                    h.createQuery("select slot0 from pangya.iff_clubset where typeid = 0")
+                            .mapTo(Integer.class)
+                            .findOne()
+                            .orElse(0));
+            assertEquals(0, clubsetSlots);
             int partIff = jdbi.withHandle(h ->
                     h.createQuery("select count(*) from pangya.iff_part")
                             .mapTo(Integer.class)

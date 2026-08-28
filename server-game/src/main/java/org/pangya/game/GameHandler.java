@@ -3379,26 +3379,86 @@ public final class GameHandler {
     }
 
     /**
-     * C# {@code requestClubSetStatsUpdate}: missing warehouse / IFF → {@code 0xA5}
-     * u8 0. Opt 1/3 is clubset.
+     * C# {@code requestClubSetStatsUpdate}: opt 1 upgrade / opt 3 downgrade.
+     * SQL {@code iff_clubset} SlotStats/Stats + {@code iff_enchant.pang}.
+     * Persist C and pang before {@code 0xA5}. Catch always u8 0. Skip
+     * achievement {@code 0x6C400084}/{@code 0x6C400085}.
      */
     private void clubSetStats(Session session, PacketReader reader) {
         if (!inChannel(session)) {
             return;
         }
-        if (reader.remaining() < 6) {
-            session.send(GamePackets.clubStatsFail());
-            return;
-        }
-        int opt = reader.u8();
-        reader.u8();
-        int itemId = reader.i32();
-        if (opt != 1 && opt != 3) {
-            return;
-        }
-        long uid = session.player().uid;
-        boolean owned = inventory.warehouse(uid).stream().anyMatch(w -> w.id == itemId);
-        if (!owned) {
+        try {
+            if (reader.remaining() < 6) {
+                session.send(GamePackets.clubStatsFail());
+                return;
+            }
+            int opt = reader.u8();
+            int stat = reader.u8();
+            int itemId = reader.i32();
+            if (opt != 1 && opt != 3) {
+                return;
+            }
+            long uid = session.player().uid;
+            GamePackets.WarehouseItem item = warehouseById(uid, itemId);
+            if (item == null) {
+                session.send(GamePackets.clubStatsFail());
+                return;
+            }
+            if (stat > GamePackets.CHAR_STATS_CURVE) {
+                session.send(GamePackets.clubStatsFail());
+                return;
+            }
+            Optional<InventoryRepository.ClubSetIff> iff = inventory.clubSetIff(item.typeid);
+            if (iff.isEmpty()) {
+                session.send(GamePackets.clubStatsFail());
+                return;
+            }
+            InventoryRepository.ClubSetIff clubset = iff.get();
+            short[] nextC = item.c.clone();
+            long pangCost = 0;
+            if (opt == 1) {
+                int slots = (clubset.slots()[stat] & 0xffff) - (clubset.stats()[stat] & 0xffff)
+                        + (item.workshopC[stat] & 0xffff);
+                if (slots < (item.c[stat] + 1)) {
+                    session.send(GamePackets.clubStatsFail());
+                    return;
+                }
+                int enchantTypeid = GamePackets.enchantTypeid(stat, item.c[stat] & 0xff);
+                OptionalLong valor = inventory.enchantPang(enchantTypeid);
+                if (valor.isEmpty()) {
+                    session.send(GamePackets.clubStatsFail());
+                    return;
+                }
+                pangCost = valor.getAsLong();
+                if (pangCost <= 0) {
+                    session.send(GamePackets.clubStatsFail());
+                    return;
+                }
+                long pang = inventory.pang(uid);
+                if (pang < pangCost) {
+                    session.send(GamePackets.clubStatsFail());
+                    return;
+                }
+                nextC[stat] = (short) (item.c[stat] + 1);
+                inventory.setWarehouseClubC(uid, item.id, nextC);
+                inventory.setPangCookie(uid, pang - pangCost, inventory.cookie(uid));
+            } else {
+                if (item.c[stat] - 1 < 0) {
+                    session.send(GamePackets.clubStatsFail());
+                    return;
+                }
+                nextC[stat] = (short) (item.c[stat] - 1);
+                inventory.setWarehouseClubC(uid, item.id, nextC);
+            }
+            session.send(GamePackets.clubStatsOk(
+                    opt / 2 + 1,
+                    opt % 2,
+                    stat,
+                    item.id,
+                    pangCost));
+        } catch (RuntimeException e) {
+            log.debug("club set stats failed: {}", e.toString());
             session.send(GamePackets.clubStatsFail());
         }
     }

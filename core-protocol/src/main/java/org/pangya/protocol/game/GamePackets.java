@@ -596,6 +596,8 @@ public final class GamePackets {
     /**
      * C# {@code CLIENT_ENCHANT} / {@code packet04B} club-set stats. Same numeric
      * value as {@link #SERVER_ROOM_USER_INFO_CHANGED}, opposite direction.
+     * Success {@code 0xA5} u8 kind + u8 ClubSet + u8 stat + i32 id + i64 pang.
+     * Catch always u8 0. SQL {@code iff_clubset} SlotStats + {@code iff_enchant}.
      */
     public static final int CLIENT_ENCHANT = 0x4B;
     /**
@@ -1534,6 +1536,12 @@ public final class GamePackets {
     public static final int INTRUSION_SYS = 1;
     /** C# club-stats catch {@code 0xA5} u8 0. */
     public static final int CLUB_STATS_ERR = 0;
+    /** C# success {@code opt / 2 + 1} for upgrade {@code opt==1}. */
+    public static final int CLUB_STATS_UP = 1;
+    /** C# success {@code opt / 2 + 1} for downgrade {@code opt==3}. */
+    public static final int CLUB_STATS_DOWN = 2;
+    /** C# success {@code opt % 2} for ClubSet {@code opt==1} or {@code 3}. */
+    public static final int CLUB_STATS_CLUBSET = 1;
     /** C# {@code TYPE_SERVER.GAME}. */
     public static final int SERVER_TYPE_GAME = 1;
     /** C# {@code TYPE_SERVER.MSN}. */
@@ -3667,6 +3675,21 @@ public final class GamePackets {
     /** C# club-stats catch {@code 0xA5} u8 0. */
     public static byte[] clubStatsFail() {
         return new PacketWriter().opcode(SERVER_CLUB_STATS).u8(CLUB_STATS_ERR).toBytes();
+    }
+
+    /**
+     * C# club-stats success {@code 0xA5}: u8 {@code opt/2+1} + u8 {@code opt%2}
+     * + u8 stat + i32 id + i64 pang (downgrade writes 0).
+     */
+    public static byte[] clubStatsOk(int kind, int clubset, int stat, int itemId, long pang) {
+        return new PacketWriter()
+                .opcode(SERVER_CLUB_STATS)
+                .u8(kind)
+                .u8(clubset)
+                .u8(stat)
+                .i32(itemId)
+                .i64(pang)
+                .toBytes();
     }
 
     /**
