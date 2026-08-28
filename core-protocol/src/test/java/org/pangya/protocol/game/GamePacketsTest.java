@@ -416,15 +416,15 @@ class GamePacketsTest {
         assertEquals(GamePackets.SERVER_DECISION_ROOM_MASTER, master.opcode());
         assertEquals(7, master.i32());
         assertEquals(0, master.i16());
-        PacketReader missing = new PacketReader(GamePackets.userInfoOfflineMissing());
-        assertEquals(GamePackets.SERVER_USERINFO_OFFLINE, missing.opcode());
-        assertEquals(GamePackets.USERINFO_OFFLINE_MISSING, missing.u8());
-        assertEquals(0, missing.remaining());
-        PacketReader found = new PacketReader(GamePackets.userInfoOffline(
+        PacketReader offlineMiss = new PacketReader(GamePackets.userInfoOfflineMissing());
+        assertEquals(GamePackets.SERVER_USERINFO_OFFLINE, offlineMiss.opcode());
+        assertEquals(GamePackets.USERINFO_OFFLINE_MISSING, offlineMiss.u8());
+        assertEquals(0, offlineMiss.remaining());
+        PacketReader offlineFound = new PacketReader(GamePackets.userInfoOffline(
                 10002, GamePackets.memberInfoExPublic(0, "testuser2", "TestNick2", 0)));
-        assertEquals(GamePackets.SERVER_USERINFO_OFFLINE, found.opcode());
-        assertEquals(GamePackets.USERINFO_OFFLINE_FOUND, found.u8());
-        assertEquals(10002, found.u32());
-        assertEquals(GamePackets.MEMBER_INFO_EX_BYTES, found.remaining());
+        assertEquals(GamePackets.SERVER_USERINFO_OFFLINE, offlineFound.opcode());
+        assertEquals(GamePackets.USERINFO_OFFLINE_FOUND, offlineFound.u8());
+        assertEquals(10002, offlineFound.u32());
+        assertEquals(GamePackets.MEMBER_INFO_EX_BYTES, offlineFound.remaining());
     }
 }
