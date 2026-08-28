@@ -304,6 +304,15 @@ public interface InventoryRepository {
 
     void deleteTicketReport(int ticketId);
 
+    /** C# {@code findGrandPrixData}: active GP definition used by room enter. */
+    Optional<GrandPrixEvent> grandPrixEvent(int typeid);
+
+    void upsertGrandPrixEvent(
+            int typeid, String name, int holes, int course, int modo, int natural, int rule,
+            int minLevel, int maxLevel);
+
+    void deleteGrandPrixEvent(int typeid);
+
     /**
      * C# {@code ItemManager.removeItem} for cards: consume {@code qntd} from
      * {@code QNTD}. Empty when missing or insufficient. Remaining 0 deletes.
@@ -567,6 +576,17 @@ public interface InventoryRepository {
     record CardPackReward(int seq, int cardTypeid) {}
 
     record MemorialReward(int seq, int rarity, int rewardTypeid, int qntd) {}
+
+    record GrandPrixEvent(
+            int typeid,
+            String name,
+            int holes,
+            int course,
+            int modo,
+            int natural,
+            int rule,
+            int minLevel,
+            int maxLevel) {}
 
     /** C# IFF {@code TimeLimitItem}: {@code type}, {@code percent}, {@code time} minutes. */
     record TimeLimitItem(int typeid, int tipo, int percent, int timeMinutes) {}

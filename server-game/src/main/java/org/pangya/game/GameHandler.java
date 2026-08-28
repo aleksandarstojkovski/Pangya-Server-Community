@@ -6291,8 +6291,9 @@ public final class GameHandler {
     }
 
     /**
-     * C# {@code requestEnterRoomGrandPrix}: IFF miss typeid 0 → {@code 0x253}
-     * {@code shopSys(0x6700001)}.
+     * C# {@code requestEnterRoomGrandPrix}. SQL {@code grand_prix_event}
+     * stands in for active IFF GrandPrixData (without optional ticket/clear/time
+     * restrictions). Creates the first GP room for the typeid or joins it.
      */
     private void enterRoomGrandPrix(Session session, PacketReader reader) {
         if (!inChannel(session)) {
@@ -6303,10 +6304,78 @@ public final class GameHandler {
                     GamePackets.SERVER_START_GAME_FAIL, GamePackets.GP_ENTER_ERR_DEFAULT));
             return;
         }
-        reader.u32();
-        session.send(GamePackets.sysAck(
-                GamePackets.SERVER_START_GAME_FAIL,
-                GamePackets.shopSys(GamePackets.GP_ENTER_ERR_IFF)));
+        int typeid = reader.u32();
+        Optional<InventoryRepository.GrandPrixEvent> found = inventory.grandPrixEvent(typeid);
+        if (found.isEmpty()) {
+            session.send(GamePackets.sysAck(
+                    GamePackets.SERVER_START_GAME_FAIL,
+                    GamePackets.shopSys(GamePackets.GP_ENTER_ERR_IFF)));
+            return;
+        }
+        InventoryRepository.GrandPrixEvent gp = found.get();
+        PlayerContext pi = session.player();
+        if (pi.level < gp.minLevel() || (gp.maxLevel() > 0 && pi.level > gp.maxLevel())) {
+            session.send(GamePackets.sysAck(
+                    GamePackets.SERVER_START_GAME_FAIL,
+                    GamePackets.shopSys(GamePackets.GP_ENTER_ERR_LEVEL)));
+            return;
+        }
+        GameRoom target = null;
+        for (GameRoom room : rooms.values()) {
+            if (room.tipo == GamePackets.TIPO_GRAND_PRIX
+                    && room.grandPrixTypeid == typeid
+                    && !room.inGame) {
+                target = room;
+                break;
+            }
+        }
+        if (target != null) {
+            if (target.players.size() >= target.info.maxPlayer) {
+                session.send(GamePackets.sysAck(
+                        GamePackets.SERVER_START_GAME_FAIL,
+                        GamePackets.shopSys(GamePackets.GP_ENTER_ERR_FULL)));
+                return;
+            }
+            enterExistingRoom(session, target);
+            return;
+        }
+        try {
+            GamePackets.CreateRoom request = new GamePackets.CreateRoom(
+                    0,
+                    0,
+                    0,
+                    30,
+                    GamePackets.TIPO_GRAND_PRIX,
+                    gp.holes(),
+                    gp.course(),
+                    gp.modo(),
+                    gp.natural(),
+                    gp.name(),
+                    "",
+                    gp.rule());
+            int number = nextRoom.getAndIncrement() & 0xffff;
+            GameRoom room = new GameRoom(
+                    request, number, (int) pi.uid, config.ratePang(), config.rateExp(), pi.channelId);
+            room.grandPrixTypeid = typeid;
+            if (!room.addPlayer(session)) {
+                session.send(GamePackets.sysAck(
+                        GamePackets.SERVER_START_GAME_FAIL,
+                        GamePackets.shopSys(GamePackets.GP_ENTER_ERR_CREATE)));
+                return;
+            }
+            room.putPlayerInfo(session, makePlayerInfo(session, room));
+            rooms.put(number, room);
+            pi.roomNumber = number;
+            pi.inPractice = false;
+            pi.place = 0;
+            sendRoomEnterPackets(session, room);
+            sendLobbyRoomInfo(room, GamePackets.ROOM_LIST_ADD);
+            sendLobbyPlayerInfo(session, GamePackets.LOBBY_USER_UPDATE);
+        } catch (RuntimeException e) {
+            log.debug("enter GP failed uid={}: {}", pi.uid, e.toString());
+            session.send(GamePackets.sysAck(
+                    GamePackets.SERVER_START_GAME_FAIL, GamePackets.GP_ENTER_ERR_DEFAULT));
+        }
     }
 
     /**

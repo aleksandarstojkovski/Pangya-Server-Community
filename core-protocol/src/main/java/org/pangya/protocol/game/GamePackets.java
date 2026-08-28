@@ -1607,6 +1607,7 @@ public final class GamePackets {
     public static final int TYPEID_MEMORIAL_COIN_TEST = 0x1A000310;
     public static final int TYPEID_MEMORIAL_REWARD_TEST = 0x1A000311;
     public static final int TYPEID_TICKET_SCROLL_TEST = 0x1A000312;
+    public static final int TYPEID_GP_EVENT_TEST = 0x6C100001;
     /** C# transform lottery special typeids. */
     public static final int[] WORKSHOP_TRANSFORM_SPECIALS = {
         TYPEID_WINGTROSS_EVO, TYPEID_GIGA_YARD_TOTEM, TYPEID_DUOSTAR_MANAPIKAL
@@ -1972,6 +1973,9 @@ public final class GamePackets {
     public static final int GP_ENTER_ERR_IFF = 0x6700001;
     /** C# GP room catch else (full, not shopSys). */
     public static final int GP_ENTER_ERR_DEFAULT = 0x6700000;
+    public static final int GP_ENTER_ERR_CREATE = 0x6700002;
+    public static final int GP_ENTER_ERR_FULL = 0x6700005;
+    public static final int GP_ENTER_ERR_LEVEL = 0x6700006;
     /** C# {@code pacote24E} holes-per-phase literal. */
     public static final int WORKSHOP_EVENT_HOLES = 3000;
     /** C# {@code requestClubWorkShopEventCount} writes 16 subcodes {@code 1..16}. */

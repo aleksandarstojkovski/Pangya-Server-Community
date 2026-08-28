@@ -476,6 +476,13 @@ class InventoryRepositoryTest {
                 repo.deleteTicketReport(0x1234);
                 repo.upsertTicketReport(0x1234, java.time.Instant.EPOCH);
                 assertEquals(java.time.Instant.EPOCH, repo.ticketReportDate(0x1234).orElseThrow());
+                repo.deleteGrandPrixEvent(GamePackets.TYPEID_GP_EVENT_TEST);
+                repo.upsertGrandPrixEvent(
+                        GamePackets.TYPEID_GP_EVENT_TEST, "Test GP", 18, 0, 0, 0, 0, 1, 10);
+                var gp = repo.grandPrixEvent(GamePackets.TYPEID_GP_EVENT_TEST).orElseThrow();
+                assertEquals("Test GP", gp.name());
+                assertEquals(18, gp.holes());
+                assertEquals(1, gp.minLevel());
                 repo.deleteCardByTypeid(10001, GamePackets.TYPEID_CARD_NORMAL);
                 repo.addCard(10001, GamePackets.TYPEID_CARD_NORMAL, 2);
                 assertEquals(1, repo.consumeCardByTypeid(10001, GamePackets.TYPEID_CARD_NORMAL, 1).orElseThrow());
@@ -492,6 +499,7 @@ class InventoryRepositoryTest {
                 repo.deleteCardPackRewards(GamePackets.TYPEID_CARD_PACK_TEST);
                 repo.deleteMemorialRewards(GamePackets.TYPEID_MEMORIAL_COIN_TEST);
                 repo.deleteTicketReport(0x1234);
+                repo.deleteGrandPrixEvent(GamePackets.TYPEID_GP_EVENT_TEST);
                 repo.deleteCardByTypeid(10001, GamePackets.TYPEID_CARD_NORMAL);
             }
             repo.deletePartIff(GamePackets.TYPEID_RENTAL_PART);

@@ -16,6 +16,8 @@ final class GameRoom {
 
     final GamePackets.RoomInfo info = new GamePackets.RoomInfo();
     int tipo;
+    /** C# {@code RoomInfoEx.grand_prix.dados_typeid}; zero outside GP. */
+    int grandPrixTypeid;
     final int channelId;
     final List<Session> players = new ArrayList<>();
     final ConcurrentHashMap<Integer, GamePackets.PlayerRoomInfo> playerInfos = new ConcurrentHashMap<>();

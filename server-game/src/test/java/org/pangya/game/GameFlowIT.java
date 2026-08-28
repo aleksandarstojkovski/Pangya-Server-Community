@@ -4428,6 +4428,57 @@ class GameFlowIT {
     }
 
     @Test
+    void grandPrixEnterCreatesConfiguredRoom() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config);
+             PangyaFakeClient client = new PangyaFakeClient()) {
+            InventoryRepository inv = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
+            inv.deleteGrandPrixEvent(GamePackets.TYPEID_GP_EVENT_TEST);
+            try {
+                LoginRepository repo = new JdbiLoginRepository(DatabaseSupport.jdbi(ds));
+                String loginKey = repo.generateAuthKeyLogin(10001);
+                String gameKey = repo.generateAuthKeyGame(10001, 20202);
+                keys.putLoginKey(10001, loginKey);
+                keys.putGameKey(10001, 20202, gameKey);
+                loginToChannel(client, runtime.port(), "testuser", 10001, loginKey, gameKey);
+
+                client.sendPlain(GamePackets.clientGpEnter(GamePackets.TYPEID_GP_EVENT_TEST));
+                assertEquals(GamePackets.shopSys(GamePackets.GP_ENTER_ERR_IFF),
+                        awaitOpcode(client, GamePackets.SERVER_START_GAME_FAIL).u32());
+
+                inv.upsertGrandPrixEvent(
+                        GamePackets.TYPEID_GP_EVENT_TEST, "Test GP", 18, 0, 0, 0, 0, 1, 10);
+                client.sendPlain(GamePackets.clientGpEnter(GamePackets.TYPEID_GP_EVENT_TEST));
+                PacketReader entered = awaitOpcode(client, GamePackets.SERVER_ROOM_ENTER_RESULT);
+                assertEquals(0, entered.i16());
+                assertEquals(GamePackets.ROOM_INFO_BYTES, entered.remaining());
+                entered.readBytes(GamePackets.ROOM_INFO_BYTES);
+
+                client.sendPlain(GamePackets.clientStartGame());
+                awaitOpcode(client, GamePackets.SERVER_START_GAME_FLAG);
+                awaitOpcode(client, GamePackets.SERVER_START_GAME_FLAG2);
+                awaitOpcode(client, GamePackets.SERVER_PANG_RATE);
+                PacketReader init = awaitOpcode(client, GamePackets.SERVER_GAME_INIT);
+                assertEquals(GamePackets.TIPO_GRAND_PRIX, init.u8());
+                assertEquals(1, init.u32());
+                PacketReader course = awaitOpcode(client, GamePackets.SERVER_COURSE);
+                assertEquals(0, course.u8());
+                assertEquals(GamePackets.TIPO_GRAND_PRIX, course.u8());
+            } finally {
+                inv.deleteGrandPrixEvent(GamePackets.TYPEID_GP_EVENT_TEST);
+            }
+        }
+    }
+
+    @Test
     void soloGrandZodiacSendsTourneyInit() throws Exception {
         String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
         String user = env("PANGYA_TEST_JDBC_USER", "pangya");

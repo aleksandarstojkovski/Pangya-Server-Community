@@ -7,20 +7,20 @@ Questo repo è solo la riscrittura Java. **S4 non è done.**
 
 S0 [x] S1 [x] S2 [x] S3 [x] S4 [~] S5 [~] S6 [x]
 
-S4 profondità: **160** opcode success 1:1 / **12** opcode solo fail-stub / **13** stimati rimanenti dal C# Channel
+S4 profondità: **161** opcode success 1:1 / **11** opcode solo fail-stub / **12** stimati rimanenti dal C# Channel
 
 Conteggio Channel: **197** handler `packet_func_sv` registrati in `GameService.init_Packets`. Java ha uno `switch` per **195** di quelli (mancano `0x174`/`0x175`, no-op anche in C#). Success 1:1 = happy-path wire C# raggiungibile (SQL stand-in ammesso). Fail-stub = Java manda solo il catch C#; il success C# vuole IFF/`ItemManager`. Rimanenti ≈ fail-stub + GZ first-hole pulse `0x137`.
 
 ## Questo turno
 
-Fatto: ticket-report scroll `0xAB` (`requestOpenTicketReportScroll`). SQL `ticket_report_catalog` (V30, **196** tabelle) sostituisce `CmdTicketReportDadosInfo` header; valida warehouse id e ticket id codificato C1/C2, invalida lo scroll e manda `0x11A` u32 player-count 0 + SYSTEMTIME. Ogni fail resta i32 -1 + 16 zero.
-Prossimo opcode/file C#: daily `0x152`–`0x154`; UCC `0xB9`; Tiki success `0x128`/`0x129`/`0x18D`; GZ first-hole `packet137` pulse; GP enter `0x179`; lucky-pouch `0xB2`.
+Fatto: GP enter `0x179` (`requestEnterRoomGrandPrix`). SQL `grand_prix_event` (V31, **197** tabelle) sostituisce GrandPrixData IFF attivo senza restrizioni opzionali; valida evento/livello, crea o riusa room tipo 20 max 30 con course/holes/mode/natural/rule, poi invia il normale dump room C#. Errori `0x253` CHANNEL `shopSys`; else full `0x6700000`.
+Prossimo opcode/file C#: daily `0x152`–`0x154`; UCC `0xB9`; Tiki success `0x128`/`0x129`/`0x18D`; GZ first-hole `packet137` pulse; lucky-pouch `0xB2`.
 Blocco: file IFF assenti (pin/cube live, `initComboDef`); nessuna capture client JP Season 9.
 
 Percentuale epic: **scheletro 85%** / **parità client reale 35%**.
 
 - Scheletro: S0–S3 e S6 chiusi (Gradle, Cipher, Auth/Login, Practice, Ranking/Messenger core, metriche 3000, compose `/health`). S4/S5 aperti.
-- Parità client reale: ~160/197 Channel con happy-path; SQL al posto IFF; fail-stub su UCC/daily/Tiki/GP/lucky-pouch; zero capture JP S9.
+- Parità client reale: ~161/197 Channel con happy-path; SQL al posto IFF; fail-stub su UCC/daily/Tiki/lucky-pouch; zero capture JP S9.
 
 ## Slice (non dichiarare S4 done)
 

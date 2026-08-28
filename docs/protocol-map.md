@@ -198,7 +198,7 @@ C#: `GameServer/PangyaEnums/PacketGame.cs` → Java `org.pangya.protocol.game.Ga
 | C | `CLIENT_CLUB_WORKSHOP_EVENT` | `0x172` | always `0x24E` 0/3000/0/100/0/10/10; opposite `SERVER_LOCKER_PANG` |
 | C | `CLIENT_ENTER_LOBBY_GRAND_PRIX` | `0x176` | `property` bit 11 → lobby dump (no `0xF5`) + `0x250` OK + GP-event bits + v_gpc 0 + f32 avg; already-in-lobby → `0x250` u32 0; opposite `SERVER_LOCKER_MAKE_PASS` |
 | C | `CLIENT_LEAVE_LOBBY_GRAND_PRIX` | `0x177` | leave lobby (no `0xF6`) + `0x251` u32 0 |
-| C | `CLIENT_ENTER_ROOM_GRAND_PRIX` | `0x179` | IFF miss typeid 0 → `0x253` `shopSys(0x6700001)` (=1) |
+| C | `CLIENT_ENTER_ROOM_GRAND_PRIX` | `0x179` | SQL `grand_prix_event` active stand-in (optional time/ticket/clear restrictions absent): missing `0x253 shopSys(0x6700001)`, level `0x6700006`, full `0x6700005`, else full `0x6700000`. Success creates/reuses tipo 20 max-30 room with configured name/holes/course/mode/natural/rule and sends normal room enter packets |
 | C | `CLIENT_EXIT_ROOM_GRAND_PRIX` | `0x17A` | not-in-room silent |
 | C | `CLIENT_ENTER_MY_ROOM` | `0xB7` | channel → `0x168` `PlayerRoomInfoEx` 861 then `0x12D` u32 1 + u16 poster count (seed 0); catch silent; opposite CLIENT workshop transform confirm |
 | C | `CLIENT_PLAY_BIG_PAPEL_SHOP` | `0x186` | 10 balls, `0xC8` remaining+0 then `0x216`/`0xFB`/`0x26C`; funds `shopSys(0x5900102)` |

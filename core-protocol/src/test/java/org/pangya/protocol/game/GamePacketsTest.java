@@ -2483,6 +2483,8 @@ class GamePacketsTest {
         assertEquals(GamePackets.CARD_PACK_ERR, 1);
         assertEquals(GamePackets.MEMORIAL_OK, 0);
         assertEquals(GamePackets.MEMORIAL_ERR_SYSTEM, 0x6300305);
+        assertEquals(GamePackets.GP_ENTER_ERR_CREATE, 0x6700002);
+        assertEquals(GamePackets.GP_ENTER_ERR_LEVEL, 0x6700006);
         assertEquals(GamePackets.WORKSHOP_ERR_MISSING, 0x5300202);
         assertEquals(GamePackets.SERVER_BUY_ACK, 0x68);
         assertEquals(GamePackets.CREATE_ROOM_FAILED, 0x07);

@@ -2963,6 +2963,70 @@ public final class JdbiInventoryRepository implements InventoryRepository {
     }
 
     @Override
+    public Optional<GrandPrixEvent> grandPrixEvent(int typeid) {
+        return jdbi.withHandle(h -> h.createQuery("""
+                        SELECT typeid, name, holes, course, modo, natural, rule, min_level, max_level
+                          FROM pangya.grand_prix_event
+                         WHERE typeid = :typeid AND active = 1
+                        """)
+                .bind("typeid", typeid)
+                .map((rs, ctx) -> new GrandPrixEvent(
+                        rs.getInt("typeid"),
+                        rs.getString("name"),
+                        rs.getInt("holes"),
+                        rs.getInt("course"),
+                        rs.getInt("modo"),
+                        rs.getInt("natural"),
+                        rs.getInt("rule"),
+                        rs.getInt("min_level"),
+                        rs.getInt("max_level")))
+                .findOne());
+    }
+
+    @Override
+    public void upsertGrandPrixEvent(
+            int typeid,
+            String name,
+            int holes,
+            int course,
+            int modo,
+            int natural,
+            int rule,
+            int minLevel,
+            int maxLevel) {
+        jdbi.useHandle(h -> h.createUpdate("""
+                        INSERT INTO pangya.grand_prix_event (
+                            typeid, active, name, holes, course, modo, natural, rule,
+                            min_level, max_level)
+                        VALUES (:typeid, 1, :name, :holes, :course, :modo, :natural, :rule,
+                                :min, :max)
+                        ON CONFLICT (typeid) DO UPDATE SET
+                            active = 1, name = EXCLUDED.name, holes = EXCLUDED.holes,
+                            course = EXCLUDED.course, modo = EXCLUDED.modo,
+                            natural = EXCLUDED.natural, rule = EXCLUDED.rule,
+                            min_level = EXCLUDED.min_level, max_level = EXCLUDED.max_level
+                        """)
+                .bind("typeid", typeid)
+                .bind("name", name == null ? "" : name)
+                .bind("holes", holes)
+                .bind("course", course)
+                .bind("modo", modo)
+                .bind("natural", natural)
+                .bind("rule", rule)
+                .bind("min", minLevel)
+                .bind("max", maxLevel)
+                .execute());
+    }
+
+    @Override
+    public void deleteGrandPrixEvent(int typeid) {
+        jdbi.useHandle(h -> h.createUpdate(
+                        "DELETE FROM pangya.grand_prix_event WHERE typeid = :typeid")
+                .bind("typeid", typeid)
+                .execute());
+    }
+
+    @Override
     public OptionalInt consumeCardByTypeid(long uid, int typeid, int qntd) {
         if (qntd <= 0) {
             return OptionalInt.empty();
