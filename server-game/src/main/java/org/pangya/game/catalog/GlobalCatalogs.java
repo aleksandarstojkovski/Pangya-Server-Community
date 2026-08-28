@@ -95,9 +95,9 @@ public final class GlobalCatalogs {
         reloadCourseData();
         reloadCoinCube();
         if (pangyaIffPath != null) {
-            log.info("auth reload IFF (Course/Part from {})", pangyaIffPath);
+            log.info("auth reload IFF (Course/Part/Item/Card from {})", pangyaIffPath);
         } else {
-            log.info("auth reload IFF SQL stand-ins (map/cube/part; set PANGYA_IFF_PATH for binary)");
+            log.info("auth reload IFF SQL stand-ins (set PANGYA_IFF_PATH for binary)");
         }
     }
 

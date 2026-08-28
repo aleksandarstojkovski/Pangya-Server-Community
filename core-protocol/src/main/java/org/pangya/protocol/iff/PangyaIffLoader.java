@@ -9,7 +9,7 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * C# {@code sIff.reload()} snapshot: Course + Part indexes from {@code pangya_jp.iff}.
+ * C# {@code sIff.reload()} snapshot: Course/Part/Item/Card indexes from {@code pangya_jp.iff}.
  */
 public final class PangyaIffLoader {
 
@@ -19,9 +19,14 @@ public final class PangyaIffLoader {
 
     private PangyaIffLoader() {}
 
-    public record Snapshot(List<IffCourseRecord> courses, IffPartIndex parts, Path source) {
+    public record Snapshot(
+            List<IffCourseRecord> courses,
+            IffPartIndex parts,
+            IffTypeIndex items,
+            IffTypeIndex cards,
+            Path source) {
         static Snapshot empty() {
-            return new Snapshot(List.of(), IffPartIndex.empty(), null);
+            return new Snapshot(List.of(), IffPartIndex.empty(), IffTypeIndex.empty(), IffTypeIndex.empty(), null);
         }
     }
 
@@ -39,8 +44,16 @@ public final class PangyaIffLoader {
             PangyaIffArchive archive = new PangyaIffArchive(path);
             List<IffCourseRecord> courses = IffCourseFile.load(archive);
             IffPartIndex parts = IffPartFile.loadIndex(archive);
-            snapshot = new Snapshot(courses, parts, path);
-            log.info("loaded pangya iff {} ({} courses, {} parts)", path, courses.size(), parts.size());
+            IffTypeIndex items = IffItemFile.loadIndex(archive);
+            IffTypeIndex cards = IffCardFile.loadIndex(archive);
+            snapshot = new Snapshot(courses, parts, items, cards, path);
+            log.info(
+                    "loaded pangya iff {} ({} courses, {} parts, {} items, {} cards)",
+                    path,
+                    courses.size(),
+                    parts.size(),
+                    items.size(),
+                    cards.size());
         } catch (Exception e) {
             log.warn("failed to load pangya iff {}: {}", path, e.toString());
             snapshot = Snapshot.empty();
@@ -49,6 +62,14 @@ public final class PangyaIffLoader {
 
     public static IffPartIndex partIndex() {
         return snapshot.parts();
+    }
+
+    public static IffTypeIndex itemIndex() {
+        return snapshot.items();
+    }
+
+    public static IffTypeIndex cardIndex() {
+        return snapshot.cards();
     }
 
     public static Optional<List<IffCourseRecord>> courses() {

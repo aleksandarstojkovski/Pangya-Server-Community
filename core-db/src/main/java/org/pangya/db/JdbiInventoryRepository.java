@@ -1084,6 +1084,10 @@ public final class JdbiInventoryRepository implements InventoryRepository {
 
     @Override
     public OptionalLong partValorRental(int typeid) {
+        var iff = org.pangya.protocol.iff.PangyaIffLoader.partIndex();
+        if (!iff.isEmpty()) {
+            return iff.valorRental(typeid);
+        }
         return jdbi.withHandle(h -> h.createQuery("""
                         SELECT valor_rental FROM pangya.iff_part WHERE typeid = :typeid
                         """)
@@ -2993,6 +2997,10 @@ public final class JdbiInventoryRepository implements InventoryRepository {
 
     @Override
     public boolean itemIff(int typeid) {
+        var iff = org.pangya.protocol.iff.PangyaIffLoader.itemIndex();
+        if (!iff.isEmpty()) {
+            return iff.contains(typeid);
+        }
         return jdbi.withHandle(h -> h.createQuery("""
                         SELECT 1 FROM pangya.iff_item WHERE typeid = :typeid
                         """)
@@ -3021,6 +3029,10 @@ public final class JdbiInventoryRepository implements InventoryRepository {
 
     @Override
     public boolean cardIff(int typeid) {
+        var iff = org.pangya.protocol.iff.PangyaIffLoader.cardIndex();
+        if (!iff.isEmpty()) {
+            return iff.contains(typeid);
+        }
         return jdbi.withHandle(h -> h.createQuery("""
                         SELECT 1 FROM pangya.iff_card WHERE typeid = :typeid
                         """)
