@@ -1268,7 +1268,10 @@ class GamePacketsTest {
         assertEquals(GamePackets.GM_CMD_VISIBLE, 3);
         assertEquals(GamePackets.GM_CMD_WHISPER, 4);
         assertEquals(GamePackets.GM_CMD_CHANNEL, 5);
+        assertEquals(GamePackets.GM_CMD_OPEN_WHISPER, 8);
+        assertEquals(GamePackets.GM_CMD_CLOSE_WHISPER, 9);
         assertEquals(GamePackets.GM_CMD_KICK, 10);
+        assertEquals(GamePackets.GM_CMD_DISCONNECT, 11);
         assertEquals(GamePackets.GM_CMD_DESTROY, 13);
         assertEquals(GamePackets.GM_CMD_WIND, 14);
         assertEquals(GamePackets.GM_CMD_WEATHER, 15);
@@ -1323,6 +1326,20 @@ class GamePacketsTest {
         assertEquals(GamePackets.GM_CMD_WIND, gmWind.i16());
         assertEquals(5, gmWind.u8());
         assertEquals(90, gmWind.u8());
+        PacketReader gmOpen = new PacketReader(GamePackets.clientGmWhisperList(
+                GamePackets.GM_CMD_OPEN_WHISPER, "TestNick2"));
+        assertEquals(GamePackets.CLIENT_GM_COMMAND, gmOpen.opcode());
+        assertEquals(GamePackets.GM_CMD_OPEN_WHISPER, gmOpen.i16());
+        assertEquals("TestNick2", gmOpen.pstr());
+        PacketReader gmDisc = new PacketReader(GamePackets.clientGmDisconnect(2));
+        assertEquals(GamePackets.CLIENT_GM_COMMAND, gmDisc.opcode());
+        assertEquals(GamePackets.GM_CMD_DISCONNECT, gmDisc.i16());
+        assertEquals(2, gmDisc.u32());
+        assertEquals(
+                "\\1[Channel=Channel \\1(Rookies), \\1ROOM=65535]",
+                GamePackets.gmChatSpyFrom("Channel (Rookies)", 0xFFFF));
+        assertEquals("\\5TestNick: 'hi'", GamePackets.gmChatSpyMsg("TestNick", "hi"));
+        assertEquals("\\5A>B: 'pm'", GamePackets.gmPmSpyMsg("A", "B", "pm"));
         assertEquals("\\c0xff00ff00\\cExecuted Command.", GamePackets.chatColor(
                 GamePackets.CHAT_GREEN_HEX, GamePackets.GM_CMD_OK));
         assertEquals(GamePackets.CLIENT_ACTIVE_AUTO_COMMAND, 0x156);
@@ -1545,6 +1562,9 @@ class GamePacketsTest {
         assertEquals(GamePackets.CAPABILITY_TITLE_GM, 32768);
         assertEquals(GamePackets.SERVER_ADMIT_IDENTITY, 0x9A);
         assertEquals(GamePackets.GM_CMD_IDENTITY, 16);
+        assertEquals(GamePackets.GM_CMD_OPEN_WHISPER, 8);
+        assertEquals(GamePackets.GM_CMD_DISCONNECT, 11);
+        assertEquals(GamePackets.GM_PM_SPY_NICK, "\\1[PM]");
         assertEquals(GamePackets.GM_GIVEITEM_MAX, 20000);
         assertEquals(GamePackets.LIMIT_DEGREE, 255);
         assertEquals(GamePackets.CHAR_MASTERY_AWARD_TYPE, 0xCD);

@@ -2568,6 +2568,7 @@ public final class GameHandler {
         }
         PlayerContext pi = session.player();
         String from = pi.nickname == null || pi.nickname.isEmpty() ? nick : pi.nickname;
+        spyChatToGm(session, from, msg);
         byte[] packet = GamePackets.chat(GamePackets.CHAT_NORMAL, from, msg);
         GameRoom room = rooms.get(pi.roomNumber);
         if (room != null) {
@@ -2575,6 +2576,81 @@ public final class GameHandler {
         } else if (pi.channelId >= 0) {
             broadcastChannel(pi.channelId, packet);
         }
+    }
+
+    /**
+     * C# {@code requestChat} GM spy {@code pacote040} before room/channel send.
+     * C# skips GMs in the same channel and room as the speaker.
+     */
+    private void spyChatToGm(Session speaker, String from, String msg) {
+        int speakerRoom = speaker.player().roomNumber >= 0
+                ? speaker.player().roomNumber : 0xFFFF;
+        String spyFrom = GamePackets.gmChatSpyFrom(channelName(speaker.player().channelId), speakerRoom);
+        String spyMsg = GamePackets.gmChatSpyMsg(from, msg);
+        byte[] spy = GamePackets.chat(GamePackets.CHAT_NORMAL, spyFrom, spyMsg);
+        for (Session gm : sessions.snapshot()) {
+            if (!isGmSpy(gm) || gm.oid() == speaker.oid()) {
+                continue;
+            }
+            PlayerContext gi = gm.player();
+            if (!gmWatchesChat(gi, speaker)) {
+                continue;
+            }
+            if (gi.channelId == speaker.player().channelId
+                    && roomNumero(gi) == speakerRoom) {
+                continue;
+            }
+            gm.send(spy);
+        }
+    }
+
+    private void spyPmToGm(Session from, Session to, String msg) {
+        String fromNick = from.player().nickname == null ? "" : from.player().nickname;
+        String toNick = to.player().nickname == null ? "" : to.player().nickname;
+        byte[] spy = GamePackets.chat(
+                GamePackets.CHAT_NORMAL,
+                GamePackets.GM_PM_SPY_NICK,
+                GamePackets.gmPmSpyMsg(fromNick, toNick, msg));
+        for (Session gm : sessions.snapshot()) {
+            if (!isGmSpy(gm) || gm.oid() == from.oid() || gm.oid() == to.oid()) {
+                continue;
+            }
+            PlayerContext gi = gm.player();
+            if (gi.gmWhisper == 0
+                    && !gi.gmWhisperPlayers.contains(from.player().uid)
+                    && !gi.gmWhisperPlayers.contains(to.player().uid)) {
+                continue;
+            }
+            gm.send(spy);
+        }
+    }
+
+    private static boolean isGmSpy(Session session) {
+        return session.authorized()
+                && (session.player().capability & GamePackets.CAPABILITY_GM) != 0;
+    }
+
+    private static boolean gmWatchesChat(PlayerContext gi, Session speaker) {
+        if (gi.gmWhisper != 0) {
+            return true;
+        }
+        if (gi.gmChannel > 0 && gi.channelId == speaker.player().channelId) {
+            return true;
+        }
+        return gi.gmWhisperPlayers.contains(speaker.player().uid);
+    }
+
+    private static int roomNumero(PlayerContext pi) {
+        return pi.roomNumber >= 0 ? pi.roomNumber : 0xFFFF;
+    }
+
+    private String channelName(int channelId) {
+        for (GamePackets.ChannelInfo channel : channels) {
+            if ((channel.id & 0xff) == channelId) {
+                return channel.name == null ? "" : channel.name;
+            }
+        }
+        return "";
     }
 
     private void setReady(Session session, PacketReader reader) {
@@ -2701,6 +2777,7 @@ public final class GameHandler {
         }
         String from = session.player().nickname == null ? "" : session.player().nickname;
         String to = target.player().nickname == null ? nick : target.player().nickname;
+        spyPmToGm(session, target, msg);
         session.send(GamePackets.whisper(GamePackets.WHISPER_FROM, to, msg));
         target.send(GamePackets.whisper(GamePackets.WHISPER_TO, from, msg));
     }
@@ -3208,9 +3285,10 @@ public final class GameHandler {
      * success ends with green {@code Executed Command.}. {@code CCG_VISIBLE}
      * broadcasts lobby {@code 0x46} option 3; {@code CCG_WHISPER}/{@code CCG_CHANNEL}
      * set GM flags; {@code CCG_CHANGE_WEATHER} lounge {@code 0x9E} type 1;
-     * {@code CCG_KICK} leaves the target's room; {@code CCG_IDENTITY} {@code 0x9A};
-     * {@code CCG_GIVEITEM}/{@code CCG_GOLDENBELL} mailbox; {@code CCG_CHANGE_WIND_VERSUS}
-     * Versus {@code 0x5B}; {@code CCG_DESTROY} is a no-op then green OK.
+     * {@code CCG_KICK} leaves the target's room; {@code CCG_DISCONNECT} closes the
+     * session; {@code CCG_IDENTITY} {@code 0x9A}; {@code CCG_GIVEITEM}/{@code CCG_GOLDENBELL}
+     * mailbox; {@code CCG_CHANGE_WIND_VERSUS} Versus {@code 0x5B}; open/close whisper
+     * list; {@code CCG_DESTROY} is a no-op then green OK.
      */
     private void commonCmdGm(Session session, PacketReader reader) {
         if (!session.authorized() || reader.remaining() < 2) {
@@ -3226,9 +3304,12 @@ public final class GameHandler {
                 case GamePackets.GM_CMD_VISIBLE -> gmVisible(session, reader);
                 case GamePackets.GM_CMD_WHISPER -> gmWhisperChannel(session, reader, true);
                 case GamePackets.GM_CMD_CHANNEL -> gmWhisperChannel(session, reader, false);
+                case GamePackets.GM_CMD_OPEN_WHISPER -> gmWhisperList(session, reader, true);
+                case GamePackets.GM_CMD_CLOSE_WHISPER -> gmWhisperList(session, reader, false);
                 case GamePackets.GM_CMD_DESTROY -> { }
                 case GamePackets.GM_CMD_WEATHER -> gmWeather(session, reader);
                 case GamePackets.GM_CMD_KICK -> gmKick(session, reader);
+                case GamePackets.GM_CMD_DISCONNECT -> gmDisconnect(session, reader);
                 case GamePackets.GM_CMD_IDENTITY -> applyIdentity(session, reader);
                 case GamePackets.GM_CMD_GIVEITEM -> gmGiveitem(session, reader);
                 case GamePackets.GM_CMD_GOLDENBELL -> gmGoldenbell(session, reader);
@@ -3315,6 +3396,14 @@ public final class GameHandler {
         if (!room.inGame) {
             throw new IllegalStateException("weather game");
         }
+        if (room.course != null) {
+            int numero = 1;
+            GameRoom.PlayerShot shot = room.shots.get(room.turnOid);
+            if (shot != null && shot.hole > 0) {
+                numero = shot.hole;
+            }
+            room.course.setWeather(numero, weather);
+        }
         room.broadcast(GamePackets.weather(weather, GamePackets.WEATHER_GM));
     }
 
@@ -3332,6 +3421,43 @@ public final class GameHandler {
             throw new IllegalStateException("kick room");
         }
         leaveRoom(target);
+    }
+
+    /**
+     * C# {@code CCG_OPEN_WHISPER_PLAYER_LIST}/{@code CLOSE}: PStr nick.
+     * Empty nick is generic fail; missing session is C# decode 9 (blocked text).
+     * Open is intended add (C# {@code openPlayerWhisper} never inserts).
+     */
+    private void gmWhisperList(Session session, PacketReader reader, boolean open) {
+        String nick = reader.remaining() >= 2 ? reader.pstr() : "";
+        if (nick == null || nick.isEmpty()) {
+            throw new IllegalStateException("whisper-list nick");
+        }
+        Session target = sessions.findByNickname(nick);
+        if (target == null || !target.authorized() || target.player().uid == 0) {
+            throw new GmBlockedException();
+        }
+        if (open) {
+            session.player().gmWhisperPlayers.add(target.player().uid);
+        } else {
+            session.player().gmWhisperPlayers.remove(target.player().uid);
+        }
+    }
+
+    /**
+     * C# {@code CCG_DISCONNECT}: u32 oid then {@code Session.Disconnect}.
+     */
+    private void gmDisconnect(Session session, PacketReader reader) {
+        if (reader.remaining() < 4) {
+            throw new IllegalStateException("disconnect");
+        }
+        int oid = reader.u32();
+        Session target = sessions.findByOid(oid);
+        if (target == null || !target.authorized()) {
+            throw new IllegalStateException("disconnect oid");
+        }
+        leaveRoom(target);
+        target.disconnect();
     }
 
     /**

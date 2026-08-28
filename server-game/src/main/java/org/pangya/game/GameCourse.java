@@ -49,4 +49,20 @@ final class GameCourse {
         }
         return false;
     }
+
+    /**
+     * C# {@code hole.setWeather} for GM in-game weather: keep pin/wind/degree.
+     */
+    boolean setWeather(int numero, int weather) {
+        for (int i = 0; i < holes.size(); i++) {
+            GamePackets.HoleInfo hole = holes.get(i);
+            if (hole.numero() == numero) {
+                holes.set(i, new GamePackets.HoleInfo(
+                        hole.id(), hole.pin(), hole.course(), hole.numero(),
+                        weather, hole.wind(), hole.degree()));
+                return true;
+            }
+        }
+        return false;
+    }
 }

@@ -1,5 +1,8 @@
 package org.pangya.network.session;
 
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+
 /** Per-session player / child-server fields filled after login or Auth register. */
 public final class PlayerContext {
 
@@ -26,10 +29,15 @@ public final class PlayerContext {
     public volatile int place;
     /** C# {@code PlayerInfo.whisper}: 1 on (default), 0 blocks incoming PM. */
     public volatile int whisper = 1;
-    /** C# {@code GMInfo.whisper} / {@code state_flag.whisper}. */
-    public volatile int gmWhisper;
-    /** C# {@code GMInfo.channel} / {@code state_flag.channel}. */
+    /** C# {@code GMInfo.whisper} / {@code state_flag.whisper}. Default 1 (C# ctor). */
+    public volatile int gmWhisper = 1;
+    /** C# {@code GMInfo.channel} / {@code state_flag.channel}. Ctor sets 0. */
     public volatile int gmChannel;
+    /**
+     * C# {@code GMInfo.map_open} UIDs. Open/close whisper-list is intended add/remove
+     * (C# {@code openPlayerWhisper} is inverted and never inserts).
+     */
+    public final Set<Long> gmWhisperPlayers = ConcurrentHashMap.newKeySet();
     /** C# {@code PlayerInfo.location} lounge xz r. */
     public volatile float locX;
     public volatile float locZ;

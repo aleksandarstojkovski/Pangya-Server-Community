@@ -998,8 +998,14 @@ public final class GamePackets {
     public static final int GM_CMD_WHISPER = 4;
     /** C# {@code COMMON_CMD_GM.CCG_CHANNEL}. */
     public static final int GM_CMD_CHANNEL = 5;
+    /** C# {@code COMMON_CMD_GM.CCG_OPEN_WHISPER_PLAYER_LIST}. */
+    public static final int GM_CMD_OPEN_WHISPER = 8;
+    /** C# {@code COMMON_CMD_GM.CCG_CLOSE_WHISPER_PLAYER_LIST}. */
+    public static final int GM_CMD_CLOSE_WHISPER = 9;
     /** C# {@code COMMON_CMD_GM.CCG_KICK}. */
     public static final int GM_CMD_KICK = 10;
+    /** C# {@code COMMON_CMD_GM.CCG_DISCONNECT}. */
+    public static final int GM_CMD_DISCONNECT = 11;
     /** C# {@code COMMON_CMD_GM.CCG_DESTROY} (empty then green OK). */
     public static final int GM_CMD_DESTROY = 13;
     /** C# {@code COMMON_CMD_GM.CCG_CHANGE_WIND_VERSUS}. */
@@ -1039,6 +1045,10 @@ public final class GamePackets {
     public static final String GM_GIVEITEM_MSG = "GM Send Gift: item[ " + GM_SHOP_ITEM_NAME + " ]";
     /** C# {@code "GM enviou um item para voce: item[ " + name + " ]"}. */
     public static final String GM_GOLDENBELL_MSG = "GM enviou um item para voce: item[ " + GM_SHOP_ITEM_NAME + " ]";
+    /** C# chat spy {@code pacote040} nick after the first-space {@code \\1} insert. */
+    public static final String GM_CHAT_SPY_CHANNEL = "\\1[Channel=";
+    /** C# PM spy {@code pacote040} nick. */
+    public static final String GM_PM_SPY_NICK = "\\1[PM]";
     /** C# {@code TranslationSubPacket.Msg_OFF}. */
     public static final int MSN_MSG_OFF = 0x111;
     /** C# {@code TranslationSubPacket.Friend_List} (not implemented in C#). */
@@ -3420,6 +3430,32 @@ public final class GamePackets {
     }
 
     /**
+     * C# {@code requestChat} GM spy nick: {@code \1[Channel=name, \1ROOM=n]} then
+     * insert {@code \1} after the first space (channel names like
+     * {@code Channel (Rookies)}).
+     */
+    public static String gmChatSpyFrom(String channelName, int roomNumero) {
+        String from = "\\1[Channel=" + (channelName == null ? "" : channelName)
+                + ", \\1ROOM=" + (roomNumero & 0xffff) + "]";
+        int index = from.indexOf(' ');
+        if (index >= 0) {
+            from = from.substring(0, index) + " \\1" + from.substring(index + 1);
+        }
+        return from;
+    }
+
+    /** C# {@code \\5} + nick + {@code : '} + msg + {@code '}. */
+    public static String gmChatSpyMsg(String nick, String msg) {
+        return "\\5" + (nick == null ? "" : nick) + ": '" + (msg == null ? "" : msg) + "'";
+    }
+
+    /** C# {@code \\5} + from + {@code >} + to + {@code : '} + msg + {@code '}. */
+    public static String gmPmSpyMsg(String from, String to, String msg) {
+        return "\\5" + (from == null ? "" : from) + ">" + (to == null ? "" : to)
+                + ": '" + (msg == null ? "" : msg) + "'";
+    }
+
+    /**
      * C# {@code packet_func.pacote078} — ready state for one player.
      */
     public static byte[] readyState(int oid, int ready) {
@@ -4529,6 +4565,20 @@ public final class GamePackets {
     /** C# CLIENT {@code 0x8F} {@code CCG_KICK}: i16 10 + u32 oid + u8 force. */
     public static byte[] clientGmKick(int oid, int force) {
         return new PacketWriter().opcode(CLIENT_GM_COMMAND).i16(GM_CMD_KICK).u32(oid).u8(force).toBytes();
+    }
+
+    /** C# CLIENT {@code 0x8F} open/close whisper list: i16 cmd + PStr nick. */
+    public static byte[] clientGmWhisperList(int cmd, String nick) {
+        return new PacketWriter()
+                .opcode(CLIENT_GM_COMMAND)
+                .i16(cmd)
+                .pstr(nick == null ? "" : nick)
+                .toBytes();
+    }
+
+    /** C# CLIENT {@code 0x8F} {@code CCG_DISCONNECT}: i16 11 + u32 oid. */
+    public static byte[] clientGmDisconnect(int oid) {
+        return new PacketWriter().opcode(CLIENT_GM_COMMAND).i16(GM_CMD_DISCONNECT).u32(oid).toBytes();
     }
 
     /** C# CLIENT {@code 0x8F} {@code CCG_IDENTITY}: i16 16 + i32 cap + PStr nick. */

@@ -733,6 +733,101 @@ class GameFlowIT {
                 assertEquals(
                         GamePackets.chatColor(GamePackets.CHAT_GREEN_HEX, GamePackets.GM_CMD_OK),
                         skipChatNotice(windOk));
+                host.sendPlain(GamePackets.clientGmWeather(2));
+                PacketReader holeWeather = awaitOpcode(host, GamePackets.SERVER_WEATHER);
+                assertEquals(2, holeWeather.u16());
+                assertEquals(GamePackets.WEATHER_GM, holeWeather.u8());
+                PacketReader weatherOk = awaitOpcode(host, GamePackets.SERVER_CHAT);
+                assertEquals(
+                        GamePackets.chatColor(GamePackets.CHAT_GREEN_HEX, GamePackets.GM_CMD_OK),
+                        skipChatNotice(weatherOk));
+            } finally {
+                repo.setCapability(10001, 0);
+            }
+        }
+    }
+
+    @Test
+    void gmWhisperListSpyAndDisconnect() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config);
+             PangyaFakeClient host = new PangyaFakeClient();
+             PangyaFakeClient guest = new PangyaFakeClient()) {
+            LoginRepository repo = new JdbiLoginRepository(DatabaseSupport.jdbi(ds));
+            repo.setCapability(10001, GamePackets.CAPABILITY_GM);
+            try {
+                loginTwoPlayers(ds, keys, host, guest, runtime.port());
+                host.sendPlain(GamePackets.clientCreateRoom(GamePackets.TIPO_LOUNGE, "SPY", ""));
+                assertEquals(0, awaitOpcode(host, GamePackets.SERVER_ROOM_ENTER_RESULT).i16());
+                guest.sendPlain(GamePackets.clientChat("TestNick2", "hello gm"));
+                PacketReader spy = awaitOpcode(host, GamePackets.SERVER_CHAT);
+                assertEquals(GamePackets.CHAT_NORMAL, spy.u8());
+                assertEquals(
+                        GamePackets.gmChatSpyFrom("Channel (Rookies)", 0xFFFF),
+                        spy.pstr());
+                assertEquals(GamePackets.gmChatSpyMsg("TestNick2", "hello gm"), spy.pstr());
+                PacketReader echo = awaitOpcode(host, GamePackets.SERVER_CHAT);
+                assertEquals(GamePackets.CHAT_NORMAL, echo.u8());
+                assertEquals("TestNick2", echo.pstr());
+                assertEquals("hello gm", echo.pstr());
+
+                host.sendPlain(GamePackets.clientGmU16(GamePackets.GM_CMD_WHISPER, 0));
+                assertEquals(
+                        GamePackets.chatColor(GamePackets.CHAT_GREEN_HEX, GamePackets.GM_CMD_OK),
+                        skipChatNotice(awaitOpcode(host, GamePackets.SERVER_CHAT)));
+                guest.sendPlain(GamePackets.clientChat("TestNick2", "no spy"));
+                PacketReader channelChat = awaitOpcode(host, GamePackets.SERVER_CHAT);
+                assertEquals(GamePackets.CHAT_NORMAL, channelChat.u8());
+                assertEquals("TestNick2", channelChat.pstr());
+                assertEquals("no spy", channelChat.pstr());
+
+                host.sendPlain(GamePackets.clientGmWhisperList(
+                        GamePackets.GM_CMD_OPEN_WHISPER, "TestNick2"));
+                assertEquals(
+                        GamePackets.chatColor(GamePackets.CHAT_GREEN_HEX, GamePackets.GM_CMD_OK),
+                        skipChatNotice(awaitOpcode(host, GamePackets.SERVER_CHAT)));
+                guest.sendPlain(GamePackets.clientChat("TestNick2", "listed"));
+                PacketReader listed = awaitOpcode(host, GamePackets.SERVER_CHAT);
+                assertEquals(GamePackets.CHAT_NORMAL, listed.u8());
+                assertEquals(
+                        GamePackets.gmChatSpyFrom("Channel (Rookies)", 0xFFFF),
+                        listed.pstr());
+                assertEquals(GamePackets.gmChatSpyMsg("TestNick2", "listed"), listed.pstr());
+                PacketReader listedEcho = awaitOpcode(host, GamePackets.SERVER_CHAT);
+                assertEquals(GamePackets.CHAT_NORMAL, listedEcho.u8());
+                assertEquals("TestNick2", listedEcho.pstr());
+                assertEquals("listed", listedEcho.pstr());
+
+                host.sendPlain(GamePackets.clientGmWhisperList(
+                        GamePackets.GM_CMD_CLOSE_WHISPER, "TestNick2"));
+                assertEquals(
+                        GamePackets.chatColor(GamePackets.CHAT_GREEN_HEX, GamePackets.GM_CMD_OK),
+                        skipChatNotice(awaitOpcode(host, GamePackets.SERVER_CHAT)));
+                host.sendPlain(GamePackets.clientGmWhisperList(
+                        GamePackets.GM_CMD_OPEN_WHISPER, ""));
+                assertEquals(
+                        GamePackets.chatColor(GamePackets.CHAT_RED_HEX, GamePackets.GM_CMD_FAIL),
+                        skipChatNotice(awaitOpcode(host, GamePackets.SERVER_CHAT)));
+                host.sendPlain(GamePackets.clientGmWhisperList(
+                        GamePackets.GM_CMD_OPEN_WHISPER, "Nobody"));
+                assertEquals(
+                        GamePackets.chatColor(GamePackets.CHAT_RED_HEX, GamePackets.GM_CMD_BLOCKED),
+                        skipChatNotice(awaitOpcode(host, GamePackets.SERVER_CHAT)));
+
+                int guestOid = oidOf(runtime, 10002);
+                host.sendPlain(GamePackets.clientGmDisconnect(guestOid));
+                assertEquals(
+                        GamePackets.chatColor(GamePackets.CHAT_GREEN_HEX, GamePackets.GM_CMD_OK),
+                        skipChatNotice(awaitOpcode(host, GamePackets.SERVER_CHAT)));
+                assertTrue(awaitSessionCount(runtime, 1, 3, TimeUnit.SECONDS));
             } finally {
                 repo.setCapability(10001, 0);
             }
