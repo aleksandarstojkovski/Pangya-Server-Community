@@ -3228,17 +3228,36 @@ public final class GameHandler {
     }
 
     /**
-     * C# {@code requestDeleteActiveItem}: no IFF / wrong group → {@code 0xC5} sbyte -1.
+     * C# {@code requestDeleteActiveItem} ({@code packet064} / {@code pacote0C5}).
+     * IFF files are absent; SQL ITEM-group warehouse C0 stands in for
+     * {@code findItem} / {@code IsItemEquipable} / giftable. Non-ITEM typeids
+     * and missing/insufficient stock send sbyte {@code -1} (the C# catch).
      */
     private void deleteActiveItem(Session session, PacketReader reader) {
         if (!inChannel(session)) {
             return;
         }
-        if (reader.remaining() >= 8) {
-            reader.u32();
-            reader.u32();
+        if (reader.remaining() < 8) {
+            session.send(GamePackets.deleteItemFail());
+            return;
         }
-        session.send(GamePackets.deleteItemFail());
+        int typeid = reader.u32();
+        int qntd = reader.u32();
+        if (qntd <= 0 || GamePackets.itemGroupIdentify(typeid) != GamePackets.IFF_GROUP_ITEM) {
+            session.send(GamePackets.deleteItemFail());
+            return;
+        }
+        GamePackets.WarehouseItem item = warehouseByTypeid(session.player().uid, typeid);
+        if (item == null || (item.c[0] & 0xffff) < qntd) {
+            session.send(GamePackets.deleteItemFail());
+            return;
+        }
+        int id = item.id;
+        if (inventory.consumeWarehouseByTypeid(session.player().uid, typeid, qntd).isEmpty()) {
+            session.send(GamePackets.deleteItemFail());
+            return;
+        }
+        session.send(GamePackets.deleteItemOk(typeid, qntd, id));
     }
 
     /**

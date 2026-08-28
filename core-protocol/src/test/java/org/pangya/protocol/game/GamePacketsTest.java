@@ -895,6 +895,14 @@ class GamePacketsTest {
         PacketReader delFail = new PacketReader(GamePackets.deleteItemFail());
         assertEquals(GamePackets.SERVER_DELETE_ITEM, delFail.opcode());
         assertEquals(GamePackets.DELETE_ITEM_FAIL, delFail.u8());
+        PacketReader delOk = new PacketReader(GamePackets.deleteItemOk(
+                GamePackets.TYPEID_SHOP_PANG_ITEM, 1, 9));
+        assertEquals(GamePackets.SERVER_DELETE_ITEM, delOk.opcode());
+        assertEquals(GamePackets.DELETE_ITEM_OK, delOk.u8());
+        assertEquals(GamePackets.TYPEID_SHOP_PANG_ITEM, delOk.u32());
+        assertEquals(1, delOk.u32());
+        assertEquals(9, delOk.i32());
+        assertEquals(0, delOk.remaining());
         PacketReader achFail = new PacketReader(GamePackets.achievementGui(GamePackets.ACHIEVEMENT_GUI_FAIL));
         assertEquals(GamePackets.SERVER_ACHIEVEMENT_GUI, achFail.opcode());
         assertEquals(1, achFail.i32());

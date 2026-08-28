@@ -132,7 +132,7 @@ C#: `GameServer/PangyaEnums/PacketGame.cs` → Java `org.pangya.protocol.game.Ga
 | C | `CLIENT_REQUEST_JOIN_ROOM` | `0x09` | |
 | C | `CLIENT_LEAVE_PRACTICE` | `0x130` | |
 | C | `CLIENT_LEAVE_CHIP_IN_PRACTICE` | `0x131` | |
-| C | `CLIENT_DELETE_ITEM` | `0x64` | no IFF → `0xC5` sbyte -1 |
+| C | `CLIENT_DELETE_ITEM` | `0x64` | ITEM-group SQL consume; success `0xC5` u8 1 + typeid + qntd + id; else sbyte -1 |
 | C | `CLIENT_CADDIE_HOLIDAY_NOTICE` | `0x6B` | invalid/IFF miss silent |
 | C | `CLIENT_ENTER_OTHER_CHANNEL` | `0x83` | same numeric as SERVER_INVITE; fail `0x4E` 3 then disconnect |
 | C | `CLIENT_GAMEGUARD` | `0x88` | no reply |
@@ -284,7 +284,7 @@ C#: `GameServer/PangyaEnums/PacketGame.cs` → Java `org.pangya.protocol.game.Ga
 | S | `SERVER_CHAR_CARD_PATCHER` | `0x272` | fail u32 error; success u32 0 + u32 card typeid |
 | S | `SERVER_CHAR_CARD_REMOVE` | `0x273` | fail u32 error; success u32 0 + u32 card typeid |
 | S | `SERVER_TIKI_SHOP_EXCHANGE` | `0x274` | u32 error |
-| S | `SERVER_DELETE_ITEM` | `0xC5` | fail sbyte -1 |
+| S | `SERVER_DELETE_ITEM` | `0xC5` | fail sbyte -1; success u8 1 + u32 typeid + u32 qntd + i32 id |
 | S | `SERVER_DAILY_QUEST_STAMP` | `0x216` | unix + count; take-mail type 2 uses empty UCC PStr + status + seq + 5 zeros (15), not Papel 25-byte pad. Opposite C# `pacote216` item-update |
 | S | `SERVER_MAIL_TAKE` | `0x214` | i32 error; 0 ok after `0x216`. Opposite `CLIENT_TAKE_MAIL` `0x146` |
 | S | `SERVER_DAILY_QUEST_INFO` | `0x225` | option + current/accept unix + count + 3×typeid + deletes |

@@ -1516,6 +1516,65 @@ class GameFlowIT {
     }
 
     @Test
+    void deleteItemConsumesWarehouseItem() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config);
+             PangyaFakeClient client = new PangyaFakeClient()) {
+            InventoryRepository inv = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
+            try {
+                inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_SHOP_PANG_ITEM);
+                final int storedId = inv.addWarehouseItem(10001, GamePackets.TYPEID_SHOP_PANG_ITEM, 2);
+                LoginRepository repo = new JdbiLoginRepository(DatabaseSupport.jdbi(ds));
+                String loginKey = repo.generateAuthKeyLogin(10001);
+                String gameKey = repo.generateAuthKeyGame(10001, 20202);
+                keys.putLoginKey(10001, loginKey);
+                keys.putGameKey(10001, 20202, gameKey);
+                loginToChannel(client, runtime.port(), "testuser", 10001, loginKey, gameKey);
+
+                client.sendPlain(GamePackets.clientDeleteItem(GamePackets.TYPEID_SHOP_PANG_ITEM, 1));
+                PacketReader ok = awaitOpcode(client, GamePackets.SERVER_DELETE_ITEM);
+                assertEquals(GamePackets.DELETE_ITEM_OK, ok.u8());
+                assertEquals(GamePackets.TYPEID_SHOP_PANG_ITEM, ok.u32());
+                assertEquals(1, ok.u32());
+                assertEquals(storedId, ok.i32());
+                GamePackets.WarehouseItem leftover = inv.warehouse(10001).stream()
+                        .filter(w -> w.typeid == GamePackets.TYPEID_SHOP_PANG_ITEM)
+                        .findFirst()
+                        .orElseThrow();
+                assertEquals(storedId, leftover.id);
+                assertEquals(1, leftover.c[0] & 0xffff);
+
+                client.sendPlain(GamePackets.clientDeleteItem(GamePackets.TYPEID_SHOP_PANG_ITEM, 1));
+                PacketReader last = awaitOpcode(client, GamePackets.SERVER_DELETE_ITEM);
+                assertEquals(GamePackets.DELETE_ITEM_OK, last.u8());
+                assertEquals(GamePackets.TYPEID_SHOP_PANG_ITEM, last.u32());
+                assertEquals(1, last.u32());
+                assertEquals(storedId, last.i32());
+                assertTrue(inv.warehouse(10001).stream()
+                        .noneMatch(w -> w.typeid == GamePackets.TYPEID_SHOP_PANG_ITEM));
+
+                client.sendPlain(GamePackets.clientDeleteItem(GamePackets.TYPEID_SHOP_PANG_ITEM, 1));
+                PacketReader missing = awaitOpcode(client, GamePackets.SERVER_DELETE_ITEM);
+                assertEquals(GamePackets.DELETE_ITEM_FAIL, missing.u8());
+
+                client.sendPlain(GamePackets.clientDeleteItem(1, 1));
+                PacketReader group = awaitOpcode(client, GamePackets.SERVER_DELETE_ITEM);
+                assertEquals(GamePackets.DELETE_ITEM_FAIL, group.u8());
+            } finally {
+                inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_SHOP_PANG_ITEM);
+            }
+        }
+    }
+
+    @Test
     void makeTutorialRookieAcksFlagsAndMailsReward() throws Exception {
         String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
         String user = env("PANGYA_TEST_JDBC_USER", "pangya");

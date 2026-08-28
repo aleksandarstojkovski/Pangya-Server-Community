@@ -469,8 +469,9 @@ public final class GamePackets {
      */
     public static final int SERVER_AUTO_COMMAND_ACK = 0x22B;
     /**
-     * C# {@code requestDeleteActiveItem} fail {@code 0xC5} sbyte -1.
-     * Opposite direction from CLIENT mailbox-get {@code 0xC5} (JP uses {@code 0x146}).
+     * C# {@code requestDeleteActiveItem} {@code 0xC5}: success {@code WriteByte(1)}
+     * then typeid + qntd + id; catch {@code WriteSByte(-1)}. Opposite direction
+     * from CLIENT mailbox-get {@code 0xC5} (JP uses {@code 0x146}).
      */
     public static final int SERVER_DELETE_ITEM = 0xC5;
     /** C# {@code SERVER_SYNC_ACTIVITY} / {@code pacote0C4}: oid + u8 type + payload. */
@@ -1879,6 +1880,8 @@ public final class GamePackets {
     }
     /** C# {@code WriteSByte(-1)} on delete-item fail. */
     public static final int DELETE_ITEM_FAIL = 0xff;
+    /** C# {@code pacote0C5} {@code WriteByte(1)} success. */
+    public static final int DELETE_ITEM_OK = 1;
     /** C# view {@code WriteString(nick, 22)}. */
     public static final int SHOP_NICK_BYTES = 22;
     /** C# {@code requestBuyItemShop} {@code 0x68} option codes. */
@@ -4555,6 +4558,19 @@ public final class GamePackets {
     /** C# delete-item catch: {@code 0xC5} sbyte -1. */
     public static byte[] deleteItemFail() {
         return new PacketWriter().opcode(SERVER_DELETE_ITEM).u8(DELETE_ITEM_FAIL).toBytes();
+    }
+
+    /**
+     * C# {@code pacote0C5} success: {@code unsigned char 1} + typeid + qntd + {@code id}.
+     */
+    public static byte[] deleteItemOk(int typeid, int qntd, int id) {
+        return new PacketWriter()
+                .opcode(SERVER_DELETE_ITEM)
+                .u8(DELETE_ITEM_OK)
+                .u32(typeid)
+                .u32(qntd)
+                .i32(id)
+                .toBytes();
     }
 
     /** C# Cadie {@code 0x22F} u32 error. */
