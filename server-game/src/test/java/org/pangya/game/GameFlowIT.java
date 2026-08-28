@@ -895,7 +895,12 @@ class GameFlowIT {
                 PacketReader notice = awaitOpcode(host, GamePackets.SERVER_CHAT);
                 assertEquals(GamePackets.CHAT_NOTICE, notice.u8());
                 assertEquals(GamePackets.SHOP_SALE_NICK, notice.pstr());
-                assertEquals(GamePackets.SHOP_SALE_MSG, notice.pstr());
+                PacketReader saleMsg = new PacketReader(GamePackets.chat(
+                        GamePackets.CHAT_NOTICE, GamePackets.SHOP_SALE_NICK, GamePackets.SHOP_SALE_MSG));
+                saleMsg.opcode();
+                saleMsg.u8();
+                saleMsg.pstr();
+                assertEquals(saleMsg.pstr(), notice.pstr());
 
                 assertEquals(100950, inventory.pang(10001));
                 assertEquals(99000, inventory.pang(10002));
