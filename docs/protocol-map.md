@@ -113,6 +113,7 @@ C#: `GameServer/PangyaEnums/PacketGame.cs` → Java `org.pangya.protocol.game.Ga
 | S | `SERVER_AUTO_COMMAND_ACK` | `0x22B` | u32 error; C# success does not send |
 | C | `CLIENT_REEMPLOY_CADDIE` | `0x39` | SQL `iff_caddie`; success `0x93` u8 2 + id + pang; catch u8 1 |
 | C | `CLIENT_CHANGE_MASCOT` | `0x73` | SQL `iff_mascot`; success `0xE2` u8 4 + id + PStr + pang; catch sbyte -1 |
+| C | `CLIENT_UPDATE_PCBANG_MASCOTMSG` | `0x9A` | u8 mode + i32 id + PStr; `0xE2` u8 1 miss/IFF, u8 2 msg&gt;16; success local `u8 mode` (+ id/PStr/pang if 2 or 4). Opposite `SERVER_ADMIT_IDENTITY` |
 | S | `SERVER_WHISPER` | `0x84` | byte 0 sender ack / byte 1 deliver |
 | S | `SERVER_DETAIL_ROOM_INFO` | `0x86` | num_player u32 + holes + time + course + tipo + modo + trophy + rows |
 | S | `SERVER_PLAYER_INFO` | `0x89` | u32 err (+ season/uid when err>0); GM deny=3 |

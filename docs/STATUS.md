@@ -7,20 +7,20 @@ Questo repo è solo la riscrittura Java. **S4 non è done.**
 
 S0 [x] S1 [x] S2 [x] S3 [x] S4 [~] S5 [~] S6 [x]
 
-S4 profondità: **131** opcode success 1:1 / **40** opcode solo fail-stub / **42** stimati rimanenti dal C# Channel
+S4 profondità: **132** opcode success 1:1 / **40** opcode solo fail-stub / **41** stimati rimanenti dal C# Channel
 
-Conteggio Channel: **197** handler `packet_func_sv` registrati in `GameService.init_Packets`. Java ha uno `switch` per **194** di quelli (manca `0x9A` PCBang mascot; `0x174`/`0x175` sono no-op anche in C#). Success 1:1 = happy-path wire C# raggiungibile (SQL stand-in ammesso). Fail-stub = Java manda solo il catch C#; il success C# vuole IFF/`ItemManager`. Rimanenti ≈ fail-stub + `0x9A` + GZ first-hole pulse `0x137`.
+Conteggio Channel: **197** handler `packet_func_sv` registrati in `GameService.init_Packets`. Java ha uno `switch` per **195** di quelli (mancano `0x174`/`0x175`, no-op anche in C#). Success 1:1 = happy-path wire C# raggiungibile (SQL stand-in ammesso). Fail-stub = Java manda solo il catch C#; il success C# vuole IFF/`ItemManager`. Rimanenti ≈ fail-stub + GZ first-hole pulse `0x137`.
 
 ## Questo turno
 
-Fatto: Tourney ticket-report `0xAA` → `pacote0AA` remaining C0 + `finish_game(1)` (`0x12A`/`0x4C`/`0x244`/`0x24F`) + `leaveRoom(..., 10)` (`0x61`+`0x11B` agli altri; niente `0x4C` extra). FINISH = last-hole `0x31` su `qntd_hole`. Versus / non-FINISH / C0&lt;1 / level&lt;6 silenziosi.
-Prossimo opcode/file C#: `Channel.requestUpdatePCBangMascot` (`packet09A`) → `0xE2`/`0xEE`; oppure GZ first-hole pulse `0x137`.
+Fatto: PCBang mascot `CLIENT_UPDATE_PCBANG_MASCOT` `0x9A` → `0xE2` (non `0xEE`): u8 1 miss/IFF, u8 2 msg&gt;16, success locale `u8 mode` (+ id/PStr/pang se mode 2 o 4). SQL `iff_mascot.msg_active`.
+Prossimo opcode/file C#: GZ first-hole `TourneyBase.requestInitFirstHole` (`packet137`) pulse; oppure un fail-stub con happy-path IFF-free.
 Blocco: file IFF assenti (pin/cube live, `initComboDef`, cutin success `0xE5` `findCutinInfomation`); nessuna capture client JP Season 9.
 
 Percentuale epic: **scheletro 85%** / **parità client reale 35%**.
 
 - Scheletro: S0–S3 e S6 chiusi (Gradle, Cipher, Auth/Login, Practice, Ranking/Messenger core, metriche 3000, compose `/health`). S4/S5 aperti.
-- Parità client reale: ~130/197 Channel con happy-path; SQL al posto IFF; fail-stub su workshop/card/UCC/cutin/memorial; zero capture JP S9.
+- Parità client reale: ~132/197 Channel con happy-path; SQL al posto IFF; fail-stub su workshop/card/UCC/cutin/memorial; zero capture JP S9.
 
 ## Slice (non dichiarare S4 done)
 

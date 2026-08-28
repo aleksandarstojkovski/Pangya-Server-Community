@@ -122,6 +122,8 @@ class InventoryRepositoryTest {
             assertEquals("hello", mascot.message());
             assertEquals("hello", repo.mascots(10001).getFirst().message);
             assertEquals(1, repo.changeMascotMessage(10001, 0, "hello").code());
+            assertTrue(repo.mascotMessageEnabled(GamePackets.TYPEID_MASCOT));
+            assertFalse(repo.mascotMessageEnabled(0));
             repo.changeMascotMessage(10001, repo.mascots(10001).getFirst().id, "ok");
             repo.setPangCookie(10001, 100000, 0);
             repo.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_SHOP_PANG_ITEM);

@@ -589,6 +589,11 @@ public final class GamePackets {
     public static final int CLIENT_ONELINE_QUERY = 0x67;
     /** C# {@code CLIENT_CHANGE_MASCOT} / {@code packet073} mascot message. */
     public static final int CLIENT_CHANGE_MASCOT = 0x73;
+    /**
+     * C# {@code CLIENT_UPDATE_PCBANG_MASCOTMSG} / {@code packet09A}. Same
+     * numeric as {@link #SERVER_ADMIT_IDENTITY}, opposite direction.
+     */
+    public static final int CLIENT_UPDATE_PCBANG_MASCOT = 0x9A;
     /** C# {@code packet074} {@code requestCancelEditSaleShop}. */
     public static final int CLIENT_SHOP_CANCEL = 0x74;
     /** C# {@code packet075} {@code requestCloseSaleShop}. */
@@ -1168,6 +1173,15 @@ public final class GamePackets {
     public static final int MASCOT_MSG_OK = 4;
     /** C# {@code msg.Length > 30} rejects. */
     public static final int MASCOT_MSG_MAX = 30;
+    /**
+     * C# {@code requestUpdatePCBangMascot} {@code message.Length > 16} →
+     * {@code 0xE2} u8 2 (pMi is null so extra fields are not written).
+     */
+    public static final int PCBANG_MASCOT_MSG_MAX = 16;
+    /** C# PCBang mascot miss / IFF {@code msg.active} false → {@code 0xE2} u8 1. */
+    public static final int PCBANG_MASCOT_ERR_INVALID = 1;
+    /** C# PCBang mascot message too long → {@code 0xE2} u8 2. */
+    public static final int PCBANG_MASCOT_ERR_LONG = 2;
     /** Seeded {@code iff_mascot.change_price} for {@link #TYPEID_MASCOT}. */
     public static final int MASCOT_MSG_PRICE = 100;
     /** C# ticker cookie cost. */
@@ -2981,6 +2995,31 @@ public final class GamePackets {
         return new PacketWriter()
                 .opcode(SERVER_CHANGE_MASCOT)
                 .u8(MASCOT_MSG_OK)
+                .i32(mascotId)
+                .pstr(msg == null ? "" : msg)
+                .u64(pang)
+                .toBytes();
+    }
+
+    /**
+     * C# {@code SendMascotMsgUpdateResult} fail: {@code 0xE2} u8 opt only
+     * (opt 1 miss / opt 2 too-long with null pMi).
+     */
+    public static byte[] pcbangMascotAck(int opt) {
+        return new PacketWriter().opcode(SERVER_CHANGE_MASCOT).u8(opt).toBytes();
+    }
+
+    /**
+     * C# {@code SendMascotMsgUpdateResult}: {@code 0xE2} u8 opt; if opt is 4 or 2
+     * then i32 id + PStr message + u64 pang.
+     */
+    public static byte[] pcbangMascotAck(int opt, int mascotId, String msg, long pang) {
+        if (opt != MASCOT_MSG_OK && opt != PCBANG_MASCOT_ERR_LONG) {
+            return pcbangMascotAck(opt);
+        }
+        return new PacketWriter()
+                .opcode(SERVER_CHANGE_MASCOT)
+                .u8(opt)
                 .i32(mascotId)
                 .pstr(msg == null ? "" : msg)
                 .u64(pang)
@@ -4942,6 +4981,16 @@ public final class GamePackets {
     public static byte[] clientMascotMessage(int mascotId, String msg) {
         return new PacketWriter()
                 .opcode(CLIENT_CHANGE_MASCOT)
+                .i32(mascotId)
+                .pstr(msg == null ? "" : msg)
+                .toBytes();
+    }
+
+    /** C# CLIENT {@code 0x9A}: u8 mode + i32 mascot id + PStr message. */
+    public static byte[] clientPcbangMascot(int mode, int mascotId, String msg) {
+        return new PacketWriter()
+                .opcode(CLIENT_UPDATE_PCBANG_MASCOT)
+                .u8(mode)
                 .i32(mascotId)
                 .pstr(msg == null ? "" : msg)
                 .toBytes();

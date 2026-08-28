@@ -1318,6 +1318,56 @@ class GameFlowIT {
     }
 
     @Test
+    void pcbangMascotAcksFailAndEchoesMode() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config);
+             PangyaFakeClient client = new PangyaFakeClient()) {
+            InventoryRepository inv = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
+            LoginRepository repo = new JdbiLoginRepository(DatabaseSupport.jdbi(ds));
+            String loginKey = repo.generateAuthKeyLogin(10001);
+            String gameKey = repo.generateAuthKeyGame(10001, 20202);
+            keys.putLoginKey(10001, loginKey);
+            keys.putGameKey(10001, 20202, gameKey);
+            loginToChannel(client, runtime.port(), "testuser", 10001, loginKey, gameKey);
+            client.sendPlain(GamePackets.clientEmpty(GamePackets.CLIENT_UPDATE_PCBANG_MASCOT));
+            client.sendPlain(GamePackets.clientPcbangMascot(
+                    GamePackets.MASCOT_MSG_OK, -1, "hi"));
+            PacketReader miss = awaitOpcode(client, GamePackets.SERVER_CHANGE_MASCOT);
+            assertEquals(GamePackets.PCBANG_MASCOT_ERR_INVALID, miss.u8());
+            assertEquals(0, miss.remaining());
+            int mascotId = inv.mascots(10001).getFirst().id;
+            client.sendPlain(GamePackets.clientPcbangMascot(
+                    GamePackets.MASCOT_MSG_OK, mascotId, "12345678901234567"));
+            PacketReader tooLong = awaitOpcode(client, GamePackets.SERVER_CHANGE_MASCOT);
+            assertEquals(GamePackets.PCBANG_MASCOT_ERR_LONG, tooLong.u8());
+            assertEquals(0, tooLong.remaining());
+            long pang = inv.pang(10001);
+            String saved = inv.mascots(10001).getFirst().message;
+            client.sendPlain(GamePackets.clientPcbangMascot(
+                    GamePackets.MASCOT_MSG_OK, mascotId, "PangYa!"));
+            PacketReader ok = awaitOpcode(client, GamePackets.SERVER_CHANGE_MASCOT);
+            assertEquals(GamePackets.MASCOT_MSG_OK, ok.u8());
+            assertEquals(mascotId, ok.i32());
+            assertEquals("PangYa!", ok.pstr());
+            assertEquals(pang, ok.u64());
+            assertEquals(pang, inv.pang(10001));
+            assertEquals(saved, inv.mascots(10001).getFirst().message);
+            client.sendPlain(GamePackets.clientPcbangMascot(3, mascotId, "x"));
+            PacketReader mode3 = awaitOpcode(client, GamePackets.SERVER_CHANGE_MASCOT);
+            assertEquals(3, mode3.u8());
+            assertEquals(0, mode3.remaining());
+        }
+    }
+
+    @Test
     void versusAutoCommandAcksFailAndCountsUses() throws Exception {
         String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
         String user = env("PANGYA_TEST_JDBC_USER", "pangya");

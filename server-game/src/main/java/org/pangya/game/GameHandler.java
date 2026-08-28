@@ -148,6 +148,7 @@ public final class GameHandler {
             case GamePackets.CLIENT_ONELINE_REQUEST -> sendTicker(session, reader);
             case GamePackets.CLIENT_ONELINE_QUERY -> queueTicker(session);
             case GamePackets.CLIENT_CHANGE_MASCOT -> changeMascotMessage(session, reader);
+            case GamePackets.CLIENT_UPDATE_PCBANG_MASCOT -> updatePcbangMascot(session, reader);
             case GamePackets.CLIENT_SHOP_CANCEL -> cancelEditShop(session);
             case GamePackets.CLIENT_SHOP_CLOSE -> closeSaleShop(session);
             case GamePackets.CLIENT_SHOP_OPEN_EDIT -> openEditShop(session);
@@ -1140,6 +1141,42 @@ public final class GameHandler {
             return;
         }
         session.send(GamePackets.mascotMessageOk(result.mascotId(), result.message(), result.pang()));
+    }
+
+    /**
+     * C# {@code requestUpdatePCBangMascot}: u8 mode + i32 mascot id + PStr.
+     * Not-in-channel is silent. {@code message.Length > 16} → {@code 0xE2} u8 2
+     * (C# passes null pMi so extra fields are omitted). Miss / IFF
+     * {@code msg.active} false → {@code 0xE2} u8 1. Success is local-only
+     * (no DB / no pang) {@code 0xE2} u8 mode; mode 2 or 4 then id + PStr + pang.
+     */
+    private void updatePcbangMascot(Session session, PacketReader reader) {
+        if (!inChannel(session) || reader.remaining() < 5) {
+            return;
+        }
+        int mode = reader.u8();
+        int mascotId = reader.i32();
+        String message = reader.remaining() >= 2 ? reader.pstr() : "";
+        if (message == null) {
+            message = "";
+        }
+        if (message.length() > GamePackets.PCBANG_MASCOT_MSG_MAX) {
+            session.send(GamePackets.pcbangMascotAck(GamePackets.PCBANG_MASCOT_ERR_LONG));
+            return;
+        }
+        GamePackets.MascotInfo found = null;
+        for (GamePackets.MascotInfo mascot : inventory.mascots(session.player().uid)) {
+            if (mascot.id == mascotId) {
+                found = mascot;
+                break;
+            }
+        }
+        if (found == null || !inventory.mascotMessageEnabled(found.typeid)) {
+            session.send(GamePackets.pcbangMascotAck(GamePackets.PCBANG_MASCOT_ERR_INVALID));
+            return;
+        }
+        session.send(GamePackets.pcbangMascotAck(
+                mode, found.id, message, inventory.pang(session.player().uid)));
     }
 
     /**

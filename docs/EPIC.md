@@ -8,7 +8,7 @@ Questo repo è **solo** la riscrittura Java.
 
 S0 [x] S1 [x] S2 [x] S3 [x] S4 [~] S5 [~] S6 [x]
 
-S4 profondità: **131** opcode success 1:1 / **40** opcode solo fail-stub / **42** stimati rimanenti dal C# Channel
+S4 profondità: **132** opcode success 1:1 / **40** opcode solo fail-stub / **41** stimati rimanenti dal C# Channel
 
 (Channel C# = 197 `packet_func_sv`. Dettaglio in `docs/STATUS.md`. **S4 non è done.**)
 
@@ -16,8 +16,8 @@ S4 profondità: **131** opcode success 1:1 / **40** opcode solo fail-stub / **42
 
 | Campo | Valore |
 |-------|--------|
-| Fatto | Tourney ticket-report `0xAA` → `pacote0AA` + `finish_game(1)` + leave 10 (`0x61`/`0x11B`); Versus/not-FINISH silent |
-| Prossimo opcode/file C# | `Channel.requestUpdatePCBangMascot` (`packet09A`) o GZ first-hole `0x137` |
+| Fatto | PCBang mascot `0x9A` → `0xE2` u8 1/2 fail; success locale mode 2/4 + id/PStr/pang (SQL `iff_mascot`) |
+| Prossimo opcode/file C# | GZ first-hole `packet137` pulse, o fail-stub con happy-path IFF-free |
 | Blocco | IFF assenti (pin/cube, `initComboDef`, cutin success `0xE5`); nessuna capture JP S9 |
 | Percentuale epic | scheletro **85%** / parità client reale **35%** |
 | VM | Java 21.0.10, Docker 29.7.2, Compose v5.5.0, 4 CPU / 15 GiB |
@@ -56,7 +56,7 @@ Nel dump JP Auth INI usa `5577`; Login/Game Java restano su **7777** (stesso bin
 | **S1** | Netty + framing LE + Cipher bit-compat + session + no Sleep-poll | `./gradlew :core-protocol:test :core-network:test` + handshake fake client |
 | **S2** | Auth + Login + Redis session key + fake client login | compose Auth+Login+db+redis |
 | **S3** | Game core + Practice | integrazione Practice; kill sessione non crasha |
-| **S4** | Tutte le modalità C# + manager char/card/caddie/achievement | **non done** — Channel 197; ~131 success 1:1 / 40 fail-stub; IFF cubes/cutin/combo aperti |
+| **S4** | Tutte le modalità C# + manager char/card/caddie/achievement | **non done** — Channel 197; ~132 success 1:1 / 40 fail-stub; IFF cubes/cutin/combo aperti |
 | **S5** | Ranking + Messenger | compose 5 server |
 | **S6** | Metriche, carico ≥3000 o max VM, `scripts/verify.sh` completo | gradle test + compose health |
 

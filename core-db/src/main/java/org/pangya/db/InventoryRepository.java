@@ -19,6 +19,12 @@ public interface InventoryRepository {
 
     List<GamePackets.MascotInfo> mascots(long uid);
 
+    /**
+     * C# {@code sIff.findMascot} + {@code msg.active}: SQL {@code iff_mascot}
+     * stand-in used by {@code requestUpdatePCBangMascot}.
+     */
+    boolean mascotMessageEnabled(int typeid);
+
     List<GamePackets.CardInfo> cards(long uid);
 
     long pang(long uid);

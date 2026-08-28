@@ -175,6 +175,18 @@ public final class JdbiInventoryRepository implements InventoryRepository {
     }
 
     @Override
+    public boolean mascotMessageEnabled(int typeid) {
+        return jdbi.withHandle(h -> h.createQuery("""
+                        SELECT 1 FROM pangya.iff_mascot
+                         WHERE typeid = :typeid AND msg_active = 1
+                        """)
+                .bind("typeid", typeid)
+                .mapTo(Integer.class)
+                .findOne()
+                .isPresent());
+    }
+
+    @Override
     public List<GamePackets.CardInfo> cards(long uid) {
         return jdbi.withHandle(h -> h.createQuery("""
                         SELECT card_itemid, card_typeid, "Slot", "Efeito", "Efeito_Qntd", "QNTD",
