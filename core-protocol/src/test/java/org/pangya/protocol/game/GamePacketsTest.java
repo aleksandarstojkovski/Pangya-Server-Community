@@ -881,6 +881,7 @@ class GamePacketsTest {
         assertEquals(GamePackets.CHANGE_GS_OK, gsOk.i32());
         assertEquals("KEY12345", gsOk.pstr());
         PacketReader gsSkip = new PacketReader(GamePackets.changeGameServer(1, "KEY"));
+        assertEquals(GamePackets.SERVER_CHANGE_GAME_SERVER, gsSkip.opcode());
         assertEquals(1, gsSkip.i32());
         assertEquals(0, gsSkip.remaining());
         PacketReader ticket = new PacketReader(GamePackets.ticketReportFail());
