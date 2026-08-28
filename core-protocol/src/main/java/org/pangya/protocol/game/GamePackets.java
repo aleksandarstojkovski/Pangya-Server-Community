@@ -145,6 +145,25 @@ public final class GamePackets {
     public static final int SERVER_MAIL_TAKE = 0x214;
     /** C# {@code SERVER_REQ_NEW_MAILBOX_DELETE_MAIL_ACK} {@code 0x215}. */
     public static final int SERVER_MAIL_DELETE = 0x215;
+    /**
+     * C# {@code pacote216} daily-quest stamp: unix + count (+ optional items).
+     */
+    public static final int SERVER_DAILY_QUEST_STAMP = 0x216;
+    /** C# {@code pacote225} {@code DailyQuestInfoUser}. */
+    public static final int SERVER_DAILY_QUEST_INFO = 0x225;
+    /** C# {@code pacote226} accept daily quest. */
+    public static final int SERVER_DAILY_QUEST_ACCEPT = 0x226;
+    /** C# {@code pacote227} take daily-quest reward. */
+    public static final int SERVER_DAILY_QUEST_REWARD = 0x227;
+    /** C# {@code pacote228} leave daily quest. */
+    public static final int SERVER_DAILY_QUEST_LEAVE = 0x228;
+    /** C# {@code pacote22C} achievement GUI result. */
+    public static final int SERVER_ACHIEVEMENT_GUI = 0x22C;
+    /**
+     * C# {@code requestDeleteActiveItem} fail {@code 0xC5} sbyte -1.
+     * Opposite direction from CLIENT mailbox-get {@code 0xC5} (JP uses {@code 0x146}).
+     */
+    public static final int SERVER_DELETE_ITEM = 0xC5;
     /** C# {@code SERVER_SYNC_ACTIVITY} / {@code pacote0C4}: oid + u8 type + payload. */
     public static final int SERVER_SYNC_ACTIVITY = 0xC4;
     public static final int SERVER_MASCOT_SEED = 0x16A;
@@ -275,6 +294,31 @@ public final class GamePackets {
     public static final int CLIENT_TAKE_MAIL = 0x146;
     /** C# {@code packet147} {@code requestDeleteMail}. */
     public static final int CLIENT_DELETE_MAIL = 0x147;
+    /** C# {@code packet064} {@code requestDeleteActiveItem}. */
+    public static final int CLIENT_DELETE_ITEM = 0x64;
+    /** C# {@code packet06B} {@code requestSetNoticeBeginCaddieHolyDay}. */
+    public static final int CLIENT_CADDIE_HOLIDAY_NOTICE = 0x6B;
+    /**
+     * C# {@code packet083} {@code requestEnterOtherChannelAndLobby}.
+     * Same numeric value as {@link #SERVER_INVITE}, opposite direction.
+     */
+    public static final int CLIENT_ENTER_OTHER_CHANNEL = 0x83;
+    /** C# {@code packet088} {@code requestCheckGameGuardAuthAnswer} (empty). */
+    public static final int CLIENT_GAMEGUARD = 0x88;
+    /** C# {@code packet0B4}: log-only invite relog. */
+    public static final int CLIENT_INVITE_RELOGIN = 0xB4;
+    /** C# {@code packet141} {@code requestChangeWindNextHoleRepeat}. */
+    public static final int CLIENT_WIND_NEXT_HOLE = 0x141;
+    /** C# {@code packet151} {@code requestDailyQuest}. */
+    public static final int CLIENT_DAILY_QUEST = 0x151;
+    /** C# {@code packet152} {@code requestAcceptDailyQuest}. */
+    public static final int CLIENT_ACCEPT_DAILY_QUEST = 0x152;
+    /** C# {@code packet153} {@code requestTakeRewardDailyQuest}. */
+    public static final int CLIENT_REWARD_DAILY_QUEST = 0x153;
+    /** C# {@code packet154} {@code requestLeaveDailyQuest}. */
+    public static final int CLIENT_LEAVE_DAILY_QUEST = 0x154;
+    /** C# {@code packet157} achievement GUI. */
+    public static final int CLIENT_ACHIEVEMENT = 0x157;
     public static final int CLIENT_UPDATE_MACRO = 0x69;
     public static final int CLIENT_REQUEST_SERVER_LIST = 0x43;
     public static final int CLIENT_REQUEST_RANK = 0x47;
@@ -568,6 +612,23 @@ public final class GamePackets {
     public static final int LAST5_PLAYER_BYTES = 52;
     /** C# always writes 5 {@code LastPlayerGame} rows. */
     public static final int LAST5_COUNT = 5;
+    /** C# {@code DailyQuestInfoUser._typeid} SizeConst 3. */
+    public static final int DAILY_QUEST_TYPEID_COUNT = 3;
+    /** C# {@code pacote226(empty, 1)} option. */
+    public static final int DAILY_QUEST_ACCEPT_FAIL = 1;
+    /** C# {@code pacote228(empty, 1)} option. */
+    public static final int DAILY_QUEST_LEAVE_FAIL = 1;
+    /**
+     * C# {@code pacote227} catch else {@code 500050} when source is not CHANNEL
+     * ({@code MGR_DAILY_QUEST} {@code num_quest<=0}).
+     */
+    public static final int DAILY_QUEST_REWARD_FAIL = 500050;
+    /** C# {@code pacote22C(1)} achievement GUI fail. */
+    public static final int ACHIEVEMENT_GUI_FAIL = 1;
+    /** C# {@code IFF_GROUP.ITEM}. {@code (typeid & 0xFC000000) >> 26}. */
+    public static final int IFF_GROUP_ITEM = 6;
+    /** C# {@code WriteSByte(-1)} on delete-item fail. */
+    public static final int DELETE_ITEM_FAIL = 0xff;
     /** C# view {@code WriteString(nick, 22)}. */
     public static final int SHOP_NICK_BYTES = 22;
     /** C# {@code requestBuyItemShop} {@code 0x68} option codes. */
@@ -2004,6 +2065,95 @@ public final class GamePackets {
         return new PacketWriter().opcode(SERVER_LAST5).zero(LAST5_COUNT * LAST5_PLAYER_BYTES).toBytes();
     }
 
+    /**
+     * C# {@code getItemGroupIdentify}: {@code (typeid & 0xFC000000) >> 26}.
+     * Java uses unsigned {@code >>>} so the high bits stay in range 0–63.
+     */
+    public static int itemGroupIdentify(int typeid) {
+        return (typeid & 0xFC000000) >>> 26;
+    }
+
+    /**
+     * C# {@code TzLocalUnixToUnixUTC}: {@code FromUnixTimeSeconds} is already UTC,
+     * so {@code ToUniversalTime} is a no-op.
+     */
+    public static int tzLocalUnixToUnixUtc(int localUnix) {
+        return localUnix;
+    }
+
+    public static int unixNow() {
+        return (int) java.time.Instant.now().getEpochSecond();
+    }
+
+    /**
+     * C# daily-quest {@code 0x216}: unix + count (empty path writes 0).
+     */
+    public static byte[] dailyQuestStamp(int unix, int count) {
+        return new PacketWriter().opcode(SERVER_DAILY_QUEST_STAMP).i32(unix).i32(count).toBytes();
+    }
+
+    /**
+     * C# {@code pacote225}: option; if 0: current/accept UTC unix, count, 3×typeid,
+     * delete count + ids.
+     */
+    public static byte[] dailyQuestInfo(
+            int option, int currentDate, int acceptDate, int count, int[] typeids, int[] deleted) {
+        PacketWriter w = new PacketWriter().opcode(SERVER_DAILY_QUEST_INFO).i32(option);
+        if (option == 0) {
+            w.u32(tzLocalUnixToUnixUtc(currentDate)).u32(tzLocalUnixToUnixUtc(acceptDate)).u32(count);
+            for (int i = 0; i < DAILY_QUEST_TYPEID_COUNT; i++) {
+                w.u32(typeids != null && i < typeids.length ? typeids[i] : 0);
+            }
+            int n = deleted == null ? 0 : deleted.length;
+            w.i32(n);
+            if (deleted != null) {
+                for (int id : deleted) {
+                    w.i32(id);
+                }
+            }
+        }
+        return w.toBytes();
+    }
+
+    /**
+     * C# {@code pacote226(empty, 1)}: option 1 + count 0.
+     */
+    public static byte[] dailyQuestAcceptFail() {
+        return new PacketWriter()
+                .opcode(SERVER_DAILY_QUEST_ACCEPT)
+                .i32(DAILY_QUEST_ACCEPT_FAIL)
+                .i32(0)
+                .toBytes();
+    }
+
+    /**
+     * C# {@code pacote227}: always option then count (0 when empty).
+     */
+    public static byte[] dailyQuestRewardFail() {
+        return new PacketWriter()
+                .opcode(SERVER_DAILY_QUEST_REWARD)
+                .i32(DAILY_QUEST_REWARD_FAIL)
+                .i32(0)
+                .toBytes();
+    }
+
+    /**
+     * C# {@code pacote228(empty, 1)}: option 1 only.
+     */
+    public static byte[] dailyQuestLeaveFail() {
+        return new PacketWriter().opcode(SERVER_DAILY_QUEST_LEAVE).i32(DAILY_QUEST_LEAVE_FAIL).toBytes();
+    }
+
+    /** C# {@code pacote22C(option)}. */
+    public static byte[] achievementGui(int option) {
+        return new PacketWriter().opcode(SERVER_ACHIEVEMENT_GUI).i32(option).toBytes();
+    }
+
+    /** C# delete-item catch: {@code 0xC5} sbyte -1. */
+    public static byte[] deleteItemFail() {
+        return new PacketWriter().opcode(SERVER_DELETE_ITEM).u8(DELETE_ITEM_FAIL).toBytes();
+    }
+
     public static byte[] teamState(int oid, int team) {
         return new PacketWriter().opcode(SERVER_TEAM).i32(oid).u8(team).toBytes();
     }
@@ -2645,6 +2795,74 @@ public final class GamePackets {
             }
         }
         return w.u32(page).toBytes();
+    }
+
+    /** C# CLIENT {@code 0x64}: u32 typeid + u32 qntd. */
+    public static byte[] clientDeleteItem(int typeid, int qntd) {
+        return new PacketWriter().opcode(CLIENT_DELETE_ITEM).u32(typeid).u32(qntd).toBytes();
+    }
+
+    /** C# CLIENT {@code 0x6B}: i32 caddie id + u8 check. */
+    public static byte[] clientCaddieHolidayNotice(int caddieId, int check) {
+        return new PacketWriter().opcode(CLIENT_CADDIE_HOLIDAY_NOTICE).i32(caddieId).u8(check).toBytes();
+    }
+
+    /** C# CLIENT {@code 0x83}: u8 channel. */
+    public static byte[] clientEnterOtherChannel(int channelId) {
+        return new PacketWriter().opcode(CLIENT_ENTER_OTHER_CHANNEL).u8(channelId).toBytes();
+    }
+
+    /** C# CLIENT {@code 0x88}: GameGuard answer (ignored). */
+    public static byte[] clientGameGuard() {
+        return new PacketWriter().opcode(CLIENT_GAMEGUARD).toBytes();
+    }
+
+    /** C# CLIENT {@code 0xB4}: u8 option + u16 room number (log only). */
+    public static byte[] clientInviteRelog(int option, int roomNumber) {
+        return new PacketWriter().opcode(CLIENT_INVITE_RELOGIN).u8(option).u16(roomNumber).toBytes();
+    }
+
+    /** C# CLIENT {@code 0x141}: wind next-hole (no success reply). */
+    public static byte[] clientWindNextHole() {
+        return new PacketWriter().opcode(CLIENT_WIND_NEXT_HOLE).toBytes();
+    }
+
+    /** C# CLIENT {@code 0x151}: open daily quest (no body). */
+    public static byte[] clientDailyQuest() {
+        return new PacketWriter().opcode(CLIENT_DAILY_QUEST).toBytes();
+    }
+
+    /** C# CLIENT {@code 0x152}/{@code 0x153}/{@code 0x154}: i32 count + ids. */
+    public static byte[] clientDailyQuestAction(int opcode, int... questIds) {
+        PacketWriter w = new PacketWriter().opcode(opcode).i32(questIds == null ? 0 : questIds.length);
+        if (questIds != null) {
+            for (int id : questIds) {
+                w.i32(id);
+            }
+        }
+        return w.toBytes();
+    }
+
+    public static byte[] clientAcceptDailyQuest(int... questIds) {
+        return clientDailyQuestAction(CLIENT_ACCEPT_DAILY_QUEST, questIds);
+    }
+
+    public static byte[] clientRewardDailyQuest(int... questIds) {
+        return clientDailyQuestAction(CLIENT_REWARD_DAILY_QUEST, questIds);
+    }
+
+    public static byte[] clientLeaveDailyQuest(int... questIds) {
+        return clientDailyQuestAction(CLIENT_LEAVE_DAILY_QUEST, questIds);
+    }
+
+    /** C# CLIENT {@code 0x157}: u32 uid. */
+    public static byte[] clientAchievement(int uid) {
+        return new PacketWriter().opcode(CLIENT_ACHIEVEMENT).u32(uid).toBytes();
+    }
+
+    /** C# CLIENT {@code 0x157} truncated (ReadUInt32 throws → {@code pacote22C(1)}). */
+    public static byte[] clientAchievementEmpty() {
+        return new PacketWriter().opcode(CLIENT_ACHIEVEMENT).toBytes();
     }
 
     /** C# CLIENT {@code 0x63}: type + remaining payload. */

@@ -1204,6 +1204,88 @@ class GameFlowIT {
         }
     }
 
+    @Test
+    void dailyQuestDeleteItemOtherChannelMatchCsharp() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config);
+             PangyaFakeClient host = new PangyaFakeClient();
+             PangyaFakeClient guest = new PangyaFakeClient()) {
+            loginTwoPlayers(ds, keys, host, guest, runtime.port());
+
+            int before = GamePackets.unixNow();
+            host.sendPlain(GamePackets.clientDailyQuest());
+            PacketReader stamp = awaitOpcode(host, GamePackets.SERVER_DAILY_QUEST_STAMP);
+            int stampUnix = stamp.i32();
+            assertEquals(0, stamp.i32());
+            assertTrue(stampUnix >= before - 1 && stampUnix <= GamePackets.unixNow() + 1);
+            PacketReader info = awaitOpcode(host, GamePackets.SERVER_DAILY_QUEST_INFO);
+            assertEquals(0, info.i32());
+            int current = info.u32();
+            assertEquals(0, info.u32());
+            assertEquals(0, info.u32());
+            assertEquals(0, info.u32());
+            assertEquals(0, info.u32());
+            assertEquals(0, info.u32());
+            assertEquals(0, info.i32());
+            assertTrue(current >= before - 1 && current <= GamePackets.unixNow() + 1);
+
+            host.sendPlain(GamePackets.clientDailyQuest());
+            awaitOpcode(host, GamePackets.SERVER_DAILY_QUEST_STAMP);
+            PacketReader again = awaitOpcode(host, GamePackets.SERVER_DAILY_QUEST_INFO);
+            assertEquals(0, again.i32());
+            assertEquals(current, again.u32());
+
+            host.sendPlain(GamePackets.clientAcceptDailyQuest());
+            PacketReader accept = awaitOpcode(host, GamePackets.SERVER_DAILY_QUEST_ACCEPT);
+            assertEquals(GamePackets.DAILY_QUEST_ACCEPT_FAIL, accept.i32());
+            assertEquals(0, accept.i32());
+
+            host.sendPlain(GamePackets.clientLeaveDailyQuest());
+            PacketReader leave = awaitOpcode(host, GamePackets.SERVER_DAILY_QUEST_LEAVE);
+            assertEquals(GamePackets.DAILY_QUEST_LEAVE_FAIL, leave.i32());
+            assertEquals(0, leave.remaining());
+
+            host.sendPlain(GamePackets.clientRewardDailyQuest());
+            PacketReader reward = awaitOpcode(host, GamePackets.SERVER_DAILY_QUEST_REWARD);
+            assertEquals(GamePackets.DAILY_QUEST_REWARD_FAIL, reward.i32());
+            assertEquals(0, reward.i32());
+
+            host.sendPlain(GamePackets.clientDeleteItem(1, 1));
+            PacketReader deleted = awaitOpcode(host, GamePackets.SERVER_DELETE_ITEM);
+            assertEquals(GamePackets.DELETE_ITEM_FAIL, deleted.u8());
+
+            host.sendPlain(GamePackets.clientAchievementEmpty());
+            PacketReader ach = awaitOpcode(host, GamePackets.SERVER_ACHIEVEMENT_GUI);
+            assertEquals(GamePackets.ACHIEVEMENT_GUI_FAIL, ach.i32());
+
+            host.sendPlain(GamePackets.clientAchievement(10001));
+            host.sendPlain(GamePackets.clientGameGuard());
+            host.sendPlain(GamePackets.clientWindNextHole());
+            host.sendPlain(GamePackets.clientCaddieHolidayNotice(0, 1));
+            host.sendPlain(GamePackets.clientInviteRelog(1, 0));
+            host.sendPlain(GamePackets.clientRequestCash());
+            PacketReader cookie = new PacketReader(host.awaitPlain(5, TimeUnit.SECONDS));
+            assertEquals(GamePackets.SERVER_COOKIE, cookie.opcode());
+
+            host.sendPlain(GamePackets.clientEnterOtherChannel(1));
+            PacketReader switched = awaitOpcode(host, GamePackets.SERVER_CHANNEL_ENTER_ACK);
+            assertEquals(GamePackets.CHANNEL_ENTER_OK, switched.u8());
+
+            host.sendPlain(GamePackets.clientEnterOtherChannel(99));
+            PacketReader missing = awaitOpcode(host, GamePackets.SERVER_CHANNEL_ENTER_ACK);
+            assertEquals(GamePackets.CHANNEL_NOT_FOUND, missing.u8());
+            assertTrue(awaitSessionCount(runtime, 1, 5, TimeUnit.SECONDS));
+        }
+    }
+
     private static void loginTwoPlayers(
             javax.sql.DataSource ds,
             SessionKeyStore keys,

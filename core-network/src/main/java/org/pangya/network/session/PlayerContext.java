@@ -31,4 +31,12 @@ public final class PlayerContext {
     public volatile int stateLounge;
     /** C# {@code PlayerRoomInfo.state_flag.away} / lobby bit 0. */
     public volatile int away;
+    /** C# {@code DailyQuestInfoUser.current_date} unix seconds. */
+    public volatile long dailyCurrentDate;
+    /** C# {@code DailyQuestInfoUser.accept_date} unix seconds. */
+    public volatile long dailyAcceptDate;
+    /** C# {@code DailyQuestInfoUser.count}. */
+    public volatile int dailyCount;
+    /** C# {@code DailyQuestInfoUser._typeid[3]}. */
+    public final int[] dailyQuestTypeids = new int[3];
 }

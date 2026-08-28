@@ -163,6 +163,17 @@ public final class GameHandler {
             case GamePackets.CLIENT_SEND_MAIL -> sendMail(session, reader);
             case GamePackets.CLIENT_TAKE_MAIL -> takeMail(session, reader);
             case GamePackets.CLIENT_DELETE_MAIL -> deleteMail(session, reader);
+            case GamePackets.CLIENT_DELETE_ITEM -> deleteActiveItem(session, reader);
+            case GamePackets.CLIENT_CADDIE_HOLIDAY_NOTICE -> caddieHolidayNotice(session, reader);
+            case GamePackets.CLIENT_ENTER_OTHER_CHANNEL -> enterOtherChannelAndLobby(session, reader);
+            case GamePackets.CLIENT_GAMEGUARD -> { }
+            case GamePackets.CLIENT_INVITE_RELOGIN -> { }
+            case GamePackets.CLIENT_WIND_NEXT_HOLE -> changeWindNextHole(session);
+            case GamePackets.CLIENT_DAILY_QUEST -> dailyQuest(session);
+            case GamePackets.CLIENT_ACCEPT_DAILY_QUEST -> acceptDailyQuest(session, reader);
+            case GamePackets.CLIENT_REWARD_DAILY_QUEST -> rewardDailyQuest(session, reader);
+            case GamePackets.CLIENT_LEAVE_DAILY_QUEST -> leaveDailyQuest(session, reader);
+            case GamePackets.CLIENT_ACHIEVEMENT -> achievementGui(session, reader);
             case GamePackets.CLIENT_ENTER_LOBBY -> enterLobby(session);
             case GamePackets.CLIENT_LEAVE_LOBBY -> leaveLobby(session);
             case GamePackets.CLIENT_CHAT -> chat(session, reader);
@@ -334,25 +345,52 @@ public final class GameHandler {
         if (!session.authorized() || reader.remaining() < 1) {
             return;
         }
-        int channelId = reader.u8();
+        tryEnterChannel(session, reader.u8());
+    }
+
+    /**
+     * C# {@code GameService.enterChannel}: {@code 0x4E} option 3 missing / 2 full / 1 OK.
+     *
+     * @return {@code true} when the player is in the requested channel
+     */
+    private boolean tryEnterChannel(Session session, int channelId) {
         GamePackets.ChannelInfo found = findChannel(channelId);
         if (found == null) {
             session.send(GamePackets.channelEnter(GamePackets.CHANNEL_NOT_FOUND));
-            return;
+            return false;
         }
         if (found.currUser >= found.maxUser && found.maxUser > 0) {
             session.send(GamePackets.channelEnter(GamePackets.CHANNEL_FULL));
-            return;
+            return false;
         }
         PlayerContext pi = session.player();
         if (pi.channelId == channelId) {
             session.send(GamePackets.channelEnter(GamePackets.CHANNEL_ENTER_OK));
-            return;
+            return true;
         }
         adjustChannelCount(pi.channelId, -1);
         pi.channelId = channelId;
         found.currUser++;
         session.send(GamePackets.channelEnter(GamePackets.CHANNEL_ENTER_OK));
+        return true;
+    }
+
+    /**
+     * C# {@code requestEnterOtherChannelAndLobby}: {@code enterChannel} then
+     * {@code enterLobby} (no {@code 0xF5}). Missing/full channel → {@code DisconnectSession}.
+     */
+    private void enterOtherChannelAndLobby(Session session, PacketReader reader) {
+        if (!session.authorized() || reader.remaining() < 1) {
+            return;
+        }
+        if (!tryEnterChannel(session, reader.u8())) {
+            session.disconnect();
+            return;
+        }
+        if (session.player().inLobby) {
+            return;
+        }
+        sendLobbyEnter(session, false);
     }
 
     private void createRoom(Session session, PacketReader reader) {
@@ -2049,10 +2087,18 @@ public final class GameHandler {
         if (!session.authorized() || session.player().channelId < 0) {
             return;
         }
-        PlayerContext pi = session.player();
-        if (pi.inLobby) {
+        if (session.player().inLobby) {
             return;
         }
+        sendLobbyEnter(session, true);
+    }
+
+    /**
+     * C# {@code Channel.enterLobby}: user list + room list + join broadcast.
+     * {@code enterLobbyMultiPlayer} (CLIENT {@code 0x81}) also sends {@code pacote0F5}.
+     */
+    private void sendLobbyEnter(Session session, boolean sendAck) {
+        PlayerContext pi = session.player();
         pi.inLobby = true;
         GamePackets.PlayerLobbyInfo self = makeLobbyInfo(session);
         List<GamePackets.PlayerLobbyInfo> lobby = lobbyPlayerInfos(pi.channelId);
@@ -2063,7 +2109,9 @@ public final class GameHandler {
         session.send(GamePackets.lobbyUsers(GamePackets.LOBBY_USER_LIST, lobby));
         session.send(GamePackets.roomList(GamePackets.ROOM_LIST_FULL, visibleRoomArrays(pi.channelId)));
         broadcastChannel(pi.channelId, GamePackets.lobbyUsers(GamePackets.LOBBY_USER_JOIN, List.of(self)));
-        session.send(GamePackets.enterLobbyAck());
+        if (sendAck) {
+            session.send(GamePackets.enterLobbyAck());
+        }
     }
 
     private void leaveLobby(Session session) {
@@ -2341,6 +2389,130 @@ public final class GameHandler {
             return;
         }
         session.send(GamePackets.last5Players());
+    }
+
+    /**
+     * C# {@code DailyQuestManager.requestCheckAndSendDailyQuest}: empty IFF table
+     * still sets {@code current_date} and sends {@code 0x216} unix+0 then {@code pacote225}.
+     */
+    private void dailyQuest(Session session) {
+        if (!inChannel(session)) {
+            return;
+        }
+        PlayerContext pi = session.player();
+        if (pi.dailyCurrentDate == 0) {
+            pi.dailyCurrentDate = GamePackets.unixNow() & 0xffff_ffffL;
+        }
+        session.send(GamePackets.dailyQuestStamp(GamePackets.unixNow(), 0));
+        session.send(GamePackets.dailyQuestInfo(
+                0,
+                (int) pi.dailyCurrentDate,
+                (int) pi.dailyAcceptDate,
+                pi.dailyCount,
+                pi.dailyQuestTypeids,
+                null));
+    }
+
+    /**
+     * C# {@code requestAcceptQuest}: {@code num_quest<=0} (and missing quests) →
+     * {@code pacote226(empty, 1)}.
+     */
+    private void acceptDailyQuest(Session session, PacketReader reader) {
+        if (!inChannel(session)) {
+            return;
+        }
+        skipDailyQuestIds(reader);
+        session.send(GamePackets.dailyQuestAcceptFail());
+    }
+
+    /**
+     * C# {@code requestTakeRewardQuest}: {@code num_quest<=0} → {@code pacote227(empty, 500050)}.
+     */
+    private void rewardDailyQuest(Session session, PacketReader reader) {
+        if (!inChannel(session)) {
+            return;
+        }
+        skipDailyQuestIds(reader);
+        session.send(GamePackets.dailyQuestRewardFail());
+    }
+
+    /**
+     * C# {@code requestLeaveQuest}: {@code num_quest<=0} → {@code pacote228(empty, 1)}.
+     */
+    private void leaveDailyQuest(Session session, PacketReader reader) {
+        if (!inChannel(session)) {
+            return;
+        }
+        skipDailyQuestIds(reader);
+        session.send(GamePackets.dailyQuestLeaveFail());
+    }
+
+    private static void skipDailyQuestIds(PacketReader reader) {
+        if (reader.remaining() < 4) {
+            return;
+        }
+        int num = reader.i32();
+        if (num <= 0) {
+            return;
+        }
+        int bytes = Math.min(num, reader.remaining() / 4) * 4;
+        if (bytes > 0) {
+            reader.readBytes(bytes);
+        }
+    }
+
+    /**
+     * C# {@code packet157}: empty {@code map_ai} returns with no packet. Short body
+     * throws → {@code pacote22C(1)}.
+     */
+    private void achievementGui(Session session, PacketReader reader) {
+        if (!session.authorized()) {
+            return;
+        }
+        if (reader.remaining() < 4) {
+            session.send(GamePackets.achievementGui(GamePackets.ACHIEVEMENT_GUI_FAIL));
+            return;
+        }
+        reader.u32();
+    }
+
+    /**
+     * C# {@code requestDeleteActiveItem}: no IFF / wrong group → {@code 0xC5} sbyte -1.
+     */
+    private void deleteActiveItem(Session session, PacketReader reader) {
+        if (!inChannel(session)) {
+            return;
+        }
+        if (reader.remaining() >= 8) {
+            reader.u32();
+            reader.u32();
+        }
+        session.send(GamePackets.deleteItemFail());
+    }
+
+    /**
+     * C# {@code requestSetNoticeBeginCaddieHolyDay}: invalid/missing/IFF fail is silent.
+     */
+    private void caddieHolidayNotice(Session session, PacketReader reader) {
+        if (!inChannel(session)) {
+            return;
+        }
+        if (reader.remaining() >= 4) {
+            reader.i32();
+        }
+        if (reader.remaining() >= 1) {
+            reader.u8();
+        }
+    }
+
+    /**
+     * C# {@code requestChangeWindNextHoleRepeat}: not-in-room catch is silent;
+     * {@code GameBase} success is a no-op.
+     */
+    private void changeWindNextHole(Session session) {
+        if (!inChannel(session)) {
+            return;
+        }
     }
 
     private void changeTeam(Session session, PacketReader reader) {
