@@ -888,6 +888,136 @@ class GameFlowIT {
     }
 
     @Test
+    void toggleAssistWingAndAssistGreen() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+        final int wingTypeid = 0x08000099;
+
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config);
+             PangyaFakeClient host = new PangyaFakeClient();
+             PangyaFakeClient guest = new PangyaFakeClient()) {
+            InventoryRepository inv = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
+            var nuri = inv.characters(10001).getFirst();
+            int[] savedParts = nuri.partsTypeid.clone();
+            try {
+                loginTwoPlayers(ds, keys, host, guest, runtime.port());
+                host.sendPlain(GamePackets.clientCreateRoom(GamePackets.TIPO_STROKE, "AS", ""));
+                PacketReader created = awaitOpcode(host, GamePackets.SERVER_ROOM_ENTER_RESULT);
+                assertEquals(0, created.i16());
+                int numero = roomNumberFromInfo(created.readBytes(GamePackets.ROOM_INFO_BYTES));
+                guest.sendPlain(GamePackets.clientJoinRoom(numero, ""));
+                assertEquals(0, awaitOpcode(guest, GamePackets.SERVER_ROOM_ENTER_RESULT).i16());
+
+                int beforeOn = GamePackets.unixNow();
+                host.sendPlain(GamePackets.clientEmpty(GamePackets.CLIENT_TOGGLE_ASSIST));
+                PacketReader awardsOn = awaitOpcode(host, GamePackets.SERVER_DAILY_QUEST_STAMP);
+                int unixOn = awardsOn.u32();
+                assertTrue(unixOn >= beforeOn - 1 && unixOn <= GamePackets.unixNow() + 1);
+                assertEquals(1, awardsOn.u32());
+                assertEquals(GamePackets.PAPEL_AWARD_TYPE, awardsOn.u8());
+                assertEquals(GamePackets.TYPEID_ASSIST, awardsOn.u32());
+                int assistId = awardsOn.i32();
+                assertTrue(assistId > 0);
+                assertEquals(0, awardsOn.u32());
+                assertEquals(0, awardsOn.i32());
+                assertEquals(0, awardsOn.i32());
+                assertEquals(1, awardsOn.i32());
+                PacketReader toggleOn = awaitOpcode(host, GamePackets.SERVER_TOGGLE_ASSIST);
+                assertEquals(0, toggleOn.u32());
+                assertEquals(GamePackets.TYPEID_ASSIST, toggleOn.u32());
+                assertEquals(10001, toggleOn.u32());
+                assertTrue(inv.warehouse(10001).stream().anyMatch(w -> w.typeid == GamePackets.TYPEID_ASSIST));
+
+                int beforeOff = GamePackets.unixNow();
+                host.sendPlain(GamePackets.clientEmpty(GamePackets.CLIENT_TOGGLE_ASSIST));
+                PacketReader awardsOff = awaitOpcode(host, GamePackets.SERVER_DAILY_QUEST_STAMP);
+                int unixOff = awardsOff.u32();
+                assertTrue(unixOff >= beforeOff - 1 && unixOff <= GamePackets.unixNow() + 1);
+                assertEquals(1, awardsOff.u32());
+                assertEquals(GamePackets.PAPEL_AWARD_TYPE, awardsOff.u8());
+                assertEquals(GamePackets.TYPEID_ASSIST, awardsOff.u32());
+                assertEquals(assistId, awardsOff.i32());
+                awardsOff.u32();
+                awardsOff.i32();
+                awardsOff.i32();
+                assertEquals(-1, awardsOff.i32());
+                PacketReader toggleOff = awaitOpcode(host, GamePackets.SERVER_TOGGLE_ASSIST);
+                assertEquals(0, toggleOff.u32());
+                assertEquals(GamePackets.TYPEID_ASSIST, toggleOff.u32());
+                assertEquals(10001, toggleOff.u32());
+                assertFalse(inv.warehouse(10001).stream().anyMatch(w -> w.typeid == GamePackets.TYPEID_ASSIST));
+
+                host.sendPlain(GamePackets.clientEmpty(GamePackets.CLIENT_TOGGLE_ASSIST));
+                awaitOpcode(host, GamePackets.SERVER_DAILY_QUEST_STAMP);
+                PacketReader toggleOn2 = awaitOpcode(host, GamePackets.SERVER_TOGGLE_ASSIST);
+                assertEquals(0, toggleOn2.u32());
+
+                host.sendPlain(GamePackets.clientU32(
+                        GamePackets.CLIENT_ASSIST_GREEN, GamePackets.TYPEID_ASSIST));
+                host.sendPlain(GamePackets.clientU32(GamePackets.CLIENT_WING, wingTypeid));
+
+                host.sendPlain(GamePackets.clientStartGame());
+                awaitOpcode(host, GamePackets.SERVER_START_GAME_FLAG);
+                awaitOpcode(host, GamePackets.SERVER_START_GAME_FLAG2);
+                awaitOpcode(host, GamePackets.SERVER_PANG_RATE);
+                awaitOpcode(host, GamePackets.SERVER_GAME_INIT);
+                awaitOpcode(host, GamePackets.SERVER_COURSE);
+                awaitOpcode(host, GamePackets.SERVER_MASCOT_SEED);
+                awaitOpcode(guest, GamePackets.SERVER_GAME_INIT);
+                host.sendPlain(GamePackets.clientInitHole(1, 0, 0, 4, 1.5f, 2.5f, 10f, 20f));
+                guest.sendPlain(GamePackets.clientInitHole(1, 0, 0, 4, 1.5f, 2.5f, 10f, 20f));
+                host.sendPlain(GamePackets.clientLoadOk());
+                guest.sendPlain(GamePackets.clientLoadOk());
+                awaitOpcode(host, GamePackets.SERVER_WEATHER);
+                awaitOpcode(host, GamePackets.SERVER_WIND);
+                awaitOpcode(host, GamePackets.SERVER_HOLE_TURN);
+
+                host.sendPlain(GamePackets.clientU32(
+                        GamePackets.CLIENT_ASSIST_GREEN, GamePackets.TYPEID_ASSIST));
+                PacketReader green = awaitOpcode(host, GamePackets.SERVER_ASSIST_GREEN);
+                assertEquals(0, green.u32());
+                assertEquals(GamePackets.TYPEID_ASSIST, green.u32());
+                assertEquals(10001, green.u32());
+
+                host.sendPlain(GamePackets.clientU32(GamePackets.CLIENT_ASSIST_GREEN, 1));
+                PacketReader greenBad = awaitOpcode(host, GamePackets.SERVER_ASSIST_GREEN);
+                assertEquals(GamePackets.ASSIST_GREEN_ERR_TYPEID, greenBad.u32());
+                host.sendPlain(GamePackets.clientEmpty(GamePackets.CLIENT_ASSIST_GREEN));
+                PacketReader greenTrunc = awaitOpcode(host, GamePackets.SERVER_ASSIST_GREEN);
+                assertEquals(GamePackets.ASSIST_GREEN_ERR_DEFAULT, greenTrunc.u32());
+
+                host.sendPlain(GamePackets.clientEmpty(GamePackets.CLIENT_TOGGLE_ASSIST));
+                PacketReader inGame = awaitOpcode(host, GamePackets.SERVER_ASSIST_INGAME);
+                assertEquals(0, inGame.u32());
+                assertTrue(inv.warehouse(10001).stream().anyMatch(w -> w.typeid == GamePackets.TYPEID_ASSIST));
+
+                inv.addWarehouseItem(10001, wingTypeid, 1);
+                nuri.partsTypeid[0] = wingTypeid;
+                inv.updateCharacterParts(10001, nuri);
+                host.sendPlain(GamePackets.clientU32(GamePackets.CLIENT_WING, 0));
+                host.sendPlain(GamePackets.clientU32(GamePackets.CLIENT_WING, wingTypeid));
+                PacketReader wing = awaitOpcode(host, GamePackets.SERVER_ACTIVE_WING);
+                assertEquals(10001, wing.u32());
+                assertEquals(wingTypeid, wing.u32());
+                PacketReader guestWing = awaitOpcode(guest, GamePackets.SERVER_ACTIVE_WING);
+                assertEquals(10001, guestWing.u32());
+                assertEquals(wingTypeid, guestWing.u32());
+            } finally {
+                nuri.partsTypeid[0] = savedParts[0];
+                inv.updateCharacterParts(10001, nuri);
+                inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_ASSIST);
+                inv.deleteWarehouseByTypeid(10001, wingTypeid);
+            }
+        }
+    }
+
+    @Test
     void gpExitRoomSendsPacote254() throws Exception {
         String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
         String user = env("PANGYA_TEST_JDBC_USER", "pangya");

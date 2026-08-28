@@ -228,12 +228,12 @@ public final class GameHandler {
             case GamePackets.CLIENT_SHOT_END -> { }
             case GamePackets.CLIENT_LEAVE_CHIP_IN -> { }
             case GamePackets.CLIENT_GZ_FIRST_HOLE -> { }
-            case GamePackets.CLIENT_WING -> { }
+            case GamePackets.CLIENT_WING -> activeWing(session, reader);
             case GamePackets.CLIENT_EARCUFF -> { }
             case GamePackets.CLIENT_GLOVE -> { }
             case GamePackets.CLIENT_RING_GROUND -> { }
-            case GamePackets.CLIENT_TOGGLE_ASSIST -> { }
-            case GamePackets.CLIENT_ASSIST_GREEN -> { }
+            case GamePackets.CLIENT_TOGGLE_ASSIST -> toggleAssist(session);
+            case GamePackets.CLIENT_ASSIST_GREEN -> assistGreen(session, reader);
             case GamePackets.CLIENT_EVENT_ARIN -> { }
             case GamePackets.CLIENT_ENTER_MY_ROOM -> enterMyRoom(session);
             case GamePackets.CLIENT_FINISH_GAME_CB -> finishGame(session, reader);
@@ -419,6 +419,12 @@ public final class GameHandler {
             session.send(GamePackets.mascots(inventory.mascots(pi.uid)));
             session.send(GamePackets.userEquip(inventory.userEquip(pi.uid)));
             session.send(GamePackets.channelList(channels));
+            for (GamePackets.WarehouseItem item : warehouse) {
+                if (item.typeid == GamePackets.TYPEID_ASSIST) {
+                    pi.assistId = item.id;
+                    break;
+                }
+            }
             for (byte[] extra : GamePackets.loginDumpTail(
                     (int) pi.uid,
                     inventory.pang(pi.uid),
@@ -4819,6 +4825,160 @@ public final class GameHandler {
         } else {
             session.send(packet);
         }
+    }
+
+    /**
+     * C# {@code requestToggleAssist}: not-in-room CHANNEL catch is silent.
+     * In-game rejects with {@code 0x16A} u32 0. Room-wait add/remove
+     * {@link GamePackets#TYPEID_ASSIST} then {@code 0x216} + {@code 0x26A}.
+     */
+    private void toggleAssist(Session session) {
+        if (!inChannel(session)) {
+            return;
+        }
+        GameRoom room = rooms.get(session.player().roomNumber);
+        if (room == null) {
+            return;
+        }
+        if (room.inGame) {
+            session.send(GamePackets.assistInGameReject());
+            return;
+        }
+        PlayerContext pi = session.player();
+        try {
+            GamePackets.WarehouseItem existing = warehouseByTypeid(pi.uid, GamePackets.TYPEID_ASSIST);
+            int itemId;
+            int qntd;
+            if (existing == null) {
+                itemId = inventory.addWarehouseItem(pi.uid, GamePackets.TYPEID_ASSIST, 1);
+                if (itemId <= 0) {
+                    session.send(GamePackets.toggleAssistFail(GamePackets.TOGGLE_ASSIST_ERR_ADD));
+                    return;
+                }
+                pi.assistFlag = true;
+                pi.assistId = itemId;
+                qntd = 1;
+            } else {
+                int have = existing.c[0] & 0xffff;
+                qntd = -((have <= 0) ? 1 : have);
+                inventory.deleteWarehouseByTypeid(pi.uid, GamePackets.TYPEID_ASSIST);
+                pi.assistFlag = false;
+                pi.assistId = existing.id;
+                itemId = existing.id;
+            }
+            session.send(GamePackets.papelAwards(GamePackets.unixNow(), List.of(
+                    new GamePackets.PapelAward(
+                            GamePackets.PAPEL_AWARD_TYPE,
+                            GamePackets.TYPEID_ASSIST,
+                            itemId,
+                            0,
+                            0,
+                            0,
+                            qntd))));
+            session.send(GamePackets.toggleAssistOk(GamePackets.TYPEID_ASSIST, (int) pi.uid));
+        } catch (RuntimeException e) {
+            log.warn("toggle assist uid={} failed: {}", pi.uid, e.toString());
+            session.send(GamePackets.toggleAssistFail(GamePackets.TOGGLE_ASSIST_ERR_DEFAULT));
+        }
+    }
+
+    /**
+     * C# {@code requestActiveAssistGreen}: not-in-room / not-in-game CHANNEL
+     * catch is silent. GAME errors write the full {@code 0x520010x} code.
+     */
+    private void assistGreen(Session session, PacketReader reader) {
+        if (!inChannel(session)) {
+            return;
+        }
+        GameRoom room = rooms.get(session.player().roomNumber);
+        if (room == null || !room.inGame) {
+            return;
+        }
+        if (reader.remaining() < 4) {
+            session.send(GamePackets.assistGreenFail(GamePackets.ASSIST_GREEN_ERR_DEFAULT));
+            return;
+        }
+        int typeid = reader.u32();
+        PlayerContext pi = session.player();
+        if (typeid == 0 || typeid != GamePackets.TYPEID_ASSIST) {
+            session.send(GamePackets.assistGreenFail(GamePackets.ASSIST_GREEN_ERR_TYPEID));
+            return;
+        }
+        GamePackets.WarehouseItem item = warehouseByTypeid(pi.uid, typeid);
+        if (item == null) {
+            session.send(GamePackets.assistGreenFail(GamePackets.ASSIST_GREEN_ERR_OFF));
+            return;
+        }
+        if (!pi.assistFlag && pi.assistId == 0) {
+            session.send(GamePackets.assistGreenFail(GamePackets.ASSIST_GREEN_ERR_OFF));
+            return;
+        }
+        session.send(GamePackets.assistGreenOk(item.typeid, (int) pi.uid));
+    }
+
+    /**
+     * C# {@code requestActiveWing}: not-in-room / not-in-game CHANNEL catch is
+     * silent. Fail is log-only. Versus broadcasts {@code 0x203}; Tourney/Practice
+     * send only to self. IFF {@code checkEffectItemAndSet} is skipped (no IFF).
+     */
+    private void activeWing(Session session, PacketReader reader) {
+        if (!inChannel(session)) {
+            return;
+        }
+        GameRoom room = rooms.get(session.player().roomNumber);
+        if (room == null || !room.inGame) {
+            return;
+        }
+        if (reader.remaining() < 4) {
+            return;
+        }
+        int typeid = reader.u32();
+        if (typeid == 0) {
+            return;
+        }
+        long uid = session.player().uid;
+        if (warehouseByTypeid(uid, typeid) == null) {
+            return;
+        }
+        GamePackets.CharacterInfo character = equippedCharacter(uid);
+        if (character == null) {
+            return;
+        }
+        boolean equipped = false;
+        for (int part : character.partsTypeid) {
+            if (part == typeid) {
+                equipped = true;
+                break;
+            }
+        }
+        if (!equipped) {
+            return;
+        }
+        byte[] packet = GamePackets.activeWing((int) uid, typeid);
+        if (GamePackets.usesVersusInitialData(room.tipo)) {
+            room.broadcast(packet);
+        } else {
+            session.send(packet);
+        }
+    }
+
+    private GamePackets.WarehouseItem warehouseByTypeid(long uid, int typeid) {
+        for (GamePackets.WarehouseItem item : inventory.warehouse(uid)) {
+            if (item.typeid == typeid) {
+                return item;
+            }
+        }
+        return null;
+    }
+
+    private GamePackets.CharacterInfo equippedCharacter(long uid) {
+        GamePackets.UserEquip equip = inventory.userEquip(uid);
+        for (GamePackets.CharacterInfo character : inventory.characters(uid)) {
+            if (character.id == equip.characterId) {
+                return character;
+            }
+        }
+        return null;
     }
 
     /**

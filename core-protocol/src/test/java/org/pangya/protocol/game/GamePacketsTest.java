@@ -1142,6 +1142,41 @@ class GamePacketsTest {
         PacketReader paws = new PacketReader(GamePackets.activePaws(10001));
         assertEquals(GamePackets.SERVER_ACTIVE_PAWS, paws.opcode());
         assertEquals(10001, paws.u32());
+        PacketReader wing = new PacketReader(GamePackets.activeWing(10001, 0x08000099));
+        assertEquals(GamePackets.SERVER_ACTIVE_WING, wing.opcode());
+        assertEquals(10001, wing.u32());
+        assertEquals(0x08000099, wing.u32());
+        PacketReader assistInGame = new PacketReader(GamePackets.assistInGameReject());
+        assertEquals(GamePackets.SERVER_ASSIST_INGAME, assistInGame.opcode());
+        assertEquals(0, assistInGame.u32());
+        PacketReader toggleOk = new PacketReader(GamePackets.toggleAssistOk(
+                GamePackets.TYPEID_ASSIST, 10001));
+        assertEquals(GamePackets.SERVER_TOGGLE_ASSIST, toggleOk.opcode());
+        assertEquals(0, toggleOk.u32());
+        assertEquals(GamePackets.TYPEID_ASSIST, toggleOk.u32());
+        assertEquals(10001, toggleOk.u32());
+        PacketReader toggleFail = new PacketReader(GamePackets.toggleAssistFail(
+                GamePackets.TOGGLE_ASSIST_ERR_ADD));
+        assertEquals(GamePackets.SERVER_TOGGLE_ASSIST, toggleFail.opcode());
+        assertEquals(GamePackets.TOGGLE_ASSIST_ERR_ADD, toggleFail.u32());
+        PacketReader greenOk = new PacketReader(GamePackets.assistGreenOk(
+                GamePackets.TYPEID_ASSIST, 10001));
+        assertEquals(GamePackets.SERVER_ASSIST_GREEN, greenOk.opcode());
+        assertEquals(0, greenOk.u32());
+        assertEquals(GamePackets.TYPEID_ASSIST, greenOk.u32());
+        assertEquals(10001, greenOk.u32());
+        PacketReader greenFail = new PacketReader(GamePackets.assistGreenFail(
+                GamePackets.ASSIST_GREEN_ERR_TYPEID));
+        assertEquals(GamePackets.SERVER_ASSIST_GREEN, greenFail.opcode());
+        assertEquals(GamePackets.ASSIST_GREEN_ERR_TYPEID, greenFail.u32());
+        PacketReader clientWing = new PacketReader(GamePackets.clientU32(
+                GamePackets.CLIENT_WING, 0x08000099));
+        assertEquals(GamePackets.CLIENT_WING, clientWing.opcode());
+        assertEquals(0x08000099, clientWing.u32());
+        PacketReader clientGreen = new PacketReader(GamePackets.clientU32(
+                GamePackets.CLIENT_ASSIST_GREEN, GamePackets.TYPEID_ASSIST));
+        assertEquals(GamePackets.CLIENT_ASSIST_GREEN, clientGreen.opcode());
+        assertEquals(GamePackets.TYPEID_ASSIST, clientGreen.u32());
         PacketReader gpExit = new PacketReader(GamePackets.gpExitRoomAck());
         assertEquals(GamePackets.SERVER_GP_EXIT_ROOM, gpExit.opcode());
         assertEquals(0, gpExit.u32());
@@ -1676,6 +1711,18 @@ class GamePacketsTest {
         assertEquals(GamePackets.SERVER_WORKSHOP_EVENT_COUNT, 0x24B);
         assertEquals(GamePackets.SERVER_MARKER, 0x1F8);
         assertEquals(GamePackets.SERVER_ACTIVE_PAWS, 0x236);
+        assertEquals(GamePackets.SERVER_ACTIVE_WING, 0x203);
+        assertEquals(GamePackets.SERVER_TOGGLE_ASSIST, 0x26A);
+        assertEquals(GamePackets.SERVER_ASSIST_GREEN, 0x26B);
+        assertEquals(GamePackets.SERVER_ASSIST_INGAME, 0x16A);
+        assertEquals(GamePackets.SERVER_MASCOT_SEED, 0x16A);
+        assertEquals(GamePackets.TYPEID_ASSIST, 0x1BE00016);
+        assertEquals(GamePackets.TOGGLE_ASSIST_ERR_ADD, 0x5200801);
+        assertEquals(GamePackets.TOGGLE_ASSIST_ERR_REMOVE, 0x5200802);
+        assertEquals(GamePackets.TOGGLE_ASSIST_ERR_DEFAULT, 0x5200800);
+        assertEquals(GamePackets.ASSIST_GREEN_ERR_TYPEID, 0x5200101);
+        assertEquals(GamePackets.ASSIST_GREEN_ERR_OFF, 0x5200102);
+        assertEquals(GamePackets.ASSIST_GREEN_ERR_DEFAULT, 0x5200100);
         assertEquals(GamePackets.SERVER_GP_EXIT_ROOM, 0x254);
         assertEquals(GamePackets.SERVER_BUY_ACK, 0x68);
         assertEquals(GamePackets.CREATE_ROOM_FAILED, 0x07);

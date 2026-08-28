@@ -214,6 +214,21 @@ public final class GamePackets {
     public static final int SERVER_MARKER = 0x1F8;
     /** C# {@code requestActivePaws} {@code 0x236} u32 uid. */
     public static final int SERVER_ACTIVE_PAWS = 0x236;
+    /**
+     * C# Versus/Tourney {@code requestActiveWing} {@code 0x203}: u32 uid +
+     * u32 typeid. Fail is silent (log only).
+     */
+    public static final int SERVER_ACTIVE_WING = 0x203;
+    /**
+     * C# room-wait toggle-assist {@code 0x26A}: u32 0 + typeid + uid, or
+     * u32 error.
+     */
+    public static final int SERVER_TOGGLE_ASSIST = 0x26A;
+    /**
+     * C# {@code requestActiveAssistGreen} {@code 0x26B}: u32 0 + typeid + uid,
+     * or u32 error. GAME errors write the full code.
+     */
+    public static final int SERVER_ASSIST_GREEN = 0x26B;
     /** C# {@code leaveRoomGrandPrix} {@code 0x254}: u32 0 + i16 -1. */
     public static final int SERVER_GP_EXIT_ROOM = 0x254;
     /** C# attendance check catch {@code 0x248} u32 {@code ~0}. */
@@ -346,6 +361,11 @@ public final class GamePackets {
     /** C# {@code SERVER_SYNC_ACTIVITY} / {@code pacote0C4}: oid + u8 type + payload. */
     public static final int SERVER_SYNC_ACTIVITY = 0xC4;
     public static final int SERVER_MASCOT_SEED = 0x16A;
+    /**
+     * C# in-game toggle-assist reject {@code pacote16A} u32 0. Same numeric as
+     * {@link #SERVER_MASCOT_SEED}.
+     */
+    public static final int SERVER_ASSIST_INGAME = 0x16A;
     /** C# {@code pacote196}: oid + {@code StateCharacterLounge} (4 floats). */
     public static final int SERVER_LOUNGE_STATE = 0x196;
     public static final int SERVER_START_GAME_FLAG = 0x230;
@@ -692,7 +712,11 @@ public final class GamePackets {
     public static final int CLIENT_LEAVE_CHIP_IN = 0x131;
     /** C# {@code packet137} GZ first hole. Not-in-room silent. */
     public static final int CLIENT_GZ_FIRST_HOLE = 0x137;
-    /** C# {@code packet138} wing. Not-in-room silent. */
+    /**
+     * C# {@code packet138} {@code requestActiveWing}. Not-in-room / not-in-game
+     * CHANNEL catch is silent. Versus broadcasts {@link #SERVER_ACTIVE_WING};
+     * Tourney/Practice send only to self. Fail is silent.
+     */
     public static final int CLIENT_WING = 0x138;
     /**
      * C# {@code packet171} earcuff. Same numeric as
@@ -706,9 +730,15 @@ public final class GamePackets {
      * {@link #SERVER_ITEM_BUFF}, opposite direction. Not-in-room silent.
      */
     public static final int CLIENT_RING_GROUND = 0x181;
-    /** C# {@code packet184} toggle assist. Not-in-room silent. */
+    /**
+     * C# {@code packet184} {@code requestToggleAssist}. Not-in-room CHANNEL
+     * catch is silent. In-game rejects with {@link #SERVER_ASSIST_INGAME}.
+     */
     public static final int CLIENT_TOGGLE_ASSIST = 0x184;
-    /** C# {@code packet185} assist green. Not-in-room silent. */
+    /**
+     * C# {@code packet185} {@code requestActiveAssistGreen}. Not-in-room /
+     * not-in-game CHANNEL catch is silent.
+     */
     public static final int CLIENT_ASSIST_GREEN = 0x185;
     /** C# {@code packet192} Event Arin 2014 log only. */
     public static final int CLIENT_EVENT_ARIN = 0x192;
@@ -1668,6 +1698,20 @@ public final class GamePackets {
     public static final int TYPEID_MASCOT = 0x40000000;
     /** C# {@code IFF_GROUP.CARD} {@code 31 << 26 | 1}: {@code 0x7C000001}. */
     public static final int TYPEID_CARD_NORMAL = 0x7C000001;
+    /** C# {@code ASSIST_ITEM_TYPEID} {@code 0x1BE00016}. */
+    public static final int TYPEID_ASSIST = 0x1BE00016;
+    /** C# toggle-assist add fail {@code 0x5200801}. */
+    public static final int TOGGLE_ASSIST_ERR_ADD = 0x5200801;
+    /** C# toggle-assist remove fail {@code 0x5200802}. */
+    public static final int TOGGLE_ASSIST_ERR_REMOVE = 0x5200802;
+    /** C# toggle-assist catch else {@code 0x5200800}. */
+    public static final int TOGGLE_ASSIST_ERR_DEFAULT = 0x5200800;
+    /** C# assist-green bad/zero typeid {@code 0x5200101}. */
+    public static final int ASSIST_GREEN_ERR_TYPEID = 0x5200101;
+    /** C# assist-green missing item or assist off {@code 0x5200102}. */
+    public static final int ASSIST_GREEN_ERR_OFF = 0x5200102;
+    /** C# assist-green catch else {@code 0x5200100}. */
+    public static final int ASSIST_GREEN_ERR_DEFAULT = 0x5200100;
     /** C# {@code IFF_GROUP.CARD}. */
     public static final int IFF_GROUP_CARD = 31;
     /** C# {@code IFF_GROUP.CHARACTER}: {@code typeid >>> 26}. */
@@ -3221,6 +3265,53 @@ public final class GamePackets {
     /** C# paws {@code 0x236}: u32 uid. */
     public static byte[] activePaws(int uid) {
         return new PacketWriter().opcode(SERVER_ACTIVE_PAWS).u32(uid).toBytes();
+    }
+
+    /**
+     * C# wing {@code 0x203}: u32 uid + u32 typeid. Versus broadcasts;
+     * Tourney/Practice session-send.
+     */
+    public static byte[] activeWing(int uid, int typeid) {
+        return new PacketWriter().opcode(SERVER_ACTIVE_WING).u32(uid).u32(typeid).toBytes();
+    }
+
+    /** C# in-game toggle-assist reject {@code 0x16A} u32 0. */
+    public static byte[] assistInGameReject() {
+        return new PacketWriter().opcode(SERVER_ASSIST_INGAME).u32(0).toBytes();
+    }
+
+    /**
+     * C# room-wait toggle-assist OK {@code 0x26A}: u32 0 + typeid + uid.
+     */
+    public static byte[] toggleAssistOk(int typeid, int uid) {
+        return new PacketWriter()
+                .opcode(SERVER_TOGGLE_ASSIST)
+                .u32(0)
+                .u32(typeid)
+                .u32(uid)
+                .toBytes();
+    }
+
+    /** C# toggle-assist catch {@code 0x26A} u32 error. */
+    public static byte[] toggleAssistFail(int code) {
+        return new PacketWriter().opcode(SERVER_TOGGLE_ASSIST).u32(code).toBytes();
+    }
+
+    /**
+     * C# assist-green OK {@code 0x26B}: u32 0 + typeid + uid (session-send).
+     */
+    public static byte[] assistGreenOk(int typeid, int uid) {
+        return new PacketWriter()
+                .opcode(SERVER_ASSIST_GREEN)
+                .u32(0)
+                .u32(typeid)
+                .u32(uid)
+                .toBytes();
+    }
+
+    /** C# assist-green catch {@code 0x26B} u32 error (full GAME code). */
+    public static byte[] assistGreenFail(int code) {
+        return new PacketWriter().opcode(SERVER_ASSIST_GREEN).u32(code).toBytes();
     }
 
     /** C# {@code leaveRoomGrandPrix} {@code 0x254}: u32 0 + i16 -1. */
@@ -4967,6 +5058,11 @@ public final class GamePackets {
     /** C# CLIENT {@code 0xE5}/{@code 0xFE} empty. */
     public static byte[] clientEmpty(int opcode) {
         return new PacketWriter().opcode(opcode).toBytes();
+    }
+
+    /** C# CLIENT {@code 0x185}/{@code 0x138}: u32 typeid. */
+    public static byte[] clientU32(int opcode, int value) {
+        return new PacketWriter().opcode(opcode).u32(value).toBytes();
     }
 
     /** C# CLIENT {@code 0x12E} marker: 3× f32. */

@@ -58,4 +58,14 @@ public final class PlayerContext {
     public final int[] dailyQuestTypeids = new int[3];
     /** C# {@code DolfiniLocker.pass}. Seed empty. */
     public volatile String dolfiniPass = "";
+    /**
+     * C# {@code PlayerInfo.assist_flag}. Room-wait toggle sets this; login
+     * does not restore it (only {@link #assistId} from warehouse).
+     */
+    public volatile boolean assistFlag;
+    /**
+     * C# {@code PlayerInfo.Assistent.id}. Login restores from warehouse
+     * assist typeid {@code 0x1BE00016}.
+     */
+    public volatile int assistId;
 }
