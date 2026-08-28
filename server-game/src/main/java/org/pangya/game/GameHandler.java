@@ -7942,7 +7942,7 @@ public final class GameHandler {
         room.startMillis = System.currentTimeMillis();
         for (Session member : room.snapshot()) {
             member.send(GamePackets.remainTime(0));
-            member.send(GamePackets.playerTurn(member.oid()));
+            member.send(GamePackets.holeTurn(member.oid()));
             GameRoom.PlayerShot shot = room.shots.get(member.oid());
             int hole = shot == null ? 0 : shot.hole;
             room.broadcast(GamePackets.updateHole(member.oid(), hole, 0, 0, 0, 0, 1));
