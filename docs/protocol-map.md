@@ -101,12 +101,14 @@ C#: `GameServer/PangyaEnums/PacketGame.cs` → Java `org.pangya.protocol.game.Ga
 | C | `CLIENT_REQUEST_CHANGE_TEAM` | `0x10` | u8 team; broadcast `0x7D` oid + team |
 | C | `CLIENT_REQUEST_USERINFO_OFFLINE` | `0x07` | u8 opt + PStr nick; `0xA1` err 0 + uid + MemberInfoEx 299, else err 2 |
 | C | `CLIENT_REQUEST_BANISH` | `0x26` | u32 uid; master kicks via leave `0x4C` -1 |
+| C | `CLIENT_REQUEST_SERVER_TIME` | `0x5C` | empty; `0xBA` SYSTEMTIME 16 bytes |
 | S | `SERVER_WHISPER` | `0x84` | byte 0 sender ack / byte 1 deliver |
 | S | `SERVER_DETAIL_ROOM_INFO` | `0x86` | num_player u32 + holes + time + course + tipo + modo + trophy + rows |
 | S | `SERVER_PLAYER_INFO` | `0x89` | u32 err (+ season/uid when err>0); GM deny=3 |
 | S | `SERVER_CHANGE_TEAM` | `0x7D` | i32 oid + u8 team |
 | S | `SERVER_DECISION_ROOM_MASTER` | `0x7C` | i32 oid + i16 0 when master leaves and others remain |
 | S | `SERVER_RESPONSE_USERINFO_OFFLINE` | `0xA1` | u8 0 + uid + MemberInfoEx, or u8 2 |
+| S | `SERVER_RESPONSE_SERVER_TIME` | `0xBA` | SYSTEMTIME (8×u16) |
 | S | `SERVER_SERVER_LIST` | `0x9F` | u8 GS count + 92-byte rows + channel list body |
 | S | `SERVER_RESPONSE_RANKADDRESS` | `0xA2` | PStr ip + i32 port |
 | C | `CLIENT_EXIT_ROOM` | `0x0F` | remaining `0x4A`+`0x48` opt 2 (oid) + leaver `0x4C` -1 |
