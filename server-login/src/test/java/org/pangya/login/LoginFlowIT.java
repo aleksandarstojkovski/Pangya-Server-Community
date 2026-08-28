@@ -3,21 +3,26 @@ package org.pangya.login;
 import org.junit.jupiter.api.Test;
 import org.pangya.db.DatabaseSupport;
 import org.pangya.network.AppConfig;
+import org.pangya.network.auth.AuthOutbound;
 import org.pangya.network.client.PangyaFakeClient;
 import org.pangya.network.redis.SessionKeyStore;
+import org.pangya.protocol.auth.AuthS2s;
 import org.pangya.protocol.game.GamePackets;
 import org.pangya.protocol.login.LoginPackets;
 import org.pangya.protocol.packet.PacketIo;
 import org.pangya.protocol.packet.PacketReader;
+import org.pangya.protocol.packet.PacketWriter;
 
 import java.net.ServerSocket;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -84,6 +89,87 @@ class LoginFlowIT {
             String gameKey = ak.pstr();
             assertEquals(8, gameKey.length());
             assertEquals(gameKey, keys.getGameKey(10001, 20202));
+        }
+    }
+
+    @Test
+    void authDisconnectDisconnectsAndConfirmsWhenPlayerOnLogin() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redis = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        List<long[]> confirms = new CopyOnWriteArrayList<>();
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redis));
+        try (LoginRuntime runtime = new LoginRuntime(config, new AuthOutbound() {
+                    @Override
+                    public void sendInfoPlayerOnline(int reqServerUid, AuthS2s.AuthServerPlayerInfo info) {}
+
+                    @Override
+                    public void sendConfirmDisconnectPlayer(long serverUid, long playerUid) {
+                        confirms.add(new long[] {serverUid, playerUid});
+                    }
+                });
+             PangyaFakeClient client = new PangyaFakeClient()) {
+            client.connect("127.0.0.1", runtime.port());
+            client.awaitHello(5, TimeUnit.SECONDS);
+            client.sendPlain(LoginPackets.clientConnect("testuser", "testpass", "00:11:22:33:44:55"));
+            collect(client, 5, 5, TimeUnit.SECONDS);
+            assertTrue(client.connected());
+
+            runtime.handler().onAuthPacket(
+                    AuthS2s.AUTH_DISCONNECT_PLAYER,
+                    new PacketReader(new PacketWriter().u32(10001).u32(10203).u8(1).toBytes()));
+
+            long deadline = System.currentTimeMillis() + 2000;
+            while (client.connected() && System.currentTimeMillis() < deadline) {
+                Thread.sleep(20);
+            }
+            assertFalse(client.connected());
+            assertEquals(1, confirms.size());
+            assertEquals(10203L, confirms.get(0)[0]);
+            assertEquals(10001L, confirms.get(0)[1]);
+        }
+    }
+
+    @Test
+    void authConfirmDisconnectResumesSuccessLogin() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redis = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password)) {
+            DatabaseSupport.jdbi(ds).useHandle(h -> h.execute(
+                    "UPDATE pangya.account SET \"Logon\" = 1 WHERE \"UID\" = 10001"));
+        }
+
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redis));
+        try (LoginRuntime runtime = new LoginRuntime(config);
+             PangyaFakeClient client = new PangyaFakeClient()) {
+            client.connect("127.0.0.1", runtime.port());
+            client.awaitHello(5, TimeUnit.SECONDS);
+            client.sendPlain(LoginPackets.clientConnect("testuser", "testpass", "00:11:22:33:44:55"));
+            PacketReader waiting = new PacketReader(client.awaitPlain(5, TimeUnit.SECONDS));
+            assertEquals(LoginPackets.SERVER_LOGIN, waiting.opcode());
+            assertEquals(LoginPackets.OPT_ALREADY_ON_GS, waiting.u8());
+
+            runtime.handler().onAuthPacket(
+                    AuthS2s.AUTH_CONFIRM_DISCONNECT,
+                    new PacketReader(new PacketWriter().u32(10001).toBytes()));
+
+            List<byte[]> packets = collect(client, 5, 5, TimeUnit.SECONDS);
+            assertEquals(5, packets.size());
+            assertEquals(LoginPackets.SERVER_AUTH_KEY_LOGIN, new PacketReader(packets.get(0)).opcode());
+            PacketReader loginOk = new PacketReader(packets.get(1));
+            assertEquals(LoginPackets.SERVER_LOGIN, loginOk.opcode());
+            assertEquals(LoginPackets.OPT_OK, loginOk.u8());
+        } finally {
+            try (var ds = DatabaseSupport.dataSource(jdbc, user, password)) {
+                DatabaseSupport.jdbi(ds).useHandle(h -> h.execute(
+                        "UPDATE pangya.account SET \"Logon\" = 0 WHERE \"UID\" = 10001"));
+            }
         }
     }
 

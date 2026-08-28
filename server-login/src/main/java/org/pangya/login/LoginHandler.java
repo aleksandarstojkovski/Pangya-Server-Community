@@ -2,9 +2,12 @@ package org.pangya.login;
 
 import org.pangya.db.LoginRepository;
 import org.pangya.network.AppConfig;
+import org.pangya.network.auth.AuthOutbound;
 import org.pangya.network.redis.SessionKeyStore;
 import org.pangya.network.session.PlayerContext;
 import org.pangya.network.session.Session;
+import org.pangya.network.session.SessionManager;
+import org.pangya.protocol.auth.AuthS2s;
 import org.pangya.protocol.game.GamePackets;
 import org.pangya.protocol.login.LoginPackets;
 import org.pangya.protocol.login.ServerInfo;
@@ -31,11 +34,27 @@ public final class LoginHandler {
     private final AppConfig config;
     private final LoginRepository repo;
     private final SessionKeyStore redis;
+    private final SessionManager sessions;
+    private final AuthOutbound authOut;
 
-    public LoginHandler(AppConfig config, LoginRepository repo, SessionKeyStore redis) {
+    public LoginHandler(AppConfig config, LoginRepository repo, SessionKeyStore redis, SessionManager sessions) {
+        this(config, repo, redis, sessions, new AuthOutbound() {
+            @Override
+            public void sendInfoPlayerOnline(int reqServerUid, AuthS2s.AuthServerPlayerInfo info) {}
+        });
+    }
+
+    LoginHandler(
+            AppConfig config,
+            LoginRepository repo,
+            SessionKeyStore redis,
+            SessionManager sessions,
+            AuthOutbound authOut) {
         this.config = config;
         this.repo = repo;
         this.redis = redis;
+        this.sessions = sessions;
+        this.authOut = authOut;
     }
 
     public void onPacket(Session session, byte[] plaintext) {
@@ -52,6 +71,40 @@ public final class LoginHandler {
             case LoginPackets.CLIENT_SET_CHARACTER -> setCharacter(session, reader);
             default -> log.debug("unhandled login opcode 0x{}", Integer.toHexString(opcode));
         }
+    }
+
+    /** C# {@code LoginServer.authCmd*} from Auth via {@code unit_auth_server_connect}. */
+    public void onAuthPacket(int opcode, PacketReader body) {
+        switch (opcode) {
+            case AuthS2s.AUTH_DISCONNECT_PLAYER -> authDisconnectPlayer(body);
+            case AuthS2s.AUTH_CONFIRM_DISCONNECT -> authConfirmDisconnectPlayer(body);
+            default -> log.debug("unhandled auth packet 0x{}", Integer.toHexString(opcode));
+        }
+    }
+
+    /** C# {@code LoginServer.authCmdDisconnectPlayer}: confirm only when player is on login. */
+    private void authDisconnectPlayer(PacketReader body) {
+        AuthS2s.AuthDisconnectRequest req = AuthS2s.readAuthDisconnect(body);
+        Session target = sessions.findByPlayerUid(req.playerUid());
+        if (target != null) {
+            target.disconnect();
+            authOut.sendConfirmDisconnectPlayer(req.serverUid(), req.playerUid());
+            log.info("auth disconnect uid={} server={} force={}", req.playerUid(), req.serverUid(), req.force());
+        } else {
+            log.debug("auth disconnect uid={} not on login server", req.playerUid());
+        }
+    }
+
+    /** C# {@code LoginServer.authCmdConfirmDisconnectPlayer} → {@code packet_func_ls.succes_login}. */
+    private void authConfirmDisconnectPlayer(PacketReader body) {
+        long playerUid = body.u32() & 0xffff_ffffL;
+        Session session = sessions.findByPlayerUid(playerUid);
+        if (session == null) {
+            log.debug("auth confirm disconnect uid={} not on login server", playerUid);
+            return;
+        }
+        successLogin(session);
+        log.info("auth confirm disconnect uid={} resumed login flow", playerUid);
     }
 
     private void requestLogin(Session session, PacketReader reader) {

@@ -26,6 +26,8 @@ public final class AuthS2s {
     public static final int AUTH_INFO_PLAYER_ONLINE = 0x0B;
     /** Auth→child: {@code requestConfirmSendInfoPlayerOnline}. */
     public static final int AUTH_CONFIRM_PLAYER_INFO = 0x0C;
+    /** Auth→child: {@code requestConfirmDisconnectPlayer} (other server ack). */
+    public static final int AUTH_CONFIRM_DISCONNECT = 0x07;
     /** Auth→child: {@code requestSendCommandToOtherServer}. */
     public static final int SEND_COMMAND_TO_OTHER = 0x0D;
 
