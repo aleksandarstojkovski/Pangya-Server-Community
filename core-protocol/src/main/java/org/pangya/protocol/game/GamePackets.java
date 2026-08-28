@@ -1162,6 +1162,11 @@ public final class GamePackets {
     public static final int COURSE_HOLE_COUNT = 18;
     /** C# {@code ShotSyncData.ToArray} / {@code DecryptShot} buffer. */
     public static final int SHOT_SYNC_BYTES = 54;
+
+    /** C# {@code state_shot.display.acerto_hole} (bit 8). */
+    public static final int DISPLAY_ACERTO_HOLE = 1 << 8;
+    /** C# {@code state_shot.display.clear_bonus} (bit 13). */
+    public static final int DISPLAY_CLEAR_BONUS = 1 << 13;
     /** C# {@code pacote06B} success err_code. */
     public static final int EQUIP_OK = 4;
     /** C# {@code ChangePlayerItemRoom.TYPE_CHANGE} / Channel {@code 0x0B} types. */

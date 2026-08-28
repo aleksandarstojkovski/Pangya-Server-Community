@@ -4734,6 +4734,86 @@ class GameFlowIT {
     }
 
     @Test
+    void practiceLastHoleClearBonusCreditsPang() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config);
+             PangyaFakeClient client = new PangyaFakeClient()) {
+            InventoryRepository inv = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
+            inv.setPangCookie(10001, 100_000, 0);
+            LoginRepository repo = new JdbiLoginRepository(DatabaseSupport.jdbi(ds));
+            String loginKey = repo.generateAuthKeyLogin(10001);
+            String gameKey = repo.generateAuthKeyGame(10001, 20202);
+            keys.putLoginKey(10001, loginKey);
+            keys.putGameKey(10001, 20202, gameKey);
+            loginToChannel(client, runtime.port(), "testuser", 10001, loginKey, gameKey);
+
+            client.sendPlain(GamePackets.clientLobbyItem(GamePackets.ITEM_CHARACTER, 1));
+            awaitOpcode(client, GamePackets.SERVER_ROOM_USER_INFO_CHANGED);
+
+            client.sendPlain(GamePackets.clientCreatePractice("clear-bonus", "secret"));
+            PacketReader room = awaitOpcode(client, GamePackets.SERVER_ROOM_ENTER_RESULT);
+            assertEquals(0, room.i16());
+            byte[] practiceInfo = room.readBytes(GamePackets.ROOM_INFO_BYTES);
+
+            client.sendPlain(GamePackets.clientRoomItem(GamePackets.ITEM_CHARACTER, 1));
+            awaitOpcode(client, GamePackets.SERVER_ROOM_USER_INFO_CHANGED);
+
+            client.sendPlain(GamePackets.clientStartGame());
+            awaitOpcode(client, GamePackets.SERVER_START_GAME_FLAG);
+            awaitOpcode(client, GamePackets.SERVER_START_GAME_FLAG2);
+            assertEquals(GamePackets.SERVER_PANG_RATE, new PacketReader(client.awaitPlain(5, TimeUnit.SECONDS)).opcode());
+            assertEquals(GamePackets.SERVER_GAME_INIT, new PacketReader(client.awaitPlain(5, TimeUnit.SECONDS)).opcode());
+            PacketReader course = new PacketReader(client.awaitPlain(5, TimeUnit.SECONDS));
+            assertEquals(GamePackets.SERVER_COURSE, course.opcode());
+            skipCoursePacketAfterCourseId(course);
+
+            byte[] roomKey = new byte[16];
+            System.arraycopy(practiceInfo, 69, roomKey, 0, 16);
+            client.sendPlain(GamePackets.clientInitHole(18, 0, 0, 4, 1.5f, 2.5f, 10f, 20f));
+            assertEquals(GamePackets.SERVER_WEATHER, new PacketReader(client.awaitPlain(5, TimeUnit.SECONDS)).opcode());
+            assertEquals(GamePackets.SERVER_WIND, new PacketReader(client.awaitPlain(5, TimeUnit.SECONDS)).opcode());
+            assertEquals(GamePackets.SERVER_REMAIN_TIME, new PacketReader(client.awaitPlain(5, TimeUnit.SECONDS)).opcode());
+
+            byte[] shotBody = GamePackets.shotEndLocationSample();
+            client.sendPlain(GamePackets.clientEmpty(GamePackets.CLIENT_SHOT_END));
+            client.sendPlain(GamePackets.clientShotEnd(shotBody));
+            awaitOpcode(client, GamePackets.SERVER_SHOT_END);
+
+            client.sendPlain(GamePackets.clientLoadOk());
+            client.sendPlain(GamePackets.clientShot());
+            int display = GamePackets.DISPLAY_ACERTO_HOLE | GamePackets.DISPLAY_CLEAR_BONUS;
+            int oid = oidOf(runtime, 10001);
+            byte[] shotPlain = GamePackets.shotSyncPlain(
+                    oid, 1.5f, 0f, 2.5f, 2, 0, 0, 0, 0, display, 0x11, 100, 0);
+            client.sendPlain(GamePackets.clientShotResult(GamePackets.xorRoomKey(shotPlain, roomKey)));
+            awaitOpcode(client, GamePackets.SERVER_SYNC_SHOT);
+
+            client.sendPlain(GamePackets.clientShotAck());
+            awaitOpcode(client, GamePackets.SERVER_END_SHOT);
+            PacketReader lastHole = new PacketReader(client.awaitPlain(5, TimeUnit.SECONDS));
+            assertEquals(GamePackets.SERVER_LAST_HOLE, lastHole.opcode());
+
+            client.sendPlain(GamePackets.clientFinishGame());
+            awaitOpcode(client, GamePackets.SERVER_PRIZE_LIST);
+            awaitOpcode(client, GamePackets.SERVER_GAME_RESULT);
+            awaitOpcode(client, GamePackets.SERVER_MY_STATISTICS);
+            awaitOpcode(client, GamePackets.SERVER_UPDATE_TREASURE_GIFT_LIST);
+            PacketReader pangPkt = awaitOpcode(client, GamePackets.SERVER_PANG_SPENT);
+            assertEquals(100_180, pangPkt.u64());
+            assertEquals(0, pangPkt.u64());
+            assertEquals(100_180, inv.pang(10001));
+        }
+    }
+
+    @Test
     void legacyTikiExchangesItemsAndPoints() throws Exception {
         String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
         String user = env("PANGYA_TEST_JDBC_USER", "pangya");

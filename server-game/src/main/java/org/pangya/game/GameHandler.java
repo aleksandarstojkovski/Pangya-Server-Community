@@ -2,6 +2,7 @@ package org.pangya.game;
 
 import org.pangya.game.catalog.CubeCoinResolver;
 import org.pangya.game.catalog.GlobalCatalogs;
+import org.pangya.game.catalog.MapCatalog;
 import org.pangya.db.InventoryRepository;
 import org.pangya.db.LoginRepository;
 import org.pangya.network.AppConfig;
@@ -934,6 +935,9 @@ public final class GameHandler {
         shot.z = sync.z();
         shot.shotState = sync.shotState();
         shot.tempo = sync.tempo() & 0xffff;
+        shot.displayState = sync.displayState();
+        shot.pang = sync.pang() & 0xFFFFFFFFL;
+        shot.bonusPang = sync.bonusPang() & 0xFFFFFFFFL;
         int hole = shot.hole == 0 ? 1 : shot.hole;
         room.broadcast(GamePackets.syncShot(sync.oid(), hole, shot.x, shot.z, shot.shotState, shot.tempo));
     }
@@ -962,6 +966,35 @@ public final class GameHandler {
         List<GamePackets.DropItem> drops =
                 CubeCoinResolver.resolve(catalogs, courseId, holeNum, cubeBody);
         replyInGame(room, session, GamePackets.endShot(session.oid(), drops));
+        checkEndShotOfHole(session, room, shot);
+    }
+
+    /**
+     * C# {@code TourneyBase.checkEndShotOfHole}: last-hole {@code 0x199} and
+     * {@code MapSystem.calculeClear30s} when {@code acerto_hole} + {@code clear_bonus}.
+     */
+    private void checkEndShotOfHole(Session session, GameRoom room, GameRoom.PlayerShot shot) {
+        if ((shot.displayState & GamePackets.DISPLAY_ACERTO_HOLE) == 0) {
+            return;
+        }
+        if (!GamePackets.usesTourneyInitialData(room.tipo)) {
+            return;
+        }
+        int holeNum = shot.hole == 0 ? 1 : shot.hole;
+        if (holeNum < room.info.holes) {
+            return;
+        }
+        session.send(GamePackets.lastHole());
+        if ((shot.displayState & GamePackets.DISPLAY_CLEAR_BONUS) == 0) {
+            return;
+        }
+        int courseId = room.info.course & 0x7f;
+        MapCatalog.CourseCtx map = catalogs.courseMap(courseId);
+        if (map == null) {
+            log.warn("clear bonus missing course map course={} room={}", courseId, room.info.numero);
+            return;
+        }
+        shot.bonusPang += MapCatalog.calculeClear30s(map, room.info.holes);
     }
 
     /**
@@ -2094,7 +2127,17 @@ public final class GameHandler {
         session.send(GamePackets.gameResult(0, room.info.trophy, 0, 2));
         session.send(GamePackets.myStatistics(GamePackets.userInfoPublic(session.player().level)));
         session.send(GamePackets.treasureHunterItem());
-        session.send(GamePackets.pangSpent(inventory.pang(session.player().uid), 0));
+        long uid = session.player().uid;
+        long pang = inventory.pang(uid);
+        GameRoom.PlayerShot shot = room.shots.get(session.oid());
+        if (shot != null) {
+            long credit = shot.pang + shot.bonusPang;
+            if (credit > 0) {
+                pang += credit;
+                inventory.setPangCookie(uid, pang, inventory.cookie(uid));
+            }
+        }
+        session.send(GamePackets.pangSpent(pang, 0));
     }
 
     /**

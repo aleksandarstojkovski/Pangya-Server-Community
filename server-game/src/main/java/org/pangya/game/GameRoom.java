@@ -387,6 +387,12 @@ final class GameRoom {
         byte[] shotEndLocation;
         /** C# Versus {@code PlayerGameInfo.finish_shot2}. */
         int finishShot2;
+        /** C# {@code shot_sync.state_shot.display} ulState from last sync. */
+        int displayState;
+        /** C# {@code pgi.data.pang} running total from client sync. */
+        long pang;
+        /** C# {@code pgi.data.bonus_pang} running total (+ server clear bonus). */
+        long bonusPang;
     }
 
     /** C# {@code UsedItem.Active}: use count vs equipped slot count. */

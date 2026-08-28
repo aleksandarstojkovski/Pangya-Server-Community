@@ -13,8 +13,8 @@ Conteggio Channel: **197** handler `packet_func_sv` registrati in `GameService.i
 
 ## Questo turno
 
-Fatto: … **V39/V40 `iff_course_hole` + auth reload tipo 11**; GP `gpActive` disabilita cube; Wiz City branch; **`Lottery` C# port + rate-weighted cube/coin pick in `CoinCubeGenerator`**.
-Prossimo: IFF map/pin binary; capture JP S9.
+Fatto: … **`Lottery` + rate-weighted cube pick**; **V41 `iff_course` + `MapCatalog` (C# MapSystem SQL stand-in)**; auth reload tipo **1** refreshes map/cube SQL; tipo **11** reloads course par + map metadata; **clear-bonus on Practice/Tourney finish** (`0x199` + `calculeClear30s` credit via `0xC8`).
+Prossimo: IFF map/pin binary; capture JP S9; Versus/Match clear-bonus paths.
 Blocco: file IFF assenti (map/pin binary); nessuna capture client JP Season 9.
 
 Percentuale epic: **scheletro 85%** / **parità client reale 43%**.
