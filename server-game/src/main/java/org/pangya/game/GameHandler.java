@@ -30,6 +30,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
+import java.util.function.IntConsumer;
 
 /**
  * JP {@code GameServer.requestLogin} + channel enter + {@code Channel.requestMakeRoom}
@@ -61,6 +62,8 @@ public final class GameHandler {
     private final ServerEventFlag liveEventFlag = new ServerEventFlag(0);
     /** Bound TCP port ({@code 0} until {@link #setBindPort}). */
     private volatile int bindPort;
+    /** C# {@code shutdown_time}; wired by {@link GameRuntime}. */
+    private IntConsumer shutdownScheduler = sec -> log.warn("auth shutdown {} sec (no scheduler wired)", sec);
     /** C# {@code PlayerMailBox} / {@code MailBoxManager.sendMessage} in-memory store. */
     private final MailBoxStore mailboxes = new MailBoxStore();
     /** C# {@code Tools.Sanitize} SQL-keyword blacklist (OrdinalIgnoreCase). */
@@ -96,6 +99,10 @@ public final class GameHandler {
     /** Called by {@link GameRuntime} after Netty bind so {@code 0xF9} carries the wire port. */
     void setBindPort(int port) {
         this.bindPort = port;
+    }
+
+    void setShutdownScheduler(IntConsumer scheduler) {
+        this.shutdownScheduler = scheduler == null ? sec -> {} : scheduler;
     }
 
     public static List<GamePackets.ChannelInfo> loadChannels(AppConfig config) {
@@ -8239,6 +8246,6 @@ public final class GameHandler {
 
     /** C# {@code GameService.authCmdShutdown}. */
     void authShutdown(int timeSec) {
-        log.warn("auth requested shutdown in {} sec", timeSec);
+        shutdownScheduler.accept(timeSec);
     }
 }

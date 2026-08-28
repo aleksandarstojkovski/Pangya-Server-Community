@@ -6323,6 +6323,24 @@ class GameFlowIT {
     }
 
     @Test
+    void authShutdownForwardsSecondsToScheduler() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redisUri));
+        java.util.concurrent.atomic.AtomicInteger requested = new java.util.concurrent.atomic.AtomicInteger(-1);
+        try (GameRuntime runtime = new GameRuntime(config, null, requested::set)) {
+            runtime.authHandler().onAuthPacket(
+                    AuthS2s.AUTH_SHUTDOWN,
+                    new PacketReader(new PacketWriter().i32(90).toBytes()));
+            assertEquals(90, requested.get());
+        }
+    }
+
+    @Test
     void badGameKeySendsSecurityAck() throws Exception {
         String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
         String user = env("PANGYA_TEST_JDBC_USER", "pangya");
