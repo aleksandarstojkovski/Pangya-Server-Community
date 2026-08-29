@@ -389,6 +389,15 @@ public interface InventoryRepository {
     /** C# {@code CmdDropCourseInfo}: course → active drop rows. */
     java.util.Map<Integer, List<CourseDropItem>> courseDropIndex();
 
+    /** C# {@code DropSystem.stConfig} from {@code pangya_new_course_drop}. */
+    Optional<CourseDropConfig> courseDropConfig();
+
+    record CourseDropConfig(int rateManaArtefact, int rateGrandPrixTicket, int rateSscTicket) {
+        public static CourseDropConfig defaults() {
+            return new CourseDropConfig(100, 100, 100);
+        }
+    }
+
     record CourseDropItem(
             int course,
             int tipo,

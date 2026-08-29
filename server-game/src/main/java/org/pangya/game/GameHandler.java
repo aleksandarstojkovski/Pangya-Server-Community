@@ -113,6 +113,7 @@ public final class GameHandler {
         this.liveGrandPrixEvent = config.rateGrandPrixEvent();
         this.liveRateSscTicket = config.rateSscTicket();
         this.liveRateManaArtefact = config.rateManaArtefact();
+        applyCourseDropRatesFromCatalog();
         this.liveEventFlag.setRatePang(liveRatePang);
         this.liveEventFlag.setRateExp(liveRateExp);
         this.liveEventFlag.setRateClubMastery(liveRateClubMastery);
@@ -9395,6 +9396,20 @@ public final class GameHandler {
     /** C# {@code GameService.reloadGlobalSystem}. */
     void authReloadGlobalSystem(int tipo) {
         catalogs.reload(tipo);
+        if (tipo == 0 || tipo == 8 || tipo == 9) {
+            applyCourseDropRatesFromCatalog();
+        }
+    }
+
+    /** C# {@code DropSystem.load} config rates from SQL catalog. */
+    private void applyCourseDropRatesFromCatalog() {
+        InventoryRepository.CourseDropConfig cfg = catalogs.courseDropConfig();
+        if (cfg.rateSscTicket() > 0) {
+            liveRateSscTicket = cfg.rateSscTicket();
+        }
+        if (cfg.rateManaArtefact() > 0) {
+            liveRateManaArtefact = cfg.rateManaArtefact();
+        }
     }
 
     GlobalCatalogs catalogsForTests() {

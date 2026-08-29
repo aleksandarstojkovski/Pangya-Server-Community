@@ -4293,6 +4293,21 @@ public final class JdbiInventoryRepository implements InventoryRepository {
     }
 
     @Override
+    public Optional<CourseDropConfig> courseDropConfig() {
+        return jdbi.withHandle(h -> h.createQuery("""
+                            SELECT rate_mana_artefact, rate_grand_prix_ticket, "rate_SSC_ticket"
+                              FROM pangya.pangya_new_course_drop
+                             ORDER BY "index"
+                             LIMIT 1
+                            """)
+                .map((rs, ctx) -> new CourseDropConfig(
+                        rs.getInt("rate_mana_artefact"),
+                        rs.getInt("rate_grand_prix_ticket"),
+                        rs.getInt("rate_SSC_ticket")))
+                .findOne());
+    }
+
+    @Override
     public java.util.Map<Integer, Integer> courseParIndex() {
         return jdbi.withHandle(h -> {
             java.util.Map<Integer, Integer> out = new java.util.HashMap<>();

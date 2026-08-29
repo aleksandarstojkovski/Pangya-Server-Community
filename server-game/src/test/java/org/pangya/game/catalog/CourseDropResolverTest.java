@@ -23,6 +23,10 @@ class CourseDropResolverTest {
 
         try (var ds = DatabaseSupport.dataSource(url, user, password)) {
             InventoryRepository inv = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
+            InventoryRepository.CourseDropConfig cfg =
+                    inv.courseDropConfig().orElseThrow();
+            assertEquals(100, cfg.rateSscTicket());
+            assertEquals(100, cfg.rateManaArtefact());
             List<InventoryRepository.CourseDropItem> items = inv.courseDropIndex().get(0);
             assertFalse(items.isEmpty());
 

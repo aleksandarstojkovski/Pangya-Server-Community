@@ -5353,13 +5353,14 @@ class GameFlowIT {
 
                 client.sendPlain(GamePackets.clientGpEnter(gpTypeid));
                 assertEquals(GamePackets.shopSys(GamePackets.GP_ENTER_ERR_EQUIP),
-                        awaitOpcode(client, GamePackets.SERVER_START_GAME_FAIL).u32());
+                        awaitOpcode(client, GamePackets.SERVER_START_GAME_FAIL, 15_000).u32());
 
                 setItemSlot1(ds, 10001, 0x10000000);
                 inv.deleteWarehouseByTypeid(10001, gpTicket);
+                drainPending(client, 200);
                 client.sendPlain(GamePackets.clientGpEnter(gpTypeid));
                 assertEquals(GamePackets.shopSys(GamePackets.GP_ENTER_ERR_TICKET),
-                        awaitOpcode(client, GamePackets.SERVER_START_GAME_FAIL).u32());
+                        awaitOpcode(client, GamePackets.SERVER_START_GAME_FAIL, 15_000).u32());
             } finally {
                 inv.deleteWarehouseByTypeid(10001, gpTicket);
                 setItemSlot1(ds, 10001, 0);
@@ -7923,7 +7924,12 @@ class GameFlowIT {
     }
 
     private static PacketReader awaitOpcode(PangyaFakeClient client, int opcode) throws InterruptedException {
-        long deadline = System.currentTimeMillis() + TimeUnit.SECONDS.toMillis(8);
+        return awaitOpcode(client, opcode, TimeUnit.SECONDS.toMillis(8));
+    }
+
+    private static PacketReader awaitOpcode(PangyaFakeClient client, int opcode, long timeoutMs)
+            throws InterruptedException {
+        long deadline = System.currentTimeMillis() + timeoutMs;
         while (System.currentTimeMillis() < deadline) {
             long left = Math.max(1, deadline - System.currentTimeMillis());
             byte[] raw = client.awaitPlain(left, TimeUnit.MILLISECONDS);

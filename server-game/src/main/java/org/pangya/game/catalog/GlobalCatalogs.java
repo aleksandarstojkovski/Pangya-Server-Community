@@ -34,6 +34,8 @@ public final class GlobalCatalogs {
     private volatile Map<Short, Boolean> coinCubeActive = Map.of();
     private volatile Map<Short, List<InventoryRepository.CoinCubeLocation>> coinCubeByCourse = Map.of();
     private volatile Map<Integer, List<InventoryRepository.CourseDropItem>> courseDropByCourse = Map.of();
+    private volatile InventoryRepository.CourseDropConfig courseDropConfig =
+            InventoryRepository.CourseDropConfig.defaults();
     private volatile Map<Integer, Integer> coursePar = Map.of();
     private volatile Map<Short, MapCatalog.CourseCtx> courseMaps = Map.of();
 
@@ -148,6 +150,12 @@ public final class GlobalCatalogs {
 
     private void reloadCourseDrops() {
         courseDropByCourse = Map.copyOf(inventory.courseDropIndex());
+        courseDropConfig = inventory.courseDropConfig().orElse(InventoryRepository.CourseDropConfig.defaults());
+    }
+
+    /** C# {@code DropSystem.m_config}. */
+    public InventoryRepository.CourseDropConfig courseDropConfig() {
+        return courseDropConfig;
     }
 
     /** C# {@code DropSystem.findCourse}. */
