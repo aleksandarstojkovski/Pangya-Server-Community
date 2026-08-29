@@ -547,11 +547,12 @@ public final class GameHandler {
     }
 
     private static final String ATTENDANCE_MAIL_MESSAGE = "Your Attendance rewards have arrived!";
+    private static final String ATTENDANCE_DAILY_PRIZE_MESSAGE = "Special Daily Login Prize!";
 
     /**
      * C# {@code GameService.requestEnterChannel} after {@code pacote04E(1)}:
      * mails {@code ari.now} and sends {@code pacote248} on login state 2/3 or
-     * {@code passedOneDay}. GP/fortune/bot ticket grants remain deferred.
+     * {@code passedOneDay}, then GP/bot/fortune login bonus mails.
      */
     private void processEnterChannelAttendance(Session session) {
         long uid = session.player().uid;
@@ -616,6 +617,7 @@ public final class GameHandler {
         mailAttendanceReward(uid, nowTypeid, nowQntd);
         inventory.upsertAttendanceReward(uid, new InventoryRepository.AttendanceReward(
                 0, nowTypeid, nowQntd, afterTypeid, afterQntd, today));
+        sendAttendanceLoginBonuses(uid);
         session.send(GamePackets.attendanceOk(
                 GamePackets.SERVER_ATTENDANCE,
                 0, nowTypeid, nowQntd, afterTypeid, afterQntd, 0));
@@ -668,9 +670,49 @@ public final class GameHandler {
         counter = counter + 1;
         inventory.upsertAttendanceReward(uid, new InventoryRepository.AttendanceReward(
                 counter, nowTypeid, nowQntd, afterTypeid, afterQntd, today));
+        sendAttendanceLoginBonuses(uid);
         session.send(GamePackets.attendanceOk(
                 GamePackets.SERVER_ATTENDANCE,
                 0, nowTypeid, nowQntd, afterTypeid, afterQntd, counter));
+    }
+
+    /** C# {@code sendGrandPrixTicket}/{@code sendBotTicket}/{@code sendFortuneKey} on first login. */
+    private void sendAttendanceLoginBonuses(long uid) {
+        mailAttendanceLoginItem(
+                uid,
+                GamePackets.TYPEID_GP_TICKET,
+                GamePackets.GP_TICKET_WAREHOUSE_LIMIT,
+                GamePackets.ATTENDANCE_GP_TICKET_GRANT,
+                ATTENDANCE_MAIL_MESSAGE);
+        mailAttendanceLoginItem(
+                uid,
+                GamePackets.TYPEID_BOT_TICKET,
+                GamePackets.ATTENDANCE_DAILY_KEY_LIMIT,
+                GamePackets.ATTENDANCE_DAILY_KEY_GRANT,
+                ATTENDANCE_DAILY_PRIZE_MESSAGE);
+        mailAttendanceLoginItem(
+                uid,
+                GamePackets.TYPEID_FORTUNE_KEY,
+                GamePackets.ATTENDANCE_DAILY_KEY_LIMIT,
+                GamePackets.ATTENDANCE_DAILY_KEY_GRANT,
+                ATTENDANCE_DAILY_PRIZE_MESSAGE);
+    }
+
+    private void mailAttendanceLoginItem(long uid, int typeid, int limit, int grantMax, String message) {
+        int current = warehouseStack(uid, typeid);
+        if (current >= limit) {
+            return;
+        }
+        int qntd = current == 0 ? grantMax : Math.min(grantMax, limit - current);
+        if (qntd <= 0) {
+            return;
+        }
+        mailWarehouseAttachment(uid, typeid, qntd, message);
+    }
+
+    private int warehouseStack(long uid, int typeid) {
+        GamePackets.WarehouseItem item = warehouseByTypeid(uid, typeid);
+        return item == null ? 0 : item.c[0] & 0xffff;
     }
 
     private boolean attendanceCatalogExists(int typeid) {
@@ -678,13 +720,17 @@ public final class GameHandler {
     }
 
     private void mailAttendanceReward(long uid, int typeid, int qntd) {
+        mailWarehouseAttachment(uid, typeid, qntd, ATTENDANCE_MAIL_MESSAGE);
+    }
+
+    private void mailWarehouseAttachment(long uid, int typeid, int qntd, String message) {
         ItemInitializer.InitContext ctx = new ItemInitializer.InitContext(0, false, false, true);
         ItemInitializer.MailItemRef ref = ItemInitializer.boxMailRef(ctx, typeid, qntd)
                 .orElse(new ItemInitializer.MailItemRef(typeid, qntd));
         mailboxes.add(
                 uid,
                 GamePackets.MAIL_FROM_ADM,
-                ATTENDANCE_MAIL_MESSAGE,
+                message,
                 List.of(new MailBoxStore.MailAttachment(
                         ref.typeid(), ref.qntd(), ref.flagTime(), ref.tempoQntd())));
     }
@@ -8738,6 +8784,10 @@ public final class GameHandler {
 
     GlobalCatalogs catalogsForTests() {
         return catalogs;
+    }
+
+    int mailboxCountForTests(long uid) {
+        return mailboxes.count(uid);
     }
 
     /**

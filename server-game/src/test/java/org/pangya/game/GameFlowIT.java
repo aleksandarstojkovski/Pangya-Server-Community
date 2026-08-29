@@ -1817,6 +1817,9 @@ class GameFlowIT {
             final int qntd = 3;
             try {
                 inv.deleteAttendanceReward(10001);
+                inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_GP_TICKET);
+                inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_BOT_TICKET);
+                inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_FORTUNE_KEY);
                 inv.upsertItemIff(GamePackets.TYPEID_SHOP_PANG_ITEM);
                 inv.upsertAttendanceCatalog(
                         GamePackets.TYPEID_SHOP_PANG_ITEM,
@@ -1846,6 +1849,14 @@ class GameFlowIT {
                 assertEquals(qntd, enterAttend.u32());
                 assertEquals(0, enterAttend.u32());
 
+                drainPending(client, 200);
+                client.sendPlain(GamePackets.clientOpenMailBox(1));
+                PacketReader enterMail = awaitOpcode(client, GamePackets.SERVER_MAILBOX);
+                assertEquals(0, enterMail.i32());
+                assertEquals(1, enterMail.i32());
+                assertEquals(1, enterMail.i32());
+                assertEquals(4, enterMail.i32());
+
                 client.sendPlain(GamePackets.clientEmpty(GamePackets.CLIENT_ATTENDANCE));
                 PacketReader first = awaitOpcode(client, GamePackets.SERVER_ATTENDANCE);
                 assertEquals(GamePackets.ATTENDANCE_OK, first.i32());
@@ -1862,9 +1873,12 @@ class GameFlowIT {
                 assertEquals(0, mailPage.i32());
                 assertEquals(1, mailPage.i32());
                 assertEquals(1, mailPage.i32());
-                assertEquals(1, mailPage.i32());
-                int mailId = mailPage.i32();
-                mailPage.readBytes(GamePackets.MAIL_BOX_ENTRY_BYTES - 4);
+                assertEquals(4, mailPage.i32());
+                while (mailPage.remaining() >= GamePackets.MAIL_BOX_ENTRY_BYTES) {
+                    mailPage.i32();
+                    mailPage.readBytes(GamePackets.MAIL_BOX_ENTRY_BYTES - 4);
+                }
+                int mailId = 1;
                 inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_SHOP_PANG_ITEM);
                 client.sendPlain(GamePackets.clientTakeMail(mailId));
                 PacketReader mailAward = awaitOpcode(client, GamePackets.SERVER_DAILY_QUEST_STAMP);

@@ -2053,6 +2053,17 @@ public final class GamePackets {
     public static final int GP_ENTER_ERR_TIME = 0x670000C;
     /** C# GP ticket item from JP {@code GrandPrixData.ticket} ({@code 0x1A000264}). */
     public static final int TYPEID_GP_TICKET = 0x1A000264;
+    /** C# {@code TICKET_BOT_TYPEID2} attendance daily login grant. */
+    public static final int TYPEID_BOT_TICKET = 436207927;
+    /** C# Key of fortune attendance daily login grant. */
+    public static final int TYPEID_FORTUNE_KEY = 436207964;
+    /** C# {@code LIMIT_GRAND_PRIX_TICKET}. */
+    public static final int GP_TICKET_WAREHOUSE_LIMIT = 50;
+    /** C# {@code sendGrandPrixTicket} grant when warehouse empty. */
+    public static final int ATTENDANCE_GP_TICKET_GRANT = 3;
+    /** C# {@code sendBotTicket}/{@code sendFortuneKey} grant/limit. */
+    public static final int ATTENDANCE_DAILY_KEY_GRANT = 5;
+    public static final int ATTENDANCE_DAILY_KEY_LIMIT = 5;
     /** C# {@code pacote24E} holes-per-phase literal. */
     public static final int WORKSHOP_EVENT_HOLES = 3000;
     /** C# {@code requestClubWorkShopEventCount} writes 16 subcodes {@code 1..16}. */

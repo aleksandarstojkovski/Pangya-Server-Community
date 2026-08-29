@@ -154,6 +154,10 @@ final class MailBoxStore {
         return box == null || box.isEmpty();
     }
 
+    int count(long uid) {
+        return sorted(uid).size();
+    }
+
     /**
      * C# {@code deleteEmail}: empty box or id &le; 0 throws; missing ids are skipped.
      */
