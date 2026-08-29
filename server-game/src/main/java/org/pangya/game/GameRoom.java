@@ -37,6 +37,8 @@ final class GameRoom {
     volatile int turnOid;
     /** C# Match {@code changeHole} clear bonus applied once per game. */
     volatile boolean matchClearBonusApplied;
+    /** C# {@code finish_match} guard against duplicate pang credit. */
+    volatile boolean matchFinished;
     /** C# Match {@code Team} red/blue pang accumulators (index 0/1). */
     final MatchTeam[] matchTeams = {new MatchTeam(), new MatchTeam()};
     /** C# {@code m_player_report_game} UIDs that already sent {@code 0x3A}. */
@@ -314,6 +316,7 @@ final class GameRoom {
 
     void resetMatchTeams() {
         matchClearBonusApplied = false;
+        matchFinished = false;
         for (MatchTeam team : matchTeams) {
             team.pang = 0;
             team.bonusPang = 0;

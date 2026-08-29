@@ -5975,14 +5975,13 @@ class GameFlowIT {
             assertEquals(GamePackets.SERVER_LAST_HOLE, new PacketReader(host.awaitPlain(5, TimeUnit.SECONDS)).opcode());
             assertEquals(GamePackets.SERVER_LAST_HOLE, new PacketReader(guest.awaitPlain(5, TimeUnit.SECONDS)).opcode());
 
-            host.sendPlain(GamePackets.clientEndStroke());
-            awaitOpcode(host, GamePackets.SERVER_PRIZE_LIST);
-            awaitOpcode(host, GamePackets.SERVER_GAME_RESULT);
-            awaitOpcode(host, GamePackets.SERVER_MY_STATISTICS);
-            awaitOpcode(host, GamePackets.SERVER_UPDATE_TREASURE_GIFT_LIST);
-            PacketReader hostPang = awaitOpcode(host, GamePackets.SERVER_PANG_SPENT);
-            assertEquals(100_648, hostPang.u64());
-            assertEquals(0, hostPang.u64());
+            awaitOpcode(guest, GamePackets.SERVER_PRIZE_LIST);
+            awaitOpcode(guest, GamePackets.SERVER_GAME_RESULT);
+            awaitOpcode(guest, GamePackets.SERVER_MY_STATISTICS);
+            awaitOpcode(guest, GamePackets.SERVER_UPDATE_TREASURE_GIFT_LIST);
+            PacketReader guestPang = awaitOpcode(guest, GamePackets.SERVER_PANG_SPENT);
+            assertEquals(100_648, guestPang.u64());
+            assertEquals(0, guestPang.u64());
             assertEquals(100_648, inv.pang(10001));
             assertEquals(100_648, inv.pang(10002));
         }

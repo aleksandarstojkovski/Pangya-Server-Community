@@ -1823,6 +1823,9 @@ public final class GameHandler {
             return;
         }
         if (room.tipo == GamePackets.TIPO_MATCH) {
+            if (room.matchFinished) {
+                return;
+            }
             finishMatchGame(room, session);
             return;
         }
@@ -1845,7 +1848,12 @@ public final class GameHandler {
 
     /** C# {@code Match.finish_match}: team pang merge, calc pang/exp, finish dump. */
     private void finishMatchGame(GameRoom room, Session session) {
-        for (Session member : room.snapshot()) {
+        if (room.matchFinished) {
+            return;
+        }
+        room.matchFinished = true;
+        List<Session> members = room.snapshot();
+        for (Session member : members) {
             prepareFinishItemUsed(member, room);
             queueRainCounters(member, room);
             queueScoreConsecutivosCounters(member, room);
@@ -1855,12 +1863,14 @@ public final class GameHandler {
             saveHoleDrops(member, room);
         }
         room.mergeMatchTeamPangToPlayers();
-        for (Session member : room.snapshot()) {
+        for (Session member : members) {
             calculeGamePang(member, room);
             finishGameExp(member, room, finishRankIndex(room, member));
             creditPlayerGamePang(member, room);
         }
-        sendFinishGameDump(session, room, false);
+        for (Session member : members) {
+            sendFinishGameDump(member, room, false);
+        }
         finishGameRoom(room);
     }
 
@@ -1961,15 +1971,15 @@ public final class GameHandler {
         return true;
     }
 
-    /** C# {@code Match.changeHole}: early game end or {@code updateFinishHole}. */
+    /** C# {@code Match.changeHole}: game end or {@code updateFinishHole}. */
     private void matchChangeHole(GameRoom room, Session session, int holeSeq) {
         GameRoom.MatchTeam red = room.matchTeams[0];
         GameRoom.MatchTeam blue = room.matchTeams[1];
-        if (PlacarRankResolver.matchGameEndsEarly(
-                red.point, blue.point, holeSeq, room.info.holes)) {
+        if (PlacarRankResolver.matchGameEnds(
+                red.point, blue.point, holeSeq, room.info.holes, room.snapshot().size())) {
             applyMatchClearBonus(room, holeSeq);
             finishMatchGame(room, session);
-        } else if (holeSeq < room.info.holes) {
+        } else {
             room.broadcast(GamePackets.moveNextHole());
         }
     }
