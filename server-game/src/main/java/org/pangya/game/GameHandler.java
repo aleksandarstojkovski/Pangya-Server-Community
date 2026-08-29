@@ -852,17 +852,18 @@ public final class GameHandler {
         room.reported.clear();
         room.gzFirstHole.clear();
         room.activeUses.clear();
-        room.autoCommandUses.clear();
+        room.passiveUses.clear();
+        room.finishItemUsed.clear();
         if (room.tipo == GamePackets.TIPO_MATCH) {
             room.resetMatchTeams();
         }
         room.initGameFlags();
         for (var member : room.snapshot()) {
             queueInitGameAchievementCounters(room, member);
-            room.initActiveItems(member.oid(), inventory.userEquip(member.player().uid).itemSlot);
-            GamePackets.WarehouseItem auto = warehouseByTypeid(member.player().uid, GamePackets.TYPEID_AUTO_COMMAND);
-            int qntd = auto == null ? 0 : auto.c[0] & 0xffff;
-            room.initAutoCommand(member.oid(), qntd > 0);
+            long uid = member.player().uid;
+            GamePackets.UserEquip equip = inventory.userEquip(uid);
+            room.initActiveItems(member.oid(), equip.itemSlot);
+            initPassiveItemsForGame(room, member.oid(), uid, equip);
         }
         room.broadcast(GamePackets.startGameFlag());
         room.broadcast(GamePackets.startGameFlag2());
@@ -1283,6 +1284,7 @@ public final class GameHandler {
 
     /** C# {@code requestSaveInfo} records + rain/score/item counters + finish-game dump. */
     private void finishGamePlayerDump(Session session, GameRoom room) {
+        prepareFinishItemUsed(session, room);
         queueRainCounters(session, room);
         queueScoreConsecutivosCounters(session, room);
         queueItemUsedCounters(session, room);
@@ -1293,7 +1295,91 @@ public final class GameHandler {
         if (ui != null) {
             queueRecordAchievementCounters(session, room, ui);
         }
+        consumeFinishItemUsed(session, room);
         sendFinishGameDump(session, room, true);
+    }
+
+    /** C# {@code requestInitItemUsedGame}: warehouse passive, ball, auxparts. */
+    private void initPassiveItemsForGame(
+            GameRoom room, int oid, long uid, GamePackets.UserEquip equip) {
+        for (GamePackets.WarehouseItem item : inventory.warehouse(uid)) {
+            if ((item.c[0] & 0xffff) > 0 && PassiveItems.isKnownPassive(item.typeid)) {
+                room.initPassiveItem(oid, item.typeid);
+            }
+        }
+        if (PassiveItems.isTrackedBall(equip.ballTypeid)
+                && warehouseByTypeid(uid, equip.ballTypeid) != null) {
+            room.initPassiveItem(oid, equip.ballTypeid);
+        }
+        GamePackets.CharacterInfo character = equippedCharacter(uid, equip);
+        if (character != null) {
+            for (int aux : character.auxparts) {
+                if (PassiveItems.isAuxPart(aux)) {
+                    room.initPassiveItem(oid, aux);
+                }
+            }
+        }
+    }
+
+    private GamePackets.CharacterInfo equippedCharacter(long uid, GamePackets.UserEquip equip) {
+        for (GamePackets.CharacterInfo character : inventory.characters(uid)) {
+            if (character.id == equip.characterId) {
+                return character;
+            }
+        }
+        return null;
+    }
+
+    /** C# {@code requestFinishItemUsedGame}: per-game exp bump before achievement counters. */
+    private void prepareFinishItemUsed(Session session, GameRoom room) {
+        if (room.hasFinishItemUsed(session.oid())) {
+            return;
+        }
+        room.finishExpPerGamePassive(session.oid());
+    }
+
+    /** C# {@code requestFinishItemUsedGame}: consume warehouse items and clear active slots. */
+    private void consumeFinishItemUsed(Session session, GameRoom room) {
+        int oid = session.oid();
+        if (room.hasFinishItemUsed(oid)) {
+            return;
+        }
+        long uid = session.player().uid;
+        GamePackets.UserEquip equip = inventory.userEquip(uid);
+        boolean equipChanged = false;
+        var activeMap = room.activeUses.get(oid);
+        if (activeMap != null) {
+            for (var entry : activeMap.entrySet()) {
+                int typeid = entry.getKey();
+                GameRoom.ActiveUse use = entry.getValue();
+                if (use.count <= 0) {
+                    continue;
+                }
+                inventory.consumeWarehouseByTypeid(uid, typeid, use.count);
+                for (int i = 0; i < use.count && i < use.slotIndices.size(); i++) {
+                    int slot = use.slotIndices.get(i);
+                    if (slot >= 0
+                            && slot < equip.itemSlot.length
+                            && equip.itemSlot[slot] == typeid) {
+                        equip.itemSlot[slot] = 0;
+                        equipChanged = true;
+                    }
+                }
+            }
+        }
+        var passiveMap = room.passiveUses.get(oid);
+        if (passiveMap != null) {
+            for (var entry : passiveMap.entrySet()) {
+                int count = entry.getValue();
+                if (count > 0) {
+                    inventory.consumeWarehouseByTypeid(uid, entry.getKey(), count);
+                }
+            }
+        }
+        if (equipChanged) {
+            inventory.updateUserEquip(uid, equip);
+        }
+        room.markFinishItemUsed(oid);
     }
 
     /**
@@ -1315,6 +1401,12 @@ public final class GameHandler {
         if (holeCounter != 0) {
             room.addPendingAchievementCounter(session.player().uid, holeCounter, 1);
         }
+        GamePackets.UserEquip equip = inventory.userEquip(session.player().uid);
+        GamePackets.CharacterInfo character = equippedCharacter(session.player().uid, equip);
+        room.updatePassiveOnHoleFinish(
+                session.oid(),
+                equip.ballTypeid,
+                character == null ? null : character.auxparts);
         shot.tacadaNum = 0;
     }
 
@@ -1365,10 +1457,12 @@ public final class GameHandler {
             return;
         }
         for (Session member : room.snapshot()) {
+            prepareFinishItemUsed(member, room);
             queueRainCounters(member, room);
             queueScoreConsecutivosCounters(member, room);
             queueItemUsedCounters(member, room);
             flushPendingAchievementCounters(member, room);
+            consumeFinishItemUsed(member, room);
         }
         if (room.tipo == GamePackets.TIPO_MATCH) {
             room.mergeMatchTeamPangToPlayers();
@@ -2796,7 +2890,8 @@ public final class GameHandler {
         room.turnOid = 0;
         room.reported.clear();
         room.activeUses.clear();
-        room.autoCommandUses.clear();
+        room.passiveUses.clear();
+        room.finishItemUsed.clear();
         room.gameFlags.clear();
         room.clearPendingAchievementCounters();
         if (room.tipo == GamePackets.TIPO_MATCH) {
@@ -4783,7 +4878,7 @@ public final class GameHandler {
         }
         GamePackets.WarehouseItem item = warehouseByTypeid(session.player().uid, GamePackets.TYPEID_AUTO_COMMAND);
         int qntd = item == null ? 0 : item.c[0] & 0xffff;
-        int err = room.tryUseAutoCommand(session.oid(), qntd);
+        int err = room.tryUsePassive(session.oid(), GamePackets.TYPEID_AUTO_COMMAND, qntd);
         if (err != 0) {
             session.send(GamePackets.autoCommandFail(err));
         }

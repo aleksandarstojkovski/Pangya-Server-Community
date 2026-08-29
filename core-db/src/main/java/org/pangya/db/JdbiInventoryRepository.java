@@ -170,6 +170,11 @@ public final class JdbiInventoryRepository implements InventoryRepository {
     }
 
     @Override
+    public void updateUserEquip(long uid, GamePackets.UserEquip equip) {
+        persistUserEquip(uid, equip);
+    }
+
+    @Override
     public GamePackets.UserEquip reconcileEquipAtLogin(long uid) {
         ensureDefaultInventory(uid);
         GamePackets.UserEquip equip = userEquip(uid);

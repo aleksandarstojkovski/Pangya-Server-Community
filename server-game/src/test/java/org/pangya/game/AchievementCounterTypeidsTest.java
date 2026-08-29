@@ -91,8 +91,8 @@ class AchievementCounterTypeidsTest {
         GameRoom room = new GameRoom(GamePackets.readCreateRoom(created), 1, 10001, 100, 100, 0);
         room.initActiveItems(1, new int[] {0x18000025, 0x18000025});
         room.tryUseActive(1, 0x18000025);
-        room.initAutoCommand(1, true);
-        room.tryUseAutoCommand(1, 5);
+        room.initPassiveItem(1, GamePackets.TYPEID_AUTO_COMMAND);
+        room.tryUsePassive(1, GamePackets.TYPEID_AUTO_COMMAND, 5);
         AchievementCounterTypeids.queueItemUsedCounters(room, 1, 10001);
         var pending = room.takePendingAchievementCounters(10001);
         assertEquals(1, pending.getOrDefault(GamePackets.TYPEID_ACTIVE_ITEM_COUNTER, 0));

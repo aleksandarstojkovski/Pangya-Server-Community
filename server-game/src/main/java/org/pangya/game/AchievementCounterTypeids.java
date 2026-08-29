@@ -154,7 +154,7 @@ final class AchievementCounterTypeids {
 
     /**
      * C# {@code requestFinishItemUsedGame}: active slot uses and auto-command passive
-     * uses tracked in {@link GameRoom#activeUses} / {@link GameRoom#autoCommandUses}.
+     * uses tracked in {@link GameRoom#activeUses} / {@link GameRoom#passiveUses}.
      */
     static void queueItemUsedCounters(GameRoom room, int oid, long uid) {
         var activeUses = room.activeUses.get(oid);
@@ -178,15 +178,21 @@ final class AchievementCounterTypeids {
                 }
             }
         }
-        Integer autoUsed = room.autoCommandUses.get(oid);
-        if (autoUsed != null && autoUsed > 0) {
-            int typeid = GamePackets.TYPEID_AUTO_COMMAND;
-            if (GamePackets.itemGroupIdentify(typeid) == GamePackets.IFF_GROUP_ITEM
-                    && !IffGroups.isItemEquipable(typeid)) {
-                room.addPendingAchievementCounter(uid, GamePackets.TYPEID_PASSIVE_ITEM_COUNTER, autoUsed);
-                int specific = passiveItemCounter(typeid);
-                if (specific != 0) {
-                    room.addPendingAchievementCounter(uid, specific, autoUsed);
+        var passiveUses = room.passiveUses.get(oid);
+        if (passiveUses != null) {
+            for (var entry : passiveUses.entrySet()) {
+                int typeid = entry.getKey();
+                int count = entry.getValue();
+                if (count <= 0) {
+                    continue;
+                }
+                if (GamePackets.itemGroupIdentify(typeid) == GamePackets.IFF_GROUP_ITEM
+                        && !IffGroups.isItemEquipable(typeid)) {
+                    room.addPendingAchievementCounter(uid, GamePackets.TYPEID_PASSIVE_ITEM_COUNTER, count);
+                    int specific = passiveItemCounter(typeid);
+                    if (specific != 0) {
+                        room.addPendingAchievementCounter(uid, specific, count);
+                    }
                 }
             }
         }

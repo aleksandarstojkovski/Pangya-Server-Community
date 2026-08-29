@@ -20,6 +20,9 @@ public interface InventoryRepository {
 
     GamePackets.UserEquip userEquip(long uid);
 
+    /** C# {@code CmdUpdateItemSlot}: persist equipped item slots after in-game consumption. */
+    void updateUserEquip(long uid, GamePackets.UserEquip equip);
+
     /**
      * C# {@code LoginTask.sendCompleteData} → {@code Player.checkAllItemEquiped}:
      * fix invalid equip references against SQL inventory and persist when changed.

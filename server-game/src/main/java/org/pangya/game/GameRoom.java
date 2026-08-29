@@ -50,11 +50,12 @@ final class GameRoom {
     final ConcurrentHashMap<Integer, ConcurrentHashMap<Integer, ActiveUse>> activeUses =
             new ConcurrentHashMap<>();
     /**
-     * C# {@code used_item.v_passive} count for {@code AUTO_COMMAND_TYPEID}
-     * (oid → uses this game). Present only when the warehouse had the item
-     * at {@code requestInitItemUsedGame}.
+     * C# {@code used_item.v_passive}: oid → typeid → use count this game.
      */
-    final ConcurrentHashMap<Integer, Integer> autoCommandUses = new ConcurrentHashMap<>();
+    final ConcurrentHashMap<Integer, ConcurrentHashMap<Integer, Integer>> passiveUses =
+            new ConcurrentHashMap<>();
+    /** C# {@code pgi.finish_item_used}: oid → finished item settlement. */
+    final ConcurrentHashMap<Integer, Boolean> finishItemUsed = new ConcurrentHashMap<>();
     /**
      * C# {@code PlayerGameInfo.flag} ({@link GamePackets#FLAG_GAME_PLAYING} …).
      */
@@ -233,7 +234,8 @@ final class GameRoom {
         charIntro.remove(session.oid());
         loadHole.remove(session.oid());
         activeUses.remove(session.oid());
-        autoCommandUses.remove(session.oid());
+        passiveUses.remove(session.oid());
+        finishItemUsed.remove(session.oid());
         gameFlags.remove(session.oid());
         pendingAchievementCounters.remove(session.player().uid);
         shops.remove(session.player().uid);
@@ -467,14 +469,10 @@ final class GameRoom {
         return finished > 0 && finished == players.size();
     }
 
-    /** C# {@code UsedItem.Active}: use count vs equipped slot count. */
+    /** C# {@code UsedItem.Active}: use count vs equipped slot indices. */
     static final class ActiveUse {
         int count;
-        int slots;
-
-        ActiveUse(int slots) {
-            this.slots = slots;
-        }
+        final java.util.List<Integer> slotIndices = new java.util.ArrayList<>();
     }
 
     /**
@@ -483,15 +481,17 @@ final class GameRoom {
     void initActiveItems(int oid, int[] itemSlot) {
         ConcurrentHashMap<Integer, ActiveUse> uses = new ConcurrentHashMap<>();
         if (itemSlot != null) {
-            for (int typeid : itemSlot) {
+            for (int i = 0; i < itemSlot.length; i++) {
+                int slotIndex = i;
+                int typeid = itemSlot[i];
                 if (typeid == 0) {
                     continue;
                 }
                 uses.compute(typeid, (k, current) -> {
                     if (current == null) {
-                        return new ActiveUse(1);
+                        current = new ActiveUse();
                     }
-                    current.slots++;
+                    current.slotIndices.add(slotIndex);
                     return current;
                 });
             }
@@ -508,23 +508,16 @@ final class GameRoom {
             return false;
         }
         ActiveUse use = uses.get(typeid);
-        if (use == null || use.count >= use.slots) {
+        if (use == null || use.count >= use.slotIndices.size()) {
             return false;
         }
         use.count++;
         return true;
     }
 
-    /**
-     * C# {@code requestInitItemUsedGame} inserts AUTO_COMMAND into
-     * {@code v_passive} when it is in the warehouse {@code passive_item} list.
-     */
-    void initAutoCommand(int oid, boolean present) {
-        if (present) {
-            autoCommandUses.put(oid, 0);
-        } else {
-            autoCommandUses.remove(oid);
-        }
+    /** C# {@code requestInitItemUsedGame} passive warehouse / ball / auxpart registration. */
+    void initPassiveItem(int oid, int typeid) {
+        passiveUses.computeIfAbsent(oid, k -> new ConcurrentHashMap<>()).putIfAbsent(typeid, 0);
     }
 
     /**
@@ -532,19 +525,68 @@ final class GameRoom {
      * warehouse C0 &lt; 1. {@link GamePackets#AUTO_COMMAND_ERR_USED} when missing
      * from {@code v_passive} or already spent.
      */
-    int tryUseAutoCommand(int oid, int warehouseQntd) {
+    int tryUsePassive(int oid, int typeid, int warehouseQntd) {
         if (warehouseQntd < 1) {
             return GamePackets.STDA_ERROR_TYPE_GAME;
         }
-        Integer used = autoCommandUses.get(oid);
-        if (used == null) {
+        ConcurrentHashMap<Integer, Integer> uses = passiveUses.get(oid);
+        if (uses == null || !uses.containsKey(typeid)) {
             return GamePackets.AUTO_COMMAND_ERR_USED;
         }
+        int used = uses.get(typeid);
         if (used >= warehouseQntd) {
             return GamePackets.AUTO_COMMAND_ERR_USED;
         }
-        autoCommandUses.put(oid, used + 1);
+        uses.put(typeid, used + 1);
         return 0;
+    }
+
+    /** C# {@code GameBase.requestUpdateItemUsedGame} per-hole passive / ball / auxpart counts. */
+    void updatePassiveOnHoleFinish(int oid, int ballTypeid, int[] auxparts) {
+        ConcurrentHashMap<Integer, Integer> uses = passiveUses.get(oid);
+        if (uses == null) {
+            return;
+        }
+        for (var entry : uses.entrySet()) {
+            int typeid = entry.getKey();
+            if (typeid == PassiveItems.TIME_BOOSTER || typeid == GamePackets.TYPEID_AUTO_COMMAND) {
+                continue;
+            }
+            if (PassiveItems.isPassiveItem(typeid) && PassiveItems.isPerGameExp(typeid)) {
+                entry.setValue(entry.getValue() + 1);
+            }
+        }
+        if (PassiveItems.isTrackedBall(ballTypeid) && uses.containsKey(ballTypeid)) {
+            uses.merge(ballTypeid, 1, Integer::sum);
+        }
+        if (auxparts != null) {
+            for (int aux : auxparts) {
+                if (PassiveItems.isAuxPart(aux) && uses.containsKey(aux)) {
+                    uses.merge(aux, 1, Integer::sum);
+                }
+            }
+        }
+    }
+
+    /** C# {@code requestFinishItemUsedGame}: final +1 for {@code passive_item_exp_1perGame}. */
+    void finishExpPerGamePassive(int oid) {
+        ConcurrentHashMap<Integer, Integer> uses = passiveUses.get(oid);
+        if (uses == null) {
+            return;
+        }
+        for (int typeid : uses.keySet()) {
+            if (PassiveItems.isPerGameExp(typeid)) {
+                uses.merge(typeid, 1, Integer::sum);
+            }
+        }
+    }
+
+    boolean hasFinishItemUsed(int oid) {
+        return Boolean.TRUE.equals(finishItemUsed.get(oid));
+    }
+
+    void markFinishItemUsed(int oid) {
+        finishItemUsed.put(oid, true);
     }
 
     /**
