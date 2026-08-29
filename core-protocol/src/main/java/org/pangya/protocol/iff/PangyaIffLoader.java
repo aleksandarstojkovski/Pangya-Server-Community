@@ -388,6 +388,10 @@ public final class PangyaIffLoader {
         return grandPrix.find(typeid);
     }
 
+    public static IffGrandPrixDataIndex grandPrixDataIndex() {
+        return snapshot.grandPrixData();
+    }
+
     /** C# {@code sIff.findGrandPrixSpecialHole}. */
     public static List<IffGrandPrixSpecialHoleRecord> grandPrixSpecialHoles(int rankTypeid) {
         IffGrandPrixSpecialHoleIndex special = snapshot.grandPrixSpecialHoles();

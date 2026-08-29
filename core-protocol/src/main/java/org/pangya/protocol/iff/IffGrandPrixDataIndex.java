@@ -26,4 +26,8 @@ public final class IffGrandPrixDataIndex {
     public Optional<IffGrandPrixDataRecord> find(int typeid) {
         return Optional.ofNullable(byTypeid.get(typeid));
     }
+
+    public java.util.Collection<IffGrandPrixDataRecord> all() {
+        return byTypeid.values();
+    }
 }

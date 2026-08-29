@@ -85,6 +85,8 @@ public final class GamePackets {
     public static final int SERVER_REPLAY = 0xA4;
     public static final int SERVER_TEAM_CHAT = 0xB0;
     public static final int SERVER_GAME_INIT = 0x76;
+    /** C# GP {@code GrandPrix.sendInitialData} bot dump after {@code 0x76}. */
+    public static final int SERVER_GP_BOT = 0x256;
     /** C# {@code SERVER_RESPONSE_GIFT_ITEM} / {@code 0x6A}: u32 code + u64 pang + u64 cookie. */
     public static final int SERVER_RESPONSE_GIFT_ITEM = 0x6A;
     public static final int SERVER_EQUIP_ACK = 0x6B;
@@ -3632,6 +3634,52 @@ public final class GamePackets {
     /** C# {@code 0x16A} mascot-effect seed after Versus {@code 0x52}. */
     public static byte[] mascotSeed(int seed) {
         return new PacketWriter().opcode(SERVER_MASCOT_SEED).u32(seed).toBytes();
+    }
+
+    /** C# GP bot hole row ({@code Bot.Hole#ToArray}, 36 bytes). */
+    public record GrandPrixBotHole(int course, int hole, int score, long pang, long bonusPang) {
+        public byte[] toArray() {
+            return new PacketWriter()
+                    .u32(course)
+                    .u32(hole)
+                    .i32(score)
+                    .u32(0)
+                    .u64(pang)
+                    .u64(bonusPang)
+                    .u64(0)
+                    .toBytes();
+        }
+    }
+
+    /** C# GP {@code Bot} wire subset for {@link #gpBotInit}. */
+    public record GrandPrixBot(
+            long id,
+            byte qntdHole,
+            int record,
+            int maxRecord,
+            long pangTotal,
+            long bonusPangTotal,
+            List<GrandPrixBotHole> holes) {}
+
+    /**
+     * C# {@code GrandPrix.sendInitialData} {@code 0x256}: u32 0, u16 count, then per bot
+     * u32 id + u8 hole count + hole rows.
+     */
+    public static byte[] gpBotInit(List<GrandPrixBot> bots) {
+        PacketWriter w = new PacketWriter().opcode(SERVER_GP_BOT).u32(0);
+        w.u16(bots == null ? 0 : bots.size());
+        if (bots != null) {
+            for (GrandPrixBot bot : bots) {
+                w.u32((int) bot.id());
+                w.u8(bot.holes() == null ? 0 : bot.holes().size());
+                if (bot.holes() != null) {
+                    for (GrandPrixBotHole hole : bot.holes()) {
+                        w.bytes(hole.toArray());
+                    }
+                }
+            }
+        }
+        return w.toBytes();
     }
 
     /**

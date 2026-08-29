@@ -93,6 +93,49 @@ final class GameCourse {
         return null;
     }
 
+    /** C# {@code CourseManager.findHoleBySeq}: hole at 1-based sequence index. */
+    GamePackets.HoleInfo holeBySeq(int seq) {
+        if (seq < 1 || seq > holes.size()) {
+            return null;
+        }
+        return holes.get(seq - 1);
+    }
+
+    /** C# {@code CourseManager.getMediaAllParHolesBySeq}. */
+    float mediaAllParHolesBySeq(int seq) {
+        if (seq <= 0 || holes.isEmpty()) {
+            return 1.0f;
+        }
+        int limit = Math.min(seq, holes.size());
+        int totalPar = 0;
+        for (int i = 0; i < limit; i++) {
+            HolePar par = holePar(holes.get(i));
+            totalPar += par.par;
+        }
+        return limit == 0 ? 1.0f : totalPar / (float) limit;
+    }
+
+    private HolePar holePar(GamePackets.HoleInfo holeInfo) {
+        int courseId = holeInfo.course() & 0x7f;
+        int holeNum = holeInfo.numero();
+        var courses = PangyaIffLoader.courses().orElse(java.util.List.of());
+        for (var row : courses) {
+            if (row.courseId() != courseId) {
+                continue;
+            }
+            if (holeNum < 1 || holeNum > 18) {
+                return new HolePar(4, -2, 5);
+            }
+            return new HolePar(
+                    row.parByHole()[holeNum - 1],
+                    -2,
+                    row.maxScoreByHole()[holeNum - 1]);
+        }
+        return new HolePar(4, -2, 5);
+    }
+
+    private record HolePar(int par, int rangeMin, int rangeMax) {}
+
     /** C# {@code CourseManager.findHoleSeq}: sequence id (1–18) for a course hole {@code numero}. */
     int findHoleSeq(int numero) {
         return findHoleSeq(holes, numero);

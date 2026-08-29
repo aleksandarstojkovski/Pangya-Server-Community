@@ -914,6 +914,12 @@ public final class GameHandler {
         if (GamePackets.usesTourneyInitialData(room.tipo)) {
             // C# TourneyBase.sendInitialData: 0x76 then per-player 0x52.
             room.broadcast(GamePackets.gameInitTourney(room.info.tipoShow));
+            if (room.tipo == GamePackets.TIPO_GRAND_PRIX && room.grandPrixTypeid != 0) {
+                List<GamePackets.GrandPrixBot> bots = GrandPrixBotSimulator.simulate(room, room.course);
+                if (!bots.isEmpty()) {
+                    room.broadcast(GamePackets.gpBotInit(bots));
+                }
+            }
             for (var member : room.snapshot()) {
                 member.send(GamePackets.course(
                         room.info, room.course.holes, room.course.seed, room.course.cubesByHole));
@@ -1482,6 +1488,10 @@ public final class GameHandler {
             return;
         }
         calculeGamePang(session, room);
+        if (session.player().assistFlag && session.player().level > 10) {
+            shot.pang = (long) (shot.pang * 0.7f);
+            shot.bonusPang = (long) (shot.bonusPang * 0.7f);
+        }
         if (room.grandPrixTypeid != 0
                 && org.pangya.protocol.iff.GrandPrixEnterWindow.isGrandPrixNormal(room.grandPrixTypeid)
                 && org.pangya.protocol.iff.GrandPrixEnterWindow.grandPrixAba(room.grandPrixTypeid)

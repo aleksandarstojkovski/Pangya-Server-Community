@@ -23,4 +23,7 @@ public record IffGrandPrixDataRecord(
         int lockYn,
         IffRewardSlots reward,
         IffSystemTime open,
-        IffSystemTime start) {}
+        IffSystemTime start,
+        int scoreBotMin,
+        int scoreBotMed,
+        int scoreBotMax) {}

@@ -160,6 +160,16 @@ class GamePacketsTest {
         assertEquals(GamePackets.EQUIP_OK, mascotAck.u8());
         assertEquals(GamePackets.ITEM_MASCOT, mascotAck.u8());
         assertEquals(GamePackets.MASCOT_INFO_BYTES, mascotAck.remaining());
+        var botHole = new GamePackets.GrandPrixBotHole(10, 1, -1, 50L, 5L);
+        assertEquals(36, botHole.toArray().length);
+        var bot = new GamePackets.GrandPrixBot(0x180101L, (byte) 1, -1, 0, 50L, 5L, List.of(botHole));
+        PacketReader gpBots = new PacketReader(GamePackets.gpBotInit(List.of(bot)));
+        assertEquals(GamePackets.SERVER_GP_BOT, gpBots.opcode());
+        assertEquals(0, gpBots.u32());
+        assertEquals(1, gpBots.u16());
+        assertEquals(0x180101, gpBots.u32());
+        assertEquals(1, gpBots.u8());
+        assertEquals(36, gpBots.remaining());
         GamePackets.PlayerRoomInfo pri = new GamePackets.PlayerRoomInfo();
         pri.oid = 1;
         pri.nickname = "TestNick";

@@ -28,6 +28,7 @@ public final class IffGrandPrixDataFile {
     static final int MIN_LEVEL_OFFSET = 152;
     static final int MAX_LEVEL_OFFSET = 153;
     static final int CONDITION_OFFSET = 156;
+    static final int BOT_OFFSET = 164;
     static final int OPEN_OFFSET = 240;
     static final int START_OFFSET = 256;
     static final int CLEAR_GP_TYPEID_OFFSET = 292;
@@ -89,10 +90,13 @@ public final class IffGrandPrixDataFile {
             IffSystemTime open = IffSystemTime.read(data, base + OPEN_OFFSET);
             IffSystemTime start = IffSystemTime.read(data, base + START_OFFSET);
             IffRewardSlots reward = IffRewardSlots.read(data, base + REWARD_OFFSET);
+            int scoreBotMin = ByteBuffer.wrap(data, base + BOT_OFFSET, 4).order(ByteOrder.LITTLE_ENDIAN).getInt();
+            int scoreBotMed = ByteBuffer.wrap(data, base + BOT_OFFSET + 4, 4).order(ByteOrder.LITTLE_ENDIAN).getInt();
+            int scoreBotMax = ByteBuffer.wrap(data, base + BOT_OFFSET + 8, 4).order(ByteOrder.LITTLE_ENDIAN).getInt();
             out.put(typeid, new IffGrandPrixDataRecord(
                     typeid, typeIdLink, typeGp, timeHole, name, rule, course, modo, holes, naturalMode, shotMode,
                     minLevel, maxLevel, ticketTypeid, ticketQntd, conditionMin, conditionMax, clearGpTypeid, lockYn,
-                    reward, open, start));
+                    reward, open, start, scoreBotMin, scoreBotMed, scoreBotMax));
         }
         return new IffGrandPrixDataIndex(Map.copyOf(out));
     }
