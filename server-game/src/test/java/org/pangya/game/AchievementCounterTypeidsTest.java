@@ -38,4 +38,49 @@ class AchievementCounterTypeidsTest {
         assertEquals(4, AchievementCounterTypeids.scoreNum(4, 4));
         assertEquals(-1, AchievementCounterTypeids.scoreNum(8, 4));
     }
+
+    @Test
+    void syncShotCountersQueueLongPuttAndPowerShot() {
+        PacketReader created = new PacketReader(GamePackets.clientCreatePractice("t", "s"));
+        created.opcode();
+        GameRoom room = new GameRoom(GamePackets.readCreateRoom(created), 1, 10001, 100, 100, 0);
+        int display = GamePackets.DISPLAY_ACERTO_HOLE | GamePackets.DISPLAY_LONG_PUTT;
+        int shot = GamePackets.SHOT_CLUB_PUTT | GamePackets.SHOT_POWER_SHOT;
+        AchievementCounterTypeids.queueSyncShotCounters(room, 10001, display, shot, 30.0f, (byte) 0);
+        var pending = room.takePendingAchievementCounters(10001);
+        assertEquals(1, pending.getOrDefault(GamePackets.TYPEID_LONG_PUTT_17_COUNTER, 0));
+        assertEquals(1, pending.getOrDefault(GamePackets.TYPEID_LONG_PUTT_20_COUNTER, 0));
+        assertEquals(1, pending.getOrDefault(GamePackets.TYPEID_LONG_PUTT_25_COUNTER, 0));
+        assertEquals(1, pending.getOrDefault(GamePackets.TYPEID_LONG_PUTT_30_COUNTER, 0));
+        assertEquals(1, pending.getOrDefault(GamePackets.TYPEID_POWER_SHOT_COUNTER, 0));
+    }
+
+    @Test
+    void syncShotCountersErrandoPangyaOnHoleOut() {
+        PacketReader created = new PacketReader(GamePackets.clientCreatePractice("t", "s"));
+        created.opcode();
+        GameRoom room = new GameRoom(GamePackets.readCreateRoom(created), 1, 10001, 100, 100, 0);
+        AchievementCounterTypeids.queueSyncShotCounters(
+                room,
+                10001,
+                GamePackets.DISPLAY_ACERTO_HOLE,
+                0,
+                0f,
+                (byte) GamePackets.ACERTO_PANGYA_MISS);
+        var pending = room.takePendingAchievementCounters(10001);
+        assertEquals(1, pending.getOrDefault(GamePackets.TYPEID_ERRANDO_PANGYA_COUNTER, 0));
+    }
+
+    @Test
+    void initCountersIncludeShortGameAndMasterArtefact() {
+        PacketReader created = new PacketReader(GamePackets.clientCreateRoom(GamePackets.TIPO_STROKE, "VS", ""));
+        created.opcode();
+        GameRoom room = new GameRoom(GamePackets.readCreateRoom(created), 1, 10001, 100, 100, 0);
+        room.info.natural = 0x2;
+        room.info.artefato = 1;
+        AchievementCounterTypeids.queueInitGameCounters(room, 10001, 0, 0, 0);
+        var pending = room.takePendingAchievementCounters(10001);
+        assertEquals(1, pending.getOrDefault(GamePackets.TYPEID_SHORT_GAME_COUNTER, 0));
+        assertEquals(1, pending.getOrDefault(GamePackets.TYPEID_MASTER_ARTEFACT_COUNTER, 0));
+    }
 }

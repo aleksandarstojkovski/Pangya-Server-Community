@@ -416,6 +416,7 @@ final class GameRoom {
     static final class PlayerShot {
         int hole;
         float x;
+        float y;
         float z;
         int shotState;
         int tempo;
@@ -437,6 +438,12 @@ final class GameRoom {
         long pang;
         /** C# {@code pgi.data.bonus_pang} running total (+ server clear bonus). */
         long bonusPang;
+        /** C# {@code pgi.location} before last sync (for long-putt distance). */
+        float lastX;
+        float lastY;
+        float lastZ;
+        /** C# {@code pgi.shot_data.acerto_pangya_flag} from {@code CLIENT_SHOT}. */
+        byte acertoPangyaFlag;
         /** C# {@code pgi.data.tacada_num} strokes on the current hole. */
         int tacadaNum;
         /** C# {@code pgi.finish_game}; set by {@code requestFinishGame}. */

@@ -1171,6 +1171,38 @@ public final class GamePackets {
     public static final int DISPLAY_ACERTO_HOLE = 1 << 8;
     /** C# {@code state_shot.display.clear_bonus} (bit 13). */
     public static final int DISPLAY_CLEAR_BONUS = 1 << 13;
+    /** C# {@code state_shot.display.special_shot} (bit 3). */
+    public static final int DISPLAY_SPECIAL_SHOT = 1 << 3;
+    /** C# {@code state_shot.display.beam_impact} (bit 4). */
+    public static final int DISPLAY_BEAM_IMPACT = 1 << 4;
+    /** C# {@code state_shot.display.long_putt} (bit 7). */
+    public static final int DISPLAY_LONG_PUTT = 1 << 7;
+    /** C# {@code state_shot.display.chip_in_without_special_shot} (bit 16). */
+    public static final int DISPLAY_CHIP_IN_NO_SPECIAL = 1 << 16;
+    /** C# {@code state_shot.shot.club_putt} (bit 23). */
+    public static final int SHOT_CLUB_PUTT = 1 << 23;
+    /** C# {@code state_shot.shot.power_shot} (bit 12). */
+    public static final int SHOT_POWER_SHOT = 1 << 12;
+    /** C# {@code state_shot.shot.double_power_shot} (bit 13). */
+    public static final int SHOT_DOUBLE_POWER_SHOT = 1 << 13;
+    /** C# {@code state_shot.shot.spin_front} (bit 4). */
+    public static final int SHOT_SPIN_FRONT = 1 << 4;
+    /** C# {@code state_shot.shot.spin_back} (bit 5). */
+    public static final int SHOT_SPIN_BACK = 1 << 5;
+    /** C# {@code state_shot.shot.curve_left} (bit 6). */
+    public static final int SHOT_CURVE_LEFT = 1 << 6;
+    /** C# {@code state_shot.shot.curve_right} (bit 7). */
+    public static final int SHOT_CURVE_RIGHT = 1 << 7;
+    /** C# {@code state_shot.shot.tomahawk} (bit 1). */
+    public static final int SHOT_TOMAHAWK = 1 << 1;
+    /** C# {@code state_shot.shot.spike} (bit 2). */
+    public static final int SHOT_SPIKE = 1 << 2;
+    /** C# {@code state_shot.shot.cobra} (bit 3). */
+    public static final int SHOT_COBRA = 1 << 3;
+    /** C# {@code MEDIDA_PARA_YARDS} internal unit to yards. */
+    public static final float MEDIDA_PARA_YARDS = 0.3125f;
+    /** C# {@code ShotData.acerto_pangya_flag} bit for missed pangya ring. */
+    public static final int ACERTO_PANGYA_MISS = 2;
     /** C# {@code pacote06B} success err_code. */
     public static final int EQUIP_OK = 4;
     /** C# {@code ChangePlayerItemRoom.TYPE_CHANGE} / Channel {@code 0x0B} types. */
@@ -1687,6 +1719,10 @@ public final class GamePackets {
     public static final int TYPEID_VERSUS_GAME_COUNTER = 0x6C40001D;
     /** C# {@code initAchievement} room master counter. */
     public static final int TYPEID_ROOM_MASTER_COUNTER = 0x6C400098;
+    /** C# {@code initAchievement} master with artefact counter. */
+    public static final int TYPEID_MASTER_ARTEFACT_COUNTER = 0x6C400099;
+    /** C# {@code initAchievement} short game counter. */
+    public static final int TYPEID_SHORT_GAME_COUNTER = 0x6C4000BB;
     /** C# {@code records_player_achievement} OB counter. */
     public static final int TYPEID_OB_COUNTER = 0x6C40004C;
     /** C# {@code records_player_achievement} bunker counter. */
@@ -1733,6 +1769,36 @@ public final class GamePackets {
     public static final int TYPEID_CONSEC_ALBA_COUNTER = 0x6C400062;
     /** C# {@code score_consecutivos_count} consecutive HIO streak. */
     public static final int TYPEID_CONSEC_HIO_COUNTER = 0x6C400063;
+    /** C# {@code update_sync_shot_achievement} errando pangya hole-out. */
+    public static final int TYPEID_ERRANDO_PANGYA_COUNTER = 0x6C400059;
+    /** C# {@code update_sync_shot_achievement} chip-in without power shot. */
+    public static final int TYPEID_CHIP_IN_NO_POWER_COUNTER = 0x6C40005B;
+    /** C# {@code update_sync_shot_achievement} power shot stroke. */
+    public static final int TYPEID_POWER_SHOT_COUNTER = 0x6C400051;
+    /** C# {@code update_sync_shot_achievement} double power shot stroke. */
+    public static final int TYPEID_DOUBLE_POWER_SHOT_COUNTER = 0x6C400052;
+    /** C# {@code update_sync_shot_achievement} long putt 17y+. */
+    public static final int TYPEID_LONG_PUTT_17_COUNTER = 0x6C400032;
+    /** C# {@code update_sync_shot_achievement} long putt 20y+. */
+    public static final int TYPEID_LONG_PUTT_20_COUNTER = 0x6C400033;
+    /** C# {@code update_sync_shot_achievement} long putt 25y+. */
+    public static final int TYPEID_LONG_PUTT_25_COUNTER = 0x6C400034;
+    /** C# {@code update_sync_shot_achievement} long putt 30y+. */
+    public static final int TYPEID_LONG_PUTT_30_COUNTER = 0x6C400035;
+    /** C# {@code update_sync_shot_achievement} spin front hole-out. */
+    public static final int TYPEID_SPIN_FRONT_COUNTER = 0x6C400064;
+    /** C# {@code update_sync_shot_achievement} spin back hole-out. */
+    public static final int TYPEID_SPIN_BACK_COUNTER = 0x6C400065;
+    /** C# {@code update_sync_shot_achievement} curve hole-out. */
+    public static final int TYPEID_CURVE_COUNTER = 0x6C400066;
+    /** C# {@code update_sync_shot_achievement} tomahawk hole-out. */
+    public static final int TYPEID_TOMAHAWK_COUNTER = 0x6C400067;
+    /** C# {@code update_sync_shot_achievement} spike hole-out. */
+    public static final int TYPEID_SPIKE_COUNTER = 0x6C400068;
+    /** C# {@code update_sync_shot_achievement} cobra hole-out. */
+    public static final int TYPEID_COBRA_COUNTER = 0x6C40006E;
+    /** C# {@code update_sync_shot_achievement} beam impact hole-out. */
+    public static final int TYPEID_BEAM_IMPACT_COUNTER = 0x6C40006F;
     /** C# 18-hole game counter from {@code getQntdHoleCounterTypeId}. */
     public static final int TYPEID_18_HOLES_COUNTER = 0x6C40006C;
     /** C# Blue Lagoon course counter from {@code getCourseCounterTypeId}. */
@@ -6518,6 +6584,39 @@ public final class GamePackets {
 
     public static byte[] clientShot() {
         return new PacketWriter().opcode(CLIENT_SHOT).u16(0).toBytes();
+    }
+
+    /**
+     * C# {@code ShotDataEx.ToRead} with {@code acerto_pangya_flag} set (option 0 body).
+     * Remaining fields are zero-filled for tests.
+     */
+    public static byte[] clientShotAcertoPangya(byte acertoPangyaFlag) {
+        PacketWriter w = new PacketWriter().opcode(CLIENT_SHOT).u16(0);
+        w.zero(16);
+        w.u8(acertoPangyaFlag);
+        return w.toBytes();
+    }
+
+    /**
+     * Parse {@code acerto_pangya_flag} from {@code CLIENT_SHOT} / {@code ShotDataEx.ToRead}.
+     * Returns 0 when the packet is too short (Java test stub).
+     */
+    public static byte readAcertoPangyaFlag(PacketReader reader) {
+        if (reader.remaining() < 2) {
+            return 0;
+        }
+        int option = reader.u16();
+        if (option == 1) {
+            if (reader.remaining() < 9 + 17) {
+                return 0;
+            }
+            reader.readBytes(9);
+        }
+        if (reader.remaining() < 17) {
+            return 0;
+        }
+        reader.readBytes(16);
+        return (byte) reader.u8();
     }
 
     public static byte[] clientCamera(float mira) {

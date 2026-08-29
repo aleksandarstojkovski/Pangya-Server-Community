@@ -165,7 +165,7 @@ public final class GameHandler {
             case GamePackets.CLIENT_LEAVE_PRACTICE -> leavePractice(session);
             case GamePackets.CLIENT_LOAD_OK -> finishLoadHole(session);
             case GamePackets.CLIENT_HOLE_INFO -> initHole(session, reader);
-            case GamePackets.CLIENT_SHOT -> initShot(session);
+            case GamePackets.CLIENT_SHOT -> initShot(session, reader);
             case GamePackets.CLIENT_CAMERA -> changeMira(session, reader);
             case GamePackets.CLIENT_CLICK -> changeBarSpace(session, reader);
             case GamePackets.CLIENT_POWER_SHOT -> activePowerShot(session, reader);
@@ -945,9 +945,13 @@ public final class GameHandler {
         return new GamePackets.HoleInfo(numero, 0, 0, numero, 0, 0, 0);
     }
 
-    private void initShot(Session session) {
-        // C# TourneyBase.requestInitShot stores ShotDataEx and does not reply.
-        inGameRoom(session);
+    private void initShot(Session session, PacketReader reader) {
+        GameRoom room = inGameRoom(session);
+        if (room == null) {
+            return;
+        }
+        GameRoom.PlayerShot shot = room.shots.computeIfAbsent(session.oid(), id -> new GameRoom.PlayerShot());
+        shot.acertoPangyaFlag = GamePackets.readAcertoPangyaFlag(reader);
     }
 
     /**
@@ -1147,16 +1151,30 @@ public final class GameHandler {
         byte[] encrypted = reader.readBytes(GamePackets.SHOT_SYNC_BYTES);
         GamePackets.ShotSync sync = GamePackets.readShotSync(GamePackets.xorRoomKey(encrypted, room.info.key));
         GameRoom.PlayerShot shot = room.shots.computeIfAbsent(session.oid(), id -> new GameRoom.PlayerShot());
+        shot.lastX = shot.x;
+        shot.lastY = shot.y;
+        shot.lastZ = shot.z;
         shot.x = sync.x();
+        shot.y = sync.y();
         shot.z = sync.z();
+        int terrainState = sync.state();
         shot.shotState = sync.shotState();
         shot.tempo = sync.tempo() & 0xffff;
         shot.displayState = sync.displayState();
         shot.pang = sync.pang() & 0xFFFFFFFFL;
         shot.bonusPang = sync.bonusPang() & 0xFFFFFFFFL;
+        float puttDistanceYards = distanceYards(
+                shot.lastX, shot.lastY, shot.lastZ, shot.x, shot.y, shot.z);
+        AchievementCounterTypeids.queueSyncShotCounters(
+                room,
+                session.player().uid,
+                sync.displayState(),
+                sync.shotState(),
+                puttDistanceYards,
+                shot.acertoPangyaFlag);
         if (GamePackets.usesTourneyInitialData(room.tipo)) {
             shot.tacadaNum++;
-            if (shot.shotState == 3 || shot.shotState == 4) {
+            if (terrainState == 3 || terrainState == 4) {
                 shot.tacadaNum++;
             }
         }
@@ -1297,6 +1315,14 @@ public final class GameHandler {
             room.addPendingAchievementCounter(session.player().uid, holeCounter, 1);
         }
         shot.tacadaNum = 0;
+    }
+
+    private static float distanceYards(
+            float fromX, float fromY, float fromZ, float toX, float toY, float toZ) {
+        double dx = toX - fromX;
+        double dy = toY - fromY;
+        double dz = toZ - fromZ;
+        return (float) (Math.sqrt(dx * dx + dy * dy + dz * dz) * GamePackets.MEDIDA_PARA_YARDS);
     }
 
     private void queueScoreConsecutivosCounters(Session session, GameRoom room) {

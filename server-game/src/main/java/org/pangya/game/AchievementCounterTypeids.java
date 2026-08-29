@@ -15,6 +15,12 @@ final class AchievementCounterTypeids {
         }
         if (room.info.master == uid) {
             room.addPendingAchievementCounter(uid, GamePackets.TYPEID_ROOM_MASTER_COUNTER, 1);
+            if (room.info.artefato > 0) {
+                room.addPendingAchievementCounter(uid, GamePackets.TYPEID_MASTER_ARTEFACT_COUNTER, 1);
+            }
+        }
+        if ((room.info.natural & 0x2) != 0) {
+            room.addPendingAchievementCounter(uid, GamePackets.TYPEID_SHORT_GAME_COUNTER, 1);
         }
         int charCounter = characterCounter(characterTypeid);
         if (charCounter != 0) {
@@ -117,6 +123,69 @@ final class AchievementCounterTypeids {
                 count++;
             }
             lastScore = score;
+        }
+    }
+
+    /** C# {@code GameBase.update_sync_shot_achievement} from {@code ShotSyncData}. */
+    static void queueSyncShotCounters(
+            GameRoom room,
+            long uid,
+            int displayUlState,
+            int shotUlState,
+            float puttDistanceYards,
+            byte acertoPangyaFlag) {
+        if ((displayUlState & GamePackets.DISPLAY_ACERTO_HOLE) != 0) {
+            if ((displayUlState & GamePackets.DISPLAY_LONG_PUTT) != 0
+                    && (shotUlState & GamePackets.SHOT_CLUB_PUTT) != 0) {
+                if (puttDistanceYards >= 30.0f) {
+                    room.addPendingAchievementCounter(uid, GamePackets.TYPEID_LONG_PUTT_30_COUNTER, 1);
+                }
+                if (puttDistanceYards >= 25.0f) {
+                    room.addPendingAchievementCounter(uid, GamePackets.TYPEID_LONG_PUTT_25_COUNTER, 1);
+                }
+                if (puttDistanceYards >= 20.0f) {
+                    room.addPendingAchievementCounter(uid, GamePackets.TYPEID_LONG_PUTT_20_COUNTER, 1);
+                }
+                if (puttDistanceYards >= 17.0f) {
+                    room.addPendingAchievementCounter(uid, GamePackets.TYPEID_LONG_PUTT_17_COUNTER, 1);
+                }
+            }
+            if ((displayUlState & GamePackets.DISPLAY_BEAM_IMPACT) != 0) {
+                room.addPendingAchievementCounter(uid, GamePackets.TYPEID_BEAM_IMPACT_COUNTER, 1);
+            }
+            if ((shotUlState & GamePackets.SHOT_SPIN_FRONT) != 0) {
+                room.addPendingAchievementCounter(uid, GamePackets.TYPEID_SPIN_FRONT_COUNTER, 1);
+            }
+            if ((shotUlState & GamePackets.SHOT_SPIN_BACK) != 0) {
+                room.addPendingAchievementCounter(uid, GamePackets.TYPEID_SPIN_BACK_COUNTER, 1);
+            }
+            if ((shotUlState & GamePackets.SHOT_CURVE_LEFT) != 0
+                    || (shotUlState & GamePackets.SHOT_CURVE_RIGHT) != 0) {
+                room.addPendingAchievementCounter(uid, GamePackets.TYPEID_CURVE_COUNTER, 1);
+            }
+            if ((shotUlState & GamePackets.SHOT_TOMAHAWK) != 0) {
+                room.addPendingAchievementCounter(uid, GamePackets.TYPEID_TOMAHAWK_COUNTER, 1);
+            }
+            if ((shotUlState & GamePackets.SHOT_SPIKE) != 0) {
+                room.addPendingAchievementCounter(uid, GamePackets.TYPEID_SPIKE_COUNTER, 1);
+            }
+            if ((shotUlState & GamePackets.SHOT_COBRA) != 0) {
+                room.addPendingAchievementCounter(uid, GamePackets.TYPEID_COBRA_COUNTER, 1);
+            }
+            if ((displayUlState & GamePackets.DISPLAY_CHIP_IN_NO_SPECIAL) != 0
+                    && (displayUlState & GamePackets.DISPLAY_SPECIAL_SHOT) == 0) {
+                room.addPendingAchievementCounter(uid, GamePackets.TYPEID_CHIP_IN_NO_POWER_COUNTER, 1);
+            }
+            if ((acertoPangyaFlag & GamePackets.ACERTO_PANGYA_MISS) != 0
+                    && (shotUlState & GamePackets.SHOT_CLUB_PUTT) == 0) {
+                room.addPendingAchievementCounter(uid, GamePackets.TYPEID_ERRANDO_PANGYA_COUNTER, 1);
+            }
+        }
+        if ((shotUlState & GamePackets.SHOT_POWER_SHOT) != 0) {
+            room.addPendingAchievementCounter(uid, GamePackets.TYPEID_POWER_SHOT_COUNTER, 1);
+        }
+        if ((shotUlState & GamePackets.SHOT_DOUBLE_POWER_SHOT) != 0) {
+            room.addPendingAchievementCounter(uid, GamePackets.TYPEID_DOUBLE_POWER_SHOT_COUNTER, 1);
         }
     }
 
