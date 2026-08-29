@@ -1,6 +1,7 @@
 package org.pangya.game;
 
 import org.pangya.game.util.Lottery;
+import java.util.function.ToDoubleFunction;
 import org.pangya.network.session.Session;
 import org.pangya.protocol.game.GamePackets;
 import org.pangya.protocol.iff.IffCourseRecord;
@@ -22,7 +23,10 @@ public final class GrandPrixBotSimulator {
 
     private GrandPrixBotSimulator() {}
 
-    public static List<GamePackets.GrandPrixBot> simulate(GameRoom room, GameCourse course) {
+    public static List<GamePackets.GrandPrixBot> simulate(
+            GameRoom room,
+            GameCourse course,
+            ToDoubleFunction<Session> mediaScoreFn) {
         if (room == null || course == null || room.grandPrixTypeid == 0) {
             return List.of();
         }
@@ -39,12 +43,14 @@ public final class GrandPrixBotSimulator {
         if (qntdHoles <= 0) {
             qntdHoles = gp.holes() > 0 ? gp.holes() : 18;
         }
-        float roomAvgScore = averageRoomScore(room.snapshot());
+        float roomAvgScore = averageRoomScore(room.snapshot(), mediaScoreFn);
         BotScores botScores = botScoresByRoomAvg(gp, roomAvgScore, qntdHoles);
         Random rnd = new Random(room.info.numero * 31L + room.grandPrixTypeid);
         Lottery lottery = new Lottery();
         for (IffGrandPrixDataRecord row : PangyaIffLoader.grandPrixDataIndex().all()) {
-            lottery.push(1000, row.typeid());
+            if (row.gpClass() == gp.gpClass()) {
+                lottery.push(1000, row.typeid());
+            }
         }
         List<GamePackets.GrandPrixBot> bots = new ArrayList<>();
         long rest = lottery.countItems();
@@ -190,12 +196,17 @@ public final class GrandPrixBotSimulator {
         return new HolePar(par, DEFAULT_MIN_SCORE, rangeMax);
     }
 
-    private static float averageRoomScore(List<Session> players) {
+    private static float averageRoomScore(
+            List<Session> players,
+            ToDoubleFunction<Session> mediaScoreFn) {
         if (players.isEmpty()) {
             return 0f;
         }
-        // Room avg is applied when live UserInfo is wired; default keeps C# bot scaling stable.
-        return 0f;
+        float total = 0f;
+        for (Session session : players) {
+            total += (float) mediaScoreFn.applyAsDouble(session);
+        }
+        return total / players.size();
     }
 
     private static BotScores botScoresByRoomAvg(

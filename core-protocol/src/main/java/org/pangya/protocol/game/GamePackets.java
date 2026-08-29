@@ -3302,6 +3302,14 @@ public final class GamePackets {
             int mediaScore,
             int combo) {
 
+        /** C# {@code UserInfo.getMediaScore()}. */
+        public float avgMediaScore() {
+            if (hole - holeIn == 0) {
+                return 0f;
+            }
+            return (18.0f / (hole - holeIn)) * mediaScore + 72.0f;
+        }
+
         public static UserInfoEx read(PacketReader reader) {
             int tacada = reader.i32();
             int putt = reader.i32();

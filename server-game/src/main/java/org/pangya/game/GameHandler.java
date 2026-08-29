@@ -915,7 +915,10 @@ public final class GameHandler {
             // C# TourneyBase.sendInitialData: 0x76 then per-player 0x52.
             room.broadcast(GamePackets.gameInitTourney(room.info.tipoShow));
             if (room.tipo == GamePackets.TIPO_GRAND_PRIX && room.grandPrixTypeid != 0) {
-                List<GamePackets.GrandPrixBot> bots = GrandPrixBotSimulator.simulate(room, room.course);
+                List<GamePackets.GrandPrixBot> bots = GrandPrixBotSimulator.simulate(
+                        room,
+                        room.course,
+                        member -> inventory.mediaScore(member.player().uid));
                 if (!bots.isEmpty()) {
                     room.broadcast(GamePackets.gpBotInit(bots));
                 }

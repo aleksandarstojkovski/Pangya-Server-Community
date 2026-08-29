@@ -26,4 +26,5 @@ public record IffGrandPrixDataRecord(
         IffSystemTime start,
         int scoreBotMin,
         int scoreBotMed,
-        int scoreBotMax) {}
+        int scoreBotMax,
+        int gpClass) {}
