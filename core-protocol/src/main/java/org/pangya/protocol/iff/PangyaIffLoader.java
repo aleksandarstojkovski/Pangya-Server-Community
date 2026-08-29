@@ -35,6 +35,8 @@ public final class PangyaIffLoader {
             IffClubSetWorkShopLevelUpLimitIndex clubSetWorkShopLevelUpLimits,
             IffClubSetWorkShopLevelUpProbIndex clubSetWorkShopLevelUpProbs,
             IffClubSetWorkShopRankUpExpIndex clubSetWorkShopRankExps,
+            IffCutinInformationIndex cutins,
+            IffTimeLimitItemIndex timeLimitItems,
             Path source) {
         static Snapshot empty() {
             return new Snapshot(
@@ -51,6 +53,8 @@ public final class PangyaIffLoader {
                     IffClubSetWorkShopLevelUpLimitIndex.empty(),
                     IffClubSetWorkShopLevelUpProbIndex.empty(),
                     IffClubSetWorkShopRankUpExpIndex.empty(),
+                    IffCutinInformationIndex.empty(),
+                    IffTimeLimitItemIndex.empty(),
                     null);
         }
     }
@@ -83,12 +87,14 @@ public final class PangyaIffLoader {
                     IffClubSetWorkShopLevelUpProbFile.loadIndex(archive);
             IffClubSetWorkShopRankUpExpIndex clubSetWorkShopRankExps =
                     IffClubSetWorkShopRankUpExpFile.loadIndex(archive);
+            IffCutinInformationIndex cutins = IffCutinInformationFile.loadIndex(archive);
+            IffTimeLimitItemIndex timeLimitItems = IffTimeLimitItemFile.loadIndex(archive);
             snapshot = new Snapshot(
                     courses, parts, items, cards, characters, characterMastery, enchants, clubSets, caddies,
                     mascots, clubSetWorkShopLevelUpLimits, clubSetWorkShopLevelUpProbs, clubSetWorkShopRankExps,
-                    path);
+                    cutins, timeLimitItems, path);
             log.info(
-                    "loaded pangya iff {} ({} courses, {} parts, {} items, {} cards, {} chars, {} mastery, {} enchants, {} clubsets, {} caddies, {} mascots, {} ws limits, {} ws probs, {} ws rank exp)",
+                    "loaded pangya iff {} ({} courses, {} parts, {} items, {} cards, {} chars, {} mastery, {} enchants, {} clubsets, {} caddies, {} mascots, {} ws limits, {} ws probs, {} ws rank exp, {} cutins, {} time limit items)",
                     path,
                     courses.size(),
                     parts.size(),
@@ -102,7 +108,9 @@ public final class PangyaIffLoader {
                     mascots.size(),
                     clubSetWorkShopLevelUpLimits.rowCount(),
                     clubSetWorkShopLevelUpProbs.size(),
-                    clubSetWorkShopRankExps.size());
+                    clubSetWorkShopRankExps.size(),
+                    cutins.size(),
+                    timeLimitItems.size());
         } catch (Exception e) {
             log.warn("failed to load pangya iff {}: {}", path, e.toString());
             snapshot = Snapshot.empty();
@@ -223,6 +231,24 @@ public final class PangyaIffLoader {
             return Optional.empty();
         }
         return rankExps.ranks(tipo);
+    }
+
+    /** C# {@code sIff.findCutinInfomation}. */
+    public static Optional<IffCutinInformationRecord> cutin(int typeid) {
+        IffCutinInformationIndex cutins = snapshot.cutins();
+        if (cutins.isEmpty()) {
+            return Optional.empty();
+        }
+        return cutins.find(typeid);
+    }
+
+    /** C# {@code sIff.findTimeLimitItem}. */
+    public static Optional<IffTimeLimitItemRecord> timeLimitItem(int typeid) {
+        IffTimeLimitItemIndex items = snapshot.timeLimitItems();
+        if (items.isEmpty()) {
+            return Optional.empty();
+        }
+        return items.find(typeid);
     }
 
     public static Optional<Path> source() {

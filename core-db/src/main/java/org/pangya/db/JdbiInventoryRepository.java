@@ -2705,6 +2705,10 @@ public final class JdbiInventoryRepository implements InventoryRepository {
 
     @Override
     public Optional<TimeLimitItem> timeLimitItem(int typeid) {
+        if (org.pangya.protocol.iff.PangyaIffLoader.source().isPresent()) {
+            return org.pangya.protocol.iff.PangyaIffLoader.timeLimitItem(typeid)
+                    .map(row -> new TimeLimitItem(row.typeid(), row.tipo(), row.percent(), row.timeMinutes()));
+        }
         return jdbi.withHandle(h -> h.createQuery("""
                         SELECT typeid, tipo, percent, time
                           FROM pangya.iff_time_limit_item
@@ -2940,6 +2944,16 @@ public final class JdbiInventoryRepository implements InventoryRepository {
 
     @Override
     public Optional<CutinIff> cutinIff(int typeid) {
+        if (org.pangya.protocol.iff.PangyaIffLoader.source().isPresent()) {
+            return org.pangya.protocol.iff.PangyaIffLoader.cutin(typeid)
+                    .map(row -> new CutinIff(
+                            row.typeid(),
+                            row.sector(),
+                            row.condition(),
+                            row.imageTypes(),
+                            row.tempo(),
+                            row.sprites()));
+        }
         return jdbi.withHandle(h -> h.createQuery("""
                         SELECT typeid, sector, condition,
                                img0_tipo, img1_tipo, img2_tipo, img3_tipo, tempo,

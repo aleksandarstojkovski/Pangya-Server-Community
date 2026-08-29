@@ -289,6 +289,7 @@ class InventoryRepositoryTest {
                 repo.deleteAttendanceReward(10001);
             }
             assertTrue(repo.attendanceReward(10001).isEmpty());
+            PangyaIffLoader.reload(null);
             repo.deleteTimeLimitItem(GamePackets.TYPEID_SHOP_PANG_ITEM);
             repo.upsertTimeLimitItem(
                     GamePackets.TYPEID_SHOP_PANG_ITEM,
@@ -421,6 +422,7 @@ class InventoryRepositoryTest {
                         repo.clubSetOriginals(GamePackets.TYPEID_WINGTROSS_EVO).get(0).typeid());
                 assertEquals(1, GamePackets.workshopSCalcRank(
                         repo.clubSetOriginals(GamePackets.TYPEID_WINGTROSS_EVO).get(0).slots()));
+                PangyaIffLoader.reload(null);
                 repo.deleteCutinIff(GamePackets.TYPEID_CUTIN_SKIN);
                 repo.upsertCutinIff(
                         GamePackets.TYPEID_CUTIN_SKIN,
