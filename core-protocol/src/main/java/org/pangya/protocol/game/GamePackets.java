@@ -2228,6 +2228,8 @@ public final class GamePackets {
     public static final int TYPEID_AIR_KNIGHT = 0x10000000;
     /** C# {@code CHARACTER << 26} Nuri. */
     public static final int TYPEID_NURI = 0x4000000;
+    /** JP CharacterMastery.iff Nuri seq-1 condition item ({@code 0x1A0002A6}). */
+    public static final int TYPEID_CHARACTER_MASTERY_COND = 0x1A0002A6;
     /** IFF BALL << 26. */
     public static final int TYPEID_DEFAULT_BALL = 0x14000000;
     /**

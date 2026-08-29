@@ -1858,6 +1858,11 @@ public final class JdbiInventoryRepository implements InventoryRepository {
             if (current == null) {
                 return CharMasteryResult.fail(GamePackets.CHAR_MASTERY_ERR_CHAR);
             }
+            int seq = current + 1;
+            var iffRows = org.pangya.protocol.iff.PangyaIffLoader.characterMastery(typeid);
+            if (iffRows.isPresent()) {
+                return expandCharacterMasteryFromIff(h, uid, typeid, id, level, current, seq, iffRows.get());
+            }
             int count = h.createQuery("""
                             SELECT COUNT(*) FROM pangya.iff_character_mastery WHERE typeid = :typeid
                             """)
@@ -1870,7 +1875,6 @@ public final class JdbiInventoryRepository implements InventoryRepository {
             if (current + 1 > count) {
                 return CharMasteryResult.fail(GamePackets.CHAR_MASTERY_ERR_MAX);
             }
-            int seq = current + 1;
             int[] row = h.createQuery("""
                             SELECT seq, level, cond0_typeid, cond0_qntd, cond1_typeid, cond1_qntd,
                                    cond2_typeid, cond2_qntd, cond3_typeid, cond3_qntd,
@@ -1897,64 +1901,104 @@ public final class JdbiInventoryRepository implements InventoryRepository {
             if (row[1] > level) {
                 return CharMasteryResult.fail(GamePackets.CHAR_MASTERY_ERR_LEVEL);
             }
-            List<int[]> consume = new ArrayList<>();
-            for (int i = 0; i < 5; i++) {
-                int condTypeid = row[2 + i * 2];
-                int condQntd = row[3 + i * 2];
-                if (condTypeid <= 0 || condQntd <= 0) {
-                    continue;
-                }
-                if (GamePackets.itemGroupIdentify(condTypeid) != GamePackets.IFF_GROUP_ITEM) {
-                    return CharMasteryResult.fail(GamePackets.CHAR_MASTERY_ERR_COND);
-                }
-                int[] owned = h.createQuery("""
-                                SELECT item_id, "C0" FROM pangya.pangya_item_warehouse
-                                 WHERE "UID" = :uid AND typeid = :typeid AND valid = 1
-                                 ORDER BY item_id
-                                 LIMIT 1
-                                """)
-                        .bind("uid", uid)
-                        .bind("typeid", condTypeid)
-                        .map((rs, ctx) -> new int[] {rs.getInt("item_id"), rs.getInt("C0") & 0xffff})
-                        .findOne()
-                        .orElse(null);
-                if (owned == null) {
-                    return CharMasteryResult.fail(GamePackets.CHAR_MASTERY_ERR_ITEM);
-                }
-                if (owned[1] < condQntd) {
-                    return CharMasteryResult.fail(GamePackets.CHAR_MASTERY_ERR_QNTD);
-                }
-                consume.add(new int[] {owned[0], condTypeid, owned[1], condQntd});
+            return finishCharacterMasteryExpand(h, uid, typeid, id, current, row);
+        });
+    }
+
+    private CharMasteryResult expandCharacterMasteryFromIff(
+            Handle h,
+            long uid,
+            int typeid,
+            int id,
+            int level,
+            int current,
+            int seq,
+            List<org.pangya.protocol.iff.IffCharacterMasteryRecord> rows) {
+        if (rows.isEmpty()) {
+            return CharMasteryResult.fail(GamePackets.CHAR_MASTERY_ERR_IFF);
+        }
+        if (current + 1 > rows.size()) {
+            return CharMasteryResult.fail(GamePackets.CHAR_MASTERY_ERR_MAX);
+        }
+        org.pangya.protocol.iff.IffCharacterMasteryRecord row = rows.stream()
+                .filter(r -> r.seq() == seq)
+                .findFirst()
+                .orElse(null);
+        if (row == null) {
+            return CharMasteryResult.fail(GamePackets.CHAR_MASTERY_ERR_SEQ);
+        }
+        if (row.level() > level) {
+            return CharMasteryResult.fail(GamePackets.CHAR_MASTERY_ERR_LEVEL);
+        }
+        int[] flat = new int[12];
+        flat[0] = row.seq();
+        flat[1] = row.level();
+        for (int i = 0; i < org.pangya.protocol.iff.IffCharacterMasteryRecord.CONDITION_SLOTS; i++) {
+            flat[2 + i * 2] = row.conditionTypeid()[i];
+            flat[3 + i * 2] = row.conditionQntd()[i];
+        }
+        return finishCharacterMasteryExpand(h, uid, typeid, id, current, flat);
+    }
+
+    private CharMasteryResult finishCharacterMasteryExpand(
+            Handle h, long uid, int typeid, int id, int current, int[] row) {
+        List<int[]> consume = new ArrayList<>();
+        for (int i = 0; i < org.pangya.protocol.iff.IffCharacterMasteryRecord.CONDITION_SLOTS; i++) {
+            int condTypeid = row[2 + i * 2];
+            int condQntd = row[3 + i * 2];
+            if (condTypeid <= 0 || condQntd <= 0) {
+                continue;
             }
-            List<GamePackets.PapelAward> awards = new ArrayList<>();
-            for (int[] item : consume) {
-                int ant = item[2];
-                int need = item[3];
-                int dep = ant - need;
-                h.createUpdate("""
-                                UPDATE pangya.pangya_item_warehouse
-                                   SET "C0" = :c0
-                                 WHERE item_id = :id
-                                """)
-                        .bind("c0", dep)
-                        .bind("id", item[0])
-                        .execute();
-                awards.add(new GamePackets.PapelAward(
-                        GamePackets.PAPEL_AWARD_TYPE, item[1], item[0], 0, ant, dep, -need));
+            if (GamePackets.itemGroupIdentify(condTypeid) != GamePackets.IFF_GROUP_ITEM) {
+                return CharMasteryResult.fail(GamePackets.CHAR_MASTERY_ERR_COND);
             }
-            int mastery = current + 1;
+            int[] owned = h.createQuery("""
+                            SELECT item_id, "C0" FROM pangya.pangya_item_warehouse
+                             WHERE "UID" = :uid AND typeid = :typeid AND valid = 1
+                             ORDER BY item_id
+                             LIMIT 1
+                            """)
+                    .bind("uid", uid)
+                    .bind("typeid", condTypeid)
+                    .map((rs, ctx) -> new int[] {rs.getInt("item_id"), rs.getInt("C0") & 0xffff})
+                    .findOne()
+                    .orElse(null);
+            if (owned == null) {
+                return CharMasteryResult.fail(GamePackets.CHAR_MASTERY_ERR_ITEM);
+            }
+            if (owned[1] < condQntd) {
+                return CharMasteryResult.fail(GamePackets.CHAR_MASTERY_ERR_QNTD);
+            }
+            consume.add(new int[] {owned[0], condTypeid, owned[1], condQntd});
+        }
+        List<GamePackets.PapelAward> awards = new ArrayList<>();
+        for (int[] item : consume) {
+            int ant = item[2];
+            int need = item[3];
+            int dep = ant - need;
             h.createUpdate("""
-                            UPDATE pangya.pangya_character_information
-                               SET "Mastery" = :mastery
+                            UPDATE pangya.pangya_item_warehouse
+                               SET "C0" = :c0
                              WHERE item_id = :id
                             """)
-                    .bind("mastery", mastery)
-                    .bind("id", id)
+                    .bind("c0", dep)
+                    .bind("id", item[0])
                     .execute();
             awards.add(new GamePackets.PapelAward(
-                    GamePackets.CHAR_MASTERY_AWARD_TYPE, typeid, id, 0, 0, 0, 0, mastery));
-            return new CharMasteryResult(0, awards, mastery);
-        });
+                    GamePackets.PAPEL_AWARD_TYPE, item[1], item[0], 0, ant, dep, -need));
+        }
+        int mastery = current + 1;
+        h.createUpdate("""
+                        UPDATE pangya.pangya_character_information
+                           SET "Mastery" = :mastery
+                         WHERE item_id = :id
+                        """)
+                .bind("mastery", mastery)
+                .bind("id", id)
+                .execute();
+        awards.add(new GamePackets.PapelAward(
+                GamePackets.CHAR_MASTERY_AWARD_TYPE, typeid, id, 0, 0, 0, 0, mastery));
+        return new CharMasteryResult(0, awards, mastery);
     }
 
     @Override
@@ -1988,14 +2032,22 @@ public final class JdbiInventoryRepository implements InventoryRepository {
             if (stat == GamePackets.CHAR_STATS_POWER) {
                 bonus += (level - 1) / 5;
             }
-            List<Integer> masteryStats = h.createQuery("""
-                            SELECT stats FROM pangya.iff_character_mastery
-                             WHERE typeid = :typeid
-                             ORDER BY seq
-                            """)
-                    .bind("typeid", pCi.typeid)
-                    .mapTo(Integer.class)
-                    .list();
+            List<Integer> masteryStats;
+            var iffMastery = org.pangya.protocol.iff.PangyaIffLoader.characterMastery(pCi.typeid);
+            if (iffMastery.isPresent()) {
+                masteryStats = iffMastery.get().stream()
+                        .map(org.pangya.protocol.iff.IffCharacterMasteryRecord::stats)
+                        .toList();
+            } else {
+                masteryStats = h.createQuery("""
+                                SELECT stats FROM pangya.iff_character_mastery
+                                 WHERE typeid = :typeid
+                                 ORDER BY seq
+                                """)
+                        .bind("typeid", pCi.typeid)
+                        .mapTo(Integer.class)
+                        .list();
+            }
             if (masteryStats.isEmpty()) {
                 return CharStatsResult.fail(GamePackets.CHAR_STATS_UP_ERR_MASTERY);
             }

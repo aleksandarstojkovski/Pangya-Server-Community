@@ -26,6 +26,7 @@ public final class PangyaIffLoader {
             IffItemIndex items,
             IffTypeIndex cards,
             Map<Integer, IffCharacterRecord> characters,
+            IffCharacterMasteryIndex characterMastery,
             Path source) {
         static Snapshot empty() {
             return new Snapshot(
@@ -34,6 +35,7 @@ public final class PangyaIffLoader {
                     IffItemIndex.empty(),
                     IffTypeIndex.empty(),
                     Map.of(),
+                    IffCharacterMasteryIndex.empty(),
                     null);
         }
     }
@@ -55,15 +57,17 @@ public final class PangyaIffLoader {
             IffItemIndex items = IffItemFile.loadIndex(archive);
             IffTypeIndex cards = IffCardFile.loadIndex(archive);
             Map<Integer, IffCharacterRecord> characters = IffCharacterFile.loadIndex(archive);
-            snapshot = new Snapshot(courses, parts, items, cards, characters, path);
+            IffCharacterMasteryIndex characterMastery = IffCharacterMasteryFile.loadIndex(archive);
+            snapshot = new Snapshot(courses, parts, items, cards, characters, characterMastery, path);
             log.info(
-                    "loaded pangya iff {} ({} courses, {} parts, {} items, {} cards, {} chars)",
+                    "loaded pangya iff {} ({} courses, {} parts, {} items, {} cards, {} chars, {} mastery rows)",
                     path,
                     courses.size(),
                     parts.size(),
                     items.size(),
                     cards.size(),
-                    characters.size());
+                    characters.size(),
+                    characterMastery.rowCount());
         } catch (Exception e) {
             log.warn("failed to load pangya iff {}: {}", path, e.toString());
             snapshot = Snapshot.empty();
@@ -100,6 +104,11 @@ public final class PangyaIffLoader {
 
     public static Optional<IffCharacterRecord> character(int typeid) {
         return Optional.ofNullable(snapshot.characters().get(typeid));
+    }
+
+    /** C# {@code sIff.findCharacterMastery}. */
+    public static Optional<List<IffCharacterMasteryRecord>> characterMastery(int typeid) {
+        return snapshot.characterMastery().find(typeid);
     }
 
     public static Optional<Path> source() {
