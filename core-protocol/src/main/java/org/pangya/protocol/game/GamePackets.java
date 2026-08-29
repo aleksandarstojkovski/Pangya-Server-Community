@@ -1659,6 +1659,8 @@ public final class GamePackets {
     public static final int TYPEID_DAILY_ACHIEVEMENT_TEST = 0x6C400201;
     public static final int TYPEID_DAILY_QUEST_STUFF_TEST = 0x6B000201;
     public static final int TYPEID_DAILY_COUNTER_TEST = 0x6A000201;
+    /** C# {@code sys_achieve.incrementCounter(0x6C4000A0)} login count per day. */
+    public static final int TYPEID_LOGIN_COUNT_COUNTER = 0x6C4000A0;
     public static final int TYPEID_DAILY_REWARD_TEST = 0x1A000330;
     public static final int TYPEID_UCC_PART_TEST = 0x08000340;
     /** C# transform lottery special typeids. */

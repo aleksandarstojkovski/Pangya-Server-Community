@@ -509,6 +509,42 @@ public final class JdbiInventoryRepository implements InventoryRepository {
     }
 
     @Override
+    public List<InventoryRepository.CounterIncrement> incrementActiveCounters(
+            long uid, int counterTypeid, int delta) {
+        if (counterTypeid == 0 || delta == 0) {
+            return List.of();
+        }
+        return jdbi.inTransaction(h -> h.createQuery("""
+                        UPDATE pangya.pangya_counter_item c
+                           SET "Count_Num_Item" = c."Count_Num_Item" + :delta
+                          FROM pangya.pangya_quest q
+                          JOIN pangya.pangya_achievement a
+                            ON a."ID_ACHIEVEMENT" = q.achievement_id
+                           AND a."UID" = :uid
+                         WHERE c."Count_ID" = q.counter_item_id
+                           AND q.uid = :uid
+                           AND c."UID" = :uid
+                           AND c.active = 1
+                           AND c."TypeID" = :typeid
+                           AND a.status = 3
+                           AND q."Date" IS NULL
+                        RETURNING c."Count_ID", c."TypeID",
+                                  c."Count_Num_Item" - :delta AS before_val,
+                                  c."Count_Num_Item" AS after_val
+                        """)
+                .bind("uid", uid)
+                .bind("typeid", counterTypeid)
+                .bind("delta", delta)
+                .map((rs, ctx) -> new InventoryRepository.CounterIncrement(
+                        rs.getInt("Count_ID"),
+                        rs.getInt("TypeID"),
+                        rs.getInt("before_val"),
+                        rs.getInt("after_val"),
+                        delta))
+                .list());
+    }
+
+    @Override
     public List<GamePackets.AchievementInfo> achievements(long uid) {
         return jdbi.withHandle(h -> {
             List<GamePackets.CounterItem> counters = h.createQuery("""

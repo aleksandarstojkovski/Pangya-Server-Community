@@ -2020,6 +2020,77 @@ class GameFlowIT {
     }
 
     @Test
+    void attendanceLoginIncrementsActiveDailyQuestCounter() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config);
+             PangyaFakeClient client = new PangyaFakeClient()) {
+            InventoryRepository inv = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
+            cleanupDailyQuest(ds);
+            inv.deleteDailyQuestStuff(GamePackets.TYPEID_DAILY_QUEST_STUFF_TEST);
+            try {
+                inv.upsertDailyQuestStuff(
+                        GamePackets.TYPEID_DAILY_QUEST_STUFF_TEST,
+                        GamePackets.TYPEID_LOGIN_COUNT_COUNTER);
+                inv.upsertItemIff(GamePackets.TYPEID_SHOP_PANG_ITEM);
+                inv.deleteAttendanceReward(10001);
+                inv.upsertAttendanceCatalog(
+                        GamePackets.TYPEID_SHOP_PANG_ITEM,
+                        1,
+                        GamePackets.ATTENDANCE_TIPO_NORMAL);
+                runtime.gameHandler().authReloadGlobalSystem(10);
+                int achievementId = insertDailyAchievement(ds);
+                LoginRepository repo = new JdbiLoginRepository(DatabaseSupport.jdbi(ds));
+                String loginKey = repo.generateAuthKeyLogin(10001);
+                String gameKey = repo.generateAuthKeyGame(10001, 20202);
+                keys.putLoginKey(10001, loginKey);
+                keys.putGameKey(10001, 20202, gameKey);
+                loginToChannel(client, runtime.port(), "testuser", 10001, loginKey, gameKey);
+                drainPending(client, 200);
+
+                client.sendPlain(GamePackets.clientAcceptDailyQuest(achievementId));
+                awaitOpcode(client, GamePackets.SERVER_DAILY_QUEST_STAMP);
+                awaitOpcode(client, GamePackets.SERVER_DAILY_QUEST_ACCEPT);
+
+                client.sendPlain(GamePackets.clientEmpty(GamePackets.CLIENT_ATTENDANCE_LOGIN));
+                PacketReader loginCount = awaitOpcode(client, GamePackets.SERVER_ATTENDANCE_LOGIN);
+                assertEquals(GamePackets.ATTENDANCE_OK, loginCount.i32());
+
+                PacketReader counterUpd = awaitOpcode(client, GamePackets.SERVER_DAILY_QUEST_STAMP);
+                counterUpd.u32();
+                assertEquals(1, counterUpd.u32());
+                assertEquals(GamePackets.PAPEL_AWARD_TYPE, counterUpd.u8());
+                assertEquals(GamePackets.TYPEID_LOGIN_COUNT_COUNTER, counterUpd.u32());
+                int counterId = counterUpd.i32();
+                counterUpd.u32();
+                assertEquals(0, counterUpd.i32());
+                assertEquals(1, counterUpd.i32());
+                assertEquals(1, counterUpd.i32());
+                counterUpd.readBytes(GamePackets.PAPEL_AWARD_PAD);
+                assertEquals(0, counterUpd.remaining());
+
+                assertEquals(1, inv.counters(10001).stream()
+                        .filter(c -> c.id() == counterId)
+                        .mapToInt(GamePackets.CounterItem::value)
+                        .findFirst()
+                        .orElse(-1));
+            } finally {
+                cleanupDailyQuest(ds);
+                inv.deleteDailyQuestStuff(GamePackets.TYPEID_DAILY_QUEST_STUFF_TEST);
+                inv.deleteAttendanceCatalog(GamePackets.TYPEID_SHOP_PANG_ITEM);
+                inv.deleteAttendanceReward(10001);
+            }
+        }
+    }
+
+    @Test
     void itemBuffConsumesWarehouseAndSendsPacote181() throws Exception {
         String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
         String user = env("PANGYA_TEST_JDBC_USER", "pangya");
@@ -7606,9 +7677,10 @@ class GameFlowIT {
             }
             h.createUpdate("""
                             DELETE FROM pangya.pangya_counter_item
-                             WHERE "UID" = 10001 AND "TypeID" = :typeid
+                             WHERE "UID" = 10001 AND "TypeID" IN (:daily, :login)
                             """)
-                    .bind("typeid", GamePackets.TYPEID_DAILY_COUNTER_TEST)
+                    .bind("daily", GamePackets.TYPEID_DAILY_COUNTER_TEST)
+                    .bind("login", GamePackets.TYPEID_LOGIN_COUNT_COUNTER)
                     .execute();
             h.createUpdate("DELETE FROM pangya.pangya_daily_quest_player WHERE uid = 10001")
                     .execute();

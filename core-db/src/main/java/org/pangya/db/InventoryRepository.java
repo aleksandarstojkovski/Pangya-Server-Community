@@ -51,6 +51,12 @@ public interface InventoryRepository {
 
     List<GamePackets.CounterItem> counters(long uid);
 
+    /**
+     * C# {@code AchievementSystem.finish_and_update}: bump active daily-quest
+     * counters ({@code status==3}, uncleared quest) matching {@code counterTypeid}.
+     */
+    List<CounterIncrement> incrementActiveCounters(long uid, int counterTypeid, int delta);
+
     List<GamePackets.AchievementInfo> achievements(long uid);
 
     Optional<ShopItem> shopItem(int typeid);
@@ -748,6 +754,9 @@ public interface InventoryRepository {
 
     record DailyQuestMutation(
             List<GamePackets.AchievementInfo> achievements, List<GamePackets.CounterItem> counters) {}
+
+    /** Before/after values for C# {@code pacote216} type-2 counter rows. */
+    record CounterIncrement(int id, int typeid, int before, int after, int delta) {}
 
     record DailyQuestReward(int seq, int typeid, int qntd, int time) {}
 

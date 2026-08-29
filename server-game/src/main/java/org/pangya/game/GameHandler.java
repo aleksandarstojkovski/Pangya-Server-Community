@@ -6975,8 +6975,9 @@ public final class GameHandler {
      * C# {@code requestUpdateCountLogin} ({@code packet16F} / {@code pacote249}).
      * Draws {@code after}; typeid 0 {@code now} is redrawn (C# {@code IsExist(0)}
      * is false). Sends GP/bot/fortune login bonus mails like C#
-     * {@code requestUpdateCountLogin}. Achievement GUI is still skipped. Empty
-     * catalog → {@code 0x249} u32 {@code ~0}.
+     * {@code requestUpdateCountLogin}. Sends {@code 0x216} counter stamps for
+     * active daily quests; achievement GUI ({@code 0x22D}) is still skipped.
+     * Empty catalog → {@code 0x249} u32 {@code ~0}.
      */
     private void attendanceLoginCount(Session session) {
         if (!inChannel(session)) {
@@ -7023,11 +7024,32 @@ public final class GameHandler {
                     after.get().typeid(),
                     after.get().qntd(),
                     ari.counter()));
+            sendLoginCounterIncrements(session, uid);
         } catch (RuntimeException e) {
             log.debug("attendance login-count failed: {}", e.toString());
             session.send(GamePackets.sysAck(
                     GamePackets.SERVER_ATTENDANCE_LOGIN, GamePackets.ATTENDANCE_FAIL));
         }
+    }
+
+    /** C# {@code sys_achieve.incrementCounter(0x6C4000A0)} + {@code finish_and_update} counter rows. */
+    private void sendLoginCounterIncrements(Session session, long uid) {
+        List<InventoryRepository.CounterIncrement> increments = inventory.incrementActiveCounters(
+                uid, GamePackets.TYPEID_LOGIN_COUNT_COUNTER, 1);
+        if (increments.isEmpty()) {
+            return;
+        }
+        List<GamePackets.PapelAward> awards = increments.stream()
+                .map(c -> new GamePackets.PapelAward(
+                        GamePackets.PAPEL_AWARD_TYPE,
+                        c.typeid(),
+                        c.id(),
+                        0,
+                        c.before(),
+                        c.after(),
+                        c.delta()))
+                .toList();
+        session.send(GamePackets.papelAwards(GamePackets.unixNow(), awards));
     }
 
     /**
