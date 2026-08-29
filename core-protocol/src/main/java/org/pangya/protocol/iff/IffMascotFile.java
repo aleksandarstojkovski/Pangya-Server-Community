@@ -13,6 +13,8 @@ public final class IffMascotFile {
     public static final int VERSION = 13;
     public static final int RECORD_BYTES = 304;
 
+    /** C# {@code Mascot.efeito.drop_rate}. */
+    static final int DROP_RATE_OFFSET = 284;
     /** C# {@code Mascot.msg} ({@code Pack = 1}, 7 bytes). */
     static final int MSG_OFFSET = 293;
 
@@ -32,11 +34,14 @@ public final class IffMascotFile {
                 continue;
             }
             int typeid = ByteBuffer.wrap(data, base + 4, 4).order(ByteOrder.LITTLE_ENDIAN).getInt();
+            int dropRate = Short.toUnsignedInt(ByteBuffer.wrap(data, base + DROP_RATE_OFFSET, 2)
+                    .order(ByteOrder.LITTLE_ENDIAN)
+                    .getShort());
             boolean messageActive = data[base + MSG_OFFSET] != 0;
             int changePrice = ByteBuffer.wrap(data, base + MSG_OFFSET + 3, 4)
                     .order(ByteOrder.LITTLE_ENDIAN)
                     .getInt();
-            out.put(typeid, new IffMascotRecord(typeid, messageActive, changePrice));
+            out.put(typeid, new IffMascotRecord(typeid, messageActive, changePrice, dropRate));
         }
         return new IffMascotIndex(Map.copyOf(out));
     }

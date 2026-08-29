@@ -2,6 +2,7 @@ package org.pangya.game;
 
 import org.pangya.game.catalog.CourseDropResolver;
 import org.pangya.game.catalog.CubeCoinResolver;
+import org.pangya.game.catalog.DropRateResolver;
 import org.pangya.game.catalog.GlobalCatalogs;
 import org.pangya.game.catalog.HoleDropResolver;
 import org.pangya.game.catalog.MapCatalog;
@@ -862,6 +863,7 @@ public final class GameHandler {
         room.gzFirstHole.clear();
         room.activeUses.clear();
         room.passiveUses.clear();
+        room.dropCtx.clear();
         room.finishItemUsed.clear();
         room.clubMastery.clear();
         room.clubMasteryServerRate = liveRateClubMastery;
@@ -875,6 +877,7 @@ public final class GameHandler {
             GamePackets.UserEquip equip = inventory.userEquip(uid);
             room.initActiveItems(member.oid(), equip.itemSlot);
             initPassiveItemsForGame(room, member.oid(), uid, equip);
+            initDropCtxForGame(room, member.oid(), uid, equip);
             GamePackets.WarehouseItem club = warehouseById(uid, equip.clubsetId);
             if (club != null) {
                 room.initClubMastery(member.oid(), club.typeid, club.id, 1.0f, 100);
@@ -1222,12 +1225,19 @@ public final class GameHandler {
             shot.finishShot2 = 1;
         }
         GamePackets.ShotAckCubeCoin cubeBody = GamePackets.readShotAckCubeCoin(reader);
-        int holeNum = shot.hole == 0 ? 1 : shot.hole;
-        int courseId = room.info.course & 0x7f;
+        int courseHoleNum = shot.hole == 0 ? 1 : shot.hole;
+        GamePackets.HoleInfo holeInfo =
+                room.course != null ? room.course.find(courseHoleNum) : null;
+        int courseId = holeInfo != null
+                ? holeInfo.course() & 0x7f
+                : room.info.course & 0x7f;
+        int seqHole = holeInfo != null
+                ? holeInfo.id()
+                : (room.course != null ? room.course.findHoleSeq(courseHoleNum) : courseHoleNum);
         List<GamePackets.DropItem> drops = new ArrayList<>(
-                CubeCoinResolver.resolve(catalogs, courseId, holeNum, cubeBody));
+                CubeCoinResolver.resolve(catalogs, courseId, courseHoleNum, cubeBody));
         if ((shot.displayState & GamePackets.DISPLAY_ACERTO_HOLE) != 0) {
-            appendInitDropItems(session, room, shot, courseId, holeNum, drops);
+            appendInitDropItems(session, room, shot, courseId, courseHoleNum, seqHole, drops);
         }
         replyInGame(room, session, GamePackets.endShot(session.oid(), drops));
         if ((shot.displayState & GamePackets.DISPLAY_ACERTO_HOLE) != 0) {
@@ -1242,18 +1252,19 @@ public final class GameHandler {
             GameRoom room,
             GameRoom.PlayerShot shot,
             int courseId,
-            int holeNum,
+            int courseHoleNum,
+            int seqHole,
             List<GamePackets.DropItem> drops) {
         int charMotion = charMotionItem(session, room);
-        int rateDrop = 100;
-        int angelWings = 0;
-        int seqHole = holeNum;
+        GameRoom.PlayerDropCtx dropCtx = room.dropCtx(session.oid());
+        int rateDrop = dropCtx.rateDrop();
+        int angelWings = dropCtx.angelWings();
         int qntdHole = room.info.holes;
         int playerCount = room.players.size();
 
         if (qntdHole == 18 && seqHole == qntdHole) {
             HoleDropResolver.drawArtefactPang(
-                            courseId, holeNum, qntdHole, seqHole, room.info.artefato, playerCount)
+                            courseId, courseHoleNum, qntdHole, seqHole, room.info.artefato, playerCount)
                     .ifPresent(drop -> {
                         appendHoleDrop(shot, drops, drop);
                         if (drop.qntd() >= 30) {
@@ -1263,17 +1274,17 @@ public final class GameHandler {
                     });
         }
 
-        CourseDropResolver.CourseDropCtx dropCtx = new CourseDropResolver.CourseDropCtx(
-                courseId, holeNum, seqHole, qntdHole, room.info.artefato, charMotion, rateDrop, angelWings);
+        CourseDropResolver.CourseDropCtx courseCtx = new CourseDropResolver.CourseDropCtx(
+                courseId, courseHoleNum, seqHole, qntdHole, room.info.artefato, charMotion, rateDrop, angelWings);
         for (GamePackets.DropItem drop : CourseDropResolver.drawCourse(
-                catalogs.courseDropItems(courseId), dropCtx)) {
+                catalogs.courseDropItems(courseId), courseCtx)) {
             appendHoleDrop(shot, drops, drop);
         }
 
         List<GamePackets.DropItem> ssc = HoleDropResolver.drawSscTickets(
                 liveRateSscTicket,
                 courseId,
-                holeNum,
+                courseHoleNum,
                 room.info.artefato,
                 charMotion,
                 rateDrop,
@@ -1288,7 +1299,7 @@ public final class GameHandler {
         HoleDropResolver.drawManaArtefact(
                         liveRateManaArtefact,
                         courseId,
-                        holeNum,
+                        courseHoleNum,
                         rateDrop,
                         angelWings,
                         PangyaIffLoader.manaArtefactTypeids())
@@ -1298,7 +1309,7 @@ public final class GameHandler {
             GamePackets.WarehouseItem gp = warehouseByTypeid(
                     session.player().uid, GamePackets.TYPEID_GP_TICKET);
             int gpQntd = gp == null ? 0 : gp.c[0] & 0xffff;
-            HoleDropResolver.drawGrandPrixTicket(courseId, holeNum, room.info.holes, gpQntd)
+            HoleDropResolver.drawGrandPrixTicket(courseId, courseHoleNum, room.info.holes, gpQntd)
                     .ifPresent(drop -> appendHoleDrop(shot, drops, drop));
         }
     }
@@ -1422,6 +1433,23 @@ public final class GameHandler {
                 }
             }
         }
+    }
+
+    /** C# {@code requestInitItemUsedGame}: auxpart/mascot drop rate for {@code requestInitDrop}. */
+    private void initDropCtxForGame(
+            GameRoom room, int oid, long uid, GamePackets.UserEquip equip) {
+        GamePackets.CharacterInfo character = equippedCharacter(uid, equip);
+        int[] auxparts = character == null ? null : character.auxparts;
+        int mascotTypeid = 0;
+        if (equip.mascotId > 0) {
+            for (GamePackets.MascotInfo mascot : inventory.mascots(uid)) {
+                if (mascot.id == equip.mascotId) {
+                    mascotTypeid = mascot.typeid;
+                    break;
+                }
+            }
+        }
+        room.initDropCtx(oid, DropRateResolver.computeDropRate(auxparts, mascotTypeid), 0);
     }
 
     private GamePackets.CharacterInfo equippedCharacter(long uid, GamePackets.UserEquip equip) {
@@ -3135,6 +3163,7 @@ public final class GameHandler {
         room.reported.clear();
         room.activeUses.clear();
         room.passiveUses.clear();
+        room.dropCtx.clear();
         room.finishItemUsed.clear();
         room.clubMastery.clear();
         room.clubMasteryServerRate = liveRateClubMastery;

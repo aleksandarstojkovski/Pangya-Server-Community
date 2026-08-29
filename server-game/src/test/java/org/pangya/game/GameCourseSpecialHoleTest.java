@@ -40,5 +40,13 @@ class GameCourseSpecialHoleTest {
         assertEquals(11, seq.get(2)[1]);
         assertEquals(0, seq.get(3)[0]);
         assertEquals(4, seq.get(3)[1]);
+
+        java.util.ArrayList<GamePackets.HoleInfo> holes = new java.util.ArrayList<>(18);
+        for (int n = 1; n <= 18; n++) {
+            int[] slot = seq.get(n - 1);
+            holes.add(new GamePackets.HoleInfo(n, (n - 1) % 3, slot[0], slot[1], 0, 0, 0));
+        }
+        assertEquals(1, GameCourse.findHoleSeq(holes, 2));
+        assertEquals(4, GameCourse.findHoleSeq(holes, 4));
     }
 }

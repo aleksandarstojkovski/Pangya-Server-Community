@@ -93,6 +93,20 @@ final class GameCourse {
         return null;
     }
 
+    /** C# {@code CourseManager.findHoleSeq}: sequence id (1–18) for a course hole {@code numero}. */
+    int findHoleSeq(int numero) {
+        return findHoleSeq(holes, numero);
+    }
+
+    static int findHoleSeq(java.util.List<GamePackets.HoleInfo> holes, int numero) {
+        for (GamePackets.HoleInfo hole : holes) {
+            if (hole.numero() == numero) {
+                return hole.id();
+            }
+        }
+        return 0;
+    }
+
     /**
      * C# {@code hole.setWind} for GM versus wind: keep pin/weather/degree, replace wind.
      */

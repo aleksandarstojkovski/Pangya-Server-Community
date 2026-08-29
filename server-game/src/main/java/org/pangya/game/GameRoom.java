@@ -54,6 +54,8 @@ final class GameRoom {
      */
     final ConcurrentHashMap<Integer, ConcurrentHashMap<Integer, Integer>> passiveUses =
             new ConcurrentHashMap<>();
+    /** C# {@code used_item.rate.drop} + {@code angel_wings} for {@code requestInitDrop}. */
+    final ConcurrentHashMap<Integer, PlayerDropCtx> dropCtx = new ConcurrentHashMap<>();
     /** C# {@code pgi.finish_item_used}: oid → finished item settlement. */
     final ConcurrentHashMap<Integer, Boolean> finishItemUsed = new ConcurrentHashMap<>();
     /** C# server {@code RateValue.clubset} from {@code SERVERINFO.CLUBMASTERYRATE}. */
@@ -520,6 +522,17 @@ final class GameRoom {
         }
         use.count++;
         return true;
+    }
+
+    /** C# {@code DropSystem.stCourseInfo} rate/angel subset stored per player. */
+    record PlayerDropCtx(int rateDrop, int angelWings) {}
+
+    void initDropCtx(int oid, int rateDrop, int angelWings) {
+        dropCtx.put(oid, new PlayerDropCtx(rateDrop, angelWings));
+    }
+
+    PlayerDropCtx dropCtx(int oid) {
+        return dropCtx.getOrDefault(oid, new PlayerDropCtx(100, 0));
     }
 
     /** C# {@code requestInitItemUsedGame} passive warehouse / ball / auxpart registration. */

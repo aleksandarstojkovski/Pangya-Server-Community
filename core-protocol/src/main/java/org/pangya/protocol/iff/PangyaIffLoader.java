@@ -33,6 +33,7 @@ public final class PangyaIffLoader {
             IffClubSetIndex clubSets,
             IffCaddieIndex caddies,
             IffMascotIndex mascots,
+            IffAuxPartIndex auxParts,
             IffClubSetWorkShopLevelUpLimitIndex clubSetWorkShopLevelUpLimits,
             IffClubSetWorkShopLevelUpProbIndex clubSetWorkShopLevelUpProbs,
             IffClubSetWorkShopRankUpExpIndex clubSetWorkShopRankExps,
@@ -60,6 +61,7 @@ public final class PangyaIffLoader {
                     IffClubSetIndex.empty(),
                     IffCaddieIndex.empty(),
                     IffMascotIndex.empty(),
+                    IffAuxPartIndex.empty(),
                     IffClubSetWorkShopLevelUpLimitIndex.empty(),
                     IffClubSetWorkShopLevelUpProbIndex.empty(),
                     IffClubSetWorkShopRankUpExpIndex.empty(),
@@ -102,6 +104,7 @@ public final class PangyaIffLoader {
             IffClubSetIndex clubSets = IffClubSetFile.loadIndex(archive);
             IffCaddieIndex caddies = IffCaddieFile.loadIndex(archive);
             IffMascotIndex mascots = IffMascotFile.loadIndex(archive);
+            IffAuxPartIndex auxParts = IffAuxPartFile.loadIndex(archive);
             IffClubSetWorkShopLevelUpLimitIndex clubSetWorkShopLevelUpLimits =
                     IffClubSetWorkShopLevelUpLimitFile.loadIndex(archive);
             IffClubSetWorkShopLevelUpProbIndex clubSetWorkShopLevelUpProbs =
@@ -121,11 +124,11 @@ public final class PangyaIffLoader {
             IffTypeIndex caddieItems = IffCaddieItemFile.loadIndex(archive);
             snapshot = new Snapshot(
                     courses, parts, items, balls, cards, characters, characterMastery, enchants, clubSets, caddies,
-                    mascots, clubSetWorkShopLevelUpLimits, clubSetWorkShopLevelUpProbs, clubSetWorkShopRankExps,
+                    mascots, auxParts, clubSetWorkShopLevelUpLimits, clubSetWorkShopLevelUpProbs, clubSetWorkShopRankExps,
                     cutins, timeLimitItems, cadieMagicBoxes, cadieMagicBoxRandoms, setItems, grandPrixData,
                     grandPrixSpecialHoles, grandPrixConditionEquip, skins, caddieItems, path);
             log.info(
-                    "loaded pangya iff {} ({} courses, {} parts, {} items, {} balls, {} cards, {} chars, {} mastery, {} enchants, {} clubsets, {} caddies, {} mascots, {} skins, {} caddie items, {} ws limits, {} ws probs, {} ws rank exp, {} cutins, {} time limit items, {} cadie boxes, {} cadie random rows, {} set items, {} grand prix, {} gp special holes, {} gp condition equip)",
+                    "loaded pangya iff {} ({} courses, {} parts, {} items, {} balls, {} cards, {} chars, {} mastery, {} enchants, {} clubsets, {} caddies, {} mascots, {} auxparts, {} skins, {} caddie items, {} ws limits, {} ws probs, {} ws rank exp, {} cutins, {} time limit items, {} cadie boxes, {} cadie random rows, {} set items, {} grand prix, {} gp special holes, {} gp condition equip)",
                     path,
                     courses.size(),
                     parts.size(),
@@ -138,6 +141,7 @@ public final class PangyaIffLoader {
                     clubSets.size(),
                     caddies.size(),
                     mascots.size(),
+                    auxParts.size(),
                     skins.size(),
                     caddieItems.size(),
                     clubSetWorkShopLevelUpLimits.rowCount(),
@@ -268,6 +272,19 @@ public final class PangyaIffLoader {
             return Optional.empty();
         }
         return mascots.find(typeid);
+    }
+
+    /** C# {@code sIff.findAuxPart}. */
+    public static Optional<IffAuxPartRecord> auxPart(int typeid) {
+        IffAuxPartIndex auxParts = snapshot.auxParts();
+        if (auxParts.byTypeid().isEmpty()) {
+            return Optional.empty();
+        }
+        return auxParts.find(typeid);
+    }
+
+    public static IffAuxPartIndex auxPartIndex() {
+        return snapshot.auxParts();
     }
 
     /** C# {@code sIff.findClubSetWorkShopLevelUpLimit}. */
