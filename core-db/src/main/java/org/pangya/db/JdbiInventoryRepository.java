@@ -6118,4 +6118,19 @@ public final class JdbiInventoryRepository implements InventoryRepository {
                 .bind("bit16NaoSei", row.bit16NaoSei())
                 .execute());
     }
+
+    @Override
+    public void addTotalPangWinGame(long uid, long credit) {
+        if (uid <= 0 || credit <= 0) {
+            return;
+        }
+        jdbi.useHandle(h -> h.createUpdate("""
+                        UPDATE pangya.user_info
+                           SET total_pang_win_game = total_pang_win_game + :credit
+                         WHERE "UID" = :uid
+                        """)
+                .bind("uid", uid)
+                .bind("credit", credit)
+                .execute());
+    }
 }

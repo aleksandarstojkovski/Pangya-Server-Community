@@ -997,4 +997,7 @@ public interface InventoryRepository {
 
     /** C# {@code ProcUpdateUserInfo} — full row replace after in-memory merge. */
     void updateUserInfo(long uid, UserInfoRow row);
+
+    /** C# {@code UserInfoEx.total_pang_win_game} increment on normal game finish. */
+    void addTotalPangWinGame(long uid, long credit);
 }

@@ -29,6 +29,20 @@ final class UserInfoMergeTest {
     }
 
     @Test
+    void finishOptionIncrementsJogadoAndCombo() {
+        UserInfoRow db = emptyRow();
+        GamePackets.UserInfoEx client = new GamePackets.UserInfoEx(
+                8, 4, 0, 0, 100f, 1, 0, 0, 80, 18, 0, 0, 0, 0, 0, 0, 0, 0f, 0f,
+                0, 1, 0, 0, 0);
+        UserInfoRow merged = UserInfoMerge.saveInfo(db, client, 0, -1, 900, false);
+        assertEquals(6, merged.combos());
+        assertEquals(1, merged.jogado());
+        assertEquals(-1, merged.mediaScore());
+        assertEquals(900, merged.tempo());
+        assertEquals(8, merged.tacadas());
+    }
+
+    @Test
     void quitOptionDecreasesComboAndIncrementsQuit() {
         UserInfoRow db = emptyRow();
         GamePackets.UserInfoEx client = new GamePackets.UserInfoEx(

@@ -1831,7 +1831,7 @@ public final class GameHandler {
      */
     private void requestSaveInfo(Session session, GameRoom room, int option, boolean connectionTimeout) {
         GameRoom.PlayerShot shot = room.shots.get(session.oid());
-        if (shot == null || shot.userInfo == null) {
+        if (shot == null || shot.userInfo == null || shot.saveInfoPersisted) {
             return;
         }
         if (option == 1 || option == 5) {
@@ -1850,10 +1850,23 @@ public final class GameHandler {
         org.pangya.db.InventoryRepository.UserInfoRow merged = UserInfoMerge.saveInfo(
                 db, shot.userInfo, option, gameScore, gameSeconds, connectionTimeout);
         inventory.updateUserInfo(uid, merged);
+        if (option == 0) {
+            long gamePang = shot.pang + shot.bonusPang;
+            inventory.addTotalPangWinGame(uid, gamePang);
+        }
+        shot.saveInfoPersisted = true;
         if (merged.combos() > 0) {
             room.addPendingAchievementCounter(
                     uid, GamePackets.TYPEID_GAME_COMBO_COUNTER, (int) merged.combos());
         }
+    }
+
+    /** C# {@code GrandPrix.finish_game} / {@code deletePlayer} {@code requestSaveInfo(..., 0)}. */
+    private void requestSaveInfoFinish(Session session, GameRoom room) {
+        if (isRookieNormalGrandPrix(room)) {
+            return;
+        }
+        requestSaveInfo(session, room, 0, false);
     }
 
     /** C# {@code requestSaveInfo} records + rain/score/item counters + finish-game dump. */
@@ -1880,6 +1893,7 @@ public final class GameHandler {
         int rankIndex = finishRankIndex(room, session);
         finishGameExp(session, room, rankIndex);
         if (room.tipo == GamePackets.TIPO_GRAND_PRIX) {
+            requestSaveInfoFinish(session, room);
             sendGrandPrixFinishDump(session, room, rankIndex, prizeTypeids);
             return;
         }
@@ -3714,6 +3728,7 @@ public final class GameHandler {
         GameRoom.PlayerShot shot = room.shots.get(session.oid());
         if (!isRookieNormalGrandPrix(room)) {
             saveGrandPrixRecordCourse(session, room, shot);
+            requestSaveInfoFinish(session, room);
             if (shot != null && shot.userInfo != null) {
                 queueRecordAchievementCounters(session, room, shot.userInfo);
                 saveHoleDrops(session, room);
