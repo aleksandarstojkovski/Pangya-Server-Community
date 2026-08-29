@@ -1483,13 +1483,7 @@ public final class GameHandler {
         room.stopGpRuleTimer(oid);
         prepareFinishItemUsed(session, room);
         if (!isRookieNormalGrandPrix(room)) {
-            // C# requestSaveInfo(session, saveInfoOption) when ProcUpdateUserInfo is wired.
-            if (saveInfoOption == 1) {
-                if (shot != null) {
-                    shot.pang = 0;
-                    shot.bonusPang = 0;
-                }
-            }
+            requestSaveInfo(session, room, saveInfoOption, leaveOption == 0x800);
             queueRainCounters(session, room);
             queueScoreConsecutivosCounters(session, room);
             queueItemUsedCounters(session, room);
@@ -1828,6 +1822,37 @@ public final class GameHandler {
         finishGamePlayerDump(session, room);
         if (GamePackets.usesTourneyInitialData(room.tipo) || GamePackets.hiddenFromLobby(room.tipo)) {
             finishGameRoom(room);
+        }
+    }
+
+    /**
+     * C# {@code GameBase.requestSaveInfo}: merge client {@code UserInfoEx} + option overlay,
+     * persist via {@code ProcUpdateUserInfo} (explicit SQL), zero game pang on quit paths.
+     */
+    private void requestSaveInfo(Session session, GameRoom room, int option, boolean connectionTimeout) {
+        GameRoom.PlayerShot shot = room.shots.get(session.oid());
+        if (shot == null || shot.userInfo == null) {
+            return;
+        }
+        if (option == 1 || option == 5) {
+            shot.pang = 0;
+            shot.bonusPang = 0;
+        }
+        long uid = session.player().uid;
+        org.pangya.db.InventoryRepository.UserInfoRow db = inventory.userInfo(uid).orElse(null);
+        if (db == null) {
+            return;
+        }
+        int gameSeconds = room.startMillis > 0
+                ? (int) ((System.currentTimeMillis() - room.startMillis) / 1000L)
+                : 0;
+        int gameScore = placarScoreFor(shot);
+        org.pangya.db.InventoryRepository.UserInfoRow merged = UserInfoMerge.saveInfo(
+                db, shot.userInfo, option, gameScore, gameSeconds, connectionTimeout);
+        inventory.updateUserInfo(uid, merged);
+        if (merged.combos() > 0) {
+            room.addPendingAchievementCounter(
+                    uid, GamePackets.TYPEID_GAME_COMBO_COUNTER, (int) merged.combos());
         }
     }
 
