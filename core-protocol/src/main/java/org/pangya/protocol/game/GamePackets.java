@@ -2234,6 +2234,11 @@ public final class GamePackets {
      * IFF ITEM {@code 0x1A000006} (436207622). SQL shop catalog stand-in for C# {@code IsBuyItem}.
      */
     public static final int TYPEID_SHOP_PANG_ITEM = 0x1A000006;
+    /**
+     * JP Item.iff passive gift item ({@code ShopFlag=Cookies_0}, {@code Stats.Power=5}).
+     * C# {@code requestDeleteActiveItem} allows delete when {@code IsGift && getSlot[0]>0}.
+     */
+    public static final int TYPEID_PASSIVE_GIFT_ITEM = 0x1A000081;
     /** C# {@code MULLIGAN_ROSE_TYPEID} {@code 0x1800000E}. Banned in Versus. */
     public static final int TYPEID_MULLIGAN_ROSE = 0x1800000E;
     /** C# {@code AUTO_COMMAND_TYPEID} {@code 0x1A00019F}. */

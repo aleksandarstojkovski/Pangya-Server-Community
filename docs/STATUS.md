@@ -13,8 +13,8 @@ Conteggio Channel: **197** handler `packet_func_sv` registrati in `GameService.i
 
 ## Questo turno
 
-Fatto: … **`Course/Part/Item/Card/Character.iff` loaders** from `pangya_jp.iff`: map/par/star, combo parts, findItem/Card, Character PCL stats.
-Prossimo: deleteActiveItem IFF shop flags; pin `.gbin`; capture JP S9.
+Fatto: … **`Course/Part/Item/Card/Character.iff` loaders** from `pangya_jp.iff`: map/par/star, combo parts, findItem/Card, Character PCL stats; **`deleteActiveItem` IFF shop flags** (`IsGift`/`IsCash`/`Stats.Power`) — shop-pang passive delete rejected like C#.
+Prossimo: pin `.gbin`; capture JP S9; more IFF datasets (Caddie, ClubSet, Enchant, CharacterMastery).
 Blocco: pin `.gbin` binaries absent; nessuna capture client JP Season 9.
 
 Percentuale epic: **scheletro 85%** / **parità client reale 43%**.

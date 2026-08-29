@@ -22,6 +22,14 @@ class IffItemCardFileTest {
     }
 
     @Test
+    void deleteActiveItemFlagsMatchCSharp() throws Exception {
+        assumeReferenceIffPresent();
+        PangyaIffLoader.reload(JP_IFF);
+        assertFalse(PangyaIffLoader.canDeleteActiveItem(GamePackets.TYPEID_SHOP_PANG_ITEM).orElseThrow());
+        assertTrue(PangyaIffLoader.canDeleteActiveItem(GamePackets.TYPEID_PASSIVE_GIFT_ITEM).orElseThrow());
+    }
+
+    @Test
     void loadsCardsFromCardIff() throws Exception {
         assumeReferenceIffPresent();
         IffTypeIndex cards = IffCardFile.loadIndex(new PangyaIffArchive(JP_IFF));

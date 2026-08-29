@@ -23,7 +23,7 @@ public final class PangyaIffLoader {
     public record Snapshot(
             List<IffCourseRecord> courses,
             IffPartIndex parts,
-            IffTypeIndex items,
+            IffItemIndex items,
             IffTypeIndex cards,
             Map<Integer, IffCharacterRecord> characters,
             Path source) {
@@ -31,7 +31,7 @@ public final class PangyaIffLoader {
             return new Snapshot(
                     List.of(),
                     IffPartIndex.empty(),
-                    IffTypeIndex.empty(),
+                    IffItemIndex.empty(),
                     IffTypeIndex.empty(),
                     Map.of(),
                     null);
@@ -52,7 +52,7 @@ public final class PangyaIffLoader {
             PangyaIffArchive archive = new PangyaIffArchive(path);
             List<IffCourseRecord> courses = IffCourseFile.load(archive);
             IffPartIndex parts = IffPartFile.loadIndex(archive);
-            IffTypeIndex items = IffItemFile.loadIndex(archive);
+            IffItemIndex items = IffItemFile.loadIndex(archive);
             IffTypeIndex cards = IffCardFile.loadIndex(archive);
             Map<Integer, IffCharacterRecord> characters = IffCharacterFile.loadIndex(archive);
             snapshot = new Snapshot(courses, parts, items, cards, characters, path);
@@ -74,8 +74,20 @@ public final class PangyaIffLoader {
         return snapshot.parts();
     }
 
-    public static IffTypeIndex itemIndex() {
+    public static IffItemIndex itemIndex() {
         return snapshot.items();
+    }
+
+    /**
+     * C# {@code requestDeleteActiveItem} IFF gate. Empty when {@code pangya_jp.iff}
+     * is not loaded (SQL-only stand-in skips shop-flag enforcement).
+     */
+    public static Optional<Boolean> canDeleteActiveItem(int typeid) {
+        IffItemIndex items = snapshot.items();
+        if (items.isEmpty()) {
+            return Optional.empty();
+        }
+        return Optional.of(items.canDeleteActiveItem(typeid));
     }
 
     public static IffTypeIndex cardIndex() {

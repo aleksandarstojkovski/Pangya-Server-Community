@@ -3679,9 +3679,8 @@ public final class GameHandler {
 
     /**
      * C# {@code requestDeleteActiveItem} ({@code packet064} / {@code pacote0C5}).
-     * IFF files are absent; SQL ITEM-group warehouse C0 stands in for
-     * {@code findItem} / {@code IsItemEquipable} / giftable. Non-ITEM typeids
-     * and missing/insufficient stock send sbyte {@code -1} (the C# catch).
+     * IFF {@code findItem} + {@code IsItemEquipable} + {@code IsGift}/{@code IsCash}
+     * from {@code Item.iff}. Missing/insufficient stock sends sbyte {@code -1}.
      */
     private void deleteActiveItem(Session session, PacketReader reader) {
         if (!inChannel(session)) {
@@ -3694,6 +3693,15 @@ public final class GameHandler {
         int typeid = reader.u32();
         int qntd = reader.u32();
         if (qntd <= 0 || GamePackets.itemGroupIdentify(typeid) != GamePackets.IFF_GROUP_ITEM) {
+            session.send(GamePackets.deleteItemFail());
+            return;
+        }
+        if (!inventory.itemIff(typeid)) {
+            session.send(GamePackets.deleteItemFail());
+            return;
+        }
+        Optional<Boolean> iffDeletable = org.pangya.protocol.iff.PangyaIffLoader.canDeleteActiveItem(typeid);
+        if (iffDeletable.isPresent() && !iffDeletable.get()) {
             session.send(GamePackets.deleteItemFail());
             return;
         }
