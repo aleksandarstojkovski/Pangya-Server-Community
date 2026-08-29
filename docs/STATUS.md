@@ -13,8 +13,8 @@ Conteggio Channel: **197** handler `packet_func_sv` registrati in `GameService.i
 
 ## Questo turno
 
-Fatto: … **`deleteActiveItem` IFF shop flags**; **`CharacterMastery.iff`** — Nuri expand uses JP item `0x1A0002A6`×2; stats-up mastery bonus from IFF.
-Prossimo: pin `.gbin`; capture JP S9; Enchant/ClubSet/Caddie IFF.
+Fatto: … **`CharacterMastery.iff`**; **`Enchant.iff`** — POWER pcl0 pang **2100** from JP archive (SQL seed was 100).
+Prossimo: pin `.gbin`; capture JP S9; ClubSet/Caddie IFF.
 Blocco: pin `.gbin` binaries absent; nessuna capture client JP Season 9.
 
 Percentuale epic: **scheletro 85%** / **parità client reale 43%**.
