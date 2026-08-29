@@ -13,8 +13,8 @@ Conteggio Channel: **197** handler `packet_func_sv` registrati in `GameService.i
 
 ## Questo turno
 
-Fatto: **`CutinInfomation.iff`** (208-byte, 641 cutins) + **`TimeLimitItem.iff`** (100-byte, 6 buff items); `activeCutin` / `useItemBuff` use IFF when `PANGYA_IFF_PATH` set (Nuri cutin `0x39400000` sector **1**; yam buff `0x1A0000B3` **120** min vs SQL **1**).
-Prossimo: pin `.gbin`; capture JP S9; CadieMagicBox IFF.
+Fatto: **`CadieMagicBox.iff`** (140-byte, 2056 recipes) + **`CadieMagicBoxRandom.iff`** (16-byte, 179 rows); `cadieExchange` uses IFF when `PANGYA_IFF_PATH` set (seq 1 receives `0x1A000133` for trade `0x1A00005B`; SQL seed used shop-pang self-trade).
+Prossimo: pin `.gbin`; capture JP S9; ClubSetOriginal IFF.
 Blocco: pin `.gbin` binaries absent; nessuna capture client JP Season 9.
 
 Percentuale epic: **scheletro 85%** / **parità client reale 43%**.

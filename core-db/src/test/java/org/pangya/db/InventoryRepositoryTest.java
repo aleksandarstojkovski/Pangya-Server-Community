@@ -128,6 +128,7 @@ class InventoryRepositoryTest {
             assertFalse(repo.mascotMessageEnabled(0));
             repo.changeMascotMessage(10001, repo.mascots(10001).getFirst().id, "ok");
             repo.setPangCookie(10001, 100000, 0);
+            PangyaIffLoader.reload(null);
             repo.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_SHOP_PANG_ITEM);
             var stockCadie = repo.buyShopItem(
                     10001, GamePackets.TYPEID_SHOP_PANG_ITEM, 1, GamePackets.SHOP_PANG_PRICE, 0);

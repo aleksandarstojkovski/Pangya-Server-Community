@@ -1506,35 +1506,11 @@ public final class JdbiInventoryRepository implements InventoryRepository {
     public CadieExchangeResult cadieExchange(
             long uid, int seq, int requested, int level, int[] typeids, int[] ids) {
         return jdbi.inTransaction(h -> {
-            int lookup = seq + 1;
-            var box = h.createQuery("""
-                            SELECT seq, level, receive_typeid, receive_qntd, box_random_id,
-                                   trade0_typeid, trade0_qntd, trade1_typeid, trade1_qntd,
-                                   trade2_typeid, trade2_qntd, trade3_typeid, trade3_qntd
-                              FROM pangya.cadie_magic_box
-                             WHERE seq = :seq AND active = 1
-                            """)
-                    .bind("seq", lookup)
-                    .map((rs, ctx) -> new int[] {
-                            rs.getInt("seq"),
-                            rs.getInt("level"),
-                            rs.getInt("receive_typeid"),
-                            rs.getInt("receive_qntd"),
-                            rs.getInt("trade0_typeid"),
-                            rs.getInt("trade0_qntd"),
-                            rs.getInt("trade1_typeid"),
-                            rs.getInt("trade1_qntd"),
-                            rs.getInt("trade2_typeid"),
-                            rs.getInt("trade2_qntd"),
-                            rs.getInt("trade3_typeid"),
-                            rs.getInt("trade3_qntd")
-                    })
-                    .findOne()
-                    .orElse(null);
+            CadieMagicBoxRow box = loadCadieMagicBox(h, seq + 1);
             if (box == null) {
                 return CadieExchangeResult.fail(GamePackets.CADIE_ERR_IFF);
             }
-            if (level < box[1]) {
+            if (level < box.level()) {
                 return CadieExchangeResult.fail(GamePackets.CADIE_ERR_LEVEL);
             }
             if (requested <= 0) {
@@ -1544,8 +1520,8 @@ public final class JdbiInventoryRepository implements InventoryRepository {
             int[] have = new int[count];
             int[] need = new int[count];
             for (int i = 0; i < count; i++) {
-                int tradeTypeid = box[4 + i * 2];
-                int tradeQntd = box[5 + i * 2];
+                int tradeTypeid = box.tradeTypeids()[i];
+                int tradeQntd = box.tradeQntds()[i];
                 if (tradeTypeid != 0 && tradeTypeid != typeids[i]) {
                     return CadieExchangeResult.fail(GamePackets.CADIE_ERR_MISMATCH);
                 }
@@ -1586,8 +1562,17 @@ public final class JdbiInventoryRepository implements InventoryRepository {
                 awards.add(new GamePackets.PapelAward(
                         GamePackets.PAPEL_AWARD_TYPE, typeids[i], ids[i], 0, ant, dep, -need[i]));
             }
-            int receiveTypeid = box[2];
-            int add = box[3] * requested;
+            int receiveTypeid = box.receiveTypeid();
+            int receiveUnitQntd = box.receiveQntd();
+            if (box.boxRandomId() > 0 && org.pangya.protocol.iff.PangyaIffLoader.source().isPresent()) {
+                var random = org.pangya.protocol.iff.PangyaIffLoader.spinCadieMagicBoxRandom(box.boxRandomId());
+                if (random.isEmpty()) {
+                    return CadieExchangeResult.fail(GamePackets.CADIE_ERR_EXCHANGE);
+                }
+                receiveTypeid = random.get().itemTypeid();
+                receiveUnitQntd = random.get().qty();
+            }
+            int add = receiveUnitQntd * requested;
             Integer existingId = h.createQuery("""
                             SELECT item_id FROM pangya.pangya_item_warehouse
                              WHERE "UID" = :uid AND typeid = :typeid AND valid = 1
@@ -4194,6 +4179,56 @@ public final class JdbiInventoryRepository implements InventoryRepository {
                 .findOne())
                 .map(OptionalLong::of)
                 .orElseGet(OptionalLong::empty);
+    }
+
+    private record CadieMagicBoxRow(
+            int level,
+            int receiveTypeid,
+            int receiveQntd,
+            int[] tradeTypeids,
+            int[] tradeQntds,
+            int boxRandomId) {}
+
+    private CadieMagicBoxRow loadCadieMagicBox(org.jdbi.v3.core.Handle h, int lookup) {
+        if (org.pangya.protocol.iff.PangyaIffLoader.source().isPresent()) {
+            return org.pangya.protocol.iff.PangyaIffLoader.cadieMagicBox(lookup)
+                    .filter(org.pangya.protocol.iff.IffCadieMagicBoxRecord::active)
+                    .map(row -> new CadieMagicBoxRow(
+                            row.level(),
+                            row.receiveTypeid(),
+                            row.receiveQntd(),
+                            row.tradeTypeids(),
+                            row.tradeQntds(),
+                            row.boxRandomId()))
+                    .orElse(null);
+        }
+        return h.createQuery("""
+                        SELECT level, receive_typeid, receive_qntd, box_random_id,
+                               trade0_typeid, trade0_qntd, trade1_typeid, trade1_qntd,
+                               trade2_typeid, trade2_qntd, trade3_typeid, trade3_qntd
+                          FROM pangya.cadie_magic_box
+                         WHERE seq = :seq AND active = 1
+                        """)
+                .bind("seq", lookup)
+                .map((rs, ctx) -> new CadieMagicBoxRow(
+                        rs.getInt("level"),
+                        rs.getInt("receive_typeid"),
+                        rs.getInt("receive_qntd"),
+                        new int[] {
+                            rs.getInt("trade0_typeid"),
+                            rs.getInt("trade1_typeid"),
+                            rs.getInt("trade2_typeid"),
+                            rs.getInt("trade3_typeid")
+                        },
+                        new int[] {
+                            rs.getInt("trade0_qntd"),
+                            rs.getInt("trade1_qntd"),
+                            rs.getInt("trade2_qntd"),
+                            rs.getInt("trade3_qntd")
+                        },
+                        rs.getInt("box_random_id")))
+                .findOne()
+                .orElse(null);
     }
 
     private static short[] pad5(short[] src) {
