@@ -1448,32 +1448,11 @@ public final class GameHandler {
     }
 
     /**
-     * C# {@code GrandPrix.deletePlayer} when {@code bad_condute >= 3}: achievement dump,
-     * {@code 0x244}/{@code 0x24F}, then remove player and broadcast {@code 0x61}.
+     * C# {@code Channel.leaveRoom(player, 2)} after {@code checkEndShotOfHole}/{@code changeTurn}
+     * returns {@code 2}: {@code GrandPrix.deletePlayer} with achievement dump.
      */
     private void grandPrixKickForBadConduct(Session session, GameRoom room, GameRoom.PlayerShot shot) {
-        if (room.gameFlag(session.oid()) != GamePackets.FLAG_GAME_PLAYING) {
-            return;
-        }
-        int oid = session.oid();
-        prepareFinishItemUsed(session, room);
-        queueRainCounters(session, room);
-        queueScoreConsecutivosCounters(session, room);
-        room.addPendingAchievementCounter(
-                session.player().uid, GamePackets.TYPEID_NORMAL_GAME_COMPLETE_COUNTER, 1);
-        flushPendingAchievementCounters(session, room);
-        session.send(GamePackets.treasureHunterDraw());
-        session.send(GamePackets.myStatistics(GamePackets.userInfoPublic(session.player().level)));
-        session.send(GamePackets.prizeList(new int[0]));
-        session.send(GamePackets.exitRoomAck(-1));
-        session.send(GamePackets.newEndGameFlag());
-        session.send(GamePackets.newEndGameFlag2());
-        room.setGameFlag(oid, GamePackets.FLAG_GAME_QUIT);
-        for (Session member : room.snapshot()) {
-            if (member != session) {
-                member.send(GamePackets.scoreLeave(oid));
-            }
-        }
+        deleteGrandPrixPlayer(session, room);
         GameRoom leftover = room;
         leaveRoom(session, false);
         grandPrixAfterPlayerRemoved(leftover);
