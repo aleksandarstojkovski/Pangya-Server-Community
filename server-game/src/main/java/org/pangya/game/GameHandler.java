@@ -13,6 +13,7 @@ import org.pangya.network.session.PlayerContext;
 import org.pangya.network.session.Session;
 import org.pangya.network.session.SessionManager;
 import org.pangya.protocol.game.GamePackets;
+import org.pangya.protocol.iff.PangyaIffLoader;
 import org.pangya.protocol.login.ServerEventFlag;
 import org.pangya.protocol.login.ServerInfo;
 import org.pangya.protocol.packet.PacketIo;
@@ -66,6 +67,8 @@ public final class GameHandler {
     private volatile int liveGrandPrixEvent;
     /** C# {@code DropSystem.m_config.rate_SSC_ticket}. */
     private volatile int liveRateSscTicket;
+    /** C# {@code pangya_new_course_drop.rate_mana_artefact}. */
+    private volatile int liveRateManaArtefact;
     /** C# {@code m_si.event_flag}; recomputed when Auth changes rates. */
     private final ServerEventFlag liveEventFlag = new ServerEventFlag(0);
     /** Bound TCP port ({@code 0} until {@link #setBindPort}). */
@@ -106,6 +109,7 @@ public final class GameHandler {
         this.liveRateClubMastery = 100;
         this.liveGrandPrixEvent = config.rateGrandPrixEvent();
         this.liveRateSscTicket = config.rateSscTicket();
+        this.liveRateManaArtefact = config.rateManaArtefact();
         this.liveEventFlag.setRatePang(liveRatePang);
         this.liveEventFlag.setRateExp(liveRateExp);
         this.liveEventFlag.setRateClubMastery(liveRateClubMastery);
@@ -1222,7 +1226,7 @@ public final class GameHandler {
         List<GamePackets.DropItem> drops = new ArrayList<>(
                 CubeCoinResolver.resolve(catalogs, courseId, holeNum, cubeBody));
         if ((shot.displayState & GamePackets.DISPLAY_ACERTO_HOLE) != 0) {
-            appendSscHoleDrops(session, room, shot, courseId, holeNum, drops);
+            appendInitDropItems(session, room, shot, courseId, holeNum, drops);
         }
         replyInGame(room, session, GamePackets.endShot(session.oid(), drops));
         if ((shot.displayState & GamePackets.DISPLAY_ACERTO_HOLE) != 0) {
@@ -1231,8 +1235,8 @@ public final class GameHandler {
         checkEndShotOfHole(session, room, shot);
     }
 
-    /** C# {@code requestInitDrop} SSC ticket slice for hole-out. */
-    private void appendSscHoleDrops(
+    /** C# {@code requestInitDrop} hole-out drops (SSC, mana artefact, GP ticket). */
+    private void appendInitDropItems(
             Session session,
             GameRoom room,
             GameRoom.PlayerShot shot,
@@ -1240,21 +1244,49 @@ public final class GameHandler {
             int holeNum,
             List<GamePackets.DropItem> drops) {
         int charMotion = charMotionItem(session, room);
+        int rateDrop = 100;
+        int angelWings = 0;
+
         List<GamePackets.DropItem> ssc = HoleDropResolver.drawSscTickets(
                 liveRateSscTicket,
                 courseId,
                 holeNum,
                 room.info.artefato,
                 charMotion,
-                100,
-                0);
-        if (ssc.isEmpty()) {
-            return;
+                rateDrop,
+                angelWings);
+        if (!ssc.isEmpty()) {
+            shot.holeDrops.addAll(ssc);
+            drops.addAll(ssc);
+            room.addPendingAchievementCounter(
+                    session.player().uid, GamePackets.TYPEID_SSC_TICKET_COUNTER, ssc.size());
         }
-        shot.holeDrops.addAll(ssc);
-        drops.addAll(ssc);
-        room.addPendingAchievementCounter(
-                session.player().uid, GamePackets.TYPEID_SSC_TICKET_COUNTER, ssc.size());
+
+        HoleDropResolver.drawManaArtefact(
+                        liveRateManaArtefact,
+                        courseId,
+                        holeNum,
+                        rateDrop,
+                        angelWings,
+                        PangyaIffLoader.manaArtefactTypeids())
+                .ifPresent(drop -> appendHoleDrop(shot, drops, drop));
+
+        int seqHole = holeNum;
+        if (seqHole == room.info.holes && room.tipo != GamePackets.TIPO_GRAND_PRIX) {
+            GamePackets.WarehouseItem gp = warehouseByTypeid(
+                    session.player().uid, GamePackets.TYPEID_GP_TICKET);
+            int gpQntd = gp == null ? 0 : gp.c[0] & 0xffff;
+            HoleDropResolver.drawGrandPrixTicket(courseId, holeNum, room.info.holes, gpQntd)
+                    .ifPresent(drop -> appendHoleDrop(shot, drops, drop));
+        }
+    }
+
+    private static void appendHoleDrop(
+            GameRoom.PlayerShot shot,
+            List<GamePackets.DropItem> drops,
+            GamePackets.DropItem drop) {
+        shot.holeDrops.add(drop);
+        drops.add(drop);
     }
 
     /** C# {@code checkCharMotionItem}; defaults to 1 when motion tracking is unavailable. */

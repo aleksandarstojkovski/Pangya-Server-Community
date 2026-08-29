@@ -45,6 +45,9 @@ class GameFlowIT {
              SessionKeyStore keys = new SessionKeyStore(redisUri);
              GameRuntime runtime = new GameRuntime(config)) {
             LoginRepository repo = new JdbiLoginRepository(DatabaseSupport.jdbi(ds));
+            InventoryRepository inv = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
+            inv.reconcileEquipAtLogin(10001);
+            int expectedWarehouse = inv.warehouse(10001).size();
             String loginKey = repo.generateAuthKeyLogin(10001);
             String gameKey = repo.generateAuthKeyGame(10001, 20202);
             keys.putLoginKey(10001, loginKey);
@@ -85,9 +88,9 @@ class GameFlowIT {
                 assertEquals(0x71, new PacketReader(loginPkts.get(3)).opcode());
                 PacketReader warehouse = new PacketReader(loginPkts.get(4));
                 assertEquals(0x73, warehouse.opcode());
-                assertEquals(2, warehouse.u16());
-                assertEquals(2, warehouse.u16());
-                assertEquals(2 * GamePackets.WAREHOUSE_ITEM_BYTES, warehouse.remaining());
+                assertEquals(expectedWarehouse, warehouse.u16());
+                assertEquals(expectedWarehouse, warehouse.u16());
+                assertEquals(expectedWarehouse * GamePackets.WAREHOUSE_ITEM_BYTES, warehouse.remaining());
 
                 assertEquals(0xE1, new PacketReader(loginPkts.get(5)).opcode());
                 PacketReader equip = new PacketReader(loginPkts.get(6));

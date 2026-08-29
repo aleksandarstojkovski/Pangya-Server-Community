@@ -174,6 +174,15 @@ public final class PangyaIffLoader {
         return items.find(typeid);
     }
 
+    /** C# {@code DropSystem.drawManaArtefact} IFF pool ({@code ItemType == 4}). */
+    public static List<Integer> manaArtefactTypeids() {
+        IffItemIndex items = snapshot.items();
+        if (items.isEmpty()) {
+            return List.of();
+        }
+        return items.manaArtefactTypeids();
+    }
+
     /** C# {@code Ball.Stats.getSlot[0]}; {@code 0} when IFF unloaded or unknown. */
     public static int ballStackSize(int typeid) {
         IffBallIndex balls = snapshot.balls();

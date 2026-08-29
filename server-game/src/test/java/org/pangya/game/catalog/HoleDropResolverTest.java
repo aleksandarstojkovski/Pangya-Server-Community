@@ -44,4 +44,22 @@ class HoleDropResolverTest {
         }
         assertTrue(sawWin, "expected at least one SSC win in probe range");
     }
+
+    @Test
+    void grandPrixTicketQntdOnLongGames() {
+        assertEquals(2, HoleDropResolver.grandPrixTicketQntd(0, 18));
+        assertEquals(1, HoleDropResolver.grandPrixTicketQntd(49, 18));
+        assertEquals(1, HoleDropResolver.grandPrixTicketQntd(0, 9));
+        assertEquals(0, HoleDropResolver.grandPrixTicketQntd(50, 18));
+    }
+
+    @Test
+    void drawGrandPrixTicketBlockedAtWarehouseCap() {
+        assertTrue(HoleDropResolver.drawGrandPrixTicket(0, 18, 18, 50).isEmpty());
+    }
+
+    @Test
+    void drawManaArtefactEmptyWithoutPool() {
+        assertTrue(HoleDropResolver.drawManaArtefact(100, 0, 1, 100, 0, List.of()).isEmpty());
+    }
 }

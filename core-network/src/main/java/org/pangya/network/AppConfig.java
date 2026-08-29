@@ -116,6 +116,11 @@ public final class AppConfig {
         return nestedInt("server", "rateSscTicket", 100);
     }
 
+    /** C# {@code pangya_new_course_drop.rate_mana_artefact}; default 100. */
+    public int rateManaArtefact() {
+        return nestedInt("server", "rateManaArtefact", 100);
+    }
+
     /**
      * C# {@code ServerInfo.rate.grand_prix_event} / INI {@code GP_EVENT}.
      * JP {@code server.ini} default is 1.

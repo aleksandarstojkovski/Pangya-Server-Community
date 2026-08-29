@@ -27,6 +27,17 @@ public record IffItemIndex(Map<Integer, IffItemRecord> byTypeid) {
         return item != null && item.canDeleteActiveItem();
     }
 
+    /** C# {@code sIff.getItem()} entries with {@code ItemType == 4} for mana drops. */
+    public java.util.List<Integer> manaArtefactTypeids() {
+        java.util.ArrayList<Integer> out = new java.util.ArrayList<>();
+        for (IffItemRecord item : byTypeid.values()) {
+            if (item.isManaArtefact()) {
+                out.add(item.typeid());
+            }
+        }
+        return out;
+    }
+
     public static IffItemIndex empty() {
         return new IffItemIndex(Map.of());
     }

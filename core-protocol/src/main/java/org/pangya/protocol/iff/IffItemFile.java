@@ -17,6 +17,8 @@ public final class IffItemFile {
     static final int SHOP_FLAG_OFFSET = 128;
     /** C# {@code Item.Stats.Power} = {@code getSlot[0]}. */
     static final int STATS_POWER_OFFSET = 192 + 4 + 40;
+    /** C# {@code Item.ItemType} immediately after {@code IFFCommon} (192 bytes). */
+    static final int ITEM_TYPE_OFFSET = 192;
 
     private IffItemFile() {}
 
@@ -30,12 +32,15 @@ public final class IffItemFile {
         for (int i = 0; i < header.count(); i++) {
             int base = IffHeader.BYTES + i * RECORD_BYTES;
             int typeid = ByteBuffer.wrap(data, base + 4, 4).order(ByteOrder.LITTLE_ENDIAN).getInt();
+            int itemType = ByteBuffer.wrap(data, base + ITEM_TYPE_OFFSET, 4)
+                    .order(ByteOrder.LITTLE_ENDIAN)
+                    .getInt();
             int shopFlag = data[base + SHOP_FLAG_OFFSET] & 0xff;
             int moneyFlag = data[base + SHOP_FLAG_OFFSET + 1] & 0xff;
             int statsPower = ByteBuffer.wrap(data, base + STATS_POWER_OFFSET, 2)
                     .order(ByteOrder.LITTLE_ENDIAN)
                     .getShort() & 0xffff;
-            out.put(typeid, new IffItemRecord(typeid, new IffShopFlags(shopFlag, moneyFlag), statsPower));
+            out.put(typeid, new IffItemRecord(typeid, itemType, new IffShopFlags(shopFlag, moneyFlag), statsPower));
         }
         return new IffItemIndex(Map.copyOf(out));
     }
