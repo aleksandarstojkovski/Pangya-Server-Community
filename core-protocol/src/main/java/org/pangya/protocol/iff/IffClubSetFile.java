@@ -38,6 +38,7 @@ public final class IffClubSetFile {
             short[] slots = readShort5(data, base + SLOT_STATS_OFFSET);
             int ws = base + WORK_SHOP_OFFSET;
             int workShopTipo = ByteBuffer.wrap(data, ws, 4).order(ByteOrder.LITTLE_ENDIAN).getInt();
+            float workShopRate = ByteBuffer.wrap(data, ws + 12, 4).order(ByteOrder.LITTLE_ENDIAN).getFloat();
             int totalRecovery = ByteBuffer.wrap(data, ws + 8, 4).order(ByteOrder.LITTLE_ENDIAN).getInt();
             int tipoRankS = ByteBuffer.wrap(data, ws + 16, 4).order(ByteOrder.LITTLE_ENDIAN).getInt();
             int flagTransformar = ByteBuffer.wrap(data, ws + 20, 4).order(ByteOrder.LITTLE_ENDIAN).getInt();
@@ -45,7 +46,7 @@ public final class IffClubSetFile {
                     .order(ByteOrder.LITTLE_ENDIAN)
                     .getInt();
             out.put(typeid, new IffClubSetRecord(
-                    typeid, stats, slots, workShopTipo, tipoRankS, totalRecovery, flagTransformar, textPangya));
+                    typeid, stats, slots, workShopTipo, workShopRate, tipoRankS, totalRecovery, flagTransformar, textPangya));
         }
         return new IffClubSetIndex(Map.copyOf(out));
     }

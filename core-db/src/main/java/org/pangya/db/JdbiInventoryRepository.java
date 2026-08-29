@@ -5406,4 +5406,47 @@ public final class JdbiInventoryRepository implements InventoryRepository {
                 .bind("typeid", typeid)
                 .execute());
     }
+
+    @Override
+    public List<ItemBuffRow> activeItemBuffs(long uid) {
+        return jdbi.withHandle(h -> h.createQuery("""
+                        SELECT "index", typeid, reg_date, end_date, tipo, "percent", use_yn
+                          FROM pangya.pangya_item_buff
+                         WHERE uid = :uid AND use_yn = 1 AND end_date > NOW()
+                         ORDER BY "index"
+                        """)
+                .bind("uid", uid)
+                .map((rs, ctx) -> {
+                    Timestamp reg = rs.getTimestamp("reg_date");
+                    Timestamp end = rs.getTimestamp("end_date");
+                    return new ItemBuffRow(
+                            rs.getLong("index"),
+                            rs.getInt("typeid"),
+                            reg == null ? Instant.EPOCH : reg.toInstant(),
+                            end == null ? Instant.EPOCH : end.toInstant(),
+                            rs.getInt("tipo"),
+                            rs.getInt("percent"),
+                            rs.getInt("use_yn"));
+                })
+                .list());
+    }
+
+    @Override
+    public List<CardEquipRow> cardEquips(long uid) {
+        return jdbi.withHandle(h -> h.createQuery("""
+                        SELECT parts_id, parts_typeid, card_typeid, "Efeito", "Efeito_Qntd", "Tipo"
+                          FROM pangya.pangya_card_equip
+                         WHERE "UID" = :uid AND "USE_YN" = 1
+                         ORDER BY "index"
+                        """)
+                .bind("uid", uid)
+                .map((rs, ctx) -> new CardEquipRow(
+                        rs.getInt("parts_id"),
+                        rs.getInt("parts_typeid"),
+                        rs.getInt("card_typeid"),
+                        rs.getInt("Efeito"),
+                        rs.getInt("Efeito_Qntd"),
+                        rs.getInt("Tipo")))
+                .list());
+    }
 }

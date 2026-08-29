@@ -6,6 +6,7 @@ public record IffClubSetRecord(
         short[] stats,
         short[] slots,
         int workShopTipo,
+        float workShopRate,
         int tipoRankS,
         int totalRecovery,
         int flagTransformar,

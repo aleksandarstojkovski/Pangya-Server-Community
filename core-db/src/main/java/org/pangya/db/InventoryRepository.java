@@ -558,6 +558,12 @@ public interface InventoryRepository {
 
     void deleteItemBuff(long uid, int typeid);
 
+    /** C# {@code PlayerInfo.v_ib}: active non-expired item buffs. */
+    List<ItemBuffRow> activeItemBuffs(long uid);
+
+    /** C# {@code PlayerInfo.v_cei}: equipped cards for rate stacking. */
+    List<CardEquipRow> cardEquips(long uid);
+
     /**
      * C# {@code requestLoloCardCompose}: SQL {@code iff_card} stand-in for
      * IFF Card + {@code CardSystem.drawsLoloCardCompose}.
@@ -829,6 +835,15 @@ public interface InventoryRepository {
             int tipo,
             int percent,
             int useYn) {}
+
+    /** C# {@code CardEquipInfoEx} row ({@code pangya_card_equip}). */
+    record CardEquipRow(
+            int partsId,
+            int partsTypeid,
+            int cardTypeid,
+            int efeito,
+            int efeitoQntd,
+            int tipo) {}
 
     record TutorialFlags(int rookie, int beginner, int advancer) {}
 

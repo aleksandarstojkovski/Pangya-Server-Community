@@ -524,15 +524,15 @@ final class GameRoom {
         return true;
     }
 
-    /** C# {@code DropSystem.stCourseInfo} rate/angel/motion subset stored per player. */
-    record PlayerDropCtx(int rateDrop, int angelWings, int charMotion) {}
+    /** C# {@code DropSystem.stCourseInfo} + {@code used_item.rate} per player. */
+    record PlayerDropCtx(int rateDrop, int rateExp, int ratePang, int rateClub, int angelWings, int charMotion) {}
 
-    void initDropCtx(int oid, int rateDrop, int angelWings, int charMotion) {
-        dropCtx.put(oid, new PlayerDropCtx(rateDrop, angelWings, charMotion));
+    void initDropCtx(int oid, int rateDrop, int rateExp, int ratePang, int rateClub, int angelWings, int charMotion) {
+        dropCtx.put(oid, new PlayerDropCtx(rateDrop, rateExp, ratePang, rateClub, angelWings, charMotion));
     }
 
     PlayerDropCtx dropCtx(int oid) {
-        return dropCtx.getOrDefault(oid, new PlayerDropCtx(100, 0, 0));
+        return dropCtx.getOrDefault(oid, new PlayerDropCtx(100, 100, 100, 100, 0, 0));
     }
 
     /** C# {@code requestInitItemUsedGame} passive warehouse / ball / auxpart registration. */

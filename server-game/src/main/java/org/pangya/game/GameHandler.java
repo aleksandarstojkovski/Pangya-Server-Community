@@ -3,7 +3,10 @@ package org.pangya.game;
 import org.pangya.game.catalog.AngelWingsResolver;
 import org.pangya.game.catalog.CourseDropResolver;
 import org.pangya.game.catalog.CubeCoinResolver;
-import org.pangya.game.catalog.DropRateResolver;
+import org.pangya.game.catalog.PlayerRateResolver;
+import org.pangya.game.catalog.PlayerRateResolver.PlayerRates;
+import org.pangya.protocol.iff.IffClubSetRecord;
+import org.pangya.protocol.iff.PangyaIffLoader;
 import org.pangya.game.catalog.GlobalCatalogs;
 import org.pangya.game.catalog.HoleDropResolver;
 import org.pangya.game.catalog.MapCatalog;
@@ -16,7 +19,6 @@ import org.pangya.network.session.PlayerContext;
 import org.pangya.network.session.Session;
 import org.pangya.network.session.SessionManager;
 import org.pangya.protocol.game.GamePackets;
-import org.pangya.protocol.iff.PangyaIffLoader;
 import org.pangya.protocol.login.ServerEventFlag;
 import org.pangya.protocol.login.ServerInfo;
 import org.pangya.protocol.packet.PacketIo;
@@ -879,10 +881,14 @@ public final class GameHandler {
             GamePackets.UserEquip equip = inventory.userEquip(uid);
             room.initActiveItems(member.oid(), equip.itemSlot);
             initPassiveItemsForGame(room, member.oid(), uid, equip);
-            initDropCtxForGame(room, member.oid(), uid, equip);
+            initPlayerCtxForGame(room, member.oid(), uid, equip);
             GamePackets.WarehouseItem club = warehouseById(uid, equip.clubsetId);
             if (club != null) {
-                room.initClubMastery(member.oid(), club.typeid, club.id, 1.0f, 100);
+                float clubRate = PangyaIffLoader.clubSet(club.typeid)
+                        .map(IffClubSetRecord::workShopRate)
+                        .orElse(1.0f);
+                int playerRateClub = room.dropCtx(member.oid()).rateClub();
+                room.initClubMastery(member.oid(), club.typeid, club.id, clubRate, playerRateClub);
             }
         }
         room.broadcast(GamePackets.startGameFlag());
@@ -1428,11 +1434,10 @@ public final class GameHandler {
         }
     }
 
-    /** C# {@code requestInitItemUsedGame}: auxpart/mascot drop rate for {@code requestInitDrop}. */
-    private void initDropCtxForGame(
+    /** C# {@code requestInitItemUsedGame}: item buffs, cards, passive, auxpart/mascot rates. */
+    private void initPlayerCtxForGame(
             GameRoom room, int oid, long uid, GamePackets.UserEquip equip) {
         GamePackets.CharacterInfo character = equippedCharacter(uid, equip);
-        int[] auxparts = character == null ? null : character.auxparts;
         int mascotTypeid = 0;
         if (equip.mascotId > 0) {
             for (GamePackets.MascotInfo mascot : inventory.mascots(uid)) {
@@ -1445,8 +1450,17 @@ public final class GameHandler {
         float quitRate = inventory.quitRate(uid);
         int angelWings = AngelWingsResolver.angelEquipped(character, quitRate);
         int charMotion = MotionItems.hasMotionPart(character) ? 1 : 0;
-        int rateDrop = DropRateResolver.computeDropRate(auxparts, mascotTypeid);
-        room.initDropCtx(oid, rateDrop, angelWings, charMotion);
+        var passiveKeys = room.passiveUses.get(oid);
+        java.util.Collection<Integer> passiveTypeids = passiveKeys == null
+                ? java.util.List.of()
+                : passiveKeys.keySet();
+        PlayerRates rates = PlayerRateResolver.compute(
+                inventory.activeItemBuffs(uid),
+                inventory.cardEquips(uid),
+                passiveTypeids,
+                character,
+                mascotTypeid);
+        room.initDropCtx(oid, rates.drop(), rates.exp(), rates.pang(), rates.club(), angelWings, charMotion);
     }
 
     private GamePackets.CharacterInfo equippedCharacter(long uid, GamePackets.UserEquip equip) {
