@@ -1799,6 +1799,22 @@ public final class GamePackets {
     public static final int TYPEID_COBRA_COUNTER = 0x6C40006E;
     /** C# {@code update_sync_shot_achievement} beam impact hole-out. */
     public static final int TYPEID_BEAM_IMPACT_COUNTER = 0x6C40006F;
+    /** C# {@code requestFinishItemUsedGame} generic active item use counter. */
+    public static final int TYPEID_ACTIVE_ITEM_COUNTER = 0x6C40004F;
+    /** C# {@code requestFinishItemUsedGame} generic passive item use counter. */
+    public static final int TYPEID_PASSIVE_ITEM_COUNTER = 0x6C400075;
+    /** C# {@code getPassiveItemCounterTypeId} Time Booster uses. */
+    public static final int TYPEID_TIME_BOOSTER_COUNTER = 0x6C400050;
+    /** C# {@code getActiveItemCounterTypeId} Power Milk uses. */
+    public static final int TYPEID_POWER_MILK_COUNTER = 0x6C400071;
+    /** C# {@code getActiveItemCounterTypeId} Spin Mastery uses. */
+    public static final int TYPEID_SPIN_MASTERY_COUNTER = 0x6C400072;
+    /** C# {@code getActiveItemCounterTypeId} Silent Wind uses. */
+    public static final int TYPEID_SILENT_WIND_COUNTER = 0x6C400073;
+    /** C# {@code getActiveItemCounterTypeId} Miracle Sign uses. */
+    public static final int TYPEID_MIRACLE_SIGN_COUNTER = 0x6C400074;
+    /** C# {@code getPassiveItemCounterTypeId} Auto Calipers uses. */
+    public static final int TYPEID_AUTO_CALIPERS_COUNTER = 0x6C400076;
     /** C# {@code rain_count} bad-weather holes played. */
     public static final int TYPEID_RAIN_COUNTER = 0x6C40009A;
     /** C# {@code rain_hole_consecutivos_count} two consecutive rain holes. */

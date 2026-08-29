@@ -1,6 +1,7 @@
 package org.pangya.game;
 
 import org.pangya.protocol.game.GamePackets;
+import org.pangya.protocol.iff.IffGroups;
 
 /** C# {@code AchievementSystem} counter typeid lookups for game-mode achievements. */
 final class AchievementCounterTypeids {
@@ -148,6 +149,46 @@ final class AchievementCounterTypeids {
         int rain4 = rainStats.countRain4PlusConsecBySeq(holeSeq);
         if (rain4 > 0) {
             room.addPendingAchievementCounter(uid, GamePackets.TYPEID_RAIN_4_CONSEC_COUNTER, rain4);
+        }
+    }
+
+    /**
+     * C# {@code requestFinishItemUsedGame}: active slot uses and auto-command passive
+     * uses tracked in {@link GameRoom#activeUses} / {@link GameRoom#autoCommandUses}.
+     */
+    static void queueItemUsedCounters(GameRoom room, int oid, long uid) {
+        var activeUses = room.activeUses.get(oid);
+        if (activeUses != null) {
+            for (var entry : activeUses.entrySet()) {
+                int typeid = entry.getKey();
+                int count = entry.getValue().count;
+                if (count <= 0) {
+                    continue;
+                }
+                if (GamePackets.itemGroupIdentify(typeid) != GamePackets.IFF_GROUP_ITEM) {
+                    continue;
+                }
+                if (!IffGroups.isItemEquipable(typeid)) {
+                    continue;
+                }
+                room.addPendingAchievementCounter(uid, GamePackets.TYPEID_ACTIVE_ITEM_COUNTER, count);
+                int specific = activeItemCounter(typeid);
+                if (specific != 0) {
+                    room.addPendingAchievementCounter(uid, specific, count);
+                }
+            }
+        }
+        Integer autoUsed = room.autoCommandUses.get(oid);
+        if (autoUsed != null && autoUsed > 0) {
+            int typeid = GamePackets.TYPEID_AUTO_COMMAND;
+            if (GamePackets.itemGroupIdentify(typeid) == GamePackets.IFF_GROUP_ITEM
+                    && !IffGroups.isItemEquipable(typeid)) {
+                room.addPendingAchievementCounter(uid, GamePackets.TYPEID_PASSIVE_ITEM_COUNTER, autoUsed);
+                int specific = passiveItemCounter(typeid);
+                if (specific != 0) {
+                    room.addPendingAchievementCounter(uid, specific, autoUsed);
+                }
+            }
         }
     }
 
@@ -313,6 +354,38 @@ final class AchievementCounterTypeids {
             case 6 -> 0x6C40006A;
             case 9 -> 0x6C40006B;
             case 18 -> 0x6C40006C;
+            default -> 0;
+        };
+    }
+
+    /** C# {@code AchievementSystem.getActiveItemCounterTypeId}. */
+    static int activeItemCounter(int typeid) {
+        return switch (typeid) {
+            case 0x18000000 -> GamePackets.TYPEID_SPIN_MASTERY_COUNTER;
+            case 0x18000001 -> 0x6C400096; // Curve Mastery
+            case 0x18000004 -> 0x6C400070; // Strength Boost
+            case 0x18000005 -> GamePackets.TYPEID_MIRACLE_SIGN_COUNTER;
+            case 0x18000006 -> GamePackets.TYPEID_SILENT_WIND_COUNTER;
+            case 0x18000009 -> 0x6C4000BD; // Power Calipers
+            case 0x18000010 -> 0x6C400094; // Duostar PS
+            case 0x18000011 -> 0x6C400093; // Duostar SS
+            case 0x18000012 -> 0x6C400092; // Duostar LS
+            case 0x18000025 -> GamePackets.TYPEID_POWER_MILK_COUNTER;
+            case 0x18000027 -> 0x6C400091; // Power Potion
+            case 0x18000028 -> 0x6C400095; // Safety
+            case 0x1800002C -> 0x6C40008E; // Silent Wind Nerve Stabilizer
+            case 0x1800002D -> 0x6C40008F; // Safety Silent Wind
+            case 0x1800002F -> 0x6C400090; // Wind Strength Boost
+            default -> 0;
+        };
+    }
+
+    /** C# {@code AchievementSystem.getPassiveItemCounterTypeId}. */
+    static int passiveItemCounter(int typeid) {
+        return switch (typeid) {
+            case 0x1A000011 -> GamePackets.TYPEID_TIME_BOOSTER_COUNTER;
+            case 0x1A000040 -> GamePackets.TYPEID_AUTO_CALIPERS_COUNTER;
+            case 0x1A000136 -> 0x6C400097; // Fairy's Tears
             default -> 0;
         };
     }

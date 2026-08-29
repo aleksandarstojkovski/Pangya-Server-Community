@@ -1281,10 +1281,11 @@ public final class GameHandler {
         }
     }
 
-    /** C# {@code requestSaveInfo} records + rain/score counters + finish-game dump. */
+    /** C# {@code requestSaveInfo} records + rain/score/item counters + finish-game dump. */
     private void finishGamePlayerDump(Session session, GameRoom room) {
         queueRainCounters(session, room);
         queueScoreConsecutivosCounters(session, room);
+        queueItemUsedCounters(session, room);
         GameRoom.PlayerShot shot = room.shots.get(session.oid());
         GamePackets.UserInfoEx ui = shot == null || shot.userInfo == null
                 ? null
@@ -1348,6 +1349,11 @@ public final class GameHandler {
                 room.info.holes);
     }
 
+    private void queueItemUsedCounters(Session session, GameRoom room) {
+        AchievementCounterTypeids.queueItemUsedCounters(
+                room, session.oid(), session.player().uid);
+    }
+
     /**
      * C# {@code packet037} / {@code requestLastPlayerFinishVersus}: Versus
      * {@code finish_game(first, 2)} then {@code room.finish_game()}. Match
@@ -1361,6 +1367,7 @@ public final class GameHandler {
         for (Session member : room.snapshot()) {
             queueRainCounters(member, room);
             queueScoreConsecutivosCounters(member, room);
+            queueItemUsedCounters(member, room);
             flushPendingAchievementCounters(member, room);
         }
         if (room.tipo == GamePackets.TIPO_MATCH) {

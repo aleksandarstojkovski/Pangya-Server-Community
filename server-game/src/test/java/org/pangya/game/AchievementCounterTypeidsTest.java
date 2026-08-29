@@ -83,4 +83,20 @@ class AchievementCounterTypeidsTest {
         assertEquals(1, pending.getOrDefault(GamePackets.TYPEID_SHORT_GAME_COUNTER, 0));
         assertEquals(1, pending.getOrDefault(GamePackets.TYPEID_MASTER_ARTEFACT_COUNTER, 0));
     }
+
+    @Test
+    void itemUsedCountersQueueActiveAndPassiveUses() {
+        PacketReader created = new PacketReader(GamePackets.clientCreatePractice("t", "s"));
+        created.opcode();
+        GameRoom room = new GameRoom(GamePackets.readCreateRoom(created), 1, 10001, 100, 100, 0);
+        room.initActiveItems(1, new int[] {0x18000025, 0x18000025});
+        room.tryUseActive(1, 0x18000025);
+        room.initAutoCommand(1, true);
+        room.tryUseAutoCommand(1, 5);
+        AchievementCounterTypeids.queueItemUsedCounters(room, 1, 10001);
+        var pending = room.takePendingAchievementCounters(10001);
+        assertEquals(1, pending.getOrDefault(GamePackets.TYPEID_ACTIVE_ITEM_COUNTER, 0));
+        assertEquals(1, pending.getOrDefault(GamePackets.TYPEID_POWER_MILK_COUNTER, 0));
+        assertEquals(1, pending.getOrDefault(GamePackets.TYPEID_PASSIVE_ITEM_COUNTER, 0));
+    }
 }
