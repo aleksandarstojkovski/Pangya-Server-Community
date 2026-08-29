@@ -4721,6 +4721,118 @@ public final class JdbiInventoryRepository implements InventoryRepository {
     }
 
     @Override
+    public Optional<MapStatisticsRow> mapStatistics(long uid, int tipo, int course, int assist) {
+        return jdbi.withHandle(h -> h.createQuery("""
+                        SELECT tipo, course, assist, tacada, putt, hole, fairway, holein, puttin,
+                               total_score, best_score, best_pang, character_typeid, event_score
+                          FROM pangya.pangya_record
+                         WHERE "UID" = :uid AND tipo = :tipo AND course = :course AND assist = :assist
+                         LIMIT 1
+                        """)
+                .bind("uid", (int) uid)
+                .bind("tipo", tipo)
+                .bind("course", course)
+                .bind("assist", assist)
+                .map((rs, ctx) -> new MapStatisticsRow(
+                        rs.getInt("tipo"),
+                        rs.getInt("course"),
+                        rs.getInt("assist"),
+                        rs.getInt("tacada"),
+                        rs.getInt("putt"),
+                        rs.getInt("hole"),
+                        rs.getInt("fairway"),
+                        rs.getInt("holein"),
+                        rs.getInt("puttin"),
+                        rs.getInt("total_score"),
+                        rs.getInt("best_score"),
+                        rs.getLong("best_pang"),
+                        rs.getInt("character_typeid"),
+                        rs.getInt("event_score")))
+                .findOne());
+    }
+
+    @Override
+    public void upsertMapStatistics(long uid, MapStatisticsRow row) {
+        if (uid <= 0) {
+            return;
+        }
+        jdbi.useHandle(h -> {
+            Integer existing = h.createQuery("""
+                            SELECT tacada
+                              FROM pangya.pangya_record
+                             WHERE "UID" = :uid AND tipo = :tipo AND course = :course AND assist = :assist
+                             LIMIT 1
+                            """)
+                    .bind("uid", (int) uid)
+                    .bind("tipo", row.tipo())
+                    .bind("course", row.course())
+                    .bind("assist", row.assist())
+                    .mapTo(Integer.class)
+                    .findOne()
+                    .orElse(null);
+            if (existing == null) {
+                h.createUpdate("""
+                                INSERT INTO pangya.pangya_record (
+                                    "UID", tipo, course, tacada, putt, hole, fairway, holein, puttin,
+                                    total_score, best_score, best_pang, character_typeid, event_score, assist
+                                ) VALUES (
+                                    :uid, :tipo, :course, :tacada, :putt, :hole, :fairway, :holein, :puttin,
+                                    :totalScore, :bestScore, :bestPang, :characterTypeid, :eventScore, :assist
+                                )
+                                """)
+                        .bind("uid", (int) uid)
+                        .bind("tipo", row.tipo())
+                        .bind("course", row.course())
+                        .bind("assist", row.assist())
+                        .bind("tacada", row.tacada())
+                        .bind("putt", row.putt())
+                        .bind("hole", row.hole())
+                        .bind("fairway", row.fairway())
+                        .bind("holein", row.holeIn())
+                        .bind("puttin", row.puttIn())
+                        .bind("totalScore", row.totalScore())
+                        .bind("bestScore", row.bestScore())
+                        .bind("bestPang", row.bestPang())
+                        .bind("characterTypeid", row.characterTypeid())
+                        .bind("eventScore", row.eventScore())
+                        .execute();
+            } else {
+                h.createUpdate("""
+                                UPDATE pangya.pangya_record
+                                   SET tacada = :tacada,
+                                       putt = :putt,
+                                       hole = :hole,
+                                       fairway = :fairway,
+                                       holein = :holein,
+                                       puttin = :puttin,
+                                       total_score = :totalScore,
+                                       best_score = :bestScore,
+                                       best_pang = :bestPang,
+                                       character_typeid = :characterTypeid,
+                                       event_score = :eventScore
+                                 WHERE "UID" = :uid AND tipo = :tipo AND course = :course AND assist = :assist
+                                """)
+                        .bind("uid", (int) uid)
+                        .bind("tipo", row.tipo())
+                        .bind("course", row.course())
+                        .bind("assist", row.assist())
+                        .bind("tacada", row.tacada())
+                        .bind("putt", row.putt())
+                        .bind("hole", row.hole())
+                        .bind("fairway", row.fairway())
+                        .bind("holein", row.holeIn())
+                        .bind("puttin", row.puttIn())
+                        .bind("totalScore", row.totalScore())
+                        .bind("bestScore", row.bestScore())
+                        .bind("bestPang", row.bestPang())
+                        .bind("characterTypeid", row.characterTypeid())
+                        .bind("eventScore", row.eventScore())
+                        .execute();
+            }
+        });
+    }
+
+    @Override
     public Optional<GrandPrixTrofelInsert> addGrandPrixTrofel(long uid, int typeid) {
         if (typeid == 0) {
             return Optional.empty();

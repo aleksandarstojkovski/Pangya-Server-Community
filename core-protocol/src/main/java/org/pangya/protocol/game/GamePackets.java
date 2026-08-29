@@ -864,6 +864,11 @@ public final class GamePackets {
      */
     public static final int CLIENT_UCC = 0xB9;
     /**
+     * C# {@code SERVER_NEW_RECORD}: u8 course (&amp; 0x7F). Same numeric as
+     * {@link #CLIENT_UCC}, opposite direction.
+     */
+    public static final int SERVER_NEW_RECORD = 0xB9;
+    /**
      * C# {@code packet0C9} UCC web-key. Same numeric as
      * {@link #SERVER_ONELINE_MSG}, opposite direction. uid 0 → {@code 0x153}.
      */
@@ -6583,6 +6588,11 @@ public final class GamePackets {
     /** C# {@code SERVER_NEW_END_GAME_FLAG2} {@code 0x24F} u32 0. */
     public static byte[] newEndGameFlag2() {
         return new PacketWriter().opcode(SERVER_NEW_END_GAME_FLAG2).u32(0).toBytes();
+    }
+
+    /** C# {@code SERVER_NEW_RECORD} {@code 0xB9}: u8 course id (&amp; 0x7F). */
+    public static byte[] newCourseRecord(int course) {
+        return new PacketWriter().opcode(SERVER_NEW_RECORD).u8(course & 0x7F).toBytes();
     }
 
     /**

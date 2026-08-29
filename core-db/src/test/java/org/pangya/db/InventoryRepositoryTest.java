@@ -889,6 +889,57 @@ class InventoryRepositoryTest {
     }
 
     @Test
+    void upsertMapStatisticsRoundTrip() {
+        String url = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        DatabaseSupport.migrate(url, user, password);
+
+        try (var ds = DatabaseSupport.dataSource(url, user, password)) {
+            InventoryRepository repo = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
+            int tipo = 52;
+            int course = 3;
+            int assist = 0;
+            try (var h = DatabaseSupport.jdbi(ds).open()) {
+                h.createUpdate("""
+                                DELETE FROM pangya.pangya_record
+                                 WHERE "UID" = 10001 AND tipo = :tipo AND course = :course AND assist = :assist
+                                """)
+                        .bind("tipo", tipo)
+                        .bind("course", course)
+                        .bind("assist", assist)
+                        .execute();
+            }
+            assertTrue(repo.mapStatistics(10001, tipo, course, assist).isEmpty());
+            var first = new InventoryRepository.MapStatisticsRow(
+                    tipo, course, assist, 10, 5, 2, 1, 0, 0, 3, 72, 5000, GamePackets.TYPEID_NURI, 0);
+            repo.upsertMapStatistics(10001, first);
+            var loaded = repo.mapStatistics(10001, tipo, course, assist).orElseThrow();
+            assertEquals(10, loaded.tacada());
+            assertEquals(72, loaded.bestScore());
+            assertEquals(5000, loaded.bestPang());
+            assertEquals(GamePackets.TYPEID_NURI, loaded.characterTypeid());
+            var second = new InventoryRepository.MapStatisticsRow(
+                    tipo, course, assist, 15, 7, 3, 2, 1, 1, 5, 70, 8000, GamePackets.TYPEID_NURI, 0);
+            repo.upsertMapStatistics(10001, second);
+            loaded = repo.mapStatistics(10001, tipo, course, assist).orElseThrow();
+            assertEquals(15, loaded.tacada());
+            assertEquals(70, loaded.bestScore());
+            assertEquals(8000, loaded.bestPang());
+            try (var h = DatabaseSupport.jdbi(ds).open()) {
+                h.createUpdate("""
+                                DELETE FROM pangya.pangya_record
+                                 WHERE "UID" = 10001 AND tipo = :tipo AND course = :course AND assist = :assist
+                                """)
+                        .bind("tipo", tipo)
+                        .bind("course", course)
+                        .bind("assist", assist)
+                        .execute();
+            }
+        }
+    }
+
+    @Test
     void addGrandPrixTrofelInsertsAndIncrementsQntd() {
         String url = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
         String user = env("PANGYA_TEST_JDBC_USER", "pangya");

@@ -3612,9 +3612,12 @@ public final class GameHandler {
         queueScoreConsecutivosCounters(session, room);
         queueItemUsedCounters(session, room);
         GameRoom.PlayerShot shot = room.shots.get(session.oid());
-        if (!isRookieNormalGrandPrix(room) && shot != null && shot.userInfo != null) {
-            queueRecordAchievementCounters(session, room, shot.userInfo);
-            saveHoleDrops(session, room);
+        if (!isRookieNormalGrandPrix(room)) {
+            saveGrandPrixRecordCourse(session, room, shot);
+            if (shot != null && shot.userInfo != null) {
+                queueRecordAchievementCounters(session, room, shot.userInfo);
+                saveHoleDrops(session, room);
+            }
         }
         consumeFinishItemUsed(session, room);
         finishGameExp(session, room, finishRankIndex(room, session));
@@ -3632,6 +3635,67 @@ public final class GameHandler {
         return GrandPrixEnterWindow.isGrandPrixNormal(room.grandPrixTypeid)
                 && GrandPrixEnterWindow.grandPrixAba(room.grandPrixTypeid)
                         == GrandPrixEnterWindow.GP_ABA_ROOKIE;
+    }
+
+    /** C# {@code GameBase.requestSaveRecordCourse} for GP early exit (tipo 52). */
+    private void saveGrandPrixRecordCourse(Session session, GameRoom room, GameRoom.PlayerShot shot) {
+        if (shot == null || shot.userInfo == null) {
+            return;
+        }
+        long uid = session.player().uid;
+        GamePackets.UserEquip equip = inventory.userEquip(uid);
+        GamePackets.CharacterInfo character = equippedCharacter(uid, equip);
+        if (character == null) {
+            return;
+        }
+        int course = room.info.course & 0x7f;
+        int assist = session.player().assistFlag ? 1 : 0;
+        int tipo = 52;
+        org.pangya.db.InventoryRepository.MapStatisticsRow existing =
+                inventory.mapStatistics(uid, tipo, course, assist)
+                        .orElse(org.pangya.db.InventoryRepository.MapStatisticsRow.empty(tipo, course, assist));
+        int holeNum = shot.hole == 0 ? 1 : shot.hole;
+        int holeSeq = room.course != null ? room.course.findHoleSeq(holeNum) : holeNum;
+        boolean countRecord = room.info.holes == 18
+                && (holeSeq == 18
+                        || room.gameFlag(session.oid()) == GamePackets.FLAG_GAME_END_GAME);
+        int bestScore = existing.bestScore();
+        long bestPang = existing.bestPang();
+        int characterTypeid = existing.characterTypeid();
+        boolean newRecord = false;
+        if (countRecord) {
+            if (bestScore == 127 || shot.score < bestScore || shot.pang > bestPang) {
+                if (shot.score < bestScore) {
+                    bestScore = shot.score;
+                }
+                if (shot.pang > bestPang) {
+                    bestPang = shot.pang;
+                }
+                characterTypeid = character.typeid;
+                newRecord = true;
+            }
+        }
+        GamePackets.UserInfoEx ui = shot.userInfo;
+        var updated = new org.pangya.db.InventoryRepository.MapStatisticsRow(
+                tipo,
+                course,
+                assist,
+                existing.tacada() + ui.tacada(),
+                existing.putt() + ui.putt(),
+                existing.hole() + ui.hole(),
+                existing.fairway() + ui.fairway(),
+                existing.holeIn() + ui.holeIn(),
+                existing.puttIn() + ui.puttIn(),
+                existing.totalScore() + shot.score,
+                bestScore,
+                bestPang,
+                characterTypeid,
+                0);
+        inventory.upsertMapStatistics(uid, updated);
+        if (newRecord) {
+            inventory.setPangCookie(uid, inventory.pang(uid) + 1000, inventory.cookie(uid));
+            session.send(GamePackets.newCourseRecord(course));
+        }
     }
 
     /** C# {@code sendUpdateInfoAndMapStatistics}: client {@code UserInfoEx} or level fallback. */

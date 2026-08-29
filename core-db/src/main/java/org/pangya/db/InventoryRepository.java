@@ -472,7 +472,38 @@ public interface InventoryRepository {
      */
     record GrandPrixTrofelInsert(long itemId, int qntdAnt, int qntdDep) {}
 
+    /** C# {@code MapStatisticsEx} / {@code pangya.pangya_record} columns. */
+    record MapStatisticsRow(
+            int tipo,
+            int course,
+            int assist,
+            int tacada,
+            int putt,
+            int hole,
+            int fairway,
+            int holeIn,
+            int puttIn,
+            int totalScore,
+            int bestScore,
+            long bestPang,
+            int characterTypeid,
+            int eventScore) {
+
+        public static MapStatisticsRow empty(int tipo, int course, int assist) {
+            return new MapStatisticsRow(tipo, course, assist, 0, 0, 0, 0, 0, 0, 0, 127, 0, 0, 0);
+        }
+    }
+
     Optional<GrandPrixTrofelInsert> addGrandPrixTrofel(long uid, int typeid);
+
+    /**
+     * C# {@code pangya.pangya_record} row for {@code ProcUpdateMapStatistics}.
+     * Missing row uses {@code bestScore=127} like C# {@code MapStatistics.clear}.
+     */
+    Optional<MapStatisticsRow> mapStatistics(long uid, int tipo, int course, int assist);
+
+    /** C# {@code CmdUpdateMapStatistics}: insert or update one course record row. */
+    void upsertMapStatistics(long uid, MapStatisticsRow row);
 
     /** C# {@code getItemOfSetItem} validation for gift/mail (no warehouse insert). */
     boolean setItemExpandable(int setTypeid);

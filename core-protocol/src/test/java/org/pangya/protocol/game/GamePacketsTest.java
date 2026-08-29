@@ -2689,6 +2689,9 @@ class GamePacketsTest {
         PacketReader end2 = new PacketReader(GamePackets.newEndGameFlag2());
         assertEquals(GamePackets.SERVER_NEW_END_GAME_FLAG2, end2.opcode());
         assertEquals(0, end2.u32());
+        PacketReader record = new PacketReader(GamePackets.newCourseRecord(0x83));
+        assertEquals(GamePackets.SERVER_NEW_RECORD, record.opcode());
+        assertEquals(0x03, record.u8());
         assertEquals(GamePackets.CLIENT_UPDATE_PCBANG_MASCOT, 0x9A);
         assertEquals(GamePackets.PCBANG_MASCOT_MSG_MAX, 16);
         assertEquals(GamePackets.PCBANG_MASCOT_ERR_INVALID, 1);
