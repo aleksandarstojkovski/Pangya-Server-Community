@@ -5318,6 +5318,45 @@ class GameFlowIT {
     }
 
     @Test
+    void grandPrixEnterSetsGpTempoFromIffWhenLoaded() throws Exception {
+        var jpIff = java.nio.file.Path.of(
+                "reference/pangya-server-community/Server/JP/GameServer/data/pangya_jp.iff");
+        if (!jpIff.toFile().isFile()) {
+            return;
+        }
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        AppConfig config = new AppConfig(testYamlWithIff(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config);
+             PangyaFakeClient client = new PangyaFakeClient()) {
+            InventoryRepository inv = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
+            inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_GP_TICKET);
+            try {
+                inv.addWarehouseItem(10001, GamePackets.TYPEID_GP_TICKET, 1);
+                LoginRepository repo = new JdbiLoginRepository(DatabaseSupport.jdbi(ds));
+                String loginKey = repo.generateAuthKeyLogin(10001);
+                String gameKey = repo.generateAuthKeyGame(10001, 20202);
+                keys.putLoginKey(10001, loginKey);
+                keys.putGameKey(10001, 20202, gameKey);
+                loginToChannel(client, runtime.port(), "testuser", 10001, loginKey, gameKey);
+
+                client.sendPlain(GamePackets.clientGpEnter(0x100));
+                PacketReader entered = awaitOpcode(client, GamePackets.SERVER_ROOM_ENTER_RESULT);
+                assertEquals(0, entered.i16());
+                assertEquals(0, gpTempoFromRoomInfo(entered.readBytes(GamePackets.ROOM_INFO_BYTES)));
+            } finally {
+                inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_GP_TICKET);
+            }
+        }
+    }
+
+    @Test
     void grandPrixStartConsumesTicketWhenIffLoaded() throws Exception {
         var jpIff = java.nio.file.Path.of(
                 "reference/pangya-server-community/Server/JP/GameServer/data/pangya_jp.iff");
@@ -8011,6 +8050,11 @@ class GameFlowIT {
 
     private static int roomNumberFromInfo(byte[] info) {
         return org.pangya.protocol.packet.PacketIo.readU16le(info, 89);
+    }
+
+    /** C# {@code ri.grand_prix.tempo} at offset 202 in {@link GamePackets#ROOM_INFO_BYTES}. */
+    private static int gpTempoFromRoomInfo(byte[] info) {
+        return org.pangya.protocol.packet.PacketIo.readU32le(info, 202);
     }
 
     private static boolean awaitSessionCount(GameRuntime runtime, int expected, long timeout, TimeUnit unit)

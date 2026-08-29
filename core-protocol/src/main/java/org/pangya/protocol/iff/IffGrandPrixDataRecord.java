@@ -5,6 +5,7 @@ public record IffGrandPrixDataRecord(
         int typeid,
         int typeIdLink,
         int typeGp,
+        int timeHole,
         String name,
         int rule,
         int course,

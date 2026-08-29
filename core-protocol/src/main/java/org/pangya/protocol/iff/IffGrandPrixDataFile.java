@@ -32,6 +32,7 @@ public final class IffGrandPrixDataFile {
     static final int CLEAR_GP_TYPEID_OFFSET = 292;
     static final int LOCK_YN_OFFSET = 296;
     static final int TYPE_GP_OFFSET = 12;
+    static final int TIME_HOLE_OFFSET = 16;
 
     private static final Charset SHIFT_JIS = PacketIo.SHIFT_JIS;
 
@@ -53,6 +54,9 @@ public final class IffGrandPrixDataFile {
             int typeid = ByteBuffer.wrap(data, base + 4, 4).order(ByteOrder.LITTLE_ENDIAN).getInt();
             int typeIdLink = ByteBuffer.wrap(data, base + 8, 4).order(ByteOrder.LITTLE_ENDIAN).getInt();
             int typeGp = ByteBuffer.wrap(data, base + TYPE_GP_OFFSET, 4).order(ByteOrder.LITTLE_ENDIAN).getInt();
+            int timeHole = ByteBuffer.wrap(data, base + TIME_HOLE_OFFSET, 2)
+                    .order(ByteOrder.LITTLE_ENDIAN)
+                    .getShort() & 0xffff;
             String name = readFixedString(data, base + NAME_OFFSET, NAME_BYTES);
             int rule = ByteBuffer.wrap(data, base + RULE_OFFSET, 4).order(ByteOrder.LITTLE_ENDIAN).getInt();
             int course = ByteBuffer.wrap(data, base + COURSE_OFFSET, 4).order(ByteOrder.LITTLE_ENDIAN).getInt();
@@ -82,7 +86,7 @@ public final class IffGrandPrixDataFile {
             IffSystemTime open = IffSystemTime.read(data, base + OPEN_OFFSET);
             IffSystemTime start = IffSystemTime.read(data, base + START_OFFSET);
             out.put(typeid, new IffGrandPrixDataRecord(
-                    typeid, typeIdLink, typeGp, name, rule, course, modo, holes, naturalMode, minLevel, maxLevel,
+                    typeid, typeIdLink, typeGp, timeHole, name, rule, course, modo, holes, naturalMode, minLevel, maxLevel,
                     ticketTypeid, ticketQntd, conditionMin, conditionMax, clearGpTypeid, lockYn, open, start));
         }
         return new IffGrandPrixDataIndex(Map.copyOf(out));

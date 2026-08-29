@@ -8133,6 +8133,7 @@ public final class GameHandler {
             room.info.gpRankTypeid = org.pangya.protocol.iff.PangyaIffLoader.grandPrixData(typeid)
                     .map(org.pangya.protocol.iff.IffGrandPrixDataRecord::typeIdLink)
                     .orElse(typeid);
+            iffGp.ifPresent(row -> room.info.gpTempo = row.timeHole() * 1000);
             if (!room.addPlayer(session)) {
                 session.send(GamePackets.sysAck(
                         GamePackets.SERVER_START_GAME_FAIL,

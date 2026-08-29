@@ -61,6 +61,22 @@ class IffGrandPrixDataFileTest {
     }
 
     @Test
+    void loadsTimeHoleFromScheduledCupRow() throws Exception {
+        assumeReferenceIffPresent();
+        PangyaIffLoader.reload(JP_IFF);
+        IffGrandPrixDataRecord row = PangyaIffLoader.grandPrixData(0x80101).orElseThrow();
+        assertEquals(90, row.timeHole());
+    }
+
+    @Test
+    void controlPracticeRowHasZeroTimeHole() throws Exception {
+        assumeReferenceIffPresent();
+        PangyaIffLoader.reload(JP_IFF);
+        IffGrandPrixDataRecord row = PangyaIffLoader.grandPrixData(0x100).orElseThrow();
+        assertEquals(0, row.timeHole());
+    }
+
+    @Test
     void loadsOpenStartFromScheduledRow() throws Exception {
         assumeReferenceIffPresent();
         PangyaIffLoader.reload(JP_IFF);
