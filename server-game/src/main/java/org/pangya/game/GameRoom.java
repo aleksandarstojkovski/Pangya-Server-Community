@@ -461,6 +461,8 @@ final class GameRoom {
         final int[] holeTacada = new int[18];
         /** C# {@code pgi.progress.par_hole} per-hole par values. */
         final int[] holePar = new int[18];
+        /** C# {@code pgi.drop_list.v_drop} accumulated hole-end drops for {@code requestSaveDrop}. */
+        final java.util.List<GamePackets.DropItem> holeDrops = new java.util.ArrayList<>();
     }
 
     boolean allPlayersFinishedGame() {

@@ -111,6 +111,11 @@ public final class AppConfig {
         return nestedInt("server", "rateExp", 100);
     }
 
+    /** C# INI {@code rate_SSC_ticket}; default 100. */
+    public int rateSscTicket() {
+        return nestedInt("server", "rateSscTicket", 100);
+    }
+
     /**
      * C# {@code ServerInfo.rate.grand_prix_event} / INI {@code GP_EVENT}.
      * JP {@code server.ini} default is 1.

@@ -2,6 +2,7 @@ package org.pangya.game;
 
 import org.pangya.game.catalog.CubeCoinResolver;
 import org.pangya.game.catalog.GlobalCatalogs;
+import org.pangya.game.catalog.HoleDropResolver;
 import org.pangya.game.catalog.MapCatalog;
 import org.pangya.db.InventoryRepository;
 import org.pangya.db.ItemInitializer;
@@ -63,6 +64,8 @@ public final class GameHandler {
     private volatile int liveRateClubMastery;
     private volatile int liveAngelEvent;
     private volatile int liveGrandPrixEvent;
+    /** C# {@code DropSystem.m_config.rate_SSC_ticket}. */
+    private volatile int liveRateSscTicket;
     /** C# {@code m_si.event_flag}; recomputed when Auth changes rates. */
     private final ServerEventFlag liveEventFlag = new ServerEventFlag(0);
     /** Bound TCP port ({@code 0} until {@link #setBindPort}). */
@@ -102,6 +105,7 @@ public final class GameHandler {
         this.liveRateExp = config.rateExp();
         this.liveRateClubMastery = 100;
         this.liveGrandPrixEvent = config.rateGrandPrixEvent();
+        this.liveRateSscTicket = config.rateSscTicket();
         this.liveEventFlag.setRatePang(liveRatePang);
         this.liveEventFlag.setRateExp(liveRateExp);
         this.liveEventFlag.setRateClubMastery(liveRateClubMastery);
@@ -1215,13 +1219,51 @@ public final class GameHandler {
         GamePackets.ShotAckCubeCoin cubeBody = GamePackets.readShotAckCubeCoin(reader);
         int holeNum = shot.hole == 0 ? 1 : shot.hole;
         int courseId = room.info.course & 0x7f;
-        List<GamePackets.DropItem> drops =
-                CubeCoinResolver.resolve(catalogs, courseId, holeNum, cubeBody);
+        List<GamePackets.DropItem> drops = new ArrayList<>(
+                CubeCoinResolver.resolve(catalogs, courseId, holeNum, cubeBody));
+        if ((shot.displayState & GamePackets.DISPLAY_ACERTO_HOLE) != 0) {
+            appendSscHoleDrops(session, room, shot, courseId, holeNum, drops);
+        }
         replyInGame(room, session, GamePackets.endShot(session.oid(), drops));
         if ((shot.displayState & GamePackets.DISPLAY_ACERTO_HOLE) != 0) {
             recordHoleFinish(session, room, shot);
         }
         checkEndShotOfHole(session, room, shot);
+    }
+
+    /** C# {@code requestInitDrop} SSC ticket slice for hole-out. */
+    private void appendSscHoleDrops(
+            Session session,
+            GameRoom room,
+            GameRoom.PlayerShot shot,
+            int courseId,
+            int holeNum,
+            List<GamePackets.DropItem> drops) {
+        int charMotion = charMotionItem(session, room);
+        List<GamePackets.DropItem> ssc = HoleDropResolver.drawSscTickets(
+                liveRateSscTicket,
+                courseId,
+                holeNum,
+                room.info.artefato,
+                charMotion,
+                100,
+                0);
+        if (ssc.isEmpty()) {
+            return;
+        }
+        shot.holeDrops.addAll(ssc);
+        drops.addAll(ssc);
+        room.addPendingAchievementCounter(
+                session.player().uid, GamePackets.TYPEID_SSC_TICKET_COUNTER, ssc.size());
+    }
+
+    /** C# {@code checkCharMotionItem}; defaults to 1 when motion tracking is unavailable. */
+    private static int charMotionItem(Session session, GameRoom room) {
+        GamePackets.PlayerRoomInfo pri = room.playerInfo(session);
+        if (pri != null && pri.character != null && pri.character.typeid != 0) {
+            return 1;
+        }
+        return 1;
     }
 
     /**
@@ -1302,6 +1344,7 @@ public final class GameHandler {
             queueRecordAchievementCounters(session, room, ui);
         }
         consumeFinishItemUsed(session, room);
+        saveHoleDrops(session, room);
         sendFinishGameDump(session, room, true);
     }
 
@@ -1342,6 +1385,25 @@ public final class GameHandler {
             return;
         }
         room.finishExpPerGamePassive(session.oid());
+        applyPremiumAutoCalipers(session, room);
+    }
+
+    /**
+     * C# {@code requestFinishItemUsedGame}: premium users with Auto Caliper passive
+     * get hole-count usage for achievements without warehouse consumption.
+     */
+    private void applyPremiumAutoCalipers(Session session, GameRoom room) {
+        if ((session.player().capability & GamePackets.CAPABILITY_PREMIUM_USER) == 0) {
+            return;
+        }
+        int oid = session.oid();
+        var passiveMap = room.passiveUses.get(oid);
+        if (passiveMap == null || !passiveMap.containsKey(PassiveItems.AUTO_CALIPER)) {
+            return;
+        }
+        GameRoom.PlayerShot shot = room.shots.get(oid);
+        int holes = shot != null && shot.hole > 0 ? shot.hole : room.info.holes;
+        passiveMap.put(PassiveItems.AUTO_CALIPER, holes);
     }
 
     /** C# {@code requestFinishItemUsedGame}: consume warehouse items and clear active slots. */
@@ -1355,10 +1417,11 @@ public final class GameHandler {
         boolean equipChanged = false;
         var activeMap = room.activeUses.get(oid);
         if (activeMap != null) {
+            boolean frozenFlame = room.info.artefato == GamePackets.ART_FROZEN_FLAME;
             for (var entry : activeMap.entrySet()) {
                 int typeid = entry.getKey();
                 GameRoom.ActiveUse use = entry.getValue();
-                if (use.count <= 0) {
+                if (use.count <= 0 || frozenFlame) {
                     continue;
                 }
                 inventory.consumeWarehouseByTypeid(uid, typeid, use.count);
@@ -1376,17 +1439,77 @@ public final class GameHandler {
         var passiveMap = room.passiveUses.get(oid);
         if (passiveMap != null) {
             for (var entry : passiveMap.entrySet()) {
+                int typeid = entry.getKey();
                 int count = entry.getValue();
-                if (count > 0) {
-                    inventory.consumeWarehouseByTypeid(uid, entry.getKey(), count);
+                if (count <= 0 || skipPremiumPassiveConsume(session, typeid)) {
+                    continue;
                 }
+                inventory.consumeWarehouseByTypeid(uid, typeid, count);
             }
         }
         if (equipChanged) {
             inventory.updateUserEquip(uid, equip);
         }
+        consumeArtefactMana(session, room, uid);
         applyClubMasteryAtFinish(session, room, oid, uid);
         room.markFinishItemUsed(oid);
+    }
+
+    /** C# premium Auto Caliper skip in {@code requestFinishItemUsedGame} passive loop. */
+    private static boolean skipPremiumPassiveConsume(Session session, int typeid) {
+        return typeid == PassiveItems.AUTO_CALIPER
+                && (session.player().capability & GamePackets.CAPABILITY_PREMIUM_USER) != 0;
+    }
+
+    /** C# {@code requestFinishItemUsedGame}: master consumes artefact mana ({@code typeid + 1}). */
+    private void consumeArtefactMana(Session session, GameRoom room, long uid) {
+        int artefact = room.info.artefato;
+        if (artefact == 0 || room.info.master != (int) uid) {
+            return;
+        }
+        int manaTypeid = artefact + 1;
+        GamePackets.WarehouseItem mana = warehouseByTypeid(uid, manaTypeid);
+        if (mana == null) {
+            log.warn(
+                    "artefact mana missing uid={} artefact={} mana={}",
+                    uid,
+                    artefact,
+                    manaTypeid);
+            return;
+        }
+        int qntd = (mana.c[0] & 0xffff) <= 0 ? 1 : (mana.c[0] & 0xffff);
+        inventory.consumeWarehouseByTypeid(uid, manaTypeid, qntd);
+    }
+
+    /** C# {@code requestSaveDrop}: persist accumulated hole drops and {@code 0x216} awards. */
+    private void saveHoleDrops(Session session, GameRoom room) {
+        GameRoom.PlayerShot shot = room.shots.get(session.oid());
+        if (shot == null || shot.holeDrops.isEmpty()) {
+            return;
+        }
+        long uid = session.player().uid;
+        java.util.Map<Integer, Integer> byTypeid = new java.util.LinkedHashMap<>();
+        for (GamePackets.DropItem drop : shot.holeDrops) {
+            if (drop.typeid() == 0 || drop.qntd() <= 0) {
+                continue;
+            }
+            byTypeid.merge(drop.typeid(), drop.qntd(), Integer::sum);
+        }
+        if (byTypeid.isEmpty()) {
+            return;
+        }
+        List<GamePackets.PapelAward> updates = new ArrayList<>();
+        for (var entry : byTypeid.entrySet()) {
+            int typeid = entry.getKey();
+            int qntd = entry.getValue();
+            GamePackets.WarehouseItem existing = warehouseByTypeid(uid, typeid);
+            int ant = existing == null ? 0 : existing.c[0] & 0xffff;
+            int itemId = inventory.addWarehouseItem(uid, typeid, qntd);
+            updates.add(new GamePackets.PapelAward(
+                    GamePackets.PAPEL_AWARD_TYPE, typeid, itemId, 0, ant, ant + qntd, qntd));
+        }
+        session.send(GamePackets.papelAwards(GamePackets.unixNow(), updates));
+        shot.holeDrops.clear();
     }
 
     /** C# {@code requestFinishItemUsedGame} club mastery persist + {@code 0x216} type {@code 0xCC}. */
@@ -1494,6 +1617,7 @@ public final class GameHandler {
             queueItemUsedCounters(member, room);
             flushPendingAchievementCounters(member, room);
             consumeFinishItemUsed(member, room);
+            saveHoleDrops(member, room);
         }
         if (room.tipo == GamePackets.TIPO_MATCH) {
             room.mergeMatchTeamPangToPlayers();
@@ -9145,6 +9269,7 @@ public final class GameHandler {
                 liveEventFlag.setAngelEvent(liveAngelEvent);
             }
             case 11 -> liveGrandPrixEvent = (int) qntd;
+            case 3 -> liveRateSscTicket = (int) qntd;
             default -> log.debug("auth new rate tipo={} qntd={} (no local handler)", tipo, qntd);
         }
         for (GameRoom room : rooms.values()) {

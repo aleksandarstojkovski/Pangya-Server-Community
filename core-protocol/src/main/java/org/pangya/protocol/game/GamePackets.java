@@ -1286,6 +1286,8 @@ public final class GamePackets {
     public static final int TICKER_FAIL_FUNDS = 4;
     /** C# {@code capability.game_master} bit. */
     public static final int CAPABILITY_GM = 4;
+    /** C# {@code CapabilityFlags.PREMIUM_USER}. */
+    public static final int CAPABILITY_PREMIUM_USER = 2;
     /** C# {@code uCapability.block_give_item_gm} bit 16. */
     public static final int CAPABILITY_BLOCK_GIVEITEM = 16;
     /** C# {@code uCapability.gm_normal} bit 128. */
@@ -2503,6 +2505,14 @@ public final class GamePackets {
     public static final long DROP_TYPE_COIN_EDGE = 3;
     /** C# {@code DropItem.eTYPE.COIN_GROUND}. */
     public static final long DROP_TYPE_COIN_GROUND = 4;
+    /** C# {@code DropItem.eTYPE.NORMAL_QNTD}. */
+    public static final long DROP_TYPE_NORMAL_QNTD = 1;
+    /** C# {@code SSC_TICKET}. */
+    public static final int TYPEID_SSC_TICKET = 0x1A0000F7;
+    /** C# {@code drawSSCTicket} achievement counter. */
+    public static final int TYPEID_SSC_TICKET_COUNTER = 0x6C400053;
+    /** C# {@code ART_FROZEN_FLAME}: active items are not consumed at finish. */
+    public static final int ART_FROZEN_FLAME = 0x1A0001FA;
     /** C# {@code CLUB_PATCHER_TYPEID} {@code 0x1A00018F}. */
     public static final int TYPEID_CLUB_PATCHER = 0x1A00018F;
     /** C# gacha ticket typeid {@code 436207744}. */
