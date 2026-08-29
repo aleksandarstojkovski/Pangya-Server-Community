@@ -2077,7 +2077,7 @@ public final class GamePackets {
     public static final int CHAR_STATS_AWARD_TYPE = 0xC9;
     /** C# {@code WriteZeroByte(15)} after 5× u16 PCL. */
     public static final int CHAR_STATS_PCL_PAD = 15;
-    /** Seeded {@code iff_enchant.pang} for POWER at pcl 0. */
+    /** Seeded SQL {@code iff_enchant.pang} for POWER at pcl 0 (JP IFF uses 2100). */
     public static final int CHAR_STATS_ENCHANT_PANG = 100;
     /** C# card-equip IFF miss CHANNEL sys. */
     public static final int CHAR_CARD_ERR_IFF = 0x5200757;

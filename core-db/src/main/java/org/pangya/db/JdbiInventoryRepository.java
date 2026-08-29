@@ -2066,14 +2066,11 @@ public final class JdbiInventoryRepository implements InventoryRepository {
                 return CharStatsResult.fail(GamePackets.CHAR_STATS_UP_ERR_LIMIT);
             }
             int enchantTypeid = GamePackets.enchantTypeid(stat, current);
-            Long cost = h.createQuery("SELECT pang FROM pangya.iff_enchant WHERE typeid = :typeid")
-                    .bind("typeid", enchantTypeid)
-                    .mapTo(Long.class)
-                    .findOne()
-                    .orElse(null);
-            if (cost == null) {
+            OptionalLong costOpt = enchantPang(enchantTypeid);
+            if (costOpt.isEmpty()) {
                 return CharStatsResult.fail(GamePackets.CHAR_STATS_UP_ERR_ENCHANT);
             }
+            long cost = costOpt.getAsLong();
             if (cost <= 0) {
                 throw new IllegalStateException("enchant pang " + cost);
             }
@@ -4120,6 +4117,10 @@ public final class JdbiInventoryRepository implements InventoryRepository {
 
     @Override
     public OptionalLong enchantPang(int typeid) {
+        var iff = org.pangya.protocol.iff.PangyaIffLoader.enchantPang(typeid);
+        if (iff.isPresent()) {
+            return iff;
+        }
         return jdbi.withHandle(h -> h.createQuery("""
                         SELECT pang FROM pangya.iff_enchant WHERE typeid = :typeid
                         """)
