@@ -1,99 +1,159 @@
-# STATUS — Pangya Java 21 JP rewrite
+# STATUS — Pangya Java 21 JP rewrite (MVP Torneo)
 
-**Branch di riferimento:** `Develop`  
-**HEAD (2026-08-29):** `d79b5f6` — Merge PR #7 *Java rewrite: Grand Prix parity (GP exit, timers, placar, leaveRoom)*  
-**Fonte comportamento:** `reference/pangya-server-community` (`Server/JP/`, branch C# `Develop`).
+**Branch di lavoro:** `cursor/tourney-mvp-plan-0864` (base `Develop`)  
+**HEAD base verificato (2026-08-29T15:08Z):** `04591c8` — *Add initial project documentation for Pangya server rewrite*  
+**Fonte comportamento:** `reference/pangya-server-community` (`Server/JP/`, branch C# `Develop_luiz`).  
+**Scope attuale:** Auth + Login + Game **solo modalità Torneo**, con Ranking/Messenger minimi.  
+**Fuori scope MVP:** Versus, Practice, Grand Prix, Grand Zodiac, Guild Battle, Pang Battle, Approach, Chip-in Practice, SSC; manager char/card/caddie oltre il minimo Torneo; load 3000 sessioni.
 
 ---
 
-## Progresso slice (checklist onesta)
+## Riconferma di questo turno (obbligatoria)
 
-| Slice | Stato | Evidenza su `Develop` |
+Rilanciati i comandi che STATUS precedente marcava verdi / non verificati. **Non** si è ripartiti da assunzioni del turno Fase 0.
+
+### Discrepanze vs `docs/STATUS.md` Fase 0 (HEAD dichiarato `d79b5f6`)
+
+| Dichiarazione Fase 0 | Verifica ora (2026-08-29T15:05–15:08Z) |
+|----------------------|----------------------------------------|
+| HEAD = `d79b5f6` (merge PR #7) | HEAD = `04591c8`. Dopo `d79b5f6`: `98bcdf0`/`d4eed76` (reconcile doc), `5d20738` (EPIC 1 riga), `a1ff6cc` (`CONTINUATION-PROMPT.md`), `04591c8` (`INITIAL-PROMPT.md`). **Nessun commit di codice Java dopo `d79b5f6`.** |
+| Compose `/health` 5 server **non verificato** | **Verificato verde** — vedi sotto |
+| `GameFlowIT.personalShopBuyIncrementsAchievementCounter` FAIL (`no server packet`) | **PASS** in questo turno (`--rerun-tasks`) |
+| `FlywayMigrationTest` FAIL «second migrate expected 0, was 4» | **FAIL confermato**, ma **non** è l’idempotenza migrate. Lo stack è riga **129**: `iff_item` `assertEquals(0, itemIff)` — expected 0, was 4. Messaggio custom `"second migrate must be a no-op"` **assente** nel failure. Attribuzione Fase 0 **errata**. |
+
+---
+
+## Healthcheck Compose (questo turno)
+
+```
+docker compose up -d postgres redis
+# i 5 server erano già in volume/immagine snapshot e sono ripartiti healthy
+
+date -u: 2026-08-29T15:05:37Z
+auth       http://127.0.0.1:9077/health -> ok auth HTTP 200
+login      http://127.0.0.1:9103/health -> ok login HTTP 200
+game       http://127.0.0.1:9202/health -> ok game HTTP 200
+ranking    http://127.0.0.1:9474/health -> ok ranking HTTP 200
+messenger  http://127.0.0.1:9302/health -> ok messenger HTTP 200
+
+compose ps: postgres, redis, auth, login, game, ranking, messenger
+            tutti "Up … (healthy)"
+```
+
+DoD MVP «`docker compose up` + healthcheck verdi»: **verificato in questo turno** (immagini preesistenti dello snapshot, non `compose up --build` da zero). Rebuild da Dockerfile **non eseguito**.
+
+---
+
+## Gradle — moduli marcati ok in Fase 0 (rilancio reale)
+
+```
+./gradlew --no-daemon --rerun-tasks \
+  :core-protocol:test :core-network:test \
+  :server-auth:test :server-login:test \
+  :server-ranking:test :server-messenger:test
+BUILD SUCCESSFUL in 17s
+28 actionable tasks: 28 executed
+EXIT=0
+```
+
+(Primo run senza `--rerun-tasks` era `FROM-CACHE` in 6s — **non contato** come evidenza.)
+
+## Gradle — Flyway (non verde)
+
+```
+./gradlew --no-daemon :core-db:test --tests org.pangya.db.FlywayMigrationTest --rerun-tasks
+FlywayMigrationTest > migratesAndIsIdempotent() FAILED
+    org.opentest4j.AssertionFailedError: expected: <0> but was: <4>
+        at FlywayMigrationTest.migratesAndIsIdempotent(FlywayMigrationTest.java:129)
+BUILD FAILED
+FLYWAY_EXIT=1
+```
+
+Riga 129 = `assertEquals(0, itemIff)` su `pangya.iff_item`.  
+Query live (stesso Postgres Compose):
+
+```
+docker exec workspace-postgres-1 psql -U pangya -d pangya \
+  -c "select typeid from pangya.iff_item;"
+ 436208228
+ 436207927
+ 436207964
+ 436207622
+```
+
+`JdbiInventoryRepository` fa `INSERT INTO pangya.iff_item` a runtime. Il test **non DROPPA** lo schema (commento in classe). Le 4 righe sono inquinamento da IT precedenti, non 4 migration Flyway riapplicate. **Non è un fix Torneo** — lasciato aperto, non “migliorato” in questo turno.
+
+## Gradle — GameFlowIT rilevanti Torneo / Practice / shop
+
+```
+./gradlew --no-daemon :server-game:test --rerun-tasks \
+  --tests …twoPlayersStartTourneyAndReceiveCourse \
+  --tests …tourneyReplaySendsRemainingToSender \
+  --tests …tourneyTicketReportSendsNewItemAndLeavesGuestInGame \
+  --tests …fakeClientLogsInEntersChannelCreatesAndLeavesPractice \
+  --tests …personalShopBuyIncrementsAchievementCounter
+BUILD SUCCESSFUL in 18s
+12 actionable tasks: 12 executed
+GAME_IT_EXIT=0
+  personalShopBuyIncrementsAchievementCounter          PASSED
+  twoPlayersStartTourneyAndReceiveCourse               PASSED
+  tourneyReplaySendsRemainingToSender                  PASSED
+  fakeClientLogsInEntersChannelCreatesAndLeavesPractice PASSED
+  tourneyTicketReportSendsNewItemAndLeavesGuestInGame  PASSED
+```
+
+`twoPlayersStartTourneyAndReceiveCourse` arriva a `SERVER_GAME_INIT` + `SERVER_COURSE`. **Non** gioca hole, **non** finish, **non** ranking.
+
+---
+
+## Progresso slice MVP Torneo
+
+| Slice | Stato | Evidenza questo turno |
 |-------|-------|------------------------|
-| **S0** | [x] | Gradle multi-modulo, Compose postgres+redis, Flyway V1–V43, stub 5 server |
-| **S1** | [x] | `:core-protocol:test` + `:core-network:test` Cipher/Netty verdi in `./gradlew test` |
-| **S2** | [x] | Auth S2S + Login fake-client IT verdi |
-| **S3** | [x] | Practice leave/start IT verde (`GameFlowIT.fakeClientLogsInEntersChannelCreatesAndLeavesPractice`) |
-| **S4** | [~] | 196 opcode client dispatchati in `GameHandler`; GP finish/exit/timer/placar/`requestSaveInfo` mergeati (PR #6–#7). Lacune verificate sotto. |
-| **S5** | [~] | Moduli `:server-ranking` + `:server-messenger` + IT base verdi; profondità guild/presence non auditata vs client reale |
-| **S6** | [~] | `SessionLoadIT` 3000 + `/metrics` verdi; **`./gradlew test` exit code 1** (2 failure); `scripts/verify.sh` **non eseguito** in questo turno |
+| **S-T1** protocollo/cipher | [~] | `:core-protocol:test` + `:core-network:test` EXIT=0 `--rerun-tasks`. `CryptoOracleTest` prefix tabelle C#. `CipherTest` = roundtrip sintetico, **nessuna fixture ciphertext catturata**. |
+| **S-T2** Auth + Login | [x] | `:server-auth:test` + `:server-login:test` EXIT=0. `LoginFlowIT.fakeClientLoginReceivesServerListAndCanSelectGs` riceve `SERVER_AUTH_KEY_LOGIN` 8 char = Redis `getLoginKey(10001)`. |
+| **S-T3** canale + iscrizione Torneo | [~] | `twoPlayersStartTourneyAndReceiveCourse` PASSED (login→channel→create/join TIPO_TOURNEY→start→init/course). Manca un IT unico nominato DoD che fermi esplicitamente all’iscrizione (il test attuale include lo start). |
+| **S-T4** partita Torneo e2e | [ ] | **non verificato**. Nessun IT «hole-out → finish → result» su `TIPO_TOURNEY`. Practice ha quel loop (fuori scope). |
+| **S-T5** ranking/messenger minimi | [~] | Moduli + IT base EXIT=0. `pangya_rank_atual` **non** scritto dal finish Game (C# Ranking carica da SQL batch `CmdRankRegistryInfo`). `requestSaveInfo` Java è wired **solo GP** in `finishGamePlayerDump`; C# `Tourney.finish_game` chiama `requestSaveInfo(_session, 0)`. |
+| **S-T6** hardening leggero | [ ] | Nessun test «crash sessione non abbatte il processo». `SessionLoadIT` 3000 = **fuori scope**, non rieseguito. |
 
-**Scheletro (S0–S6):** 4 slice chiuse (S0–S3), 3 parziali (S4–S6).  
-**Parità client:** fake-client `GameFlowIT` **97/98** pass; **0** capture JP Season 9 in repo/env; IFF binari testati solo da archive `reference/` (pin `.gbin` live **non verificato**).
+### Presente, fuori scope MVP, non validato
 
----
+Codice/test già in repo (compila / alcuni IT verdi). **Non** marcati fatti per il MVP:
 
-## `./gradlew test` su `Develop` (2026-08-29)
-
-```
-./gradlew test --no-daemon
-EXIT_CODE=1
-```
-
-| Modulo | Esito | Failure |
-|--------|-------|---------|
-| `:core-db:test` | **FAIL** | `FlywayMigrationTest.migratesAndIsIdempotent` — second migrate expected 0, was 4 |
-| `:server-game:test` | **FAIL** | `GameFlowIT.personalShopBuyIncrementsAchievementCounter` — `IllegalStateException: no server packet` |
-| Altri moduli | PASS | non verificato singolarmente oltre al summary Gradle |
-
-Totale `@Test` nel repo: **386** (195 in `:server-game`).
+- Practice e2e (`fakeClientLogsInEntersChannelCreatesAndLeavesPractice` e varianti last-hole)
+- Grand Prix parity PR #6–#7 (timer, placar, `requestSaveInfo`, `leaveRoom`)
+- Versus / Match / GZ / ticket-report / personal shop / FriendManager
+- `SessionLoadIT` 3000 + `/metrics`
 
 ---
 
-## Inventario opcode Channel (grep, non profondità gameplay)
+## DoD MVP Torneo (checklist)
 
-| Metrica | Valore | Fonte |
-|---------|--------|-------|
-| C# client `funcs.addPacketCall` | **193** opcode unici | `GameService.cs` |
-| Java `case GamePackets.CLIENT_*` | **196** | `GameHandler.java` |
-| C# senza case Java | **0** | diff script su `Develop` |
-| Java extra vs C# | **3** (`0x01` KEEPALIVE, `0x9A`, `0x173`) | idem |
-| Handler Java **solo no-op** `{ }` | **9** | GAMEGUARD, INVITE_RELOGIN, REQUEST_KICK, UCC_LOAD, GZ_INITIAL, EVENT_ARIN, HEARTBEAT, KEEPALIVE, CHECK_INVITE |
-
-Conteggio “173 success 1:1 / 0 fail-stub” nei doc precedenti: **non verificato** in questo audit; contraddice i 9 no-op e il test personal-shop rotto.
+- [x] Compose healthcheck verdi (questo turno; no rebuild)
+- [~] Protocollo framing + cipher su fixture C# (tabelle oracle sì; ciphertext golden **assente**)
+- [x] Login e2e fake client + session key
+- [ ] Fake client: canale → iscrizione Torneo → partita fino alla fine → risultato + ranking
+- [ ] Crash sessione non abbatte il processo (test esplicito)
+- [x] EPIC.md + STATUS.md aggiornati in questo turno
 
 ---
 
-## Lacune verificate (grep codice)
-
-| Area | Stato | Evidenza |
-|------|-------|---------|
-| `CoinCubeLocationUpdateSystem` / `calcule_shot_to_coin` | **assente** | nessun match in `server-game/` |
-| `requestSaveInfo` persistenza `user_info` | **solo GP** | wired in `deleteGrandPrixPlayer` / finish / early exit; Tourney/Versus/Match **non verificato** |
-| Smart calculator reload (auth tipo 18) | **not ported** | `GlobalCatalogs.java:70` |
-| Event SQL reload (tipi 12–17) | **stub log** | `GlobalCatalogs.java:69` |
-| Capture client JP S9 | **assente** | non verificato |
-| Pin `.gbin` runtime | **non verificato** | IFF test usano archive reference |
-
----
-
-## Questo turno (solo ultimo commit su `Develop`)
+## Questo turno
 
 | Campo | Valore |
 |-------|--------|
-| Commit | `d79b5f6` (merge PR #7) |
-| Contenuto | GP parity batch: `requestSaveInfo` option 0/1/5 + `UserInfoMerge` + load/update `user_info`; `leaveRoom` → `deleteGrandPrixPlayer`; timer/placar/exit da PR #6 inclusi nel merge |
-| Test | `./gradlew test` → **exit 1** (vedi sopra) |
-| Doc precedenti | **obsoleti** — citavano FriendManager/attendance come “questo turno” |
+| Data/ora | 2026-08-29T15:08Z |
+| Fatto | Riconferma comandi; correzione attribuzione Flyway; rewrite EPIC come piano S-T1…S-T6 |
+| Codice prodotto | nessuno (gate: discrepanze doc → aggiornare STATUS prima di codice nuovo) |
+| Prossima slice | **S-T4** — fake-client Torneo hole-out + `requestFinishGame` + assert result; poi wire `requestSaveInfo` Torneo se il test lo dimostra assente (C# `Tourney.cs` ~1552) |
+| Blocker | nessuno dei gate (capture JP, client binario, stack, SQL ambiguo). Flyway `iff_item` è inquinamento test, non blocker Torneo. |
 
 ---
 
-## Prossima slice (prima voce non verde su `Develop`)
+## Gate (fermarsi e attendere umano)
 
-1. **Ripristinare `./gradlew test` verde** — `FlywayMigrationTest` (idempotenza migrate) + `GameFlowIT.personalShopBuyIncrementsAchievementCounter`.
-2. Poi (S4): **`calcule_shot_to_coin` / `CoinCubeLocationUpdateSystem`** — C# `TourneyBase.requestSyncShot` chiama questi; Java `syncShot` non li invoca (grep zero match).
+Nessuno aperto. Segnalazioni (non decidere da soli):
 
-Non ripartire da S0. **Nessun nuovo opcode** finché la riconciliazione doc non è approvata.
-
----
-
-## Contraddizioni risolte (doc vecchi vs `Develop`)
-
-| Doc vecchio | Realtà `Develop` |
-|------------|------------------|
-| “Questo turno: FriendManager / attendance bonus” | HEAD = merge GP PR #7 |
-| “Scheletro 85% / parità 43%” | Percentuali inventate — rimosse |
-| S6 [x] | `./gradlew test` fallisce |
-| “173 opcode / 0 fail-stub” | 9 no-op Java; profondità non auditata |
-| “175 tabelle pangya” | `FlywayMigrationTest` expect **202** tabelle |
-| Compose `/health` 5 server (2026-08-28) | **non verificato** questo turno |
+- `FlywayMigrationTest` vs `iff_item` runtime insert: lavoro pregresso / isolamento test, **non coperto** come “migrate idempotent” dalla Fase 0.
+- Cipher: nessun file golden ciphertext in repo — se si vuole DoD stretto «fixture reali», serve capture; le tabelle C# sono ricostruibili.

@@ -1,111 +1,174 @@
-# EPIC — Pangya Java rewrite (C# JP → Java 21+)
+# EPIC — MVP Torneo (Java 21 JP)
 
-**Obiettivo:** riscrittura bit-compatible con client JP Season 9.  
-**Fonte comportamento:** `reference/pangya-server-community` (`Server/JP/`, branch C# `Develop_luiz`).  
-**Codice attuale:** branch git **`Develop`** — non ricostruire slice già mergeate lì.
+**Obiettivo ridotto:** Auth + Login + Game Server end-to-end **solo modalità Torneo** (`TIPO_TOURNEY`), con Ranking e Messenger nella misura minima richiesta da quel flusso.
 
-**HEAD (2026-08-29):** `d79b5f6` — Merge PR #7 *Grand Prix parity (GP exit, timers, placar, leaveRoom)*.
+**Fonte comportamento:** `reference/pangya-server-community` (`Server/JP/`, C# branch `Develop_luiz`).  
+**Codice Java:** `Develop` @ `04591c8` (ultimo commit Java: `d79b5f6` merge PR #7 GP).  
+**Non ricostruire** S0–S3 / S-T1–S-T2 già verificati verdi in questo turno.
 
 ---
 
-## Progresso slice
+## Fuori scope (non implementare, non “migliorare”)
+
+- Versus, Practice, Grand Prix, Grand Zodiac, Guild Battle, Pang Battle, Approach, Chip-in Practice, Special Shuffle Course
+- CharacterManager / CardManager / CaddieManager oltre il minimo per entrare e finire un Torneo
+- Test di carico 3000 sessioni (`SessionLoadIT`) — fase futura
+
+### Presente, fuori scope MVP, non validato
+
+Lasciato nel repo. **Non** è “fatto” solo perché compila o perché un IT di un’altra modalità è verde.
+
+| Area | Dove | Nota |
+|------|------|------|
+| Practice e2e | `GameFlowIT.fakeClientLogsInEntersChannelCreatesAndLeavesPractice` | PASSED 2026-08-29; **non** è Torneo |
+| GP finish/exit/timer/placar/`requestSaveInfo` | PR #6–#7, `GameHandler` GP branches | Mergeato; **non** validato come Torneo |
+| Versus / Match / GZ / shop / ticket-report | `GameHandler` + IT sparsi | Presente; fuori scope |
+| Load 3000 + `/metrics` | `SessionLoadIT` | Fuori scope; **non rieseguito** questo turno |
+
+---
+
+## Definition of Done
+
+- [x] `docker compose` Postgres + Redis + Auth + Login + Game + Ranking + Messenger healthcheck verdi — **verificato 2026-08-29T15:05:37Z** (curl `/health` → `ok … HTTP 200` × 5; `compose ps` 7/7 healthy). Rebuild `--build` **non eseguito**.
+- [~] Protocollo framing + cipher su fixture C# — tabelle `CryptoOracle` prefix C# + test verdi; ciphertext golden **assente** (vedi S-T1).
+- [x] Login e2e fake client, session key ricevuta — `LoginFlowIT` in `:server-login:test` EXIT=0 `--rerun-tasks`.
+- [ ] Fake client: canale → iscrizione Torneo → partita fino alla fine → risultato e ranking
+- [ ] Crash di sessione non abbatte il processo (test esplicito)
+- [x] Questo file + `docs/STATUS.md` aggiornati a fine turno
+
+---
+
+## Piano slice (solo MVP Torneo)
 
 ```
-S0 [x]  S1 [x]  S2 [x]  S3 [x]  S4 [~]  S5 [~]  S6 [~]
+S-T1 [~]  S-T2 [x]  S-T3 [~]  S-T4 [ ]  S-T5 [~]  S-T6 [ ]
 ```
 
-| Metrica | Valore | Note |
-|---------|--------|------|
-| **Scheletro (S0–S6)** | **4/7 chiusi, 3 parziali** | S0–S3 done; S4–S6 aperti |
-| **Parità client** | **97/98** `GameFlowIT` + **0** capture S9 | IFF da archive reference; pin `.gbin` live non verificato |
+### S-T1 — Protocollo / cipher
 
-Percentuali inventate (**85% / 43%**) rimosse — non verificabili da git/test/grep.
-
----
-
-## Questo turno (solo `d79b5f6`)
-
-| Campo | Valore |
-|-------|--------|
-| Commit | `d79b5f6` merge PR #7 |
-| Incluso nel merge | GP `requestSaveInfo` (option 0 finish, 1 quit, 5 DC) + `UserInfoMerge` + SQL `user_info`; `leaveRoom` centralizza `deleteGrandPrixPlayer`; batch timer/placar/exit/bot da commit `7fde00f`…`bdc6597` |
-| Verifica | `./gradlew test --no-daemon` → **EXIT_CODE=1** |
-
----
-
-## Verifica `./gradlew test` (Develop, 2026-08-29)
+**Riuso Fase 0 + riconferma questo turno.** Non rifare.
 
 ```
-./gradlew test --no-daemon
-EXIT_CODE=1
+./gradlew --no-daemon --rerun-tasks :core-protocol:test :core-network:test
+BUILD SUCCESSFUL in 17s
+28 actionable tasks: 28 executed   # (insieme ad auth/login/ranking/messenger)
+EXIT=0
 ```
 
-Failure verificati:
+- `CryptoOracleTest.tablesMatchCSharpLengthsAndKnownPrefix` — 4096+4096 e primi byte da `Server/JP/.../CryptoOracle.cs`.
+- `CipherTest` — roundtrip encrypt/decrypt su plaintext **sintetico**, non capture di rete.
+- Framing Netty in `:core-network:test` — verde.
 
-1. `FlywayMigrationTest.migratesAndIsIdempotent` — expected migrate count 0, was 4 (`:core-db:test`)
-2. `GameFlowIT.personalShopBuyIncrementsAchievementCounter` — `IllegalStateException: no server packet` (`:server-game:test`)
+**Non verificato:** fixture ciphertext/plaintext catturate da client JP S9 (0 file golden in repo).  
+Se serve DoD stretto «golden bytes di rete», **gate capture** — non inventare byte.
 
-Moduli con test verdi nel run: `:core-protocol`, `:core-network`, `:server-auth`, `:server-login`, `:server-ranking`, `:server-messenger` (non rieseguiti singolarmente dopo il fail).
+### S-T2 — Auth + Login
 
----
-
-## Git log `Develop` (ultimi 30 commit, estratto)
+**Chiuso** (riconferma `--rerun-tasks`).
 
 ```
-d79b5f6 Merge PR #7 GP finish extras
-7fde00f Persist GP finish stats via requestSaveInfo option 0
-4facc86 Wire GP quit requestSaveInfo to user_info SQL
-4bd594a Wire GP deletePlayer into generic leaveRoom
-901507b Align GP bad-conduct kick with deletePlayer wire order
-bc20ad7 Merge PR #6 GP finish extras
-6b5bf63 Wire GP exit deletePlayer parity before 0x254
-d5b0635 Stop GP rule timer on hole load and hole timeout
-f1f023b Fix GP placar ranking (game score not mediaScore)
-829a98a Fix GP rule timer stop on sync-shot hole-out
-… (GP bot, early exit, rewards IFF, tickets, enter gates — commit bc20ad7…bdc6597)
+:server-auth:test :server-login:test
+BUILD SUCCESSFUL … EXIT=0
 ```
 
-Tema dominante su `Develop`: **Grand Prix parity** (PR #6 + #7). Doc precedenti che citavano FriendManager/attendance come “questo turno” erano **fuori sync**.
+`LoginFlowIT.fakeClientLoginReceivesServerListAndCanSelectGs`: `SERVER_AUTH_KEY_LOGIN` length 8 == Redis `keys.getLoginKey(10001)`.
+
+### S-T3 — Canale + iscrizione Torneo
+
+**Parziale — riuso test esistente, non chiuso come DoD e2e.**
+
+```
+./gradlew --no-daemon :server-game:test --rerun-tasks \
+  --tests org.pangya.game.GameFlowIT.twoPlayersStartTourneyAndReceiveCourse
+… twoPlayersStartTourneyAndReceiveCourse PASSED
+GAME_IT_EXIT=0
+```
+
+Copre: `loginToChannel` (`clientEnterChannel`) → `clientCreateRoom(TIPO_TOURNEY)` → `clientJoinRoom` → `clientStartGame` → `SERVER_GAME_INIT` / `SERVER_COURSE` tipo Torneo.
+
+Non copre: hole, finish, ranking. Non aggiungere opcode nuovi qui.
+
+### S-T4 — Partita Torneo end-to-end  ← **prossima**
+
+**Stato:** non verificato. Nessun IT fake-client che, su `TIPO_TOURNEY`, faccia init-hole → shot hole-out → `requestFinishGame` → pacchetti risultato.
+
+Riferimento C# (cercato, non a memoria):
+
+- `Server/JP/GameServer/Game/GameModes/Tourney.cs`
+  - `checkEndShotOfHole`: ultimo hole → `0x199`, `finishHole`, `changeHole`
+  - `requestFinishData`: drop / placar / treasure hunter
+  - `finish_game(..., 6)`: `requestSaveRecordCourse`, **`requestSaveInfo(_session, 0)`** (~riga 1552), exp, `0x244`/`0x24F`/`0xC8`
+- Java `GameHandler.finishGamePlayerDump`: `requestSaveInfoFinish` solo se `TIPO_GRAND_PRIX`; Torneo va a `sendFinishGameDump` **senza** `requestSaveInfo`.
+
+Criterio di chiusura S-T4 (comando da incollare, non riassumere):
+
+```
+./gradlew --no-daemon :server-game:test --rerun-tasks \
+  --tests org.pangya.game.GameFlowIT.<nome_it_torneo_e2e>
+# EXIT=0 e assert: result + (user_info persistita se C# lo richiede)
+```
+
+Practice last-hole (`clientInitHole(18,…)`) è **fuori scope** come evidenza Torneo; si può copiare il *meccanismo* solo dopo aver verificato in C#/Java che `TIPO_TOURNEY` accetta lo stesso init-hole.
+
+`calcule_shot_to_coin` / `CoinCubeLocationUpdateSystem`: C# `Tourney.requestCalculeShotCoin` li chiama; Java `syncShot` grep 0 match. **Non** è nel DoD «partita fino alla fine + risultato». Non portarli in S-T4 se il finish e2e non li richiede.
+
+### S-T5 — Ranking + Messenger minimi
+
+**Parziale.**
+
+```
+:server-ranking:test :server-messenger:test
+BUILD SUCCESSFUL … EXIT=0  (--rerun-tasks, questo turno)
+```
+
+- Ranking serve `pangya_rank_atual` (`JdbiRankRepository`, C# `CmdRankRegistryInfo` / `RankRegistryManager.initialize`).
+- Grep C# JP GameServer: **nessun** write a `pangya_rank_atual` nel finish Torneo. Il registry è un load SQL del RankingServer.
+- Minimo Torneo da verificare in S-T5 (dopo S-T4):
+  1. Pacchetto placar / `SERVER_GAME_RESULT` al finish (in-game).
+  2. `user_info` persistita (`requestSaveInfo` option 0) come C# `Tourney.finish_game`.
+  3. Messenger: solo se il flusso Torneo C# lo tocca (invite/presence). Non auditare guild.
+
+Non dichiarare «ranking aggiornato» se si è solo letto una riga seedata a mano in `pangya_rank_atual` (come fa già `RankingFlowIT.registryPageAndPlayerFullInfoComeFromSql`).
+
+### S-T6 — Hardening leggero
+
+**Non iniziato.** Test esplicito: una sessione che lancia / si disconnette in modo ostile **non** termina la JVM del Game server.  
+`SessionLoadIT` 3000 = fuori scope.
 
 ---
 
-## Inventario handler Channel (grep)
+## Verifica comandi di questo turno (incollati)
 
-| | C# `GameService.funcs` | Java `GameHandler` switch |
-|--|----------------------|---------------------------|
-| Opcode client unici | **193** | **196** (include KEEPALIVE + 2 extra) |
-| Mancanti in Java | **0** | — |
-| No-op Java `{ }` | — | **9** opcode |
+Health (2026-08-29T15:05:37Z):
 
-No-op verificati: `0x88` GAMEGUARD, `0xB4` INVITE_RELOGIN, `0x61` REQUEST_KICK, `0xFE` UCC_LOAD, `0x12D` GZ_INITIAL, `0x192` EVENT_ARIN, `0xF4` HEARTBEAT, `0x01` KEEPALIVE, `0x29` CHECK_INVITE.
+```
+auth http://127.0.0.1:9077/health -> ok auth HTTP 200
+login http://127.0.0.1:9103/health -> ok login HTTP 200
+game http://127.0.0.1:9202/health -> ok game HTTP 200
+ranking http://127.0.0.1:9474/health -> ok ranking HTTP 200
+messenger http://127.0.0.1:9302/health -> ok messenger HTTP 200
+```
 
-Affermazione storica “173 success 1:1 / 0 fail-stub”: **non verificata** in questo audit.
+Moduli S-T1/S-T2/S-T5 base:
 
----
+```
+./gradlew --no-daemon --rerun-tasks \
+  :core-protocol:test :core-network:test \
+  :server-auth:test :server-login:test \
+  :server-ranking:test :server-messenger:test
+BUILD SUCCESSFUL in 17s
+28 actionable tasks: 28 executed
+EXIT=0
+```
 
-## Lacune grep (handler / IFF / not ported)
+Flyway (non nel path critico Torneo; evidenza onesta):
 
-| Pattern | Risultato |
-|---------|-----------|
-| `CoinCubeLocationUpdateSystem` / `calcule_shot_to_coin` in Java | **0 match** — C# `TourneyBase.requestSyncShot` li chiama; Java `syncShot` no |
-| `requestSaveInfo` fuori GP | **non verificato** wiring Tourney/Versus/Match |
-| `not ported` | `GlobalCatalogs` auth reload tipo **18** smart calculator |
-| `stub` | `GlobalCatalogs` auth reload tipi **12–17** event SQL |
-| TODO IFF espliciti | **0** in `server-game/` (solo commenti “not ported” sopra) |
-
----
-
-## Piano slice (checklist)
-
-| Slice | Scope | Stato Develop |
-|-------|-------|---------------|
-| **S0** | Gradle, Compose, Flyway, stub 5 server | [x] — 43 migration; test Flyway idempotency **FAIL** |
-| **S1** | Netty, Cipher, MiniLZO, session | [x] — test verdi |
-| **S2** | Auth + Login + Redis session key | [x] — test verdi |
-| **S3** | Game core + Practice | [x] — IT verde |
-| **S4** | Modalità C# + manager char/card/caddie/achievement | [~] — dispatch 193/196; GP deep parity mergeato; coin-cube learning + save-info altri modi aperti |
-| **S5** | Ranking + Messenger | [~] — moduli + IT base; capture client non verificato |
-| **S6** | Metriche, load 3000, `scripts/verify.sh` | [~] — SessionLoadIT OK; **`./gradlew test` FAIL**; verify.sh non eseguito |
+```
+FlywayMigrationTest > migratesAndIsIdempotent() FAILED
+    expected: <0> but was: <4>
+    FlywayMigrationTest.java:129   # iff_item count, NON second migrate
+FLYWAY_EXIT=1
+```
 
 ---
 
@@ -114,33 +177,25 @@ Affermazione storica “173 success 1:1 / 0 fail-stub”: **non verificata** in 
 | C# (JP) | Java |
 |---------|------|
 | `PangyaAPI.Network.Cryptor.Cipher` | `org.pangya.protocol.crypto.Cipher` |
-| `PangyaAPI.Network.Cryptor.CryptoOracle` | `org.pangya.protocol.crypto.CryptoOracle` |
-| `PangyaAPI.Network.Cryptor.MiniLzo` | `org.pangya.protocol.crypto.MiniLzo` |
-| `PangyaAPI.SQL` + stored proc | `org.pangya.db` Jdbi + PostgreSQL SQL esplicito |
-| `AuthServer` / `LoginServer` / `GameServer` / `RankingServer` / `MessengerServer` | `:server-auth` / `:server-login` / `:server-game` / `:server-ranking` / `:server-messenger` |
-| `server.ini` | `application.yml` + env |
+| `Tourney` / `TourneyBase` | rami `TIPO_TOURNEY` / `usesTourneyInitialData` in `GameHandler` (non classe omonima) |
+| `AuthServer` / `LoginServer` / `GameServer` / `RankingServer` / `MessengerServer` | `:server-auth` … `:server-messenger` |
 
-502 stored procedures C# **non portate** — equivalente Java = SQL Jdbi per-comando (`V1__pangya_schema.sql` commento).
+502 stored procedure C# non portate — SQL Jdbi esplicito.
 
 ---
 
-## Schema PostgreSQL
+## Prossima azione
 
-- Flyway **V1–V43** su `Develop`.
-- `FlywayMigrationTest` assert **202** tabelle schema `pangya` (doc vecchio “175”: **obsoleto**).
-- Seed/cataloghi IFF in migration S4–S6 (shop, GP event, coin_cube, daily quest, …).
+**S-T4:** un IT fake-client Torneo che gioca fino al finish e asserisce i pacchetti risultato. Se `user_info` non cambia, allineare `finishGamePlayerDump` a C# `requestSaveInfo(_session, 0)` **solo** per Torneo, con test che lo dimostra.
 
----
-
-## Prossima slice (dopo `Develop`, non da S0)
-
-1. **Verde `./gradlew test`** — fix `FlywayMigrationTest` + `GameFlowIT.personalShopBuyIncrementsAchievementCounter`.
-2. **S4:** port/wire `calcule_shot_to_coin` + `CoinCubeLocationUpdateSystem` in `syncShot` (C# `TourneyBase` / GP override).
-
-**Stop:** nessun nuovo opcode finché questa riconciliazione doc non è approvata.
+Nessun nuovo opcode. Nessun lavoro Practice/GP/Versus.
 
 ---
 
-## Contraddizioni doc precedenti vs `Develop`
+## Gate (fermarsi)
 
-Vedi tabella completa in `docs/STATUS.md`. In sintesi: “questo turno” errato, percentuali inventate, S6 marcato done con test rossi, conteggio opcode/stub non allineato, tabelle 175 vs 202, evidenza Compose 2026-08-28 non ri-verificata.
+- Byte protocollo Torneo non ricostruibili dal C# (serve capture)
+- Client Pangya binario mancante
+- Cambio stack
+- Semantica SQL che cambia il gameplay Torneo
+- Altro codice pregresso dubbio non coperto da Fase 0 / da questa riconferma — segnalare, non decidere
