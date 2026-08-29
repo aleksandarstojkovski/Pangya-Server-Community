@@ -13,8 +13,8 @@ Conteggio Channel: **197** handler `packet_func_sv` registrati in `GameService.i
 
 ## Questo turno
 
-Fatto: … **`Enchant.iff`**; **`ClubSet.iff`** — Air Knight slots `[8,9,8,3,3]`, workshop tipo **-1** from JP archive.
-Prossimo: pin `.gbin`; capture JP S9; Caddie IFF.
+Fatto: … **`ClubSet.iff`**; **`Caddie.iff`** — holiday pay uses `valor_mensal` + `IsCash` from shop flags.
+Prossimo: pin `.gbin`; capture JP S9; Mascot IFF.
 Blocco: pin `.gbin` binaries absent; nessuna capture client JP Season 9.
 
 Percentuale epic: **scheletro 85%** / **parità client reale 43%**.
