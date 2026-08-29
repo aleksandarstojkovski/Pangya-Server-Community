@@ -49,6 +49,17 @@ public final class GrandPrixEnterWindow {
 
     /** C# {@code GP_ABA.ROOKIE}. */
     public static final int GP_ABA_ROOKIE = 0;
+    /** C# {@code GP_ABA.BEGINNER}. */
+    public static final int GP_ABA_BEGINNER = 1;
+    /** C# {@code GP_ABA.JUNIOR}. */
+    public static final int GP_ABA_JUNIOR = 2;
+    /** C# {@code GP_ABA.EVENT}. */
+    public static final int GP_ABA_EVENT = 3;
+
+    /** C# {@code isGrandPrixEvent}: event flag nibble is 3. */
+    public static boolean isGrandPrixEvent(int typeid) {
+        return ((typeid & 0x3000000) >>> 24) == 3;
+    }
 
     /** Rookie normal GP always allocates a fresh room instance. */
     public static boolean forceNewRoomInstance(int typeid) {

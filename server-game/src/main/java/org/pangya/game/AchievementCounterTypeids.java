@@ -1,12 +1,35 @@
 package org.pangya.game;
 
 import org.pangya.protocol.game.GamePackets;
+import org.pangya.protocol.iff.GrandPrixEnterWindow;
 import org.pangya.protocol.iff.IffGroups;
 
 /** C# {@code AchievementSystem} counter typeid lookups for game-mode achievements. */
 final class AchievementCounterTypeids {
 
     private AchievementCounterTypeids() {}
+
+    /** C# Grand Prix ctor: play counter + class/aba counter after {@code initAchievement}. */
+    static void queueGrandPrixInitCounters(GameRoom room, long uid, int grandPrixTypeid) {
+        room.addPendingAchievementCounter(uid, GamePackets.TYPEID_GP_PLAY_COUNTER, 1);
+        int classCounter = grandPrixClassCounter(grandPrixTypeid);
+        if (classCounter != 0) {
+            room.addPendingAchievementCounter(uid, classCounter, 1);
+        }
+    }
+
+    static int grandPrixClassCounter(int grandPrixTypeid) {
+        if (GrandPrixEnterWindow.isGrandPrixEvent(grandPrixTypeid)) {
+            return GamePackets.TYPEID_GP_CLASS_EVENT_SPECIAL_COUNTER;
+        }
+        return switch (GrandPrixEnterWindow.grandPrixAba(grandPrixTypeid)) {
+            case GrandPrixEnterWindow.GP_ABA_ROOKIE -> GamePackets.TYPEID_GP_CLASS_ROOKIE_COUNTER;
+            case GrandPrixEnterWindow.GP_ABA_BEGINNER -> GamePackets.TYPEID_GP_CLASS_BEGINNER_COUNTER;
+            case GrandPrixEnterWindow.GP_ABA_JUNIOR -> GamePackets.TYPEID_GP_CLASS_JUNIOR_COUNTER;
+            case GrandPrixEnterWindow.GP_ABA_EVENT -> GamePackets.TYPEID_GP_CLASS_EVENT_COUNTER;
+            default -> 0;
+        };
+    }
 
     static void queueInitGameCounters(
             GameRoom room, long uid, int characterTypeid, int caddieTypeid, int mascotTypeid) {

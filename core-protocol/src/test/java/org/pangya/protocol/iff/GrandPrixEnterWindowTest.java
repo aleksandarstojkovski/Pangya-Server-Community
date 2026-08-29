@@ -32,6 +32,12 @@ class GrandPrixEnterWindowTest {
     }
 
     @Test
+    void isGrandPrixEventChecksEventNibble() {
+        assertTrue(GrandPrixEnterWindow.isGrandPrixEvent(0x3000100));
+        assertFalse(GrandPrixEnterWindow.isGrandPrixEvent(0x100));
+    }
+
+    @Test
     void hourDiffMatchesCSharpSecondRounding() {
         IffSystemTime earlier = new IffSystemTime(0, 0, 0, 0, 1, 0, 0, 0);
         IffSystemTime later = new IffSystemTime(0, 0, 0, 0, 1, 1, 0, 500);

@@ -886,6 +886,10 @@ public final class GameHandler {
         room.initGameFlags();
         for (var member : room.snapshot()) {
             queueInitGameAchievementCounters(room, member);
+            if (room.tipo == GamePackets.TIPO_GRAND_PRIX && room.grandPrixTypeid != 0) {
+                AchievementCounterTypeids.queueGrandPrixInitCounters(
+                        room, member.player().uid, room.grandPrixTypeid);
+            }
             long uid = member.player().uid;
             GamePackets.UserEquip equip = inventory.userEquip(uid);
             room.initActiveItems(member.oid(), equip.itemSlot);

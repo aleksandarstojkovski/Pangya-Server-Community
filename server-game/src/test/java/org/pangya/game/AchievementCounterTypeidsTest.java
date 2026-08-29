@@ -72,6 +72,27 @@ class AchievementCounterTypeidsTest {
     }
 
     @Test
+    void grandPrixInitCountersQueuePlayAndClassCounters() {
+        PacketReader created = new PacketReader(GamePackets.clientCreateRoom(GamePackets.TIPO_GRAND_PRIX, "GP", ""));
+        created.opcode();
+        GameRoom room = new GameRoom(GamePackets.readCreateRoom(created), 1, 10001, 100, 100, 0);
+        AchievementCounterTypeids.queueGrandPrixInitCounters(room, 10001, 0x100);
+        var pending = room.takePendingAchievementCounters(10001);
+        assertEquals(1, pending.getOrDefault(GamePackets.TYPEID_GP_PLAY_COUNTER, 0));
+        assertEquals(1, pending.getOrDefault(GamePackets.TYPEID_GP_CLASS_ROOKIE_COUNTER, 0));
+    }
+
+    @Test
+    void grandPrixClassCounterUsesEventSpecialFlag() {
+        assertEquals(
+                GamePackets.TYPEID_GP_CLASS_EVENT_SPECIAL_COUNTER,
+                AchievementCounterTypeids.grandPrixClassCounter(0x3000000));
+        assertEquals(
+                GamePackets.TYPEID_GP_CLASS_BEGINNER_COUNTER,
+                AchievementCounterTypeids.grandPrixClassCounter(0x80000));
+    }
+
+    @Test
     void initCountersIncludeShortGameAndMasterArtefact() {
         PacketReader created = new PacketReader(GamePackets.clientCreateRoom(GamePackets.TIPO_STROKE, "VS", ""));
         created.opcode();

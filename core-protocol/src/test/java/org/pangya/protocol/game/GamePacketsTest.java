@@ -2705,6 +2705,12 @@ class GamePacketsTest {
         assertEquals(GamePackets.GP_ENTER_ERR_TYPE, 0x670000B);
         assertEquals(GamePackets.GP_ENTER_ERR_TIME, 0x670000C);
         assertEquals(GamePackets.START_GAME_GP_TICKET, 0x5900203);
+        assertEquals(GamePackets.TYPEID_GP_PLAY_COUNTER, 0x6C4000A9);
+        assertEquals(GamePackets.TYPEID_GP_CLASS_ROOKIE_COUNTER, 0x6C4000AA);
+        assertEquals(GamePackets.TYPEID_GP_CLASS_EVENT_SPECIAL_COUNTER, 0x6C4000AE);
+        assertEquals(GamePackets.TYPEID_GP_PLAY_COUNTER, 0x6C4000A9);
+        assertEquals(GamePackets.TYPEID_GP_CLASS_ROOKIE_COUNTER, 0x6C4000AA);
+        assertEquals(GamePackets.TYPEID_GP_CLASS_EVENT_SPECIAL_COUNTER, 0x6C4000AE);
         assertEquals(GamePackets.TIKI_EXCHANGE_ITEM_BYTES, 16);
         assertEquals(GamePackets.TIKI_EXCHANGE_TP_BYTES, 12);
         assertEquals(GamePackets.TIKI_EXCHANGE_OK, 0);

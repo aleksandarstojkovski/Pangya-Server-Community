@@ -1731,6 +1731,18 @@ public final class GamePackets {
     public static final int TYPEID_MASTER_ARTEFACT_COUNTER = 0x6C400099;
     /** C# {@code initAchievement} short game counter. */
     public static final int TYPEID_SHORT_GAME_COUNTER = 0x6C4000BB;
+    /** C# Grand Prix ctor {@code incrementCounter(0x6C4000A9)}. */
+    public static final int TYPEID_GP_PLAY_COUNTER = 0x6C4000A9;
+    /** C# Grand Prix class counter for {@code GP_ABA.ROOKIE}. */
+    public static final int TYPEID_GP_CLASS_ROOKIE_COUNTER = 0x6C4000AA;
+    /** C# Grand Prix class counter for {@code GP_ABA.BEGINNER}. */
+    public static final int TYPEID_GP_CLASS_BEGINNER_COUNTER = 0x6C4000AB;
+    /** C# Grand Prix class counter for {@code GP_ABA.JUNIOR}. */
+    public static final int TYPEID_GP_CLASS_JUNIOR_COUNTER = 0x6C4000AC;
+    /** C# Grand Prix class counter for {@code GP_ABA.EVENT}. */
+    public static final int TYPEID_GP_CLASS_EVENT_COUNTER = 0x6C4000AD;
+    /** C# Grand Prix class counter when {@code isGrandPrixEvent}. */
+    public static final int TYPEID_GP_CLASS_EVENT_SPECIAL_COUNTER = 0x6C4000AE;
     /** C# {@code records_player_achievement} OB counter. */
     public static final int TYPEID_OB_COUNTER = 0x6C40004C;
     /** C# {@code records_player_achievement} bunker counter. */
