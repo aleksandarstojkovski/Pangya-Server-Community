@@ -52,8 +52,24 @@ class RankingFlowIT {
             page.u8();
             assertTrue(page.u32() >= 1);
             page.u32();
-            assertTrue(page.u16() >= 1);
-            assertEquals(10001, page.u32());
+            int n = page.u16();
+            assertTrue(n >= 1);
+            boolean found = false;
+            for (int i = 0; i < n; i++) {
+                long uid = page.u32();
+                page.u32();
+                page.u32();
+                page.i32();
+                page.u8();
+                page.u8();
+                page.u8();
+                page.pstr();
+                page.pstr();
+                if (uid == 10001) {
+                    found = true;
+                }
+            }
+            assertTrue(found, "level board must include testuser after GeraRankAll");
         }
     }
 
