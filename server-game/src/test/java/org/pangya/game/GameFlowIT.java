@@ -5326,7 +5326,7 @@ class GameFlowIT {
             return;
         }
         final int gpTypeid = 0x180501;
-        final int gpTicket = 0x19FFF264;
+        final int gpTicket = 0x1A000264;
         String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
         String user = env("PANGYA_TEST_JDBC_USER", "pangya");
         String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
