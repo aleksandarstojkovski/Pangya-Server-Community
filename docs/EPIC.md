@@ -1,6 +1,6 @@
 # EPIC — Pangya Java rewrite (C# JP → Java 21)
 
-**Aggiornato:** 2026-08-29 12:57 UTC · **HEAD:** `5d20738` (`Develop`)
+**Aggiornato:** 2026-08-29 13:20 UTC · **HEAD:** `5d20738` (`Develop`) · branch `cursor/phase0-recovery-audit-0d4c`
 **Fonte comportamento:** `reference/pangya-server-community` (`Server/JP/`, branch C# `Develop`).
 
 > Riscritto da zero nell'audit di recovery (Fase 0). Contiene **solo** ciò che è stato
@@ -122,16 +122,46 @@ Ricerca preparatoria (nessuna modifica di codice) per de-rischiare la Fase 1.
 > match (in parte presente) oppure (ii) il **Ranking server** globale (porta 4774) — **non wired**.
 > Da chiarire con l'utente in Fase 1; assumo entrambi finché non confermato (gate: SQL ranking).
 
-## Piano Fase 1 (dopo conferma utente)
+## Piano slice — MVP Torneo
 
-1. **Rendere verde `./gradlew test` in modo deterministico** — de-flakare
-   `FlywayMigrationTest` (DB dedicato/DROP, o escluderlo dal run parallelo condiviso).
-2. **IT Torneo end-to-end fino al finish + ranking** (DoD #4): entra canale → iscrive
-   Torneo → gioca gli hole → `finish` (path last-hole `TIPO_TOURNEY`, `GameHandler:4018`) →
-   assert `SERVER_GAME_RESULT` + placar; verificare/aggiungere aggiornamento Ranking.
-3. **Robustezza sessione** (DoD #5): una eccezione in un handler non deve abbattere il processo.
-4. **Ranking/Messenger** solo quanto serve al flusso Torneo: wiring game→ranking a fine partita
-   (oggi assente, 0 match sopra).
+Una slice alla volta: codice + test + comando di verifica reale (incollato) + commit atomico.
+Stato aggiornato con l'esito reale, mai per estrapolazione.
+
+| Slice | Scope | Stato | Verifica (comando → esito) |
+|-------|-------|-------|----------------------------|
+| **S-T1** | Baseline verde deterministico + protocol/cipher | ✅ **FATTO** (baseline) / ⚠️ DoD#2 golden bytes non verificato | `./gradlew test` ora **verde deterministico** (2 run consecutivi, vedi sotto). `:core-protocol:test` 103/103. DoD #2 "golden bytes reali dal C#": **non verificato** (cipher su vettori sintetici) — da fare in una slice dedicata. |
+| **S-T2** | Auth + Login end-to-end | ✅ **riuso Fase 0** | `:server-auth:test` 1/1, `:server-login:test` 7/7 PASS; `GameFlowIT.loginTwoPlayers/fakeClientLogsIn…` verdi in `:server-game:test` 195/195 |
+| **S-T3** | Entra canale + iscrizione Torneo | ✅ **START verificato** | `GameFlowIT.twoPlayersStartTourneyAndReceiveCourse` PASS (crea `TIPO_TOURNEY`, join, start, `GAME_INIT`+`COURSE`) |
+| **S-T4** | Partita Torneo end-to-end fino al finish + risultato | ⏳ **da fare** | serve IT che gioca hole-by-hole fino a `finish` (path `TIPO_TOURNEY`, `GameHandler:4018`) e asserisce `SERVER_GAME_RESULT`/placar |
+| **S-T5** | Ranking + Messenger minimi per il Torneo | ⏳ **da fare** | wiring game→Ranking a fine partita (oggi **assente**, `grep …:4774 server-game/src/main` = 0 match) |
+| **S-T6** | Hardening leggero: nessun crash di sessione abbatte il processo | ⏳ **da fare** | test esplicito: eccezione in un handler → sessione chiusa, processo vivo (DoD #5) |
+
+**Ordine di lavoro:** S-T1 → S-T4 → S-T5 → S-T6 (S-T2/S-T3 già coperti da Fase 0, solo da
+non-regredire). Nota: molte feature GP/Versus condividono codice col Torneo (`GameHandler`);
+non toccare i rami non-Torneo se non necessario.
+
+### S-T1 — evidenza (VERIFICATO)
+
+Causa flakiness (verificata): `org.gradle.parallel=true` faceva girare i test di più moduli
+in parallelo sullo **stesso** DB `pangya`; assert basati su contatori/idempotenza collidevano
+(fail non-deterministici: `FlywayMigrationTest`, e a rotazione IT come
+`GameFlowIT.attendanceCheck…` / `personalShopBuy…`). Prova: run single-worker già verde 386/386.
+
+Fix (2 interventi, nessuna modifica alle feature di gioco):
+1. `FlywayMigrationTest` migra ora un **DB dedicato isolato** (`pangya_flyway_it`, drop+create),
+   così l'idempotenza non dipende da altri `migrate()` concorrenti.
+2. `build.gradle.kts`: build service condiviso `pangyaSharedDatabase` con `maxParallelUsages=1`
+   → i task `Test` vengono **serializzati** (condividono il DB) pur restando il resto del build parallelo.
+
+```
+$ ./gradlew --no-daemon --rerun-tasks test      # run 1 (parallel default)
+BUILD SUCCESSFUL in 2m      # 386 test, 0 fail
+$ ./gradlew --no-daemon --rerun-tasks test      # run 2 (determinismo)
+BUILD SUCCESSFUL in 1m 57s  # tests=386 failures+errors=0
+```
+
+Per-modulo (entrambe le run): core-protocol 103 · core-network 9 · core-db 45 · server-auth 1 ·
+server-login 7 · server-game 195 · server-ranking 6 · server-messenger 20 = **386, 0 fail**.
 
 ---
 

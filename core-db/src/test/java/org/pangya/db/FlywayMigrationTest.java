@@ -2,21 +2,42 @@ package org.pangya.db;
 
 import org.junit.jupiter.api.Test;
 
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.Statement;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Migrates Compose Postgres ({@code docker compose up -d postgres}).
- * Does not DROP the schema so other modules can test against the same database in parallel.
- * JDBC URL can be overridden with {@code PANGYA_TEST_JDBC_URL}.
+ * Migrates a freshly-created, dedicated Postgres database on the Compose server
+ * ({@code docker compose up -d postgres}).
+ *
+ * <p>The idempotency assertion (second {@code migrate()} must apply 0 migrations) requires
+ * that no other actor migrates the same database between the two calls. The shared
+ * {@code pangya} database does not satisfy that: other test modules run in parallel
+ * ({@code org.gradle.parallel=true}) and the {@code auth}/{@code game} containers migrate it
+ * on start ({@code PANGYA_MIGRATE_ON_START}). This test therefore creates its own database
+ * ({@link #DEDICATED_DB}) and runs entirely against it, so the check is deterministic.
+ *
+ * <p>The server/base connection is taken from {@code PANGYA_TEST_JDBC_URL} (default
+ * {@code jdbc:postgresql://localhost:5432/pangya}); the dedicated database is created on the
+ * same server by swapping the database name in that URL.
  */
 class FlywayMigrationTest {
 
+    private static final String DEDICATED_DB = "pangya_flyway_it";
+
     @Test
     void migratesAndIsIdempotent() throws Exception {
-        String url = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String baseUrl = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
         String user = env("PANGYA_TEST_JDBC_USER", "pangya");
         String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+
+        // Recreate a dedicated, isolated database so the idempotency check cannot be
+        // perturbed by concurrent migrate() from other modules/containers on the shared DB.
+        recreateDedicatedDatabase(baseUrl, user, password);
+        String url = swapDatabase(baseUrl, DEDICATED_DB);
 
         DatabaseSupport.migrate(url, user, password);
         int second = DatabaseSupport.migrate(url, user, password);
@@ -257,5 +278,43 @@ class FlywayMigrationTest {
     private static String env(String name, String fallback) {
         String v = System.getenv(name);
         return (v == null || v.isBlank()) ? fallback : v;
+    }
+
+    /**
+     * Returns {@code baseUrl} with its database name replaced by {@code database},
+     * preserving any query string. Example:
+     * {@code jdbc:postgresql://h:5432/pangya?ssl=false} → {@code .../pangya_flyway_it?ssl=false}.
+     */
+    static String swapDatabase(String baseUrl, String database) {
+        int q = baseUrl.indexOf('?');
+        String noQuery = q >= 0 ? baseUrl.substring(0, q) : baseUrl;
+        String query = q >= 0 ? baseUrl.substring(q) : "";
+        int slash = noQuery.lastIndexOf('/');
+        return noQuery.substring(0, slash + 1) + database + query;
+    }
+
+    /**
+     * Drops (with FORCE, Postgres 13+) and recreates {@link #DEDICATED_DB} on the server that
+     * {@code baseUrl} points at, connecting through {@code baseUrl}'s own database. Retries the
+     * same transient connect failures {@link DatabaseSupport#migrate} does (nested-Docker
+     * published-port path).
+     */
+    private static void recreateDedicatedDatabase(String baseUrl, String user, String password) throws Exception {
+        Exception last = null;
+        for (int attempt = 1; attempt <= 15; attempt++) {
+            try (Connection c = DriverManager.getConnection(baseUrl, user, password);
+                 Statement s = c.createStatement()) {
+                s.execute("DROP DATABASE IF EXISTS " + DEDICATED_DB + " WITH (FORCE)");
+                s.execute("CREATE DATABASE " + DEDICATED_DB);
+                return;
+            } catch (Exception e) {
+                last = e;
+                if (!DatabaseSupport.isTransientConnectFailure(e) || attempt == 15) {
+                    break;
+                }
+                Thread.sleep(2_000);
+            }
+        }
+        throw last;
     }
 }
