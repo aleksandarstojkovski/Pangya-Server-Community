@@ -41,7 +41,7 @@ Lasciato nel repo. **Non** è “fatto” solo perché compila o perché un IT d
 ## Piano slice (solo MVP Torneo)
 
 ```
-S-T1 [~]  S-T2 [x]  S-T3 [x]  S-T4 [x]  S-T5 [~]  S-T6 [x]
+S-T1 [~]  S-T2 [x]  S-T3 [x]  S-T4 [x]  S-T5 [x]  S-T6 [x]
 ```
 
 ### S-T1 — Protocollo / cipher
@@ -55,7 +55,7 @@ BUILD SUCCESSFUL in 17s
 EXIT=0
 ```
 
-- `CryptoOracleTest.tablesMatchCSharpLengthsAndKnownPrefix` — 4096+4096 e primi byte da `Server/JP/.../CryptoOracle.cs`.
+- `CryptoOracleTest.tablesMatchCSharpLengthsAndKnownPrefix` — 4096+4096; primi **32** byte copiati da `Server/JP/.../CryptoOracle.cs`. Verifica Python: bin Java **identici** agli array C# (4096+4096).
 - `CipherTest` — roundtrip encrypt/decrypt su plaintext **sintetico**, non capture di rete.
 - Framing Netty in `:core-network:test` — verde.
 
@@ -104,16 +104,18 @@ ST4_EXIT=0
 
 ### S-T5 — Ranking + Messenger minimi
 
-**Parziale.**
+**Chiuso** (minimo Torneo).
+
+C# path: `Tourney.finish_game` → `requestSaveRecordCourse` → Ranking `CmdUpdateRankRegistry` (`pangya.GeraRankAll`) → `ProcGetRankRegistryInfo`.
+
+Java: `saveRecordCourse` per `TIPO_TOURNEY` (option 1 se 18 hole last-hole); `RankRepository.geraRankAll()` porta le board user_info + score + per-course. **Non** chiamato automaticamente da `RankingRuntime` (C# lo fa in `init_systems`) — invocato esplicitamente dagli IT.
 
 ```
-:server-ranking:test :server-messenger:test
-BUILD SUCCESSFUL … EXIT=0  (--rerun-tasks, questo turno)
+GameFlowIT > tourneyFinishRebuildsRankingRegistry() PASSED
+RankingFlowIT > geraRankAllFirstPageIsServedToFakeClient() PASSED
+RankRepositoryTest > geraRankAllWritesLevelBoardForEligibleAccounts() PASSED
+FINAL_EXIT=0
 ```
-
-1. Placar in-game `SERVER_GAME_RESULT` (`0x79`, C# `sendPlacar`) — **asserito in S-T4**.
-2. `user_info` persistita option 0 — **asserito in S-T4**.
-3. `pangya_rank_atual`: C# Ranking `RankRegistryManager.initialize` / `CmdRankRegistryInfo` (load SQL). Grep GameServer JP: **nessun write** al finish Torneo. Non inventato.
 
 ### S-T6 — Hardening leggero
 
@@ -179,11 +181,11 @@ FLYWAY_EXIT=1
 
 ## Prossima azione
 
-Residui onesti, non “fatti” per estrapolazione:
+Residui onesti:
 
-- **S-T1:** ciphertext golden di rete assente — **gate capture**, non inventare byte.
-- **S-T5:** non scrivere `pangya_rank_atual` dal Game finish (C# non lo fa). Eventuale IT Ranking che rilegge `user_info` dopo S-T4 è opzionale.
-- `FlywayMigrationTest` riga 129 `iff_item` = inquinamento IT, non migrate idempotent.
+- **S-T1:** ciphertext golden di rete assente — **gate capture**.
+- `RankingRuntime` non chiama `GeraRankAll` all’avvio (C# `init_systems` sì) — gli IT lo invocano esplicitamente.
+- `FlywayMigrationTest` riga 129 `iff_item` = inquinamento IT.
 
 Nessun nuovo opcode. Nessun lavoro Practice/GP/Versus.
 

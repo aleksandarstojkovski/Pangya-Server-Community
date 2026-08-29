@@ -110,11 +110,11 @@ GAME_IT_EXIT=0
 
 | Slice | Stato | Evidenza questo turno |
 |-------|-------|------------------------|
-| **S-T1** protocollo/cipher | [~] | `:core-protocol:test` + `:core-network:test` EXIT=0 `--rerun-tasks`. `CryptoOracleTest` prefix tabelle C#. `CipherTest` = roundtrip sintetico, **nessuna fixture ciphertext catturata**. |
+| **S-T1** protocollo/cipher | [~] | Tabelle `CryptoOracle` 4096+4096 **identiche** al C# JP (verifica Python 2026-08-29). Test prefix 32 byte C# PASSED. `CipherTest` resta roundtrip sintetico — **nessun ciphertext di rete**. |
 | **S-T2** Auth + Login | [x] | `:server-auth:test` + `:server-login:test` EXIT=0. `LoginFlowIT.fakeClientLoginReceivesServerListAndCanSelectGs` riceve `SERVER_AUTH_KEY_LOGIN` 8 char = Redis `getLoginKey(10001)`. |
 | **S-T3** canale + iscrizione Torneo | [x] | Coperta da `twoPlayersStartTourneyAndReceiveCourse` + IT S-T4 (stesso path create/join/start). Entrambi PASSED `--rerun-tasks`. |
 | **S-T4** partita Torneo e2e | [x] | `tourneyFakeClientPlaysToFinishAndReceivesResult` PASSED (vedi comando sotto). `requestSaveInfo(..., 0)` wired per `TIPO_TOURNEY`. |
-| **S-T5** ranking/messenger minimi | [~] | Moduli + IT base EXIT=0. Placar in-game = `SERVER_GAME_RESULT` asserito in S-T4. `pangya_rank_atual` **non** scritto dal finish C# Game (`RankRegistryManager` load SQL). Non inventato un write. |
+| **S-T5** ranking/messenger minimi | [x] | `GeraRankAll` (C# `CmdUpdateRankRegistry`) + `requestSaveRecordCourse` Torneo. IT: `tourneyFinishRebuildsRankingRegistry` + `geraRankAllFirstPageIsServedToFakeClient` PASSED. |
 | **S-T6** hardening leggero | [x] | Esistente `SessionIsolationTest.throwingHandlerDoesNotKillServer` PASSED `--rerun-tasks` (due client, handler throw, server resta bound). `SessionLoadIT` 3000 = **fuori scope**, non rieseguito. |
 
 ### Presente, fuori scope MVP, non validato
@@ -131,9 +131,9 @@ Codice/test già in repo (compila / alcuni IT verdi). **Non** marcati fatti per 
 ## DoD MVP Torneo (checklist)
 
 - [x] Compose healthcheck verdi (questo turno; no rebuild) — ricontrollo 2026-08-29T15:12:25Z ancora 200
-- [~] Protocollo framing + cipher su fixture C# (tabelle oracle sì; ciphertext golden **assente**)
+- [~] Protocollo framing + cipher su fixture C# (tabelle oracle 4096 identiche al C#; ciphertext di rete **assente**)
 - [x] Login e2e fake client + session key
-- [x] Fake client: canale → iscrizione Torneo → partita fino alla fine → risultato + `user_info.Jogado` (placar `0x79`). Registry `pangya_rank_atual` = batch Ranking C#, non finish Game
+- [x] Fake client: canale → iscrizione Torneo → partita fino alla fine → risultato + `GeraRankAll` registry (BL board + ranking fake-client level page)
 - [x] Crash sessione non abbatte il processo — `SessionIsolationTest` PASSED
 - [x] EPIC.md + STATUS.md aggiornati in questo turno
 
@@ -170,15 +170,34 @@ REG_EXIT=0
 
 ---
 
+### S-T5 comando (incollato, 2026-08-29T15:20Z)
+
+```
+./gradlew --no-daemon --rerun-tasks \
+  :core-protocol:test --tests org.pangya.protocol.crypto.CryptoOracleTest \
+  :core-db:test --tests org.pangya.db.RankRepositoryTest \
+  :server-ranking:test --tests …RankingFlowIT.geraRankAllFirstPageIsServedToFakeClient \
+  :server-game:test --tests …GameFlowIT.tourneyFinishRebuildsRankingRegistry
+CryptoOracleTest > tablesMatchCSharpLengthsAndKnownPrefix() PASSED
+RankRepositoryTest > geraRankAllWritesLevelBoardForEligibleAccounts() PASSED
+RankingFlowIT > geraRankAllFirstPageIsServedToFakeClient() PASSED
+GameFlowIT > tourneyFinishRebuildsRankingRegistry() PASSED
+BUILD SUCCESSFUL in 12s
+20 actionable tasks: 20 executed
+FINAL_EXIT=0
+```
+
+---
+
 ## Questo turno
 
 | Campo | Valore |
 |-------|--------|
-| Data/ora | 2026-08-29T15:12Z |
-| Fatto | Riconferma comandi; correzione Flyway; rewrite EPIC S-T1…S-T6; S-T4 IT + `requestSaveInfo` Torneo; S-T6 riuso `SessionIsolationTest` |
-| Commit codice | `ed8372d` feat: persist Tourney finish via requestSaveInfo option 0 |
-| Prossima slice | **S-T1 residuo** (ciphertext golden assente — gate capture) oppure **S-T5** solo se si vuole un IT Ranking che legge `user_info` dopo il finish (non scrivere `pangya_rank_atual` senza C#) |
-| Blocker | Ciphertext golden di rete **assente** (non inventare). Flyway `iff_item` inquinamento test, non blocker Torneo. |
+| Data/ora | 2026-08-29T15:20Z |
+| Fatto | S-T5: port `GeraRankAll` + `requestSaveRecordCourse` Torneo; S-T1 prefix cipher 32 byte C#; IT ranking e2e verdi |
+| Commit codice | `1ddbe14` feat: port GeraRankAll…; `5518b2c`/`9f3c509` fix assert flaky su Postgres condiviso |
+| Prossima slice | Ciphertext golden di rete (gate capture). `RankingRuntime` non chiama `GeraRankAll` all’avvio (C# sì) — esplicito negli IT. Flyway `iff_item` invariato. |
+| Blocker | Ciphertext di rete assente. Non inventare. |
 
 ---
 
