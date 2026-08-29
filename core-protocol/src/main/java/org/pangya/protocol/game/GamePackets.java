@@ -1301,13 +1301,41 @@ public final class GamePackets {
     /** C# catch decode 9 (blocked giveitem/goldenbell). */
     public static final String GM_CMD_BLOCKED = "Nao pode executar esse comando, voce foi bloqueado pelo ADM.";
     /**
-     * SQL {@code shop_catalog} stand-in for IFF {@code findCommomItem.Name}
-     * in GM giveitem/goldenbell mail text.
+     * C# {@code GM Send Gift: item[ " + name + " ]}.
      */
+    public static String gmGiveitemMsg(int typeid) {
+        return "GM Send Gift: item[ " + gmItemDisplayName(typeid) + " ]";
+    }
+
+    /** C# goldenbell mail text with IFF item name. */
+    public static String gmGoldenbellMsg(int typeid) {
+        return "GM enviou um item para voce: item[ " + gmItemDisplayName(typeid) + " ]";
+    }
+
+    /** C# {@code findCommomItem.Name} with {@link #GM_SHOP_ITEM_NAME} fallback. */
+    public static String gmItemDisplayName(int typeid) {
+        return org.pangya.protocol.iff.PangyaIffLoader.commonItemName(typeid)
+                .filter(name -> !name.isBlank())
+                .orElse(GM_SHOP_ITEM_NAME);
+    }
+
+    /** C# {@code getCaddieIdentify}. */
+    public static int caddieIdentify(int typeid) {
+        return ((typeid & 0x0FFF0000) >>> 21) + ((typeid & 0x000F0000) >>> 16);
+    }
+
+    /** C# {@code (CADDIE << 26) | getCaddieIdentify(typeid)}. */
+    public static int caddieBaseTypeid(int cadItemTypeid) {
+        return (IFF_GROUP_CADDIE << 26) | caddieIdentify(cadItemTypeid);
+    }
+
+    /** SQL {@code shop_catalog} stand-in when IFF name lookup is unavailable. */
     public static final String GM_SHOP_ITEM_NAME = "Pang Item";
-    /** C# {@code "GM Send Gift: item[ " + name + " ]"}. */
+    /** @deprecated use {@link #gmGiveitemMsg(int)} */
+    @Deprecated
     public static final String GM_GIVEITEM_MSG = "GM Send Gift: item[ " + GM_SHOP_ITEM_NAME + " ]";
-    /** C# {@code "GM enviou um item para voce: item[ " + name + " ]"}. */
+    /** @deprecated use {@link #gmGoldenbellMsg(int)} */
+    @Deprecated
     public static final String GM_GOLDENBELL_MSG = "GM enviou um item para voce: item[ " + GM_SHOP_ITEM_NAME + " ]";
     /** C# chat spy {@code pacote040} nick after the first-space {@code \\1} insert. */
     public static final String GM_CHAT_SPY_CHANNEL = "\\1[Channel=";
@@ -2304,6 +2332,10 @@ public final class GamePackets {
     public static final int SHOP_PANG_PRICE = 100;
     /** C# {@code IFF_GROUP.CADDIE} {@code 7}. */
     public static final int IFF_GROUP_CADDIE = 7;
+    /** C# {@code IFF_GROUP.CAD_ITEM}: {@code typeid >>> 26} ({@code 0x20002001}). */
+    public static final int IFF_GROUP_CAD_ITEM = 8;
+    /** JP test caddie item for Papel ({@code CaddieItem.iff}). */
+    public static final int TYPEID_CAD_ITEM_PAPEL = 0x20002001;
     /**
      * C# {@code IFF_GROUP.CADDIE} {@code 7 << 26}: Papel caddie {@code 0x1C000000}.
      */
@@ -2339,8 +2371,12 @@ public final class GamePackets {
     public static final int IFF_GROUP_CARD = 31;
     /** C# {@code IFF_GROUP.CHARACTER}: {@code typeid >>> 26}. */
     public static final int IFF_GROUP_CHARACTER = 1;
-    /** C# {@code IFF_GROUP.SKIN} index 56. */
+    /** C# {@code IFF_GROUP.SKIN} cutin group ({@code 0xE0000001}). */
     public static final int IFF_GROUP_SKIN = 56;
+    /** C# {@code IFF_GROUP.SKIN} warehouse backgrounds ({@code Skin.iff}, group 14). */
+    public static final int IFF_GROUP_SKIN_WAREHOUSE = 14;
+    /** JP test skin from {@code Skin.iff}. */
+    public static final int TYPEID_SKIN_RABBITS = 0x38000000;
     /** Test skin CutinInformation typeid. */
     public static final int TYPEID_CUTIN_SKIN = (IFF_GROUP_SKIN << 26) | 1;
     /** C# {@code IFF_GROUP.PART} {@code 2}. */

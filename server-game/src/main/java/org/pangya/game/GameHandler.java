@@ -2033,7 +2033,9 @@ public final class GameHandler {
         List<ItemInitializer.MailAwardRow> toAdd = new ArrayList<>();
         long uid = session.player().uid;
         for (ItemInitializer.MailAwardRow row : resolved) {
-            if (!inventory.itemCanOverlap(row.typeid()) && inventory.ownsAwardTypeid(uid, row.typeid())) {
+            if (row.group() != GamePackets.IFF_GROUP_CAD_ITEM
+                    && !inventory.itemCanOverlap(row.typeid())
+                    && inventory.ownsAwardTypeid(uid, row.typeid())) {
                 continue;
             }
             toAdd.add(row);
@@ -4340,7 +4342,7 @@ public final class GameHandler {
             throw new IllegalStateException("giveitem oid");
         }
         validateGmGift(typeid, qntd);
-        gmMailItem(target, GamePackets.GM_GIVEITEM_MSG, typeid, qntd);
+        gmMailItem(target, GamePackets.gmGiveitemMsg(typeid), typeid, qntd);
     }
 
     /**
@@ -4361,7 +4363,7 @@ public final class GameHandler {
         int qntd = reader.u32();
         validateGmGift(typeid, qntd);
         for (Session member : room.snapshot()) {
-            gmMailItem(member, GamePackets.GM_GOLDENBELL_MSG, typeid, qntd);
+            gmMailItem(member, GamePackets.gmGoldenbellMsg(typeid), typeid, qntd);
         }
     }
 

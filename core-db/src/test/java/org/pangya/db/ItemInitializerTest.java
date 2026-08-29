@@ -92,6 +92,33 @@ class ItemInitializerTest {
     }
 
     @Test
+    void resolveMailItemsInitializesSkinWhenIffLoaded() {
+        if (!JP_IFF.toFile().isFile()) {
+            return;
+        }
+        PangyaIffLoader.reload(JP_IFF);
+        var rows = ItemInitializer.resolveMailItems(
+                List.of(new ItemInitializer.MailItemRef(GamePackets.TYPEID_SKIN_RABBITS, 1)));
+        assertEquals(1, rows.size());
+        assertEquals(GamePackets.TYPEID_SKIN_RABBITS, rows.get(0).typeid());
+        assertNotNull(rows.get(0).warehouse());
+    }
+
+    @Test
+    void resolveMailItemsInitializesCadItemWhenIffLoaded() {
+        if (!JP_IFF.toFile().isFile()) {
+            return;
+        }
+        PangyaIffLoader.reload(JP_IFF);
+        var rows = ItemInitializer.resolveMailItems(
+                List.of(new ItemInitializer.MailItemRef(GamePackets.TYPEID_CAD_ITEM_PAPEL, 7)));
+        assertEquals(1, rows.size());
+        assertEquals(GamePackets.TYPEID_CAD_ITEM_PAPEL, rows.get(0).typeid());
+        assertEquals(4, rows.get(0).rentFlag());
+        assertEquals(7, rows.get(0).caddiePeriodDays());
+    }
+
+    @Test
     void fallsBackWhenIffUnloaded() {
         PangyaIffLoader.reload(null);
         var row = ItemInitializer.initFromBuyItem(

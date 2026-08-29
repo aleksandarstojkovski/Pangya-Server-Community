@@ -79,6 +79,15 @@ public final class ItemInitializer {
         public static MailAwardRow character(int typeid) {
             return new MailAwardRow(typeid, 1, null, 0, 0, 0, "", 0);
         }
+
+        public static MailAwardRow skin(int typeid) {
+            return new MailAwardRow(typeid, 1, WarehouseInitRow.simple(typeid, 1), 0, 0, 0, "", 0);
+        }
+
+        /** {@code rentFlag} = C# {@code flag_time}; {@code caddiePeriodDays} = {@code STDA_C_ITEM_TIME}. */
+        public static MailAwardRow cadItem(int typeid, int flagTime, int itemTime) {
+            return new MailAwardRow(typeid, 1, null, flagTime, itemTime, 0, "", 0);
+        }
     }
 
     private ItemInitializer() {}
@@ -195,7 +204,8 @@ public final class ItemInitializer {
                     GamePackets.IFF_GROUP_BALL, GamePackets.IFF_GROUP_CLUBSET,
                     GamePackets.IFF_GROUP_SET_ITEM, GamePackets.IFF_GROUP_CADDIE,
                     GamePackets.IFF_GROUP_MASCOT, GamePackets.IFF_GROUP_CARD,
-                    GamePackets.IFF_GROUP_CHARACTER -> true;
+                    GamePackets.IFF_GROUP_CHARACTER, GamePackets.IFF_GROUP_SKIN_WAREHOUSE,
+                    GamePackets.IFF_GROUP_CAD_ITEM -> true;
             default -> false;
         };
     }
@@ -239,8 +249,35 @@ public final class ItemInitializer {
             case GamePackets.IFF_GROUP_MASCOT -> initMascot(typeid, qntd);
             case GamePackets.IFF_GROUP_CARD -> initCard(typeid, qntd);
             case GamePackets.IFF_GROUP_CHARACTER -> initCharacter(typeid);
+            case GamePackets.IFF_GROUP_SKIN_WAREHOUSE -> initSkin(typeid);
+            case GamePackets.IFF_GROUP_CAD_ITEM -> initCadItem(typeid, qntd);
             default -> Optional.empty();
         };
+    }
+
+    private static Optional<MailAwardRow> initSkin(int typeid) {
+        if (!PangyaIffLoader.source().isPresent()) {
+            return Optional.of(MailAwardRow.skin(typeid));
+        }
+        if (!PangyaIffLoader.skinIndex().contains(typeid)) {
+            return Optional.empty();
+        }
+        return Optional.of(MailAwardRow.skin(typeid));
+    }
+
+    private static Optional<MailAwardRow> initCadItem(int typeid, int qntd) {
+        if (!PangyaIffLoader.source().isPresent()) {
+            int flagTime = qntd > 0 ? 4 : 0;
+            int itemTime = qntd > 0 ? qntd : 0;
+            return Optional.of(MailAwardRow.cadItem(typeid, flagTime, itemTime));
+        }
+        if (!PangyaIffLoader.caddieItemIndex().contains(typeid)) {
+            return Optional.empty();
+        }
+        if (qntd > 0) {
+            return Optional.of(MailAwardRow.cadItem(typeid, 4, qntd));
+        }
+        return Optional.of(MailAwardRow.cadItem(typeid, 0, 0));
     }
 
     private static Optional<MailAwardRow> initCharacter(int typeid) {

@@ -1362,7 +1362,84 @@ public final class JdbiInventoryRepository implements InventoryRepository {
             case GamePackets.IFF_GROUP_MASCOT -> addMascotAward(uid, row);
             case GamePackets.IFF_GROUP_CARD -> addCardAward(uid, row.typeid(), row.qntd());
             case GamePackets.IFF_GROUP_CHARACTER -> addCharacterAward(uid, row.typeid());
+            case GamePackets.IFF_GROUP_SKIN_WAREHOUSE -> addSkinAward(uid, row);
+            case GamePackets.IFF_GROUP_CAD_ITEM -> addCadItemAward(uid, row);
             default -> Optional.empty();
+        };
+    }
+
+    private Optional<AwardInsert> addSkinAward(long uid, ItemInitializer.MailAwardRow row) {
+        if (row.warehouse() == null || ownsWarehouseTypeid(uid, row.typeid())) {
+            return Optional.empty();
+        }
+        return jdbi.inTransaction(h -> {
+            int id = insertWarehouse(h, uid, row.warehouse());
+            return Optional.of(new AwardInsert(id, 0, 1, 1));
+        });
+    }
+
+    private Optional<AwardInsert> addCadItemAward(long uid, ItemInitializer.MailAwardRow row) {
+        int caddieTypeid = GamePackets.caddieBaseTypeid(row.typeid());
+        return jdbi.inTransaction(h -> {
+            int[] caddie = h.createQuery("""
+                            SELECT item_id, parts_typeid,
+                                   EXTRACT(EPOCH FROM "parts_EndDate")::bigint AS parts_end
+                              FROM pangya.pangya_caddie_information
+                             WHERE "UID" = :uid AND typeid = :typeid AND "Valid" = 1
+                             ORDER BY item_id
+                             LIMIT 1
+                            """)
+                    .bind("uid", uid)
+                    .bind("typeid", caddieTypeid)
+                    .map((rs, ctx) -> new int[] {
+                            rs.getInt("item_id"),
+                            rs.getInt("parts_typeid"),
+                            rs.getLong("parts_end") > 0 ? (int) rs.getLong("parts_end") : 0
+                    })
+                    .findOne()
+                    .orElse(null);
+            if (caddie == null) {
+                return Optional.empty();
+            }
+            int itemId = caddie[0];
+            int currentParts = caddie[1];
+            java.time.Instant endInstant = cadItemPartsEnd(row, currentParts == row.typeid(), caddie[2]);
+            h.createUpdate("""
+                            UPDATE pangya.pangya_caddie_information
+                               SET parts_typeid = :partsTypeid,
+                                   "parts_EndDate" = :endDate
+                             WHERE item_id = :itemId
+                            """)
+                    .bind("partsTypeid", row.typeid())
+                    .bind("endDate", endInstant == null ? null : java.sql.Timestamp.from(endInstant))
+                    .bind("itemId", itemId)
+                    .execute();
+            return Optional.of(new AwardInsert(itemId, 0, 1, 1));
+        });
+    }
+
+    private static java.time.Instant cadItemPartsEnd(
+            ItemInitializer.MailAwardRow row, boolean sameParts, int existingEndUnix) {
+        int flagTime = row.rentFlag();
+        int itemTime = row.caddiePeriodDays();
+        if (itemTime <= 0) {
+            return null;
+        }
+        long addSeconds = cadItemTimeSeconds(flagTime, itemTime);
+        if (addSeconds <= 0) {
+            return null;
+        }
+        long base = sameParts && existingEndUnix > 0
+                ? existingEndUnix
+                : java.time.Instant.now().getEpochSecond();
+        return java.time.Instant.ofEpochSecond(base + addSeconds);
+    }
+
+    private static long cadItemTimeSeconds(int flagTime, int itemTime) {
+        return switch (flagTime) {
+            case 2 -> itemTime * 3600L;
+            case 4 -> itemTime * 86400L;
+            default -> 0L;
         };
     }
 
@@ -1580,8 +1657,26 @@ public final class JdbiInventoryRepository implements InventoryRepository {
             case GamePackets.IFF_GROUP_MASCOT -> mascots(uid).stream().anyMatch(m -> m.typeid == typeid);
             case GamePackets.IFF_GROUP_CARD -> cards(uid).stream().anyMatch(c -> c.typeid == typeid);
             case GamePackets.IFF_GROUP_SET_ITEM -> ownerSetItem(uid, typeid);
+            case GamePackets.IFF_GROUP_SKIN_WAREHOUSE -> ownsWarehouseTypeid(uid, typeid);
+            case GamePackets.IFF_GROUP_CAD_ITEM -> ownsCadItemParts(uid, typeid);
             default -> ownsWarehouseTypeid(uid, typeid);
         };
+    }
+
+    private boolean ownsCadItemParts(long uid, int cadItemTypeid) {
+        int caddieTypeid = GamePackets.caddieBaseTypeid(cadItemTypeid);
+        return jdbi.withHandle(h -> h.createQuery("""
+                        SELECT 1 FROM pangya.pangya_caddie_information
+                         WHERE "UID" = :uid AND typeid = :caddieTypeid
+                           AND parts_typeid = :partsTypeid AND "Valid" = 1
+                         LIMIT 1
+                        """)
+                .bind("uid", uid)
+                .bind("caddieTypeid", caddieTypeid)
+                .bind("partsTypeid", cadItemTypeid)
+                .mapTo(Integer.class)
+                .findOne()
+                .isPresent());
     }
 
     private boolean ownsCaddieTypeid(long uid, int typeid) {
@@ -1610,6 +1705,9 @@ public final class JdbiInventoryRepository implements InventoryRepository {
         }
         int group = GamePackets.itemGroupIdentify(typeid);
         if (group == GamePackets.IFF_GROUP_CARD) {
+            return true;
+        }
+        if (group == GamePackets.IFF_GROUP_CAD_ITEM) {
             return true;
         }
         return group == GamePackets.IFF_GROUP_ITEM || group == GamePackets.IFF_GROUP_BALL;

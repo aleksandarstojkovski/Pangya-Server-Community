@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 import org.pangya.protocol.game.GamePackets;
 import org.pangya.protocol.iff.PangyaIffLoader;
 
+import java.nio.file.Path;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -964,6 +965,59 @@ class InventoryRepositoryTest {
                                 """)
                         .bind("typeid", GamePackets.TYPEID_MASCOT)
                         .execute());
+            }
+        }
+    }
+
+    @Test
+    void addAwardItemInsertsSkinAndCadItem() {
+        String url = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        DatabaseSupport.migrate(url, user, password);
+
+        Path jpIff = Path.of("reference/pangya-server-community/Server/JP/GameServer/data/pangya_jp.iff");
+        if (!jpIff.toFile().isFile()) {
+            return;
+        }
+        PangyaIffLoader.reload(jpIff);
+        try (var ds = DatabaseSupport.dataSource(url, user, password)) {
+            InventoryRepository repo = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
+            var jdbi = DatabaseSupport.jdbi(ds);
+            try {
+                repo.deleteWarehouseByTypeid(10002, GamePackets.TYPEID_SKIN_RABBITS);
+                var skinRow = ItemInitializer.MailAwardRow.skin(GamePackets.TYPEID_SKIN_RABBITS);
+                repo.addAwardItem(10002, skinRow).orElseThrow();
+                assertTrue(repo.ownsAwardTypeid(10002, GamePackets.TYPEID_SKIN_RABBITS));
+                assertTrue(repo.addAwardItem(10002, skinRow).isEmpty());
+
+                jdbi.useHandle(h -> h.createUpdate("""
+                                DELETE FROM pangya.pangya_caddie_information
+                                 WHERE "UID" = 10002 AND typeid = :typeid
+                                """)
+                        .bind("typeid", GamePackets.TYPEID_CADDIE_PAPEL)
+                        .execute());
+                var caddieRow = ItemInitializer.MailAwardRow.caddie(
+                        GamePackets.TYPEID_CADDIE_PAPEL, 1, 0);
+                repo.addAwardItem(10002, caddieRow).orElseThrow();
+
+                var cadRow = ItemInitializer.MailAwardRow.cadItem(
+                        GamePackets.TYPEID_CAD_ITEM_PAPEL, 4, 3);
+                repo.addAwardItem(10002, cadRow).orElseThrow();
+                var caddie = repo.caddies(10002).stream()
+                        .filter(c -> c.typeid == GamePackets.TYPEID_CADDIE_PAPEL)
+                        .findFirst()
+                        .orElseThrow();
+                assertEquals(GamePackets.TYPEID_CAD_ITEM_PAPEL, caddie.partsTypeid);
+            } finally {
+                repo.deleteWarehouseByTypeid(10002, GamePackets.TYPEID_SKIN_RABBITS);
+                jdbi.useHandle(h -> h.createUpdate("""
+                                DELETE FROM pangya.pangya_caddie_information
+                                 WHERE "UID" = 10002 AND typeid = :typeid
+                                """)
+                        .bind("typeid", GamePackets.TYPEID_CADDIE_PAPEL)
+                        .execute());
+                PangyaIffLoader.reload(null);
             }
         }
     }

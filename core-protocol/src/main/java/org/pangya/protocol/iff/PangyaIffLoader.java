@@ -44,6 +44,8 @@ public final class PangyaIffLoader {
             IffGrandPrixDataIndex grandPrixData,
             IffGrandPrixSpecialHoleIndex grandPrixSpecialHoles,
             IffGrandPrixConditionEquipIndex grandPrixConditionEquip,
+            IffTypeIndex skins,
+            IffTypeIndex caddieItems,
             Path source) {
         static Snapshot empty() {
             return new Snapshot(
@@ -69,9 +71,13 @@ public final class PangyaIffLoader {
                     IffGrandPrixDataIndex.empty(),
                     IffGrandPrixSpecialHoleIndex.empty(),
                     IffGrandPrixConditionEquipIndex.empty(),
+                    IffTypeIndex.empty(),
+                    IffTypeIndex.empty(),
                     null);
         }
     }
+
+    private record IffNameDataset(String entry, int recordBytes, int version) {}
 
     public static synchronized void reload(Path path) {
         if (path == null || path.toString().isBlank()) {
@@ -111,13 +117,15 @@ public final class PangyaIffLoader {
             IffGrandPrixSpecialHoleIndex grandPrixSpecialHoles = IffGrandPrixSpecialHoleFile.loadIndex(archive);
             IffGrandPrixConditionEquipIndex grandPrixConditionEquip =
                     IffGrandPrixConditionEquipFile.loadIndex(archive);
+            IffTypeIndex skins = IffSkinFile.loadIndex(archive);
+            IffTypeIndex caddieItems = IffCaddieItemFile.loadIndex(archive);
             snapshot = new Snapshot(
                     courses, parts, items, balls, cards, characters, characterMastery, enchants, clubSets, caddies,
                     mascots, clubSetWorkShopLevelUpLimits, clubSetWorkShopLevelUpProbs, clubSetWorkShopRankExps,
                     cutins, timeLimitItems, cadieMagicBoxes, cadieMagicBoxRandoms, setItems, grandPrixData,
-                    grandPrixSpecialHoles, grandPrixConditionEquip, path);
+                    grandPrixSpecialHoles, grandPrixConditionEquip, skins, caddieItems, path);
             log.info(
-                    "loaded pangya iff {} ({} courses, {} parts, {} items, {} balls, {} cards, {} chars, {} mastery, {} enchants, {} clubsets, {} caddies, {} mascots, {} ws limits, {} ws probs, {} ws rank exp, {} cutins, {} time limit items, {} cadie boxes, {} cadie random rows, {} set items, {} grand prix, {} gp special holes, {} gp condition equip)",
+                    "loaded pangya iff {} ({} courses, {} parts, {} items, {} balls, {} cards, {} chars, {} mastery, {} enchants, {} clubsets, {} caddies, {} mascots, {} skins, {} caddie items, {} ws limits, {} ws probs, {} ws rank exp, {} cutins, {} time limit items, {} cadie boxes, {} cadie random rows, {} set items, {} grand prix, {} gp special holes, {} gp condition equip)",
                     path,
                     courses.size(),
                     parts.size(),
@@ -130,6 +138,8 @@ public final class PangyaIffLoader {
                     clubSets.size(),
                     caddies.size(),
                     mascots.size(),
+                    skins.size(),
+                    caddieItems.size(),
                     clubSetWorkShopLevelUpLimits.rowCount(),
                     clubSetWorkShopLevelUpProbs.size(),
                     clubSetWorkShopRankExps.size(),
@@ -368,5 +378,51 @@ public final class PangyaIffLoader {
 
     public static Optional<Path> source() {
         return Optional.ofNullable(snapshot.source());
+    }
+
+    public static IffTypeIndex skinIndex() {
+        return snapshot.skins();
+    }
+
+    public static IffTypeIndex caddieItemIndex() {
+        return snapshot.caddieItems();
+    }
+
+    /** C# {@code sIff.findCommomItem}.Name from the matching IFF dataset. */
+    public static Optional<String> commonItemName(int typeid) {
+        Path src = snapshot.source();
+        if (src == null) {
+            return Optional.empty();
+        }
+        IffNameDataset dataset = nameDataset(typeid);
+        if (dataset == null) {
+            return Optional.empty();
+        }
+        try {
+            byte[] data = new PangyaIffArchive(src).readEntry(dataset.entry());
+            return IffCommonFile.nameForTypeid(data, dataset.recordBytes(), dataset.version(), typeid);
+        } catch (Exception e) {
+            return Optional.empty();
+        }
+    }
+
+    private static IffNameDataset nameDataset(int typeid) {
+        int group = (typeid & 0xFC000000) >>> 26;
+        return switch (group) {
+            case 1 -> new IffNameDataset("Character.iff", 420, 13);
+            case 2 -> new IffNameDataset("Part.iff", 568, 13);
+            case 4 -> new IffNameDataset("ClubSet.iff", 260, 13);
+            case 5 -> new IffNameDataset("Ball.iff", 816, 13);
+            case 6 -> new IffNameDataset("Item.iff", 248, 13);
+            case 7 -> new IffNameDataset("Caddie.iff", 248, 13);
+            case 9 -> new IffNameDataset("SetItem.iff", 268, 13);
+            case 16 -> new IffNameDataset("Mascot.iff", 304, 13);
+            case 28 -> new IffNameDataset("AuxPart.iff", 228, 13);
+            case 31 -> new IffNameDataset("Card.iff", 384, 13);
+            case 8 -> new IffNameDataset("CaddieItem.iff", 284, 13);
+            case 14 -> new IffNameDataset("Skin.iff", 244, 13);
+            case 56 -> new IffNameDataset("CutinInfomation.iff", 244, 13);
+            default -> null;
+        };
     }
 }
