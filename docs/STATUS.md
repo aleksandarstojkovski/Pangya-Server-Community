@@ -13,8 +13,8 @@ Conteggio Channel: **197** handler `packet_func_sv` registrati in `GameService.i
 
 ## Questo turno
 
-Fatto: … **`Course/Part/Item/Card/Character.iff` loaders** from `pangya_jp.iff`: map/par/star, combo parts, findItem/Card, Character PCL stats; **`deleteActiveItem` IFF shop flags** (`IsGift`/`IsCash`/`Stats.Power`) — shop-pang passive delete rejected like C#.
-Prossimo: pin `.gbin`; capture JP S9; more IFF datasets (Caddie, ClubSet, Enchant, CharacterMastery).
+Fatto: … **`deleteActiveItem` IFF shop flags**; **`CharacterMastery.iff`** — Nuri expand uses JP item `0x1A0002A6`×2; stats-up mastery bonus from IFF.
+Prossimo: pin `.gbin`; capture JP S9; Enchant/ClubSet/Caddie IFF.
 Blocco: pin `.gbin` binaries absent; nessuna capture client JP Season 9.
 
 Percentuale epic: **scheletro 85%** / **parità client reale 43%**.
