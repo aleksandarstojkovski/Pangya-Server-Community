@@ -1,99 +1,162 @@
 # STATUS — Pangya Java 21 JP rewrite
 
-**Branch di riferimento:** `Develop`  
-**HEAD (2026-08-29):** `d79b5f6` — Merge PR #7 *Java rewrite: Grand Prix parity (GP exit, timers, placar, leaveRoom)*  
-**Fonte comportamento:** `reference/pangya-server-community` (`Server/JP/`, branch C# `Develop`).
+**Aggiornato:** 2026-08-29 12:57 UTC
+**HEAD:** `5d20738` (branch `Develop`; audit su branch `cursor/phase0-recovery-audit-0d4c`)
+**Fonte comportamento C#:** `reference/pangya-server-community` (`Server/JP/`, branch `Develop`)
+
+> Questo file è stato **riscritto da zero** in un audit di recovery (Fase 0). Le versioni
+> precedenti di `STATUS.md`/`EPIC.md` contenevano affermazioni non verificabili: ogni riga
+> qui sotto ha accanto il comando che l'ha prodotta e il suo esito reale. Dove non ho potuto
+> verificare, scrivo **non verificato**.
 
 ---
 
-## Progresso slice (checklist onesta)
-
-| Slice | Stato | Evidenza su `Develop` |
-|-------|-------|------------------------|
-| **S0** | [x] | Gradle multi-modulo, Compose postgres+redis, Flyway V1–V43, stub 5 server |
-| **S1** | [x] | `:core-protocol:test` + `:core-network:test` Cipher/Netty verdi in `./gradlew test` |
-| **S2** | [x] | Auth S2S + Login fake-client IT verdi |
-| **S3** | [x] | Practice leave/start IT verde (`GameFlowIT.fakeClientLogsInEntersChannelCreatesAndLeavesPractice`) |
-| **S4** | [~] | 196 opcode client dispatchati in `GameHandler`; GP finish/exit/timer/placar/`requestSaveInfo` mergeati (PR #6–#7). Lacune verificate sotto. |
-| **S5** | [~] | Moduli `:server-ranking` + `:server-messenger` + IT base verdi; profondità guild/presence non auditata vs client reale |
-| **S6** | [~] | `SessionLoadIT` 3000 + `/metrics` verdi; **`./gradlew test` exit code 1** (2 failure); `scripts/verify.sh` **non eseguito** in questo turno |
-
-**Scheletro (S0–S6):** 4 slice chiuse (S0–S3), 3 parziali (S4–S6).  
-**Parità client:** fake-client `GameFlowIT` **97/98** pass; **0** capture JP Season 9 in repo/env; IFF binari testati solo da archive `reference/` (pin `.gbin` live **non verificato**).
-
----
-
-## `./gradlew test` su `Develop` (2026-08-29)
+## 1. Ambiente (docker compose) — VERIFICATO ✅
 
 ```
-./gradlew test --no-daemon
-EXIT_CODE=1
+$ docker compose ps            # tutti e 7 i servizi Up (healthy)
+auth       Up (healthy)   7777, 9077
+login      Up (healthy)   10203, 9103
+game       Up (healthy)   20202, 9202
+ranking    Up (healthy)   4774, 9474
+messenger  Up (healthy)   30201, 9302
+postgres   Up (healthy)   5432
+redis      Up (healthy)   6379
+
+$ for p in 9077 9103 9202 9474 9302; do curl -fsS 127.0.0.1:$p/health; done
+ok auth
+ok login
+ok game
+ok ranking
+ok messenger
 ```
 
-| Modulo | Esito | Failure |
-|--------|-------|---------|
-| `:core-db:test` | **FAIL** | `FlywayMigrationTest.migratesAndIsIdempotent` — second migrate expected 0, was 4 |
-| `:server-game:test` | **FAIL** | `GameFlowIT.personalShopBuyIncrementsAchievementCounter` — `IllegalStateException: no server packet` |
-| Altri moduli | PASS | non verificato singolarmente oltre al summary Gradle |
-
-Totale `@Test` nel repo: **386** (195 in `:server-game`).
+Docker non è preinstallato nella VM Cloud Agent: è stato installato in modalità nested
+(`fuse-overlayfs`, `iptables-legacy`, `dockerd` via `setsid`). Vedi `EPIC.md` §Ambiente.
 
 ---
 
-## Inventario opcode Channel (grep, non profondità gameplay)
+## 2. Test per modulo — VERIFICATO
 
-| Metrica | Valore | Fonte |
-|---------|--------|-------|
-| C# client `funcs.addPacketCall` | **193** opcode unici | `GameService.cs` |
-| Java `case GamePackets.CLIENT_*` | **196** | `GameHandler.java` |
-| C# senza case Java | **0** | diff script su `Develop` |
-| Java extra vs C# | **3** (`0x01` KEEPALIVE, `0x9A`, `0x173`) | idem |
-| Handler Java **solo no-op** `{ }` | **9** | GAMEGUARD, INVITE_RELOGIN, REQUEST_KICK, UCC_LOAD, GZ_INITIAL, EVENT_ARIN, HEARTBEAT, KEEPALIVE, CHECK_INVITE |
+Comando (esecuzione forzata, nessuna cache, un fallimento non maschera gli altri):
 
-Conteggio “173 success 1:1 / 0 fail-stub” nei doc precedenti: **non verificato** in questo audit; contraddice i 9 no-op e il test personal-shop rotto.
+```
+$ ./gradlew --no-daemon --continue --rerun-tasks :core-protocol:test :core-network:test \
+    :core-db:test :server-auth:test :server-login:test :server-game:test \
+    :server-ranking:test :server-messenger:test
+GRADLE_EXIT=1
+```
 
----
+Risultati reali estratti dai report JUnit XML:
 
-## Lacune verificate (grep codice)
-
-| Area | Stato | Evidenza |
-|------|-------|---------|
-| `CoinCubeLocationUpdateSystem` / `calcule_shot_to_coin` | **assente** | nessun match in `server-game/` |
-| `requestSaveInfo` persistenza `user_info` | **solo GP** | wired in `deleteGrandPrixPlayer` / finish / early exit; Tourney/Versus/Match **non verificato** |
-| Smart calculator reload (auth tipo 18) | **not ported** | `GlobalCatalogs.java:70` |
-| Event SQL reload (tipi 12–17) | **stub log** | `GlobalCatalogs.java:69` |
-| Capture client JP S9 | **assente** | non verificato |
-| Pin `.gbin` runtime | **non verificato** | IFF test usano archive reference |
-
----
-
-## Questo turno (solo ultimo commit su `Develop`)
-
-| Campo | Valore |
-|-------|--------|
-| Commit | `d79b5f6` (merge PR #7) |
-| Contenuto | GP parity batch: `requestSaveInfo` option 0/1/5 + `UserInfoMerge` + load/update `user_info`; `leaveRoom` → `deleteGrandPrixPlayer`; timer/placar/exit da PR #6 inclusi nel merge |
-| Test | `./gradlew test` → **exit 1** (vedi sopra) |
-| Doc precedenti | **obsoleti** — citavano FriendManager/attendance come “questo turno” |
+| Modulo | tests | fail | esito |
+|--------|------:|-----:|-------|
+| `core-protocol`   | 103 | 0 | **PASS** |
+| `core-network`    | 9   | 0 | **PASS** |
+| `core-db`         | 45  | 1 | **FAIL** (1 test, vedi §3) |
+| `server-auth`     | 1   | 0 | **PASS** |
+| `server-login`    | 7   | 0 | **PASS** |
+| `server-game`     | 195 | 0 | **PASS** |
+| `server-ranking`  | 6   | 0 | **PASS** |
+| `server-messenger`| 20  | 0 | **PASS** |
+| **Totale**        | **386** | **1** | 385 verdi |
 
 ---
 
-## Prossima slice (prima voce non verde su `Develop`)
+## 3. Unico test rosso: `FlywayMigrationTest.migratesAndIsIdempotent`
 
-1. **Ripristinare `./gradlew test` verde** — `FlywayMigrationTest` (idempotenza migrate) + `GameFlowIT.personalShopBuyIncrementsAchievementCounter`.
-2. Poi (S4): **`calcule_shot_to_coin` / `CoinCubeLocationUpdateSystem`** — C# `TourneyBase.requestSyncShot` chiama questi; Java `syncShot` non li invoca (grep zero match).
+Messaggio reale:
 
-Non ripartire da S0. **Nessun nuovo opcode** finché la riconciliazione doc non è approvata.
+```
+org.opentest4j.AssertionFailedError: expected: <0> but was: <4>
+   (core-db/.../FlywayMigrationTest.java:23  "second migrate must be a no-op")
+```
+
+**Causa individuata (VERIFICATA), NON è un bug di migrazione.** Il test migra il Postgres
+Compose **condiviso** (`localhost:5432/pangya`) e non fa DROP dello schema, così altri
+moduli/container possono usarlo in parallelo (`org.gradle.parallel=true`, e i container
+`auth`/`game` migrano lo stesso DB con `PANGYA_MIGRATE_ON_START`). L'assert di idempotenza
+"secondo migrate == 0" si rompe quando un altro `migrate()` gira concorrentemente tra le
+due chiamate.
+
+Prova che è contaminazione di stato condiviso e non correttezza schema — lo stesso test
+contro un DB **fresco isolato**, single-worker, passa al 100%:
+
+```
+$ docker exec <pg> psql -U pangya -c "create database pangya_audit;"
+$ PANGYA_TEST_JDBC_URL=jdbc:postgresql://localhost:5432/pangya_audit \
+    ./gradlew --no-daemon --rerun-tasks --max-workers=1 :core-db:test
+BUILD SUCCESSFUL in 13s     # 45/45 PASS, incl. assert 202 tabelle + tutti i seed
+```
+
+Migrazioni reali nel repo: **43 file** `V1..V43` (0 repeatable `R__`). Il test verde
+isolato conferma 202 tabelle schema `pangya` e i seed (testuser/testuser2/newuser, shop,
+cadie, IFF character/enchant/card/part…).
+
+**Nota storica:** i doc precedenti citavano ANCHE un secondo fallimento
+`GameFlowIT.personalShopBuyIncrementsAchievementCounter`. **Non riprodotto**:
+`server-game` è 195/195 verde (il test esiste e passa).
 
 ---
 
-## Contraddizioni risolte (doc vecchi vs `Develop`)
+## 4. Qualità dei test (anti-allucinazione) — VERIFICATO
 
-| Doc vecchio | Realtà `Develop` |
-|------------|------------------|
-| “Questo turno: FriendManager / attendance bonus” | HEAD = merge GP PR #7 |
-| “Scheletro 85% / parità 43%” | Percentuali inventate — rimosse |
-| S6 [x] | `./gradlew test` fallisce |
-| “173 opcode / 0 fail-stub” | 9 no-op Java; profondità non auditata |
-| “175 tabelle pangya” | `FlywayMigrationTest` expect **202** tabelle |
-| Compose `/health` 5 server (2026-08-28) | **non verificato** questo turno |
+- `@Test` totali: **386**. Test "sempre-verdi" (`assertTrue(true)`, `assertEquals(1,1)`): **0** trovati.
+- File di test **senza alcun** `assert/verify/fail`: **0**.
+- `GameFlowIT` sono veri IT end-to-end: un fake client si connette, attende opcode reali e
+  asserisce i campi delle risposte del server (es. `awaitOpcode(...)` + `assertEquals`).
+- **20** file di test in `core-protocol` leggono l'**archivio C# reale** da
+  `reference/pangya-server-community/...` (IFF). Verifica indiretta: prima del clone del
+  reference questi test fallivano con `missing .../pangya_jp.iff`.
+- Cipher/framing (`core-protocol/crypto`): verdi, ma su **vettori sintetici/strutturali**
+  (round-trip encrypt/decrypt + formato framing), **non** su capture reali del client S9.
+- Capture reali client JP Season 9 nel repo: **0** (invariato rispetto all'ammissione dei doc vecchi).
+
+---
+
+## 5. Allucinazioni dei doc precedenti (corrette qui)
+
+| Affermazione doc vecchi | Realtà verificata | Comando |
+|---|---|---|
+| "C# GameService = **193** opcode client; Java **196**; **0 mancanti** / quasi-parità" | `GameService.cs` registra **479** `addPacketCall`; Java `GameHandler` ha **196** `case`. Java copre un **sottoinsieme**, NON parità. | `grep -cE addPacketCall .../GameService.cs` → **479**; `grep -oE 'case GamePackets.CLIENT_' GameHandler.java \| sort -u \| wc -l` → **196** |
+| "S6 [x] done" | `./gradlew test` **non è verde** in run completo (1 flake, §3) | vedi §2 |
+| "personalShopBuy… FAIL (questo turno)" | **PASS** (195/195 server-game) | §2 |
+| Percentuali di parità (85%/43%) | inventate, non misurabili | — |
+
+**Il codice, invece, appare ben ancorato**: cita classi C# reali presenti in `reference/`
+(es. `TourneyBase.cs`, `Tourney.cs`, `tourney_base_type.cs`), legge IFF reali, i test sono
+sostanziali. Le allucinazioni erano concentrate **nei doc**, non nel codice → **niente rollback** (vedi EPIC §Gate rollback).
+
+---
+
+## 6. Lavoro dell'ultimo giorno (git) — VERIFICATO
+
+```
+$ git log --since="2026-08-27" --oneline    # tema dominante
+d79b5f6 Merge PR #7  Grand Prix parity (requestSaveInfo, leaveRoom)
+bc20ad7 Merge PR #6  Grand Prix finish extras
+… ~40 commit "GP …" (bot, timer, placar, finish, early exit, rewards)
+98bcdf0 / 5d20738  reconcile docs
+```
+
+Quasi tutto il lavoro dell'ultimo giorno è **Grand Prix (GP)**, che è **fuori dallo scope
+MVP** (vedi EPIC). Non buttato: parcheggiato, da validare più avanti.
+
+---
+
+## 7. Comandi chiave e esito (riepilogo)
+
+| Comando | Esito |
+|---|---|
+| `docker compose ps` + `curl /health` (x5) | 7/7 healthy, 5/5 `ok` |
+| `./gradlew --rerun-tasks --continue :*:test` (8 moduli) | EXIT 1 — 385/386, 1 flake shared-DB |
+| `./gradlew --max-workers=1 :core-db:test` (DB isolato) | BUILD SUCCESSFUL, 45/45 |
+| `grep addPacketCall GameService.cs` | 479 |
+| `grep case CLIENT_ GameHandler.java` | 196 |
+
+---
+
+## 8. Prossimo passo
+
+Fase 0 completa. **Gate:** in attesa di conferma utente per iniziare la Fase 1
+(re-scope MVP Torneo). Dettagli e Definition of Done in `docs/EPIC.md`.
