@@ -1726,9 +1726,11 @@ public final class GameHandler {
         if (room == null || reader.remaining() < GamePackets.USER_INFO_BYTES) {
             return;
         }
-        GamePackets.UserInfoEx ui = GamePackets.UserInfoEx.read(reader);
+        byte[] userInfoWire = reader.readBytes(GamePackets.USER_INFO_BYTES);
+        GamePackets.UserInfoEx ui = GamePackets.UserInfoEx.read(new PacketReader(userInfoWire));
         GameRoom.PlayerShot shot = room.shots.computeIfAbsent(session.oid(), id -> new GameRoom.PlayerShot());
         shot.userInfo = ui;
+        shot.userInfoWire = userInfoWire;
         shot.finishGame = true;
         if (GamePackets.usesVersusInitialData(room.tipo)) {
             if (!room.allPlayersFinishedGame()) {
@@ -3616,6 +3618,7 @@ public final class GameHandler {
         }
         consumeFinishItemUsed(session, room);
         finishGameExp(session, room, finishRankIndex(room, session));
+        session.send(GamePackets.myStatistics(finishUserInfoWire(session, shot)));
         flushPendingAchievementCounters(session, room);
         session.send(GamePackets.newEndGameFlag());
         session.send(GamePackets.newEndGameFlag2());
@@ -3629,6 +3632,15 @@ public final class GameHandler {
         return GrandPrixEnterWindow.isGrandPrixNormal(room.grandPrixTypeid)
                 && GrandPrixEnterWindow.grandPrixAba(room.grandPrixTypeid)
                         == GrandPrixEnterWindow.GP_ABA_ROOKIE;
+    }
+
+    /** C# {@code sendUpdateInfoAndMapStatistics}: client {@code UserInfoEx} or level fallback. */
+    private static byte[] finishUserInfoWire(Session session, GameRoom.PlayerShot shot) {
+        if (shot != null && shot.userInfoWire != null
+                && shot.userInfoWire.length == GamePackets.USER_INFO_BYTES) {
+            return shot.userInfoWire;
+        }
+        return GamePackets.userInfoPublic(session.player().level);
     }
 
     /** C# {@code GrandPrix.requestMakeRankPlayerDisplayCharacter} top-3 podium rows. */

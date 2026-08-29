@@ -74,6 +74,15 @@ final class GrandPrixFinishFlowTest {
         assertTrue(GrandPrixEnterWindow.isGrandPrixEvent(room.grandPrixTypeid));
     }
 
+    @Test
+    void myStatisticsUsesClientUserInfoWire() {
+        byte[] wire = GamePackets.userInfoExWire(10, 5, 2, 4, 900L, 70, 1);
+        PacketReader pkt = new PacketReader(GamePackets.myStatistics(wire));
+        assertEquals(GamePackets.SERVER_MY_STATISTICS, pkt.opcode());
+        assertEquals(10, pkt.i32());
+        assertEquals(5, pkt.i32());
+    }
+
     private static boolean allPackets(GameRoom.PlayerShot shot) {
         return (shot.initShot > 0 && shot.syncShotFlag > 0 || shot.timeOuts > 0)
                 && shot.finishShot > 0;
