@@ -4,6 +4,8 @@ import org.junit.jupiter.api.Test;
 import org.pangya.protocol.game.GamePackets;
 import org.pangya.protocol.iff.PangyaIffLoader;
 
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -858,6 +860,47 @@ class InventoryRepositoryTest {
                 assertTrue(repo.hasGrandPrixClear(10001, 0x100));
             } finally {
                 repo.deleteGrandPrixClear(10001, 0x100);
+            }
+        }
+    }
+
+    @Test
+    void addAwardItemInsertsCharacterWhenAbsent() {
+        var jpIff = java.nio.file.Path.of(
+                "reference/pangya-server-community/Server/JP/GameServer/data/pangya_jp.iff");
+        if (!jpIff.toFile().isFile()) {
+            return;
+        }
+        String url = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        DatabaseSupport.migrate(url, user, password);
+
+        try (var ds = DatabaseSupport.dataSource(url, user, password)) {
+            InventoryRepository repo = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
+            var jdbi = DatabaseSupport.jdbi(ds);
+            try {
+                PangyaIffLoader.reload(jpIff);
+                jdbi.useHandle(h -> h.createUpdate("""
+                                DELETE FROM pangya.pangya_character_information
+                                 WHERE "UID" = 10002 AND typeid = :typeid
+                                """)
+                        .bind("typeid", GamePackets.TYPEID_NURI)
+                        .execute());
+                var row = ItemInitializer.resolveMailItems(
+                        List.of(new ItemInitializer.MailItemRef(GamePackets.TYPEID_NURI, 1))).getFirst();
+                var insert = repo.addAwardItem(10002, row).orElseThrow();
+                assertEquals(1, insert.addQntd());
+                assertTrue(repo.characters(10002).stream()
+                        .anyMatch(c -> c.typeid == GamePackets.TYPEID_NURI));
+            } finally {
+                PangyaIffLoader.reload(null);
+                jdbi.useHandle(h -> h.createUpdate("""
+                                DELETE FROM pangya.pangya_character_information
+                                 WHERE "UID" = 10002 AND typeid = :typeid
+                                """)
+                        .bind("typeid", GamePackets.TYPEID_NURI)
+                        .execute());
             }
         }
     }

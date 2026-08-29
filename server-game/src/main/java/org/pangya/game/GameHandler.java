@@ -4340,7 +4340,7 @@ public final class GameHandler {
             throw new IllegalStateException("giveitem oid");
         }
         validateGmGift(typeid, qntd);
-        gmMailItem(target, GamePackets.GM_GIVEITEM_MSG);
+        gmMailItem(target, GamePackets.GM_GIVEITEM_MSG, typeid, qntd);
     }
 
     /**
@@ -4361,7 +4361,7 @@ public final class GameHandler {
         int qntd = reader.u32();
         validateGmGift(typeid, qntd);
         for (Session member : room.snapshot()) {
-            gmMailItem(member, GamePackets.GM_GOLDENBELL_MSG);
+            gmMailItem(member, GamePackets.GM_GOLDENBELL_MSG, typeid, qntd);
         }
     }
 
@@ -4377,8 +4377,12 @@ public final class GameHandler {
         }
     }
 
-    private void gmMailItem(Session target, String msg) {
-        mailboxes.add(target.player().uid, "", msg, 1);
+    private void gmMailItem(Session target, String msg, int typeid, int qntd) {
+        mailboxes.add(
+                target.player().uid,
+                "",
+                msg,
+                List.of(new MailBoxStore.MailAttachment(typeid, qntd)));
         if (target.authorized()) {
             target.send(GamePackets.newMail(unreadMailBytes(target.player().uid)));
         }

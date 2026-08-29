@@ -75,6 +75,10 @@ public final class ItemInitializer {
         public static MailAwardRow card(int typeid, int qntd) {
             return new MailAwardRow(typeid, qntd, null, 0, 0, 0, "", 0);
         }
+
+        public static MailAwardRow character(int typeid) {
+            return new MailAwardRow(typeid, 1, null, 0, 0, 0, "", 0);
+        }
     }
 
     private ItemInitializer() {}
@@ -130,12 +134,25 @@ public final class ItemInitializer {
                 return List.of();
             }
             if (GamePackets.itemGroupIdentify(att.typeid()) == GamePackets.IFF_GROUP_SET_ITEM) {
-                List<WarehouseInitRow> expanded = expandSetItem(false, att.typeid());
-                if (expanded.isEmpty()) {
+                Optional<IffSetItemRecord> setOpt = PangyaIffLoader.setItem(att.typeid());
+                if (setOpt.isEmpty()) {
                     return List.of();
                 }
-                for (WarehouseInitRow row : expanded) {
-                    out.add(MailAwardRow.warehouse(row));
+                IffSetItemRecord set = setOpt.get();
+                for (int i = 0; i < set.packege().total(); i++) {
+                    int compTypeid = set.packege().itemTypeids()[i];
+                    if (compTypeid == 0) {
+                        continue;
+                    }
+                    int compQntd = set.packege().itemQntds()[i];
+                    if (compQntd <= 0) {
+                        compQntd = 1;
+                    }
+                    Optional<MailAwardRow> row = initMailAward(ctx, compTypeid, compQntd);
+                    if (row.isEmpty()) {
+                        return List.of();
+                    }
+                    out.add(row.get());
                 }
             } else if (!isMailAwardGroup(att.typeid())) {
                 return List.of();
@@ -177,7 +194,8 @@ public final class ItemInitializer {
             case GamePackets.IFF_GROUP_ITEM, GamePackets.IFF_GROUP_PART,
                     GamePackets.IFF_GROUP_BALL, GamePackets.IFF_GROUP_CLUBSET,
                     GamePackets.IFF_GROUP_SET_ITEM, GamePackets.IFF_GROUP_CADDIE,
-                    GamePackets.IFF_GROUP_MASCOT, GamePackets.IFF_GROUP_CARD -> true;
+                    GamePackets.IFF_GROUP_MASCOT, GamePackets.IFF_GROUP_CARD,
+                    GamePackets.IFF_GROUP_CHARACTER -> true;
             default -> false;
         };
     }
@@ -220,8 +238,19 @@ public final class ItemInitializer {
             case GamePackets.IFF_GROUP_CADDIE -> initCaddie(typeid);
             case GamePackets.IFF_GROUP_MASCOT -> initMascot(typeid, qntd);
             case GamePackets.IFF_GROUP_CARD -> initCard(typeid, qntd);
+            case GamePackets.IFF_GROUP_CHARACTER -> initCharacter(typeid);
             default -> Optional.empty();
         };
+    }
+
+    private static Optional<MailAwardRow> initCharacter(int typeid) {
+        if (!PangyaIffLoader.source().isPresent()) {
+            return Optional.of(MailAwardRow.character(typeid));
+        }
+        if (PangyaIffLoader.character(typeid).isEmpty()) {
+            return Optional.empty();
+        }
+        return Optional.of(MailAwardRow.character(typeid));
     }
 
     private static Optional<MailAwardRow> initCaddie(int typeid) {

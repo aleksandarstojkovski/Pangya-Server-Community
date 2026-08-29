@@ -653,6 +653,18 @@ class GameFlowIT {
                 PacketReader mail = awaitOpcode(guest, GamePackets.SERVER_NEW_MAIL);
                 assertEquals(0, mail.i32());
                 assertEquals(1, mail.i32());
+                var inventory = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
+                inventory.deleteWarehouseByTypeid(10002, GamePackets.TYPEID_SHOP_PANG_ITEM);
+                guest.sendPlain(GamePackets.clientOpenMailBox(1));
+                PacketReader page = awaitOpcode(guest, GamePackets.SERVER_MAILBOX);
+                assertEquals(0, page.i32());
+                int mailId = page.i32();
+                guest.sendPlain(GamePackets.clientTakeMail(mailId));
+                awaitOpcode(guest, GamePackets.SERVER_DAILY_QUEST_STAMP);
+                assertEquals(0, awaitOpcode(guest, GamePackets.SERVER_MAIL_TAKE).u32());
+                assertTrue(inventory.warehouse(10002).stream()
+                        .anyMatch(w -> w.typeid == GamePackets.TYPEID_SHOP_PANG_ITEM && w.c[0] == 1));
+                inventory.deleteWarehouseByTypeid(10002, GamePackets.TYPEID_SHOP_PANG_ITEM);
                 PacketReader giveOk = awaitOpcode(host, GamePackets.SERVER_CHAT);
                 assertEquals(
                         GamePackets.chatColor(GamePackets.CHAT_GREEN_HEX, GamePackets.GM_CMD_OK),
