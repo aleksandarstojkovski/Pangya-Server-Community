@@ -32,8 +32,8 @@ Lasciato nel repo. **Non** è “fatto” solo perché compila o perché un IT d
 - [x] `docker compose` Postgres + Redis + Auth + Login + Game + Ranking + Messenger healthcheck verdi — **verificato 2026-08-29T15:05:37Z** (curl `/health` → `ok … HTTP 200` × 5; `compose ps` 7/7 healthy). Rebuild `--build` **non eseguito**.
 - [~] Protocollo framing + cipher su fixture C# — tabelle `CryptoOracle` prefix C# + test verdi; ciphertext golden **assente** (vedi S-T1).
 - [x] Login e2e fake client, session key ricevuta — `LoginFlowIT` in `:server-login:test` EXIT=0 `--rerun-tasks`.
-- [ ] Fake client: canale → iscrizione Torneo → partita fino alla fine → risultato e ranking
-- [ ] Crash di sessione non abbatte il processo (test esplicito)
+- [x] Fake client: canale → iscrizione Torneo → partita fino alla fine → `SERVER_GAME_RESULT` + `user_info.Jogado` (`tourneyFakeClientPlaysToFinishAndReceivesResult` EXIT=0). Registry `pangya_rank_atual` non è nel finish C# Game
+- [x] Crash di sessione non abbatte il processo — `SessionIsolationTest.throwingHandlerDoesNotKillServer` PASSED
 - [x] Questo file + `docs/STATUS.md` aggiornati a fine turno
 
 ---
@@ -41,7 +41,7 @@ Lasciato nel repo. **Non** è “fatto” solo perché compila o perché un IT d
 ## Piano slice (solo MVP Torneo)
 
 ```
-S-T1 [~]  S-T2 [x]  S-T3 [~]  S-T4 [ ]  S-T5 [~]  S-T6 [ ]
+S-T1 [~]  S-T2 [x]  S-T3 [x]  S-T4 [x]  S-T5 [~]  S-T6 [x]
 ```
 
 ### S-T1 — Protocollo / cipher
@@ -75,42 +75,32 @@ BUILD SUCCESSFUL … EXIT=0
 
 ### S-T3 — Canale + iscrizione Torneo
 
-**Parziale — riuso test esistente, non chiuso come DoD e2e.**
+**Chiuso** (riuso + S-T4). Stesso path in entrambi gli IT PASSED.
+
+```
+GameFlowIT > twoPlayersStartTourneyAndReceiveCourse() PASSED
+GameFlowIT > tourneyFakeClientPlaysToFinishAndReceivesResult() PASSED
+```
+
+### S-T4 — Partita Torneo end-to-end
+
+**Chiuso** questo turno.
+
+C# `Tourney.finish_game` option 6 (`Tourney.cs` ~1552): `requestSaveInfo(_session, 0)`.  
+Java: `GameHandler.finishGamePlayerDump` ora chiama `requestSaveInfo(session, room, 0, false)` se `TIPO_TOURNEY`.
+
+IT: 1-hole (`clientChangeRoomHoles`) → `clientInitHole(1)` → hole-out `DISPLAY_ACERTO_HOLE` → `0x199` → `clientFinishGame` → `SERVER_PRIZE_LIST` / `SERVER_GAME_RESULT` / `SERVER_MY_STATISTICS` + `Jogado`/`JogosNaoSei` +1.
 
 ```
 ./gradlew --no-daemon :server-game:test --rerun-tasks \
-  --tests org.pangya.game.GameFlowIT.twoPlayersStartTourneyAndReceiveCourse
-… twoPlayersStartTourneyAndReceiveCourse PASSED
-GAME_IT_EXIT=0
+  --tests org.pangya.game.GameFlowIT.tourneyFakeClientPlaysToFinishAndReceivesResult
+GameFlowIT > tourneyFakeClientPlaysToFinishAndReceivesResult() PASSED
+BUILD SUCCESSFUL in 11s
+12 actionable tasks: 12 executed
+ST4_EXIT=0
 ```
 
-Copre: `loginToChannel` (`clientEnterChannel`) → `clientCreateRoom(TIPO_TOURNEY)` → `clientJoinRoom` → `clientStartGame` → `SERVER_GAME_INIT` / `SERVER_COURSE` tipo Torneo.
-
-Non copre: hole, finish, ranking. Non aggiungere opcode nuovi qui.
-
-### S-T4 — Partita Torneo end-to-end  ← **prossima**
-
-**Stato:** non verificato. Nessun IT fake-client che, su `TIPO_TOURNEY`, faccia init-hole → shot hole-out → `requestFinishGame` → pacchetti risultato.
-
-Riferimento C# (cercato, non a memoria):
-
-- `Server/JP/GameServer/Game/GameModes/Tourney.cs`
-  - `checkEndShotOfHole`: ultimo hole → `0x199`, `finishHole`, `changeHole`
-  - `requestFinishData`: drop / placar / treasure hunter
-  - `finish_game(..., 6)`: `requestSaveRecordCourse`, **`requestSaveInfo(_session, 0)`** (~riga 1552), exp, `0x244`/`0x24F`/`0xC8`
-- Java `GameHandler.finishGamePlayerDump`: `requestSaveInfoFinish` solo se `TIPO_GRAND_PRIX`; Torneo va a `sendFinishGameDump` **senza** `requestSaveInfo`.
-
-Criterio di chiusura S-T4 (comando da incollare, non riassumere):
-
-```
-./gradlew --no-daemon :server-game:test --rerun-tasks \
-  --tests org.pangya.game.GameFlowIT.<nome_it_torneo_e2e>
-# EXIT=0 e assert: result + (user_info persistita se C# lo richiede)
-```
-
-Practice last-hole (`clientInitHole(18,…)`) è **fuori scope** come evidenza Torneo; si può copiare il *meccanismo* solo dopo aver verificato in C#/Java che `TIPO_TOURNEY` accetta lo stesso init-hole.
-
-`calcule_shot_to_coin` / `CoinCubeLocationUpdateSystem`: C# `Tourney.requestCalculeShotCoin` li chiama; Java `syncShot` grep 0 match. **Non** è nel DoD «partita fino alla fine + risultato». Non portarli in S-T4 se il finish e2e non li richiede.
+`calcule_shot_to_coin` / `CoinCubeLocationUpdateSystem`: ancora 0 match in Java. **Non** richiesto dal DoD finish+result. Presente in C# `Tourney.requestCalculeShotCoin` — **presente C#, non portato, fuori criterio S-T4**.
 
 ### S-T5 — Ranking + Messenger minimi
 
@@ -121,18 +111,21 @@ Practice last-hole (`clientInitHole(18,…)`) è **fuori scope** come evidenza T
 BUILD SUCCESSFUL … EXIT=0  (--rerun-tasks, questo turno)
 ```
 
-- Ranking serve `pangya_rank_atual` (`JdbiRankRepository`, C# `CmdRankRegistryInfo` / `RankRegistryManager.initialize`).
-- Grep C# JP GameServer: **nessun** write a `pangya_rank_atual` nel finish Torneo. Il registry è un load SQL del RankingServer.
-- Minimo Torneo da verificare in S-T5 (dopo S-T4):
-  1. Pacchetto placar / `SERVER_GAME_RESULT` al finish (in-game).
-  2. `user_info` persistita (`requestSaveInfo` option 0) come C# `Tourney.finish_game`.
-  3. Messenger: solo se il flusso Torneo C# lo tocca (invite/presence). Non auditare guild.
-
-Non dichiarare «ranking aggiornato» se si è solo letto una riga seedata a mano in `pangya_rank_atual` (come fa già `RankingFlowIT.registryPageAndPlayerFullInfoComeFromSql`).
+1. Placar in-game `SERVER_GAME_RESULT` (`0x79`, C# `sendPlacar`) — **asserito in S-T4**.
+2. `user_info` persistita option 0 — **asserito in S-T4**.
+3. `pangya_rank_atual`: C# Ranking `RankRegistryManager.initialize` / `CmdRankRegistryInfo` (load SQL). Grep GameServer JP: **nessun write** al finish Torneo. Non inventato.
 
 ### S-T6 — Hardening leggero
 
-**Non iniziato.** Test esplicito: una sessione che lancia / si disconnette in modo ostile **non** termina la JVM del Game server.  
+**Chiuso** (test già in repo, riconfermato).
+
+```
+./gradlew --no-daemon --rerun-tasks \
+  :core-network:test --tests org.pangya.network.netty.SessionIsolationTest
+SessionIsolationTest > throwingHandlerDoesNotKillServer() PASSED
+```
+
+Due client, sink che lancia `RuntimeException`, `seen==2`, server ancora bound. Catch in `PangyaClientDecryptHandler` virtual thread.  
 `SessionLoadIT` 3000 = fuori scope.
 
 ---
@@ -186,7 +179,11 @@ FLYWAY_EXIT=1
 
 ## Prossima azione
 
-**S-T4:** un IT fake-client Torneo che gioca fino al finish e asserisce i pacchetti risultato. Se `user_info` non cambia, allineare `finishGamePlayerDump` a C# `requestSaveInfo(_session, 0)` **solo** per Torneo, con test che lo dimostra.
+Residui onesti, non “fatti” per estrapolazione:
+
+- **S-T1:** ciphertext golden di rete assente — **gate capture**, non inventare byte.
+- **S-T5:** non scrivere `pangya_rank_atual` dal Game finish (C# non lo fa). Eventuale IT Ranking che rilegge `user_info` dopo S-T4 è opzionale.
+- `FlywayMigrationTest` riga 129 `iff_item` = inquinamento IT, non migrate idempotent.
 
 Nessun nuovo opcode. Nessun lavoro Practice/GP/Versus.
 

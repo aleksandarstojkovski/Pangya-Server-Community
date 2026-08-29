@@ -112,10 +112,10 @@ GAME_IT_EXIT=0
 |-------|-------|------------------------|
 | **S-T1** protocollo/cipher | [~] | `:core-protocol:test` + `:core-network:test` EXIT=0 `--rerun-tasks`. `CryptoOracleTest` prefix tabelle C#. `CipherTest` = roundtrip sintetico, **nessuna fixture ciphertext catturata**. |
 | **S-T2** Auth + Login | [x] | `:server-auth:test` + `:server-login:test` EXIT=0. `LoginFlowIT.fakeClientLoginReceivesServerListAndCanSelectGs` riceve `SERVER_AUTH_KEY_LOGIN` 8 char = Redis `getLoginKey(10001)`. |
-| **S-T3** canale + iscrizione Torneo | [~] | `twoPlayersStartTourneyAndReceiveCourse` PASSED (login→channel→create/join TIPO_TOURNEY→start→init/course). Manca un IT unico nominato DoD che fermi esplicitamente all’iscrizione (il test attuale include lo start). |
-| **S-T4** partita Torneo e2e | [ ] | **non verificato**. Nessun IT «hole-out → finish → result» su `TIPO_TOURNEY`. Practice ha quel loop (fuori scope). |
-| **S-T5** ranking/messenger minimi | [~] | Moduli + IT base EXIT=0. `pangya_rank_atual` **non** scritto dal finish Game (C# Ranking carica da SQL batch `CmdRankRegistryInfo`). `requestSaveInfo` Java è wired **solo GP** in `finishGamePlayerDump`; C# `Tourney.finish_game` chiama `requestSaveInfo(_session, 0)`. |
-| **S-T6** hardening leggero | [ ] | Nessun test «crash sessione non abbatte il processo». `SessionLoadIT` 3000 = **fuori scope**, non rieseguito. |
+| **S-T3** canale + iscrizione Torneo | [x] | Coperta da `twoPlayersStartTourneyAndReceiveCourse` + IT S-T4 (stesso path create/join/start). Entrambi PASSED `--rerun-tasks`. |
+| **S-T4** partita Torneo e2e | [x] | `tourneyFakeClientPlaysToFinishAndReceivesResult` PASSED (vedi comando sotto). `requestSaveInfo(..., 0)` wired per `TIPO_TOURNEY`. |
+| **S-T5** ranking/messenger minimi | [~] | Moduli + IT base EXIT=0. Placar in-game = `SERVER_GAME_RESULT` asserito in S-T4. `pangya_rank_atual` **non** scritto dal finish C# Game (`RankRegistryManager` load SQL). Non inventato un write. |
+| **S-T6** hardening leggero | [x] | Esistente `SessionIsolationTest.throwingHandlerDoesNotKillServer` PASSED `--rerun-tasks` (due client, handler throw, server resta bound). `SessionLoadIT` 3000 = **fuori scope**, non rieseguito. |
 
 ### Presente, fuori scope MVP, non validato
 
@@ -130,12 +130,43 @@ Codice/test già in repo (compila / alcuni IT verdi). **Non** marcati fatti per 
 
 ## DoD MVP Torneo (checklist)
 
-- [x] Compose healthcheck verdi (questo turno; no rebuild)
+- [x] Compose healthcheck verdi (questo turno; no rebuild) — ricontrollo 2026-08-29T15:12:25Z ancora 200
 - [~] Protocollo framing + cipher su fixture C# (tabelle oracle sì; ciphertext golden **assente**)
 - [x] Login e2e fake client + session key
-- [ ] Fake client: canale → iscrizione Torneo → partita fino alla fine → risultato + ranking
-- [ ] Crash sessione non abbatte il processo (test esplicito)
+- [x] Fake client: canale → iscrizione Torneo → partita fino alla fine → risultato + `user_info.Jogado` (placar `0x79`). Registry `pangya_rank_atual` = batch Ranking C#, non finish Game
+- [x] Crash sessione non abbatte il processo — `SessionIsolationTest` PASSED
 - [x] EPIC.md + STATUS.md aggiornati in questo turno
+
+### S-T4 comando (incollato)
+
+```
+./gradlew --no-daemon :server-game:test --rerun-tasks \
+  --tests org.pangya.game.GameFlowIT.tourneyFakeClientPlaysToFinishAndReceivesResult
+GameFlowIT > tourneyFakeClientPlaysToFinishAndReceivesResult() PASSED
+BUILD SUCCESSFUL in 11s
+12 actionable tasks: 12 executed
+ST4_EXIT=0
+```
+
+### S-T4 + S-T6 regressione (incollato)
+
+```
+./gradlew --no-daemon --rerun-tasks \
+  :core-network:test --tests org.pangya.network.netty.SessionIsolationTest \
+  :server-game:test --tests …tourneyFakeClientPlaysToFinishAndReceivesResult \
+    --tests …twoPlayersStartTourneyAndReceiveCourse \
+    --tests …tourneyReplaySendsRemainingToSender \
+    --tests …tourneyTicketReportSendsNewItemAndLeavesGuestInGame \
+    --tests …soloGrandPrixSendsTourneyInit
+SessionIsolationTest > throwingHandlerDoesNotKillServer() PASSED
+GameFlowIT > soloGrandPrixSendsTourneyInit() PASSED
+GameFlowIT > twoPlayersStartTourneyAndReceiveCourse() PASSED
+GameFlowIT > tourneyReplaySendsRemainingToSender() PASSED
+GameFlowIT > tourneyFakeClientPlaysToFinishAndReceivesResult() PASSED
+GameFlowIT > tourneyTicketReportSendsNewItemAndLeavesGuestInGame() PASSED
+BUILD SUCCESSFUL in 18s
+REG_EXIT=0
+```
 
 ---
 
@@ -143,11 +174,11 @@ Codice/test già in repo (compila / alcuni IT verdi). **Non** marcati fatti per 
 
 | Campo | Valore |
 |-------|--------|
-| Data/ora | 2026-08-29T15:08Z |
-| Fatto | Riconferma comandi; correzione attribuzione Flyway; rewrite EPIC come piano S-T1…S-T6 |
-| Codice prodotto | nessuno (gate: discrepanze doc → aggiornare STATUS prima di codice nuovo) |
-| Prossima slice | **S-T4** — fake-client Torneo hole-out + `requestFinishGame` + assert result; poi wire `requestSaveInfo` Torneo se il test lo dimostra assente (C# `Tourney.cs` ~1552) |
-| Blocker | nessuno dei gate (capture JP, client binario, stack, SQL ambiguo). Flyway `iff_item` è inquinamento test, non blocker Torneo. |
+| Data/ora | 2026-08-29T15:12Z |
+| Fatto | Riconferma comandi; correzione Flyway; rewrite EPIC S-T1…S-T6; S-T4 IT + `requestSaveInfo` Torneo; S-T6 riuso `SessionIsolationTest` |
+| Commit codice | `ed8372d` feat: persist Tourney finish via requestSaveInfo option 0 |
+| Prossima slice | **S-T1 residuo** (ciphertext golden assente — gate capture) oppure **S-T5** solo se si vuole un IT Ranking che legge `user_info` dopo il finish (non scrivere `pangya_rank_atual` senza C#) |
+| Blocker | Ciphertext golden di rete **assente** (non inventare). Flyway `iff_item` inquinamento test, non blocker Torneo. |
 
 ---
 
