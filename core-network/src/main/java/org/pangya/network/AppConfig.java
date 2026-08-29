@@ -10,7 +10,8 @@ import java.util.Map;
 
 /**
  * Loads {@code application.yml} then overlays environment variables.
- * Env names: {@code PANGYA_PORT}, {@code PANGYA_HEALTH_PORT}, {@code DATABASE_URL},
+ * Env names: {@code PANGYA_PORT}, {@code PANGYA_HEALTH_PORT}, {@code PANGYA_IP},
+ * {@code PANGYA_GAME_IP}, {@code PANGYA_MESSENGER_IP}, {@code DATABASE_URL},
  * {@code DATABASE_USER}, {@code DATABASE_PASSWORD}, {@code REDIS_URI}.
  */
 public final class AppConfig {
@@ -79,6 +80,16 @@ public final class AppConfig {
 
     public String advertisedIp() {
         return envOr("PANGYA_IP", nested("server", "ip", "127.0.0.1"));
+    }
+
+    /** IP the Login server list advertises for Game (env wins over yaml {@code 127.0.0.1}). */
+    public String gameAdvertisedIp() {
+        return envOr("PANGYA_GAME_IP", envOr("PANGYA_IP", nested("game", "ip", advertisedIp())));
+    }
+
+    /** IP the Login server list advertises for Messenger. */
+    public String messengerAdvertisedIp() {
+        return envOr("PANGYA_MESSENGER_IP", envOr("PANGYA_IP", nested("messenger", "ip", advertisedIp())));
     }
 
     public int maxUser() {

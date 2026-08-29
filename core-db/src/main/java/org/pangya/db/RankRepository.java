@@ -27,6 +27,13 @@ public interface RankRepository {
 
     Optional<RegistryRow> findByNickname(int menu, int item, String nickname);
 
+    /**
+     * C# {@code pangya.GeraRankAll} via {@code CmdUpdateRankRegistry}.
+     * Rebuilds {@code pangya_rank_atual} from {@code user_info} / {@code pangya_record}.
+     * @return number of registry rows written, or 0 if the swap was skipped
+     */
+    int geraRankAll();
+
     record RegistryRow(
             long uid, int currentPosition, int lastPosition, int value, int menu, int item) {}
 

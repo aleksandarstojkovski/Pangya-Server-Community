@@ -48,6 +48,8 @@ public final class RankingRuntime implements AutoCloseable {
         this.dataSource = DatabaseSupport.dataSource(config.jdbcUrl(), config.dbUser(), config.dbPassword());
         LoginRepository repo = new JdbiLoginRepository(DatabaseSupport.jdbi(dataSource));
         RankRepository ranks = new JdbiRankRepository(DatabaseSupport.jdbi(dataSource));
+        int rebuilt = ranks.geraRankAll();
+        log.info("GeraRankAll rows={} (C# CmdUpdateRankRegistry / init_systems)", rebuilt);
         SessionManager sessions = new SessionManager(new IpDdosFilter());
         RankingHandler handler = new RankingHandler(repo, ranks, sessions);
         AuthOutbound outbound;

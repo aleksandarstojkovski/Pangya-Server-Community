@@ -36,6 +36,23 @@ class RankRepositoryTest {
         }
     }
 
+    @Test
+    void geraRankAllWritesLevelBoardForEligibleAccounts() {
+        String url = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        DatabaseSupport.migrate(url, user, password);
+
+        try (var ds = DatabaseSupport.dataSource(url, user, password)) {
+            RankRepository repo = new JdbiRankRepository(DatabaseSupport.jdbi(ds));
+            int written = repo.geraRankAll();
+            assertTrue(written > 0, "GeraRankAll must write rows for FIRST_LOGIN+FIRST_SET=2 accounts");
+            var level = repo.findInMenu(2, 3, 10001);
+            assertTrue(level.isPresent(), "tipo_rank=2 seq=3 is C# level board");
+            assertTrue(level.get().value() >= 1, "seeded testuser level is at least 1");
+        }
+    }
+
     private static String env(String name, String fallback) {
         String v = System.getenv(name);
         return (v == null || v.isBlank()) ? fallback : v;

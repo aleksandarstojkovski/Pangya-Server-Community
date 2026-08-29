@@ -223,4 +223,9 @@ public final class JdbiRankRepository implements RankRepository {
                 })
                 .findOne());
     }
+
+    @Override
+    public int geraRankAll() {
+        return GeraRankAll.run(jdbi);
+    }
 }

@@ -1,135 +1,230 @@
-# EPIC — Pangya Java rewrite (C# JP → Java 21)
+# EPIC — MVP Torneo (Java 21 JP)
 
-**Aggiornato:** 2026-08-29 12:57 UTC · **HEAD:** `5d20738` (`Develop`)
-**Fonte comportamento:** `reference/pangya-server-community` (`Server/JP/`, branch C# `Develop`).
+**Obiettivo ridotto:** Auth + Login + Game Server end-to-end **solo modalità Torneo** (`TIPO_TOURNEY`), con Ranking e Messenger nella misura minima richiesta da quel flusso.
 
-> Riscritto da zero nell'audit di recovery (Fase 0). Contiene **solo** ciò che è stato
-> verificato con un comando. Le voci "done" hanno accanto comando + esito reale; il resto
-> è marcato **non verificato**. Stato dettagliato e output incollati: `docs/STATUS.md`.
-
----
-
-## Re-scope: MVP = modalità **Torneo (Tourney)**
-
-L'obiettivo è ristretto a un flusso end-to-end **solo per il Torneo**:
-
-**Auth + Login + Game funzionanti end-to-end per la modalità Tourney, con Ranking e
-Messenger nella misura minima richiesta dal flusso Torneo.**
-
-### Fuori scope MVP (NON implementare ora — parcheggiati, da validare dopo)
-Versus, Practice, Grand Prix (GP), Grand Zodiac, Guild Battle, Pang Battle, Approach,
-Chip-in Practice, Special Shuffle Course; manager Character/Card/Caddie non necessari al
-Torneo; load test 3000 sessioni (ex-S6).
-
-> **Codice già presente per queste modalità (specialmente GP): NON buttato.** Gran parte
-> del lavoro dell'ultimo giorno è GP (PR #6/#7). Resta nel repo come *"già presente, fuori
-> scope MVP, da validare"* — non marcato fatto perché non testato nel flusso MVP.
+**Fonte comportamento:** `reference/pangya-server-community` (`Server/JP/`, branch C# `Develop_luiz`).  
+**Codice Java:** ultimo Java su `Develop` = `d79b5f6` (merge PR #7 GP). `Develop` HEAD docs = `5b3e555` (PR #9 Fase 0 recovery).  
+**Merge:** questo file vince sul DoD/slice di #9 (stale: finish/ranking/crash «non verificati»). Da #9 restano inventario opcode 479/196 e la regola anti-allucinazione.
 
 ---
 
-## Definition of Done (MVP Torneo) — stato verificato
+## Fuori scope (non implementare, non “migliorare”)
 
-| # | Criterio | Stato | Evidenza (comando → esito) |
-|---|----------|-------|----------------------------|
-| 1 | `docker compose up` → PG, Redis, Auth, Login, Game, Ranking, Messenger healthy | ✅ **VERIFICATO** | `docker compose ps` = 7/7 healthy; `curl :{9077,9103,9202,9474,9302}/health` = 5×`ok` |
-| 2 | Framing + cipher verdi su fixture | ⚠️ **PARZIALE** | `:core-protocol:test` 103/103 PASS; ma cipher usa vettori **sintetici/strutturali**, non capture C# S9 reali (0 capture nel repo). IFF su archivio reale (20 file test). |
-| 3 | Login end-to-end con fake client | ✅ **VERIFICATO** | `:server-login:test` 7/7; `GameFlowIT.fakeClientLogsIn…` + `loginTwoPlayers(...)` verdi in `:server-game:test` |
-| 4 | Fake client: entra canale → iscrive Torneo → **gioca fino a fine** → riceve **risultato/ranking** | ⚠️ **PARZIALE** | START coperto: `GameFlowIT.twoPlayersStartTourneyAndReceiveCourse` (crea `TIPO_TOURNEY`, join, start, `GAME_INIT`+`COURSE`) PASS. **Finish+ranking Torneo: NON verificato** (nessun IT porta un Torneo alla fine con assert su ranking). |
-| 5 | Nessun crash di sessione abbatte il processo | ❓ **NON VERIFICATO** | da coprire con test/handler try-catch dedicato in Fase 1 |
-| 6 | `EPIC.md`/`STATUS.md` riflettono stato reale a fine di ogni turno | ✅ in corso | questo file + `STATUS.md` riscritti con comandi |
+- Versus, Practice, Grand Prix, Grand Zodiac, Guild Battle, Pang Battle, Approach, Chip-in Practice, Special Shuffle Course
+- CharacterManager / CardManager / CaddieManager oltre il minimo per entrare e finire un Torneo
+- Test di carico 3000 sessioni (`SessionLoadIT`) — fase futura
+
+### Presente, fuori scope MVP, non validato
+
+Lasciato nel repo. **Non** è “fatto” solo perché compila o perché un IT di un’altra modalità è verde.
+
+| Area | Dove | Nota |
+|------|------|------|
+| Practice e2e | `GameFlowIT.fakeClientLogsInEntersChannelCreatesAndLeavesPractice` | PASSED 2026-08-29; **non** è Torneo |
+| GP finish/exit/timer/placar/`requestSaveInfo` | PR #6–#7, `GameHandler` GP branches | Mergeato; **non** validato come Torneo |
+| Versus / Match / GZ / shop / ticket-report | `GameHandler` + IT sparsi | Presente; fuori scope |
+| Load 3000 + `/metrics` | `SessionLoadIT` | Fuori scope; **non rieseguito** questo turno |
 
 ---
 
-## Stato per modulo (VERIFICATO — vedi STATUS §2)
+## Definition of Done
+
+- [x] `docker compose` Postgres + Redis + Auth + Login + Game + Ranking + Messenger healthcheck verdi — **`docker compose up --build -d` 2026-08-29T15:26:56Z** (immagini nuove; curl `/health` → `ok … HTTP 200` × 5; `compose ps` 7/7 healthy). Ranking log: `GeraRankAll rows=26`.
+- [~] Protocollo framing + cipher su fixture C# — tabelle `CryptoOracle` prefix C# + test verdi; ciphertext golden **assente** (vedi S-T1).
+- [x] Login e2e fake client, session key ricevuta — `LoginFlowIT` in `:server-login:test` EXIT=0 `--rerun-tasks`.
+- [x] Fake client: canale → iscrizione Torneo → partita fino alla fine → `SERVER_GAME_RESULT` + ranking fake-client BL board (`tourneyFinishRebuildsRankingRegistry` EXIT=0)
+- [x] Crash di sessione non abbatte il processo — `SessionIsolationTest.throwingHandlerDoesNotKillServer` PASSED
+- [x] Questo file + `docs/STATUS.md` aggiornati a fine turno
+
+---
+
+## Piano slice (solo MVP Torneo)
 
 ```
-core-protocol 103 PASS · core-network 9 PASS · core-db 45 (1 flake shared-DB, verde isolato)
-server-auth 1 PASS · server-login 7 PASS · server-game 195 PASS
-server-ranking 6 PASS · server-messenger 20 PASS      → 386 test, 385 verdi
+S-T1 [~]  S-T2 [x]  S-T3 [x]  S-T4 [x]  S-T5 [x]  S-T6 [x]
 ```
 
-Unico rosso: `FlywayMigrationTest.migratesAndIsIdempotent` — flakiness da DB condiviso in
-parallelo, **non** bug di schema (passa isolato). Dettaglio e prova: `STATUS.md` §3.
+### S-T1 — Protocollo / cipher
+
+**Riuso Fase 0 + riconferma.** Non rifare.
+
+```
+./gradlew --no-daemon --rerun-tasks :core-protocol:test :core-network:test
+BUILD SUCCESSFUL in 17s
+28 actionable tasks: 28 executed   # (insieme ad auth/login/ranking/messenger)
+EXIT=0
+```
+
+- `CryptoOracleTest.tablesMatchCSharpLengthsAndKnownPrefix` — 4096+4096; primi **32** byte copiati da `Server/JP/.../CryptoOracle.cs`. Verifica Python: bin Java **identici** agli array C# (4096+4096).
+- `CipherTest` — roundtrip encrypt/decrypt su plaintext **sintetico**, non capture di rete.
+- Framing Netty in `:core-network:test` — verde.
+
+**Non verificato:** fixture ciphertext/plaintext catturate da client JP S9 (0 file golden in repo).  
+Se serve DoD stretto «golden bytes di rete», **gate capture** — non inventare byte.
+
+### S-T2 — Auth + Login
+
+**Chiuso** (riconferma `--rerun-tasks`).
+
+```
+:server-auth:test :server-login:test
+BUILD SUCCESSFUL … EXIT=0
+```
+
+`LoginFlowIT.fakeClientLoginReceivesServerListAndCanSelectGs`: `SERVER_AUTH_KEY_LOGIN` length 8 == Redis `keys.getLoginKey(10001)`.
+
+### S-T3 — Canale + iscrizione Torneo
+
+**Chiuso** (riuso + S-T4). Stesso path in entrambi gli IT PASSED.
+
+```
+GameFlowIT > twoPlayersStartTourneyAndReceiveCourse() PASSED
+GameFlowIT > tourneyFakeClientPlaysToFinishAndReceivesResult() PASSED
+```
+
+### S-T4 — Partita Torneo end-to-end
+
+**Chiuso.**
+
+C# `Tourney.finish_game` option 6 (`Tourney.cs` ~1552): `requestSaveInfo(_session, 0)`.  
+Java: `GameHandler.finishGamePlayerDump` ora chiama `requestSaveInfo(session, room, 0, false)` se `TIPO_TOURNEY`.
+
+IT: 1-hole (`clientChangeRoomHoles`) → `clientInitHole(1)` → hole-out `DISPLAY_ACERTO_HOLE` → `0x199` → `clientFinishGame` → `SERVER_PRIZE_LIST` / `SERVER_GAME_RESULT` / `SERVER_MY_STATISTICS` + `Jogado`/`JogosNaoSei` +1.
+
+```
+./gradlew --no-daemon :server-game:test --rerun-tasks \
+  --tests org.pangya.game.GameFlowIT.tourneyFakeClientPlaysToFinishAndReceivesResult
+GameFlowIT > tourneyFakeClientPlaysToFinishAndReceivesResult() PASSED
+BUILD SUCCESSFUL in 11s
+12 actionable tasks: 12 executed
+ST4_EXIT=0
+```
+
+`calcule_shot_to_coin` / `CoinCubeLocationUpdateSystem`: ancora 0 match in Java. **Non** richiesto dal DoD finish+result. Presente in C# `Tourney.requestCalculeShotCoin` — **presente C#, non portato, fuori criterio S-T4**.
+
+### S-T5 — Ranking + Messenger minimi
+
+**Chiuso** (minimo Torneo).
+
+C# path: `Tourney.finish_game` → `requestSaveRecordCourse` → Ranking `CmdUpdateRankRegistry` (`pangya.GeraRankAll`) → `ProcGetRankRegistryInfo`.
+
+Java: `saveRecordCourse` per `TIPO_TOURNEY` (option 1 se 18 hole last-hole); `RankRepository.geraRankAll()` porta le board user_info + score + per-course. `RankingRuntime` chiama `geraRankAll()` all’avvio (C# `init_systems` / `CmdUpdateRankRegistry`).
+
+```
+# 2026-08-29T15:25Z  --rerun-tasks
+RankingFlowIT > registryPageAndPlayerFullInfoComeFromSql() PASSED
+RankingFlowIT > geraRankAllFirstPageIsServedToFakeClient() PASSED
+RankRepositoryTest > geraRankAllWritesLevelBoardForEligibleAccounts() PASSED
+GameFlowIT > tourneyFinishRebuildsRankingRegistry() PASSED
+BUILD SUCCESSFUL in 17s
+19 actionable tasks: 19 executed
+FINAL_EXIT=0
+```
+
+IT e2e unico: finish 18-hole last-hole → `RankingRuntime` (auto-GeraRankAll) → fake-client ranking menu 1 item 0 (Blue Lagoon) trova uid 10001 valor 0. Messenger: C# `Tourney.cs` non chiama Messenger — minimo = ITs modulo già verdi, nessun accoppiamento inventato.
+
+### S-T6 — Hardening leggero
+
+**Chiuso** (test già in repo, riconfermato). #9 diceva «non verificato»; superato da:
+
+```
+./gradlew --no-daemon --rerun-tasks \
+  :core-network:test --tests org.pangya.network.netty.SessionIsolationTest
+SessionIsolationTest > throwingHandlerDoesNotKillServer() PASSED
+```
+
+Due client, sink che lancia `RuntimeException`, `seen==2`, server ancora bound. Catch in `PangyaClientDecryptHandler` virtual thread.  
+`SessionLoadIT` 3000 = fuori scope.
 
 ---
 
-## Copertura Torneo — cosa esiste davvero (VERIFICATO)
+## Verifica comandi (incollati)
 
-- **C# di riferimento presente:** `Game/Base/TourneyBase.cs`, `Game/GameModes/Tourney.cs`,
-  `Models/tourney_base_type.cs` (`find … -iname '*tourney*'`).
-- **Java:** `GameHandler` gestisce Tourney in molti punti citando il C#
-  (`usesTourneyInitialData`, `TourneyBase.sendInitialData`/`checkEndShotOfHole`/
-  `finish_tourney`, `tourneyTimeIsOver`, ticket report). `TIPO_TOURNEY` in `GamePackets`.
-- **Test:** `twoPlayersStartTourneyAndReceiveCourse` (start ✅), `tourneyReplaySendsRemainingToSender`,
-  `tourneyTicketReportSendsNewItemAndLeavesGuestInGame`.
-- **Lacuna MVP:** manca un IT che giochi il Torneo **hole-by-hole fino al finish** e
-  asserisca `SERVER_GAME_RESULT`/ranking aggiornato. Gli assert finish/`gameResult`
-  esistenti sono in contesto stroke/versus, non Torneo.
+Health dopo `docker compose up --build -d` (2026-08-29T15:26:56Z):
+
+```
+COMPOSE_EXIT=0
+auth http://127.0.0.1:9077/health -> ok auth HTTP 200
+login http://127.0.0.1:9103/health -> ok login HTTP 200
+game http://127.0.0.1:9202/health -> ok game HTTP 200
+ranking http://127.0.0.1:9474/health -> ok ranking HTTP 200
+messenger http://127.0.0.1:9302/health -> ok messenger HTTP 200
+ranking log: GeraRankAll rows=26 (C# CmdUpdateRankRegistry / init_systems)
+```
+
+Moduli S-T1/S-T2/S-T5 base:
+
+```
+./gradlew --no-daemon --rerun-tasks \
+  :core-protocol:test :core-network:test \
+  :server-auth:test :server-login:test \
+  :server-ranking:test :server-messenger:test
+BUILD SUCCESSFUL in 17s
+28 actionable tasks: 28 executed
+EXIT=0
+```
+
+Flyway (non nel path critico Torneo; evidenza onesta):
+
+```
+FlywayMigrationTest > migratesAndIsIdempotent() FAILED
+    expected: <0> but was: <4>
+    FlywayMigrationTest.java:129   # iff_item count, NON second migrate
+FLYWAY_EXIT=1
+```
+
+#9 attribuiva il rosso a «second migrate no-op / race parallela». Lo stack reale su Compose condiviso è riga **129** `iff_item` (4 typeid inseriti a runtime da `JdbiInventoryRepository`). Il test non DROPPA lo schema.
 
 ---
 
-## Inventario opcode (CORREZIONE vs doc vecchi)
+## Inventario opcode (da PR #9, invariato)
 
-| Metrica | Valore reale | Comando |
-|---|---|---|
-| C# `GameService.cs` `addPacketCall` | **479** | `grep -cE addPacketCall .../GameService.cs` |
+| Metrica | Valore | Comando |
+|---------|--------|---------|
+| C# `GameService.cs` `addPacketCall` | **479** | `grep -cE addPacketCall …/GameService.cs` |
 | Java `GameHandler` `case CLIENT_*` | **196** | `grep -oE 'case GamePackets.CLIENT_' … \| sort -u \| wc -l` |
 
-Il vecchio "193 C# / 0 mancanti" era **errato**: Java implementa un **sottoinsieme** della
-superficie C#. Per l'MVP conta solo il sottoinsieme necessario al Torneo, non la parità totale.
+Il vecchio «193 C# / 0 mancanti» era **errato**. Per l’MVP conta solo il sottoinsieme Torneo.
 
 ---
 
-## Ambiente Cloud Agent
-
-Docker non è nell'immagine base; installato nested nella VM (snapshot):
-`fuse-overlayfs` + `iptables-legacy`, `dockerd` lanciato via `setsid` (helper
-`/usr/local/bin/dockerd-nested.sh`). `install` = clone `reference/` + `./gradlew assemble
-installDist` + `docker compose build`. `start` = dockerd + `docker compose up -d --build` +
-attesa health. Test dipendono da: Postgres+Redis up e clone `reference/` presente.
-
----
-
-## Mappa C# → Java (verificata presente nel reference)
+## Mappa C# → Java
 
 | C# (JP) | Java |
 |---------|------|
 | `PangyaAPI.Network.Cryptor.{Cipher,CryptoOracle,MiniLzo}` | `org.pangya.protocol.crypto.*` |
+| `Tourney` / `TourneyBase` | rami `TIPO_TOURNEY` / `usesTourneyInitialData` in `GameHandler` (non classe omonima) |
+| `AuthServer` / `LoginServer` / `GameServer` / `RankingServer` / `MessengerServer` | `:server-auth` … `:server-messenger` |
 | `PangyaAPI.SQL` + stored proc | `org.pangya.db` (Jdbi + SQL esplicito, no JPA) |
-| `Auth/Login/Game/Ranking/MessengerServer` | `:server-{auth,login,game,ranking,messenger}` |
-| `Game/Base/TourneyBase`, `Game/GameModes/Tourney` | logica Tourney in `server-game/GameHandler` |
 | `server.ini` | `application.yml` + env |
 
----
-
-## Piano Fase 1 (dopo conferma utente)
-
-1. **Rendere verde `./gradlew test` in modo deterministico** — de-flakare
-   `FlywayMigrationTest` (DB dedicato/DROP, o escluderlo dal run parallelo condiviso).
-2. **IT Torneo end-to-end fino al finish + ranking** (DoD #4): entra canale → iscrive
-   Torneo → gioca gli hole → `finish` → assert risultato/ranking.
-3. **Robustezza sessione** (DoD #5): una eccezione in un handler non deve abbattere il processo.
-4. **Ranking/Messenger** solo quanto serve al flusso Torneo (registrazione ranking a fine partita).
+502 stored procedure C# non portate — SQL Jdbi esplicito.
 
 ---
 
-## Gate (fermarsi e chiedere)
+## Prossima azione
 
-- Byte di protocollo non ricostruibili dal C#.
-- Client Pangya binario mancante nell'env (capture S9 = 0).
-- Cambio di stack.
-- Semantica SQL ambigua che cambia il gameplay.
-- **Rollback:** valutato in Fase 0. **Raccomandazione: NIENTE rollback** — il codice è
-  sano (385/386 test verdi, IT reali, ancorato al reference); il problema era nei doc, ora
-  riscritti. Decisione irreversibile → confermare comunque prima di eventuale rollback.
+Residui onesti:
+
+- **S-T1:** ciphertext golden di rete assente — **gate capture**.
+- `FlywayMigrationTest` riga 129 `iff_item` = inquinamento IT.
+
+Nessun nuovo opcode. Nessun lavoro Practice/GP/Versus.
 
 ---
 
-## Regola anti-allucinazione (per tutto il lavoro futuro)
+## Gate (fermarsi)
 
-- Ogni riga "done" qui deve avere il comando che l'ha verificata + esito reale (incollato).
-- Se un comando non è eseguibile/verificabile → scrivere **non verificato**, mai "fatto".
-- Fine di ogni turno: aggiornare `STATUS.md` con data/ora e stato dei comandi chiave (un
-  turno che non aggiorna `STATUS.md` non è concluso).
-- Prima di scrivere qualcosa non verificato (API C# a memoria, schema SQL, opcode):
-  fermarsi e cercarlo in `reference/`.
+- Byte protocollo Torneo non ricostruibili dal C# (serve capture)
+- Client Pangya binario mancante
+- Cambio stack
+- Semantica SQL che cambia il gameplay Torneo
+- Altro codice pregresso dubbio — segnalare, non decidere
+- **Rollback:** #9 raccomandava niente rollback (allucinazioni nei doc, non nel codice). Invariato.
+
+## Regola anti-allucinazione
+
+- Ogni riga «done» deve avere comando + esito reale incollato.
+- Se un comando non è eseguibile → **non verificato**, mai «fatto».
+- Fine turno: aggiornare `STATUS.md` con data/ora.
+- Prima di API C# / SQL / opcode a memoria: cercarli in `reference/`.

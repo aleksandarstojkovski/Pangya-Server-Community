@@ -2,6 +2,8 @@ package org.pangya.ranking;
 
 import org.junit.jupiter.api.Test;
 import org.pangya.db.DatabaseSupport;
+import org.pangya.db.JdbiRankRepository;
+import org.pangya.db.RankRepository;
 import org.pangya.network.AppConfig;
 import org.pangya.network.auth.AuthOutbound;
 import org.pangya.network.client.PangyaFakeClient;
@@ -23,6 +25,53 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class RankingFlowIT {
+
+    @Test
+    void geraRankAllFirstPageIsServedToFakeClient() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password)) {
+            RankRepository ranks = new JdbiRankRepository(DatabaseSupport.jdbi(ds));
+            assertTrue(ranks.geraRankAll() > 0);
+        }
+
+        try (RankingRuntime runtime = new RankingRuntime(new AppConfig(testYaml(jdbc, user, password)));
+             PangyaFakeClient client = new PangyaFakeClient()) {
+            client.connect("127.0.0.1", runtime.port(), PangyaFakeClient.HelloKind.RANKING);
+            client.awaitHello(5, TimeUnit.SECONDS);
+            client.sendPlain(RankingPackets.clientLogin(10001, "testuser", 2, 3, 0, 0, 0));
+            PacketReader page = new PacketReader(client.awaitPlain(5, TimeUnit.SECONDS));
+            assertEquals(RankingPackets.SERVER_SEND_FIRST_PAGE, page.opcode());
+            assertEquals(0, page.u8());
+            assertEquals(2, page.u8());
+            assertEquals(3, page.u8());
+            page.u8();
+            page.u8();
+            assertTrue(page.u32() >= 1);
+            page.u32();
+            int n = page.u16();
+            assertTrue(n >= 1);
+            boolean found = false;
+            for (int i = 0; i < n; i++) {
+                long uid = page.u32();
+                page.u32();
+                page.u32();
+                page.i32();
+                page.u8();
+                page.u8();
+                page.u8();
+                page.pstr();
+                page.pstr();
+                if (uid == 10001) {
+                    found = true;
+                }
+            }
+            assertTrue(found, "level board must include testuser after GeraRankAll");
+        }
+    }
 
     @Test
     void fakeClientLoginReceivesEmptyFirstPage() throws Exception {
@@ -54,66 +103,77 @@ class RankingFlowIT {
         String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
         DatabaseSupport.migrate(jdbc, user, password);
 
-        try (var ds = DatabaseSupport.dataSource(jdbc, user, password)) {
-            var jdbi = DatabaseSupport.jdbi(ds);
-            jdbi.useHandle(h -> h.execute(
-                    "DELETE FROM pangya.pangya_rank_atual WHERE tipo_rank = 7 AND tipo_rank_seq = 3"));
-            jdbi.useHandle(h -> h.execute("""
-                    INSERT INTO pangya.pangya_rank_atual (position, "UID", tipo_rank, tipo_rank_seq, valor)
-                    VALUES (1, 10001, 7, 3, 42)
-                    """));
-        }
-
         try (RankingRuntime runtime = new RankingRuntime(new AppConfig(testYaml(jdbc, user, password)));
              PangyaFakeClient client = new PangyaFakeClient()) {
             client.connect("127.0.0.1", runtime.port(), PangyaFakeClient.HelloKind.RANKING);
             client.awaitHello(5, TimeUnit.SECONDS);
-            client.sendPlain(RankingPackets.clientLogin(10001, "testuser", 7, 3, 0, 0, 0));
+            // C# RankingServer.init_systems → GeraRankAll; tipo 2 seq 3 is level.
+            client.sendPlain(RankingPackets.clientLogin(10001, "testuser", 2, 3, 0, 0, 0));
             PacketReader page = new PacketReader(client.awaitPlain(5, TimeUnit.SECONDS));
             assertEquals(RankingPackets.SERVER_SEND_FIRST_PAGE, page.opcode());
             assertEquals(0, page.u8());
-            assertEquals(7, page.u8());
+            assertEquals(2, page.u8());
             assertEquals(3, page.u8());
             page.u8();
             page.u8();
-            assertEquals(1, page.u32());
-            assertEquals(1, page.u32());
-            assertEquals(1, page.u16());
-            assertEquals(10001, page.u32());
-            assertEquals(1, page.u32());
-            assertEquals(0, page.u32());
-            assertEquals(42, page.i32());
-            assertTrue(page.u8() > 0); // level from SQL
-            page.u8();
-            page.u8();
-            assertEquals("testuser", page.pstr());
-            page.pstr(); // nickname
+            assertTrue(page.u32() >= 1);
+            page.u32();
+            int n = page.u16();
+            assertTrue(n >= 1);
+            boolean found = false;
+            int levelValor = 0;
+            for (int i = 0; i < n; i++) {
+                long uid = page.u32();
+                page.u32();
+                page.u32();
+                int valor = page.i32();
+                assertTrue(page.u8() > 0);
+                page.u8();
+                page.u8();
+                String id = page.pstr();
+                page.pstr();
+                if (uid == 10001) {
+                    found = true;
+                    levelValor = valor;
+                    assertEquals("testuser", id);
+                }
+            }
+            assertTrue(found, "level board must include testuser after RankingRuntime GeraRankAll");
+            assertTrue(levelValor >= 1, "seeded testuser level is at least 1");
 
             client.sendPlain(RankingPackets.clientSearchByNickname(
-                    "TestNick", new RankingPackets.SearchDados(7, 3, 0, 0, 0)));
-            PacketReader found = new PacketReader(client.awaitPlain(5, TimeUnit.SECONDS));
-            assertEquals(RankingPackets.SERVER_PAGE_NOT_FOUND, found.opcode());
-            assertEquals(0, found.u8());
-            assertEquals(7, found.u8());
-            assertEquals(3, found.u8());
-            found.u8();
-            found.u8();
-            assertEquals(1, found.u32());
-            assertEquals(1, found.u32());
-            assertEquals(1, found.u16());
-            assertEquals(10001, found.u32());
-            assertEquals(1, found.u32());
-            found.u32();
-            found.i32();
-            found.u8();
-            found.u8();
-            found.u8();
-            found.pstr();
-            found.pstr();
-            assertEquals(0, found.u16());
+                    "TestNick", new RankingPackets.SearchDados(2, 3, 0, 0, 0)));
+            PacketReader search = new PacketReader(client.awaitPlain(5, TimeUnit.SECONDS));
+            assertEquals(RankingPackets.SERVER_PAGE_NOT_FOUND, search.opcode());
+            assertEquals(0, search.u8());
+            assertEquals(2, search.u8());
+            assertEquals(3, search.u8());
+            search.u8();
+            search.u8();
+            search.u32();
+            search.u32();
+            int searchN = search.u16();
+            assertTrue(searchN >= 1);
+            boolean searchFound = false;
+            for (int i = 0; i < searchN; i++) {
+                long uid = search.u32();
+                search.u32();
+                search.u32();
+                search.i32();
+                search.u8();
+                search.u8();
+                search.u8();
+                search.pstr();
+                search.pstr();
+                if (uid == 10001) {
+                    searchFound = true;
+                }
+            }
+            search.u16();
+            assertTrue(searchFound, "nickname search must find TestNick on the level board");
 
             client.sendPlain(RankingPackets.clientSearchByNickname(
-                    "Nobody", new RankingPackets.SearchDados(7, 3, 0, 0, 0)));
+                    "Nobody", new RankingPackets.SearchDados(2, 3, 0, 0, 0)));
             PacketReader miss = new PacketReader(client.awaitPlain(5, TimeUnit.SECONDS));
             assertEquals(RankingPackets.SERVER_PAGE_NOT_FOUND, miss.opcode());
             assertEquals(1, miss.u8());
@@ -128,11 +188,6 @@ class RankingFlowIT {
             assertEquals(RankingPackets.SERVER_SEND_PLAYER_FULL_INFO, full.opcode());
             assertEquals(0, full.u8());
             assertEquals(10001, full.u32());
-        }
-
-        try (var ds = DatabaseSupport.dataSource(jdbc, user, password)) {
-            DatabaseSupport.jdbi(ds).useHandle(h -> h.execute(
-                    "DELETE FROM pangya.pangya_rank_atual WHERE tipo_rank = 7 AND tipo_rank_seq = 3"));
         }
     }
 
