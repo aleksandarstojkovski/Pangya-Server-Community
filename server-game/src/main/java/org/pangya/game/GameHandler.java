@@ -3621,7 +3621,7 @@ public final class GameHandler {
         }
         consumeFinishItemUsed(session, room);
         finishGameExp(session, room, finishRankIndex(room, session));
-        session.send(GamePackets.myStatistics(finishUserInfoWire(session, shot)));
+        sendUpdateInfoAndMapStatistics(session, room, shot);
         flushPendingAchievementCounters(session, room);
         session.send(GamePackets.newEndGameFlag());
         session.send(GamePackets.newEndGameFlag2());
@@ -3696,6 +3696,47 @@ public final class GameHandler {
             inventory.setPangCookie(uid, inventory.pang(uid) + 1000, inventory.cookie(uid));
             session.send(GamePackets.newCourseRecord(course));
         }
+    }
+
+    /** C# {@code GameBase.sendUpdateInfoAndMapStatistics} option {@code 0}. */
+    private void sendUpdateInfoAndMapStatistics(
+            Session session, GameRoom room, GameRoom.PlayerShot shot) {
+        long uid = session.player().uid;
+        int course = room.info.course & 0x7f;
+        int assist = session.player().assistFlag ? 1 : 0;
+        session.send(GamePackets.myStatisticsWithMapStats(
+                finishUserInfoWire(session, shot),
+                null,
+                course,
+                toMapStatWire(uid, GamePackets.MAP_STAT_TIPO_NORMAL, course, 0),
+                toMapStatWire(uid, GamePackets.MAP_STAT_TIPO_NATURAL, course, 0),
+                toMapStatWire(uid, GamePackets.MAP_STAT_TIPO_NORMAL, course, 1),
+                toMapStatWire(uid, GamePackets.MAP_STAT_TIPO_NATURAL, course, 1),
+                toMapStatWire(uid, GamePackets.MAP_STAT_TIPO_GRAND_PRIX, course, 0),
+                toMapStatWire(uid, GamePackets.MAP_STAT_TIPO_GRAND_PRIX, course, 1)));
+    }
+
+    private GamePackets.MapStatisticsWire toMapStatWire(long uid, int tipo, int course, int assist) {
+        return inventory.mapStatistics(uid, tipo, course, assist)
+                .map(GameHandler::mapStatisticsWire)
+                .orElse(null);
+    }
+
+    private static GamePackets.MapStatisticsWire mapStatisticsWire(
+            org.pangya.db.InventoryRepository.MapStatisticsRow row) {
+        return new GamePackets.MapStatisticsWire(
+                row.course(),
+                row.tacada(),
+                row.putt(),
+                row.hole(),
+                row.fairway(),
+                row.holeIn(),
+                row.puttIn(),
+                row.totalScore(),
+                row.bestScore(),
+                row.bestPang(),
+                row.characterTypeid(),
+                row.eventScore());
     }
 
     /** C# {@code sendUpdateInfoAndMapStatistics}: client {@code UserInfoEx} or level fallback. */

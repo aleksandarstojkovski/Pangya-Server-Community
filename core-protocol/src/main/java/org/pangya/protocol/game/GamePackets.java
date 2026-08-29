@@ -1251,6 +1251,12 @@ public final class GamePackets {
      * (normal, natural, assist-normal, assist-natural, GP, GP-assist).
      */
     public static final int MAP_STATISTICS_EMPTY_BYTES = 12;
+    /** C# {@code pangya.pangya_record.tipo} for normal stroke (current season). */
+    public static final int MAP_STAT_TIPO_NORMAL = 0;
+    /** C# {@code pangya.pangya_record.tipo} for natural mode. */
+    public static final int MAP_STAT_TIPO_NATURAL = 51;
+    /** C# {@code pangya.pangya_record.tipo} for Grand Prix. */
+    public static final int MAP_STAT_TIPO_GRAND_PRIX = 52;
     /** C# Versus {@code requestUnOrPause} opt 0 resume / 1 pause. */
     public static final int PAUSE_RESUME = 0;
     public static final int PAUSE_PAUSE = 1;
@@ -3797,20 +3803,92 @@ public final class GamePackets {
         return w.toBytes();
     }
 
+    /** C# {@code MapStatistics} wire body (excludes {@code MapStatisticsEx.tipo}). */
+    public record MapStatisticsWire(
+            int course,
+            int tacada,
+            int putt,
+            int hole,
+            int fairway,
+            int holeIn,
+            int puttIn,
+            int totalScore,
+            int bestScore,
+            long bestPang,
+            int characterTypeid,
+            int eventScore) {
+
+        public byte[] toBytes() {
+            PacketWriter w = new PacketWriter();
+            w.u8(course);
+            w.u32(tacada);
+            w.u32(putt);
+            w.u32(hole);
+            w.u32(fairway);
+            w.u32(holeIn);
+            w.u32(puttIn);
+            w.i32(totalScore);
+            w.u8(bestScore);
+            w.u64(bestPang);
+            w.u32(characterTypeid);
+            w.u8(eventScore);
+            byte[] body = w.toBytes();
+            if (body.length != MAP_STATISTICS_BYTES) {
+                throw new IllegalStateException("MapStatistics wire size " + body.length);
+            }
+            return body;
+        }
+    }
+
     /**
      * C# {@code sendUpdateInfoAndMapStatistics} with empty map stats:
      * UserInfo 265 + TrofelInfo 78 + 12× sbyte {@code -1}.
      */
     public static byte[] myStatistics(byte[] userInfo) {
+        return myStatisticsWithMapStats(userInfo, null, 0, null, null, null, null, null, null);
+    }
+
+    /**
+     * C# {@code sendUpdateInfoAndMapStatistics} option {@code 0}: UserInfo + TrofelInfo +
+     * six this-season map-stat slots (normal, natural, assist×2, GP×2) each followed by
+     * a rest-season {@code -1} marker.
+     */
+    public static byte[] myStatisticsWithMapStats(
+            byte[] userInfo,
+            byte[] trophy,
+            int courseId,
+            MapStatisticsWire normal,
+            MapStatisticsWire natural,
+            MapStatisticsWire normalAssist,
+            MapStatisticsWire naturalAssist,
+            MapStatisticsWire grandPrix,
+            MapStatisticsWire grandPrixAssist) {
         PacketWriter w = new PacketWriter().opcode(SERVER_MY_STATISTICS);
         w.bytes(userInfo != null && userInfo.length == USER_INFO_BYTES
                 ? userInfo
                 : userInfoPublic(0));
-        w.zero(TROPHY_BYTES);
-        for (int i = 0; i < MAP_STATISTICS_EMPTY_BYTES; i++) {
-            w.u8(0xff);
+        if (trophy != null && trophy.length == TROPHY_BYTES) {
+            w.bytes(trophy);
+        } else {
+            w.zero(TROPHY_BYTES);
         }
+        writeMapStatSlot(w, courseId, normal);
+        writeMapStatSlot(w, courseId, natural);
+        writeMapStatSlot(w, courseId, normalAssist);
+        writeMapStatSlot(w, courseId, naturalAssist);
+        writeMapStatSlot(w, courseId, grandPrix);
+        writeMapStatSlot(w, courseId, grandPrixAssist);
         return w.toBytes();
+    }
+
+    private static void writeMapStatSlot(PacketWriter w, int courseId, MapStatisticsWire row) {
+        if (row == null || row.course() != courseId) {
+            w.u8(0xff);
+        } else {
+            w.u8(courseId & 0xff);
+            w.bytes(row.toBytes());
+        }
+        w.u8(0xff);
     }
 
     /** C# {@code sendDropItem}: u8 0 + u16 count + typeids. */

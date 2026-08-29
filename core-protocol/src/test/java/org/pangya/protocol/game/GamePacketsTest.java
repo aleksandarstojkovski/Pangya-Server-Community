@@ -508,6 +508,24 @@ class GamePacketsTest {
             assertEquals(0xff, stats.u8());
         }
 
+        GamePackets.MapStatisticsWire gpStat = new GamePackets.MapStatisticsWire(
+                3, 10, 5, 2, 1, 0, 0, 3, 72, 5000, GamePackets.TYPEID_NURI, 0);
+        assertEquals(GamePackets.MAP_STATISTICS_BYTES, gpStat.toBytes().length);
+        PacketReader withGp = new PacketReader(GamePackets.myStatisticsWithMapStats(
+                GamePackets.userInfoPublic(1), null, 3, null, null, null, null, gpStat, null));
+        assertEquals(GamePackets.SERVER_MY_STATISTICS, withGp.opcode());
+        withGp.readBytes(GamePackets.USER_INFO_BYTES);
+        withGp.readBytes(GamePackets.TROPHY_BYTES);
+        for (int i = 0; i < 8; i++) {
+            assertEquals(0xff, withGp.u8());
+        }
+        assertEquals(3, withGp.u8());
+        withGp.readBytes(GamePackets.MAP_STATISTICS_BYTES);
+        assertEquals(0xff, withGp.u8());
+        assertEquals(0xff, withGp.u8());
+        assertEquals(0xff, withGp.u8());
+        assertEquals(0, withGp.remaining());
+
         PacketReader prizes = new PacketReader(GamePackets.prizeList(new int[0]));
         assertEquals(GamePackets.SERVER_PRIZE_LIST, prizes.opcode());
         assertEquals(0, prizes.u8());
