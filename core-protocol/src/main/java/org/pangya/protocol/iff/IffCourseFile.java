@@ -43,10 +43,12 @@ public final class IffCourseFile {
             int star = data[base + 272] & 0xff;
             float ratePang = ByteBuffer.wrap(data, base + 316, 4).order(ByteOrder.LITTLE_ENDIAN).getFloat();
             int[] par = new int[18];
+            int[] maxScore = new int[18];
             for (int h = 0; h < 18; h++) {
                 par[h] = data[base + 408 + h];
+                maxScore[h] = data[base + 444 + h] & 0xff;
             }
-            rows.add(new IffCourseRecord(typeid, name, star, ratePang, par));
+            rows.add(new IffCourseRecord(typeid, name, star, ratePang, par, maxScore));
         }
         rows.sort(Comparator.comparingInt(IffCourseRecord::typeid));
         return List.copyOf(rows);

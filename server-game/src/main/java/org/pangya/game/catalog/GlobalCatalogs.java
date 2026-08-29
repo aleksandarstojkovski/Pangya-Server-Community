@@ -37,6 +37,7 @@ public final class GlobalCatalogs {
     private volatile InventoryRepository.CourseDropConfig courseDropConfig =
             InventoryRepository.CourseDropConfig.defaults();
     private volatile Map<Integer, Integer> coursePar = Map.of();
+    private volatile Map<Integer, Integer> courseMaxScore = Map.of();
     private volatile Map<Short, MapCatalog.CourseCtx> courseMaps = Map.of();
 
     public GlobalCatalogs(InventoryRepository inventory) {
@@ -165,6 +166,7 @@ public final class GlobalCatalogs {
 
     private void reloadCourseData() {
         Map<Integer, Integer> par = new HashMap<>(inventory.courseParIndex());
+        Map<Integer, Integer> maxScore = new HashMap<>();
         Map<Short, MapCatalog.CourseCtx> built = new HashMap<>();
 
         Optional<List<IffCourseRecord>> iffCourses = loadIffCourses();
@@ -174,7 +176,9 @@ public final class GlobalCatalogs {
                 for (int hole = 1; hole <= 18; hole++) {
                     int holePar = row.parByHole()[hole - 1];
                     if (holePar > 0) {
-                        par.put((courseId << 8) | hole, holePar);
+                        int key = (courseId << 8) | hole;
+                        par.put(key, holePar);
+                        maxScore.put(key, row.maxScoreByHole()[hole - 1]);
                     }
                 }
                 built.put(courseId, MapCatalog.fromIff(row));
@@ -189,6 +193,7 @@ public final class GlobalCatalogs {
         }
 
         coursePar = Map.copyOf(par);
+        courseMaxScore = Map.copyOf(maxScore);
         courseMaps = Map.copyOf(built);
     }
 
@@ -198,6 +203,14 @@ public final class GlobalCatalogs {
 
     public int parFor(int courseId, int holeNum) {
         return coursePar.getOrDefault(((courseId & 0x7f) << 8) | (holeNum & 0xff), 4);
+    }
+
+    /** C# {@code Hole.getPar().total_shot} = par + {@code Max_Score_Hole}. */
+    public int totalShotFor(int courseId, int holeNum) {
+        int key = ((courseId & 0x7f) << 8) | (holeNum & 0xff);
+        int par = coursePar.getOrDefault(key, 4);
+        int max = courseMaxScore.getOrDefault(key, 5);
+        return par + max;
     }
 
     /** C# {@code MapSystem.getMap}. */

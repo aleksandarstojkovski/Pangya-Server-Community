@@ -29,6 +29,8 @@ class IffCourseFileTest {
         assertEquals(2.7f, blue.starFactor(), 0.001f);
         assertEquals(4, blue.parByHole()[0]);
         assertEquals(3, blue.parByHole()[1]);
+        assertEquals(5, blue.maxScoreByHole()[0]);
+        assertEquals(blue.parByHole()[0] + blue.maxScoreByHole()[0], blue.parByHole()[0] + 5);
     }
 
     @Test

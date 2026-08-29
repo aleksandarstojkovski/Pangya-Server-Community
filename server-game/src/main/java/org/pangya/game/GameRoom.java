@@ -527,8 +527,14 @@ final class GameRoom {
         float lastZ;
         /** C# {@code pgi.shot_data.acerto_pangya_flag} from {@code CLIENT_SHOT}. */
         byte acertoPangyaFlag;
+        /** C# {@code pgi.data.giveup}. */
+        int giveUp;
         /** C# {@code pgi.data.tacada_num} strokes on the current hole. */
         int tacadaNum;
+        /** C# {@code PlayerGameInfo.finish_hole2}: hole ended; suppress hole timer. */
+        int finishHole2;
+        /** C# {@code PlayerGameInfo.finish_hole3}: hole finish packet handled once. */
+        int finishHole3;
         /** C# {@code pgi.finish_game}; set by {@code requestFinishGame}. */
         boolean finishGame;
         /** Parsed {@code UserInfoEx} from {@code CLIENT_MY_STATISTICS}. */

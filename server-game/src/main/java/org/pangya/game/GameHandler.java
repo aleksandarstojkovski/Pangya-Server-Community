@@ -1229,6 +1229,9 @@ public final class GameHandler {
             if (terrainState == 3 || terrainState == 4) {
                 shot.tacadaNum++;
             }
+            if (room.tipo == GamePackets.TIPO_GRAND_PRIX) {
+                applyGrandPrixSyncShot(room, session.oid(), shot);
+            }
         }
         if (room.tipo == GamePackets.TIPO_MATCH) {
             int teamId = room.matchTeamId(session);
@@ -1242,8 +1245,24 @@ public final class GameHandler {
         room.broadcast(GamePackets.syncShot(sync.oid(), hole, shot.x, shot.z, shot.shotState, shot.tempo));
     }
 
+    /** C# {@code GrandPrix.requestTranslateSyncShotData} give-up and hole-timer stop. */
+    private void applyGrandPrixSyncShot(GameRoom room, int oid, GameRoom.PlayerShot shot) {
+        int holeNum = shot.hole == 0 ? 1 : shot.hole;
+        int totalShot = catalogs.totalShotFor(room.info.course & 0x7f, holeNum);
+        if ((shot.displayState & GamePackets.DISPLAY_ACERTO_HOLE) == 0
+                && totalShot <= shot.tacadaNum + 1) {
+            if (shot.tacadaNum < totalShot) {
+                shot.tacadaNum++;
+            }
+            shot.giveUp = 1;
+        }
+        if ((shot.displayState & GamePackets.DISPLAY_ACERTO_HOLE) != 0 || shot.giveUp > 0) {
+            shot.finishHole2 = 1;
+            room.stopGpHoleTimer(oid);
+        }
+    }
+
     /**
-     * C# Versus/Tourney {@code requestFinishShot} {@code 0xCC}. Cube/coin
      * {@code requestInitCubeCoin} via {@link CubeCoinResolver} + SQL locations.
      * Versus {@code game_broadcast}; Tourney {@code session_send}. Versus
      * duplicate {@code finish_shot2} is ignored.
@@ -1254,6 +1273,9 @@ public final class GameHandler {
             return;
         }
         GameRoom.PlayerShot shot = room.shots.computeIfAbsent(session.oid(), id -> new GameRoom.PlayerShot());
+        if (room.tipo == GamePackets.TIPO_GRAND_PRIX && shot.finishHole3 == 1) {
+            return;
+        }
         if (GamePackets.usesVersusInitialData(room.tipo)) {
             if (shot.finishShot2 == 1) {
                 return;
@@ -1272,11 +1294,19 @@ public final class GameHandler {
                 : (room.course != null ? room.course.findHoleSeq(courseHoleNum) : courseHoleNum);
         List<GamePackets.DropItem> drops = new ArrayList<>(
                 CubeCoinResolver.resolve(catalogs, courseId, courseHoleNum, cubeBody));
-        if ((shot.displayState & GamePackets.DISPLAY_ACERTO_HOLE) != 0) {
+        boolean holeOut = (shot.displayState & GamePackets.DISPLAY_ACERTO_HOLE) != 0;
+        if (room.tipo == GamePackets.TIPO_GRAND_PRIX) {
+            holeOut = holeOut || shot.giveUp > 0;
+        }
+        if (holeOut) {
             appendInitDropItems(session, room, shot, courseId, courseHoleNum, seqHole, drops);
         }
         replyInGame(room, session, GamePackets.endShot(session.oid(), drops));
-        if ((shot.displayState & GamePackets.DISPLAY_ACERTO_HOLE) != 0) {
+        if (room.tipo == GamePackets.TIPO_GRAND_PRIX) {
+            shot.finishHole3 = 1;
+            room.stopGpHoleTimer(session.oid());
+        }
+        if (holeOut) {
             recordHoleFinish(session, room, shot);
         }
         checkEndShotOfHole(session, room, shot);
@@ -1363,7 +1393,11 @@ public final class GameHandler {
      * {@code MapSystem.calculeClear30s} when {@code acerto_hole} + {@code clear_bonus}.
      */
     private void checkEndShotOfHole(Session session, GameRoom room, GameRoom.PlayerShot shot) {
-        if ((shot.displayState & GamePackets.DISPLAY_ACERTO_HOLE) == 0) {
+        boolean holeOut = (shot.displayState & GamePackets.DISPLAY_ACERTO_HOLE) != 0;
+        if (room.tipo == GamePackets.TIPO_GRAND_PRIX) {
+            holeOut = holeOut || shot.giveUp > 0;
+        }
+        if (!holeOut) {
             return;
         }
         if (!GamePackets.usesTourneyInitialData(room.tipo)) {
@@ -3878,6 +3912,12 @@ public final class GameHandler {
         } else {
             shot.tacadaNum = 0;
         }
+        if (room.tipo == GamePackets.TIPO_GRAND_PRIX) {
+            shot.finishHole2 = 0;
+            shot.finishHole3 = 0;
+            shot.giveUp = 0;
+            shot.timeOuts = 0;
+        }
         if (room.tipo == GamePackets.TIPO_GRAND_PRIX && room.info.gpTempo > 0) {
             int oid = session.oid();
             room.startGpHoleTimer(oid, room.info.gpTempo, () -> gpHoleTimeExpired(room, oid));
@@ -3890,7 +3930,15 @@ public final class GameHandler {
         if (member == null || !room.inGame || room.tipo != GamePackets.TIPO_GRAND_PRIX) {
             return;
         }
-        member.send(GamePackets.tourneyTimeIsOver());
+        GameRoom.PlayerShot shot = room.shots.get(oid);
+        if (shot == null || shot.finishHole2 != 0 || shot.finishHole3 != 0) {
+            return;
+        }
+        room.stopGpHoleTimer(oid);
+        int holeNum = shot.hole == 0 ? 1 : shot.hole;
+        shot.tacadaNum = catalogs.totalShotFor(room.info.course & 0x7f, holeNum);
+        shot.timeOuts = 1;
+        member.send(GamePackets.gpHoleTimeOver());
     }
 
     private GameRoom inGameRoom(Session session) {

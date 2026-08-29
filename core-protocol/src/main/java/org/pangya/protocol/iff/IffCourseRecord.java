@@ -6,7 +6,20 @@ public record IffCourseRecord(
         String name,
         int star,
         float ratePang,
-        int[] parByHole) {
+        int[] parByHole,
+        int[] maxScoreByHole) {
+
+    public IffCourseRecord(int typeid, String name, int star, float ratePang, int[] parByHole) {
+        this(typeid, name, star, ratePang, parByHole, defaultMaxScores(parByHole));
+    }
+
+    private static int[] defaultMaxScores(int[] parByHole) {
+        int[] max = new int[18];
+        for (int i = 0; i < 18; i++) {
+            max[i] = 5;
+        }
+        return max;
+    }
 
     public int courseId() {
         return MapClearBonusTable.courseIndex(typeid);
