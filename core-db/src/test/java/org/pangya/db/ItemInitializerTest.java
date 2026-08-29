@@ -26,6 +26,18 @@ class ItemInitializerTest {
     }
 
     @Test
+    void initGrandPrixAwardUsesTimedRentalDays() {
+        if (!JP_IFF.toFile().isFile()) {
+            return;
+        }
+        PangyaIffLoader.reload(JP_IFF);
+        var ctx = new ItemInitializer.InitContext(10, false, false, true);
+        var row = ItemInitializer.initGrandPrixAward(ctx, 0x08006010, 1, 7).orElseThrow();
+        assertEquals(4, row.rentFlag());
+        assertEquals(7, row.caddiePeriodDays());
+    }
+
+    @Test
     void expandGreenlineSwimsetFromReferenceArchive() {
         if (!JP_IFF.toFile().isFile()) {
             return;

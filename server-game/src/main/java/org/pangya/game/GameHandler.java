@@ -3238,33 +3238,33 @@ public final class GameHandler {
             return;
         }
         long uid = session.player().uid;
-        List<org.pangya.game.catalog.GrandPrixRewardResolver.Grant> grants = new ArrayList<>();
-        grants.addAll(org.pangya.game.catalog.GrandPrixRewardResolver.grantsFromReward(
-                inventory, uid, gpIff.get().reward()));
+        int level = session.player().level;
+        List<org.pangya.db.ItemInitializer.MailAwardRow> awards = new ArrayList<>();
+        awards.addAll(org.pangya.game.catalog.GrandPrixRewardResolver.resolveRewardAwards(
+                inventory, uid, level, gpIff.get().reward()));
         var rankRewards =
                 org.pangya.protocol.iff.PangyaIffLoader.grandPrixRankRewards(room.info.gpRankTypeid);
         if (rankIndex >= 0 && rankIndex < rankRewards.size()) {
-            grants.addAll(org.pangya.game.catalog.GrandPrixRewardResolver.grantsFromReward(
-                    inventory, uid, rankRewards.get(rankIndex).reward()));
+            awards.addAll(org.pangya.game.catalog.GrandPrixRewardResolver.resolveRewardAwards(
+                    inventory, uid, level, rankRewards.get(rankIndex).reward()));
         }
-        if (grants.isEmpty()) {
+        if (awards.isEmpty()) {
             return;
         }
-        java.util.Map<Integer, Integer> merged = new java.util.LinkedHashMap<>();
-        for (var grant : grants) {
-            merged.merge(grant.typeid(), grant.qntd(), Integer::sum);
-        }
         List<GamePackets.PapelAward> updates = new ArrayList<>();
-        for (var entry : merged.entrySet()) {
-            int typeid = entry.getKey();
-            int qntd = entry.getValue();
-            GamePackets.WarehouseItem existing = warehouseByTypeid(uid, typeid);
-            int ant = existing == null ? 0 : existing.c[0] & 0xffff;
-            int itemId = inventory.addWarehouseItem(uid, typeid, qntd);
-            updates.add(new GamePackets.PapelAward(
-                    GamePackets.PAPEL_AWARD_TYPE, typeid, itemId, 0, ant, ant + qntd, qntd));
+        for (org.pangya.db.ItemInitializer.MailAwardRow row : awards) {
+            inventory.addAwardItem(uid, row).ifPresent(insert -> updates.add(new GamePackets.PapelAward(
+                    GamePackets.PAPEL_AWARD_TYPE,
+                    row.typeid(),
+                    insert.id(),
+                    row.rentFlag(),
+                    insert.qntdAnt(),
+                    insert.qntdDep(),
+                    insert.addQntd())));
         }
-        session.send(GamePackets.papelAwards(GamePackets.unixNow(), updates));
+        if (!updates.isEmpty()) {
+            session.send(GamePackets.papelAwards(GamePackets.unixNow(), updates));
+        }
     }
 
     /** C# {@code GrandPrix.requestSaveGrandPrixClear}. */

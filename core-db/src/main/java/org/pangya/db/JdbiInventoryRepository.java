@@ -1845,6 +1845,17 @@ public final class JdbiInventoryRepository implements InventoryRepository {
         } else {
             id = insertWarehouse(h, uid, wh);
         }
+        long seconds = ItemInitializer.stdaTimeSeconds(row.rentFlag(), row.caddiePeriodDays());
+        if (seconds > 0) {
+            h.createUpdate("""
+                            UPDATE pangya.pangya_item_warehouse
+                               SET "EndDate" = NOW() + (:secs * INTERVAL '1 second')
+                             WHERE item_id = :id
+                            """)
+                    .bind("secs", seconds)
+                    .bind("id", id)
+                    .execute();
+        }
         return Optional.of(new AwardInsert(id, ant, ant + addC0, addC0));
     }
 

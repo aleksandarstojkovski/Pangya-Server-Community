@@ -271,6 +271,42 @@ public final class ItemInitializer {
         return new BoxAwardParams(drawQntd, 0);
     }
 
+    /**
+     * C# GP {@code sendRewardRankAndGrandPrix}: {@code initItemFromBuyItem} with
+     * {@code shop=false}, {@code chk_level=1}. Timed slots set {@code flag_time=4}
+     * and warehouse {@code flag=0x40} before {@code addItem}.
+     */
+    public static Optional<MailAwardRow> initGrandPrixAward(
+            InitContext ctx, int typeid, int qntd, int rewardTimeDays) {
+        if (rewardTimeDays <= 0) {
+            return initBoxAward(ctx, typeid, qntd, 0);
+        }
+        int flagTime = 4;
+        return switch (GamePackets.itemGroupIdentify(typeid)) {
+            case GamePackets.IFF_GROUP_ITEM, GamePackets.IFF_GROUP_PART,
+                    GamePackets.IFF_GROUP_BALL, GamePackets.IFF_GROUP_CLUBSET -> {
+                Optional<WarehouseInitRow> base = initFromBuyItem(ctx, typeid, 1, 0);
+                if (base.isEmpty()) {
+                    yield Optional.empty();
+                }
+                WarehouseInitRow wh = base.get();
+                WarehouseInitRow timed = new WarehouseInitRow(
+                        wh.typeid(),
+                        wh.qntdDep(),
+                        wh.c0(),
+                        wh.c1(),
+                        wh.c2(),
+                        wh.c3(),
+                        wh.c4(),
+                        0x40,
+                        wh.itemType(),
+                        wh.purchase());
+                yield Optional.of(new MailAwardRow(typeid, 1, timed, flagTime, rewardTimeDays, 0, "", 0));
+            }
+            default -> initBoxAward(ctx, typeid, 1, rewardTimeDays);
+        };
+    }
+
     /** Box / lucky-pouch grant row (shop init with box qntd/time mapping). */
     public static Optional<MailAwardRow> initBoxAward(InitContext ctx, int typeid, int drawQntd) {
         BoxAwardParams params = boxAwardParams(typeid, drawQntd);
