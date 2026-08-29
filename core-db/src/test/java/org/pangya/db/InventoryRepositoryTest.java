@@ -1116,6 +1116,24 @@ class InventoryRepositoryTest {
         }
     }
 
+    @Test
+    void addExpLevelsUpUsingExpByLevelTable() {
+        String url = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        DatabaseSupport.migrate(url, user, password);
+
+        try (var ds = DatabaseSupport.dataSource(url, user, password)) {
+            InventoryRepository repo = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
+            repo.setLevelExp(10001, 1, 0);
+            var before = repo.levelExp(10001);
+            var result = repo.addExp(10001, 40);
+            assertEquals(1, result.levelsGained());
+            assertEquals(before.level() + 1, result.level());
+            assertEquals(0, result.exp());
+        }
+    }
+
     private static String env(String name, String fallback) {
         String v = System.getenv(name);
         return (v == null || v.isBlank()) ? fallback : v;

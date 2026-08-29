@@ -149,6 +149,15 @@ public interface InventoryRepository {
 
     void setLevel(long uid, int level);
 
+    /** Test/admin helper: set both level and current XP. */
+    void setLevelExp(long uid, int level, int exp);
+
+    /** C# {@code user_info.level} + {@code Xp}. */
+    PlayerLevelExp levelExp(long uid);
+
+    /** C# {@code PlayerInfo.addExp}: persist level/XP after level-up loop. */
+    AddExpResult addExp(long uid, int expGain);
+
     void deleteWarehouseByTypeid(long uid, int typeid);
 
     /** C# {@code CmdDeleteRental}: {@code valid = 0}. */
@@ -844,6 +853,12 @@ public interface InventoryRepository {
             int efeito,
             int efeitoQntd,
             int tipo) {}
+
+    /** C# {@code user_info.level} + {@code Xp}. */
+    record PlayerLevelExp(int level, int exp) {}
+
+    /** C# {@code PlayerInfo.addExp} outcome. */
+    record AddExpResult(int level, int exp, int levelsGained) {}
 
     record TutorialFlags(int rookie, int beginner, int advancer) {}
 

@@ -3,6 +3,7 @@ package org.pangya.game;
 import org.pangya.game.catalog.AngelWingsResolver;
 import org.pangya.game.catalog.CourseDropResolver;
 import org.pangya.game.catalog.CubeCoinResolver;
+import org.pangya.game.catalog.ExpFinishCalculator;
 import org.pangya.game.catalog.PangBonusCalculator;
 import org.pangya.game.catalog.PlayerRateResolver;
 import org.pangya.game.catalog.PlayerRateResolver.PlayerRates;
@@ -1411,6 +1412,7 @@ public final class GameHandler {
         consumeFinishItemUsed(session, room);
         saveHoleDrops(session, room);
         calculeGamePang(session, room);
+        finishGameExp(session, room, finishRankIndex(room, session));
         sendFinishGameDump(session, room, true);
     }
 
@@ -1483,6 +1485,54 @@ public final class GameHandler {
                 shot.pang, shot.bonusPang, room.tipo, room.info.modo);
         shot.pang = taxed[0];
         shot.bonusPang = taxed[1];
+    }
+
+    /** C# {@code requestFinishExpGame} + {@code addExp} before finish dump. */
+    private void finishGameExp(Session session, GameRoom room, int rankIndex) {
+        if (!ExpFinishCalculator.canAwardFinishExp(session.player().level)) {
+            return;
+        }
+        GameRoom.PlayerShot shot = room.shots.get(session.oid());
+        if (shot == null) {
+            return;
+        }
+        float stars = 1f;
+        MapCatalog.CourseCtx map = catalogs.courseMap(room.info.course & 0x7f);
+        if (map != null) {
+            stars = map.star();
+        }
+        int holeNum = shot.hole == 0 ? 1 : shot.hole;
+        int rawHoleSeq = room.course == null ? holeNum : room.course.findHoleSeq(holeNum);
+        int holeSeq = ExpFinishCalculator.resolveHoleSeq(
+                rawHoleSeq, room.info.holes, shot.displayState, false);
+        GameRoom.PlayerDropCtx ctx = room.dropCtx(session.oid());
+        int exp = ExpFinishCalculator.finishExpForRoom(
+                room.tipo,
+                room.players.size(),
+                holeSeq,
+                stars,
+                ctx.rateExp(),
+                room.info.rateExp,
+                rankIndex,
+                1.0f);
+        if (exp <= 0) {
+            return;
+        }
+        InventoryRepository.AddExpResult result = inventory.addExp(session.player().uid, exp);
+        session.player().level = result.level();
+        shot.gameExp = exp;
+    }
+
+    /** Stand-in for C# {@code m_player_order} rank index until placar ranking exists. */
+    private static int finishRankIndex(GameRoom room, Session session) {
+        int index = 0;
+        for (Session member : room.snapshot()) {
+            if (member.oid() == session.oid()) {
+                return index;
+            }
+            index++;
+        }
+        return 0;
     }
 
     private GamePackets.CharacterInfo equippedCharacter(long uid, GamePackets.UserEquip equip) {
@@ -1741,12 +1791,14 @@ public final class GameHandler {
             room.mergeMatchTeamPangToPlayers();
             for (Session member : room.snapshot()) {
                 calculeGamePang(member, room);
+                finishGameExp(member, room, finishRankIndex(room, member));
                 creditPlayerGamePang(member, room);
             }
             sendFinishGameDump(session, room, false);
         } else {
             for (Session member : room.snapshot()) {
                 calculeGamePang(member, room);
+                finishGameExp(member, room, finishRankIndex(room, member));
             }
             sendFinishGameDump(session, room, true);
         }

@@ -459,6 +459,8 @@ final class GameRoom {
         boolean finishGame;
         /** Parsed {@code UserInfoEx} from {@code CLIENT_MY_STATISTICS}. */
         GamePackets.UserInfoEx userInfo;
+        /** C# {@code pgi.data.exp} from {@code requestFinishExpGame}. */
+        int gameExp;
         /** C# {@code pgi.progress.tacada} per-hole stroke counts. */
         final int[] holeTacada = new int[18];
         /** C# {@code pgi.progress.par_hole} per-hole par values. */

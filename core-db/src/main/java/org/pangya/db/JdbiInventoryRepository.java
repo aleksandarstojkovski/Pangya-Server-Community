@@ -885,6 +885,86 @@ public final class JdbiInventoryRepository implements InventoryRepository {
                 .execute());
     }
 
+    @Override
+    public void setLevelExp(long uid, int level, int exp) {
+        jdbi.useHandle(h -> h.createUpdate("""
+                        UPDATE pangya.user_info
+                           SET "level" = :level, "Xp" = :exp
+                         WHERE "UID" = :uid
+                        """)
+                .bind("level", level)
+                .bind("exp", exp)
+                .bind("uid", uid)
+                .execute());
+    }
+
+    @Override
+    public PlayerLevelExp levelExp(long uid) {
+        return jdbi.withHandle(h -> h.createQuery("""
+                        SELECT COALESCE("level", 0), COALESCE("Xp", 0)
+                          FROM pangya.user_info
+                         WHERE "UID" = :uid
+                        """)
+                .bind("uid", uid)
+                .map((rs, ctx) -> new PlayerLevelExp(rs.getInt(1), rs.getInt(2)))
+                .findOne()
+                .orElse(new PlayerLevelExp(0, 0)));
+    }
+
+    @Override
+    public AddExpResult addExp(long uid, int expGain) {
+        if (expGain <= 0) {
+            PlayerLevelExp current = levelExp(uid);
+            return new AddExpResult(current.level(), current.exp(), 0);
+        }
+        return jdbi.inTransaction(h -> {
+            PlayerLevelExp row = h.createQuery("""
+                            SELECT COALESCE("level", 0), COALESCE("Xp", 0)
+                              FROM pangya.user_info
+                             WHERE "UID" = :uid
+                             FOR UPDATE
+                            """)
+                    .bind("uid", uid)
+                    .map((rs, ctx) -> new PlayerLevelExp(rs.getInt(1), rs.getInt(2)))
+                    .findOne()
+                    .orElse(new PlayerLevelExp(0, 0));
+            int level = row.level();
+            int exp = row.exp() + expGain;
+            int levelsGained = 0;
+            if (level >= org.pangya.protocol.game.ExpLevelTable.MAX_LEVEL_INDEX) {
+                h.createUpdate("""
+                                UPDATE pangya.user_info
+                                   SET "Xp" = :exp, "level" = :level
+                                 WHERE "UID" = :uid
+                                """)
+                        .bind("exp", exp)
+                        .bind("level", level)
+                        .bind("uid", uid)
+                        .execute();
+                return new AddExpResult(level, exp, 0);
+            }
+            while (level < org.pangya.protocol.game.ExpLevelTable.MAX_LEVEL_INDEX) {
+                int cost = org.pangya.protocol.game.ExpLevelTable.costForLevel(level);
+                if (cost <= 0 || exp < cost) {
+                    break;
+                }
+                exp -= cost;
+                level++;
+                levelsGained++;
+            }
+            h.createUpdate("""
+                            UPDATE pangya.user_info
+                               SET "Xp" = :exp, "level" = :level
+                             WHERE "UID" = :uid
+                            """)
+                    .bind("exp", exp)
+                    .bind("level", level)
+                    .bind("uid", uid)
+                    .execute();
+            return new AddExpResult(level, exp, levelsGained);
+        });
+    }
+
     private ShopBuyResult chargeShopItem(
             Handle h,
             long uid,
