@@ -995,6 +995,9 @@ public final class GameHandler {
         }
         GameRoom.PlayerShot shot = room.shots.computeIfAbsent(session.oid(), id -> new GameRoom.PlayerShot());
         if (room.tipo == GamePackets.TIPO_GRAND_PRIX) {
+            if (shot.initShot != 0) {
+                return;
+            }
             room.stopGpRuleTimer(session.oid());
             shot.initShot = 1;
         }
@@ -1268,11 +1271,16 @@ public final class GameHandler {
                 shot.tacadaNum++;
             }
             if (room.tipo == GamePackets.TIPO_GRAND_PRIX) {
+                if (shot.syncShotFlag != 0) {
+                    return;
+                }
                 applyGrandPrixSyncShot(room, session.oid(), shot);
                 if (room.gpRule == org.pangya.game.catalog.GrandPrixRules.SPECIAL_SHOT
                         && (shot.displayState & GamePackets.DISPLAY_SPECIAL_SHOT) != 0) {
                     shot.penalidade++;
                 }
+                shot.syncShotFlag = 1;
+                grandPrixChangeTurn(session, room, shot);
             }
         }
         if (room.tipo == GamePackets.TIPO_MATCH) {
@@ -1345,17 +1353,14 @@ public final class GameHandler {
         }
         replyInGame(room, session, GamePackets.endShot(session.oid(), drops));
         if (room.tipo == GamePackets.TIPO_GRAND_PRIX) {
+            shot.finishShot = 1;
             shot.finishHole3 = 1;
             room.stopGpHoleTimer(session.oid());
+            grandPrixChangeTurn(session, room, shot);
+            return;
         }
         if (holeOut) {
-            if (room.tipo == GamePackets.TIPO_GRAND_PRIX) {
-                applyGrandPrixPenalidade(shot);
-            }
             recordHoleFinish(session, room, shot);
-            if (room.tipo == GamePackets.TIPO_GRAND_PRIX) {
-                grandPrixAfterHoleOut(session, room, shot);
-            }
         }
         checkEndShotOfHole(session, room, shot);
     }
@@ -1366,6 +1371,149 @@ public final class GameHandler {
             shot.tacadaNum += shot.penalidade;
         }
         shot.penalidade = 0;
+    }
+
+    /** C# {@code GrandPrix.checkAllShotPacket}: init + sync (or timeout) + finish-shot. */
+    private static boolean checkAllGrandPrixShotPackets(GameRoom.PlayerShot shot) {
+        return (shot.initShot > 0 && shot.syncShotFlag > 0 || shot.timeOuts > 0)
+                && shot.finishShot > 0;
+    }
+
+    /** C# {@code GrandPrix.clearAllShotPacket}. */
+    private static void clearGrandPrixShotPackets(GameRoom.PlayerShot shot) {
+        shot.initShot = 0;
+        shot.syncShotFlag = 0;
+        shot.finishShot = 0;
+    }
+
+    /** C# {@code GrandPrix.changeTurn}: hole-out → finishHole + changeHole, else clear flags. */
+    private void grandPrixChangeTurn(Session session, GameRoom room, GameRoom.PlayerShot shot) {
+        if (!checkAllGrandPrixShotPackets(shot)) {
+            return;
+        }
+        boolean holeOut = (shot.displayState & GamePackets.DISPLAY_ACERTO_HOLE) != 0
+                || shot.giveUp > 0
+                || shot.timeOuts > 0;
+        if (holeOut) {
+            int holeNum = shot.hole == 0 ? 1 : shot.hole;
+            if (room.course != null
+                    && room.course.findHoleSeq(holeNum) == room.info.holes) {
+                session.send(GamePackets.lastHole());
+                if ((shot.displayState & GamePackets.DISPLAY_CLEAR_BONUS) != 0) {
+                    int courseId = room.info.course & 0x7f;
+                    MapCatalog.CourseCtx map = catalogs.courseMap(courseId);
+                    if (map != null) {
+                        shot.bonusPang += MapCatalog.calculeClear30s(map, room.info.holes);
+                    }
+                }
+            }
+            applyGrandPrixPenalidade(shot);
+            recordHoleFinish(session, room, shot);
+            clearGrandPrixShotPackets(shot);
+            grandPrixAfterHoleOut(session, room, shot);
+        } else {
+            clearGrandPrixShotPackets(shot);
+        }
+    }
+
+    /** C# {@code GameBase.checkEndGame}: last hole sequence for this player. */
+    private static boolean grandPrixCheckEndGame(GameRoom room, GameRoom.PlayerShot shot) {
+        if (room.course == null) {
+            return false;
+        }
+        int holeNum = shot.hole == 0 ? 1 : shot.hole;
+        return room.course.findHoleSeq(holeNum) == room.info.holes;
+    }
+
+    /**
+     * C# {@code GrandPrix.finish_grand_prix}: calc pang, rookie tax, finish message,
+     * {@code updateFinishHole}, {@code sendUpdateState} or time-over path.
+     */
+    private void finishGrandPrix(Session session, GameRoom room, int option) {
+        if (room.players.isEmpty() || !room.inGame) {
+            return;
+        }
+        GameRoom.PlayerShot shot = room.shots.get(session.oid());
+        if (shot == null || room.gameFlag(session.oid()) != GamePackets.FLAG_GAME_PLAYING) {
+            return;
+        }
+        calculeGamePang(session, room);
+        if (room.grandPrixTypeid != 0
+                && org.pangya.protocol.iff.GrandPrixEnterWindow.isGrandPrixNormal(room.grandPrixTypeid)
+                && org.pangya.protocol.iff.GrandPrixEnterWindow.grandPrixAba(room.grandPrixTypeid)
+                        == org.pangya.protocol.iff.GrandPrixEnterWindow.GP_ABA_ROOKIE) {
+            shot.pang = (long) (shot.pang * (1.0f / 3.0f));
+            shot.bonusPang = (long) (shot.bonusPang * (1.0f / 3.0f));
+        }
+        String nick = session.player().nickname == null ? "" : session.player().nickname;
+        int assistFlag = session.player().assistFlag ? 1 : 0;
+        int holeNum = shot.hole == 0 ? 1 : shot.hole;
+        if (option == 0) {
+            session.send(GamePackets.gameFinishMessage(nick, shot.score, shot.pang, assistFlag));
+            room.broadcast(GamePackets.updateHole(
+                    session.oid(),
+                    holeNum,
+                    shot.totalTacadaNum & 0xff,
+                    shot.score,
+                    shot.pang,
+                    shot.bonusPang,
+                    1));
+            session.send(GamePackets.gamePlayerState(session.oid(), 2));
+            room.addPendingAchievementCounter(
+                    session.player().uid, GamePackets.TYPEID_NORMAL_GAME_COMPLETE_COUNTER, 1);
+            room.setGameFlag(session.oid(), GamePackets.FLAG_GAME_FINISH);
+        } else if (option == 1) {
+            requestGrandPrixFinishHole(session, room, shot, 1);
+            session.send(GamePackets.gameFinishMessage(nick, shot.score, shot.pang, assistFlag));
+            room.broadcast(GamePackets.updateHole(
+                    session.oid(),
+                    holeNum,
+                    shot.totalTacadaNum & 0xff,
+                    shot.score,
+                    shot.pang,
+                    shot.bonusPang,
+                    0));
+            session.send(GamePackets.tourneyTimeIsOver());
+            room.setGameFlag(session.oid(), GamePackets.FLAG_GAME_END_GAME);
+        }
+    }
+
+    /** C# {@code GameBase.requestFinishHole} option 1: max-score remaining holes on quit/time-over. */
+    private void requestGrandPrixFinishHole(
+            Session session, GameRoom room, GameRoom.PlayerShot shot, int option) {
+        if (option == 0) {
+            return;
+        }
+        int courseId = room.info.course & 0x7f;
+        int holeNum = shot.hole == 0 ? 1 : shot.hole;
+        int holeSeq = room.course != null ? room.course.findHoleSeq(holeNum) : holeNum;
+        for (int seq = holeSeq; seq <= room.info.holes; seq++) {
+            int actualHole = seq;
+            if (room.course != null) {
+                GamePackets.HoleInfo holeInfo = room.course.find(actualHole);
+                if (holeInfo != null) {
+                    actualHole = holeInfo.numero();
+                }
+            }
+            shot.totalTacadaNum += catalogs.totalShotFor(courseId, actualHole);
+            int key = ((courseId & 0x7f) << 8) | (actualHole & 0xff);
+            shot.score += Math.max(3, catalogs.parFor(courseId, actualHole) + 1);
+        }
+        shot.timeOuts = 0;
+        shot.tacadaNum = 0;
+        shot.giveUp = 0;
+        shot.penalidade = 0;
+    }
+
+    /** C# {@code GrandPrix.finish} when {@link GameRoom#allGrandPrixPlayersFinished()}. */
+    private void maybeFinishGrandPrixGame(GameRoom room) {
+        if (room.tipo != GamePackets.TIPO_GRAND_PRIX || !room.allGrandPrixPlayersFinished()) {
+            return;
+        }
+        for (Session member : room.snapshot()) {
+            finishGamePlayerDump(member, room);
+        }
+        finishGameRoom(room);
     }
 
     /** C# {@code GrandPrix.changeHole} + {@code finishHole} tail after hole-out. */
@@ -1396,15 +1544,10 @@ public final class GameHandler {
                 shot.pang,
                 shot.bonusPang,
                 1));
-        if (room.course != null && room.course.findHoleSeq(holeNum) == room.info.holes) {
-            session.send(GamePackets.lastHole());
-            if ((shot.displayState & GamePackets.DISPLAY_CLEAR_BONUS) != 0) {
-                int courseId = room.info.course & 0x7f;
-                MapCatalog.CourseCtx map = catalogs.courseMap(courseId);
-                if (map != null) {
-                    shot.bonusPang += MapCatalog.calculeClear30s(map, room.info.holes);
-                }
-            }
+        if (grandPrixCheckEndGame(room, shot)) {
+            finishGrandPrix(session, room, 0);
+            maybeFinishGrandPrixGame(room);
+            return;
         }
         if (room.allGrandPrixPlayersClearedHole()) {
             room.clearGrandPrixFinishHoleFlags();
@@ -1553,6 +1696,10 @@ public final class GameHandler {
             finishGameRoom(room);
             return;
         }
+        if (room.tipo == GamePackets.TIPO_GRAND_PRIX
+                && room.gameFlag(session.oid()) == GamePackets.FLAG_GAME_PLAYING) {
+            finishGrandPrix(session, room, 1);
+        }
         finishGamePlayerDump(session, room);
         if (GamePackets.usesTourneyInitialData(room.tipo) || GamePackets.hiddenFromLobby(room.tipo)) {
             finishGameRoom(room);
@@ -1561,6 +1708,10 @@ public final class GameHandler {
 
     /** C# {@code requestSaveInfo} records + rain/score/item counters + finish-game dump. */
     private void finishGamePlayerDump(Session session, GameRoom room) {
+        if (room.tipo == GamePackets.TIPO_GRAND_PRIX
+                && room.gameFlag(session.oid()) == GamePackets.FLAG_GAME_FINISH) {
+            return;
+        }
         prepareFinishItemUsed(session, room);
         queueRainCounters(session, room);
         queueScoreConsecutivosCounters(session, room);

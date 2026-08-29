@@ -595,6 +595,10 @@ final class GameRoom {
         int score;
         /** C# {@code pgi.init_shot}: shot init received this turn. */
         int initShot;
+        /** C# {@code pgi.sync_shot_flag}: sync shot received this turn. */
+        int syncShotFlag;
+        /** C# {@code pgi.finish_shot}: finish-shot ack received this turn. */
+        int finishShot;
         /** C# {@code pgi.finish_game}; set by {@code requestFinishGame}. */
         boolean finishGame;
         /** Parsed {@code UserInfoEx} from {@code CLIENT_MY_STATISTICS}. */
@@ -618,6 +622,19 @@ final class GameRoom {
             }
         }
         return finished > 0 && finished == players.size();
+    }
+
+    /** C# {@code GameBase.AllCompleteGameAndClear}: every player left {@code PLAYING}. */
+    boolean allGrandPrixPlayersFinished() {
+        if (players.isEmpty()) {
+            return false;
+        }
+        for (Session member : snapshot()) {
+            if (gameFlag(member.oid()) == GamePackets.FLAG_GAME_PLAYING) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /** C# {@code UsedItem.Active}: use count vs equipped slot indices. */

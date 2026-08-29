@@ -2521,6 +2521,14 @@ public final class GamePackets {
     public static final int FLAG_GAME_PLAYING = 0;
     public static final int FLAG_GAME_TICKET_REPORT = 1;
     public static final int FLAG_GAME_FINISH = 2;
+    /** C# {@code PlayerGameInfo.eFLAG_GAME.BOT}. */
+    public static final int FLAG_GAME_BOT = 3;
+    /** C# {@code PlayerGameInfo.eFLAG_GAME.QUIT}. */
+    public static final int FLAG_GAME_QUIT = 4;
+    /** C# {@code PlayerGameInfo.eFLAG_GAME.END_GAME} — exited before the round ended. */
+    public static final int FLAG_GAME_END_GAME = 5;
+    /** C# {@code sendFinishMessage} / Match chat option 16. */
+    public static final int CHAT_GAME_FINISH = 16;
     /**
      * C# {@code STDA_ERROR_TYPE.GAME} ordinal. Auto-command GAME-source catch
      * writes this as {@link #SERVER_AUTO_COMMAND_ACK} u32.
@@ -5953,6 +5961,22 @@ public final class GamePackets {
                 .u8(option)
                 .pstr(nick == null ? "" : nick)
                 .pstr(msg == null ? "" : msg)
+                .toBytes();
+    }
+
+    /**
+     * C# {@code GameBase.sendFinishMessage}: option {@link #CHAT_GAME_FINISH} + nick +
+     * u16 0 msg size + score + pang + assist.
+     */
+    public static byte[] gameFinishMessage(String nick, int score, long pang, int assistFlag) {
+        return new PacketWriter()
+                .opcode(SERVER_CHAT)
+                .u8(CHAT_GAME_FINISH)
+                .pstr(nick == null ? "" : nick)
+                .u16(0)
+                .i32(score)
+                .u64(pang)
+                .u8(assistFlag)
                 .toBytes();
     }
 

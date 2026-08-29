@@ -2649,6 +2649,19 @@ class GamePacketsTest {
         assertEquals(GamePackets.FLAG_GAME_PLAYING, 0);
         assertEquals(GamePackets.FLAG_GAME_TICKET_REPORT, 1);
         assertEquals(GamePackets.FLAG_GAME_FINISH, 2);
+        assertEquals(GamePackets.FLAG_GAME_BOT, 3);
+        assertEquals(GamePackets.FLAG_GAME_QUIT, 4);
+        assertEquals(GamePackets.FLAG_GAME_END_GAME, 5);
+        assertEquals(GamePackets.CHAT_GAME_FINISH, 16);
+        PacketReader finishMsg = new PacketReader(
+                GamePackets.gameFinishMessage("Nick", 12, 500L, 1));
+        assertEquals(GamePackets.SERVER_CHAT, finishMsg.opcode());
+        assertEquals(GamePackets.CHAT_GAME_FINISH, finishMsg.u8());
+        assertEquals("Nick", finishMsg.pstr());
+        assertEquals(0, finishMsg.u16());
+        assertEquals(12, finishMsg.i32());
+        assertEquals(500L, finishMsg.u64());
+        assertEquals(1, finishMsg.u8());
         assertEquals(GamePackets.SERVER_SCORE_LEAVE, 0x61);
         assertEquals(GamePackets.SERVER_TICKET_REPORT_LEAVE, 0x11B);
         assertEquals(GamePackets.SERVER_TICKET_REPORT_NOTICE, 0x12A);
