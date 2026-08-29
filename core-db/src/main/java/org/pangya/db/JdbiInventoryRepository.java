@@ -3482,6 +3482,19 @@ public final class JdbiInventoryRepository implements InventoryRepository {
 
     @Override
     public Optional<GrandPrixEvent> grandPrixEvent(int typeid) {
+        if (org.pangya.protocol.iff.PangyaIffLoader.source().isPresent()) {
+            return org.pangya.protocol.iff.PangyaIffLoader.grandPrixData(typeid)
+                    .map(row -> new GrandPrixEvent(
+                            row.typeid(),
+                            row.name(),
+                            row.holes(),
+                            row.course(),
+                            row.modo(),
+                            row.naturalMode() ? 1 : 0,
+                            row.rule(),
+                            row.minLevel(),
+                            row.maxLevel()));
+        }
         return jdbi.withHandle(h -> h.createQuery("""
                         SELECT typeid, name, holes, course, modo, natural_mode, rule, min_level, max_level
                           FROM pangya.grand_prix_event

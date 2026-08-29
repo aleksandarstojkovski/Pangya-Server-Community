@@ -698,6 +698,32 @@ class InventoryRepositoryTest {
         }
     }
 
+    @Test
+    void grandPrixEventLoadsShiningSandFromReferenceArchive() {
+        var jpIff = java.nio.file.Path.of(
+                "reference/pangya-server-community/Server/JP/GameServer/data/pangya_jp.iff");
+        if (!jpIff.toFile().isFile()) {
+            return;
+        }
+        String url = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        DatabaseSupport.migrate(url, user, password);
+
+        try (var ds = DatabaseSupport.dataSource(url, user, password)) {
+            InventoryRepository repo = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
+            try {
+                PangyaIffLoader.reload(jpIff);
+                var gp = repo.grandPrixEvent(0x80101).orElseThrow();
+                assertEquals(10, gp.course());
+                assertEquals(9, gp.holes());
+                assertEquals(0, gp.modo());
+            } finally {
+                PangyaIffLoader.reload(null);
+            }
+        }
+    }
+
     private static String env(String name, String fallback) {
         String v = System.getenv(name);
         return (v == null || v.isBlank()) ? fallback : v;

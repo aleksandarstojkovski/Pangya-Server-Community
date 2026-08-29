@@ -40,6 +40,7 @@ public final class PangyaIffLoader {
             IffCadieMagicBoxIndex cadieMagicBoxes,
             IffCadieMagicBoxRandomIndex cadieMagicBoxRandoms,
             IffSetItemIndex setItems,
+            IffGrandPrixDataIndex grandPrixData,
             Path source) {
         static Snapshot empty() {
             return new Snapshot(
@@ -61,6 +62,7 @@ public final class PangyaIffLoader {
                     IffCadieMagicBoxIndex.empty(),
                     IffCadieMagicBoxRandomIndex.empty(),
                     IffSetItemIndex.empty(),
+                    IffGrandPrixDataIndex.empty(),
                     null);
         }
     }
@@ -98,12 +100,13 @@ public final class PangyaIffLoader {
             IffCadieMagicBoxIndex cadieMagicBoxes = IffCadieMagicBoxFile.loadIndex(archive);
             IffCadieMagicBoxRandomIndex cadieMagicBoxRandoms = IffCadieMagicBoxRandomFile.loadIndex(archive);
             IffSetItemIndex setItems = IffSetItemFile.loadIndex(archive);
+            IffGrandPrixDataIndex grandPrixData = IffGrandPrixDataFile.loadIndex(archive);
             snapshot = new Snapshot(
                     courses, parts, items, cards, characters, characterMastery, enchants, clubSets, caddies,
                     mascots, clubSetWorkShopLevelUpLimits, clubSetWorkShopLevelUpProbs, clubSetWorkShopRankExps,
-                    cutins, timeLimitItems, cadieMagicBoxes, cadieMagicBoxRandoms, setItems, path);
+                    cutins, timeLimitItems, cadieMagicBoxes, cadieMagicBoxRandoms, setItems, grandPrixData, path);
             log.info(
-                    "loaded pangya iff {} ({} courses, {} parts, {} items, {} cards, {} chars, {} mastery, {} enchants, {} clubsets, {} caddies, {} mascots, {} ws limits, {} ws probs, {} ws rank exp, {} cutins, {} time limit items, {} cadie boxes, {} cadie random rows, {} set items)",
+                    "loaded pangya iff {} ({} courses, {} parts, {} items, {} cards, {} chars, {} mastery, {} enchants, {} clubsets, {} caddies, {} mascots, {} ws limits, {} ws probs, {} ws rank exp, {} cutins, {} time limit items, {} cadie boxes, {} cadie random rows, {} set items, {} grand prix)",
                     path,
                     courses.size(),
                     parts.size(),
@@ -122,7 +125,8 @@ public final class PangyaIffLoader {
                     timeLimitItems.size(),
                     cadieMagicBoxes.size(),
                     cadieMagicBoxRandoms.rowCount(),
-                    setItems.size());
+                    setItems.size(),
+                    grandPrixData.size());
         } catch (Exception e) {
             log.warn("failed to load pangya iff {}: {}", path, e.toString());
             snapshot = Snapshot.empty();
@@ -297,6 +301,15 @@ public final class PangyaIffLoader {
             return Optional.empty();
         }
         return setItems.find(typeid);
+    }
+
+    /** C# {@code sIff.findGrandPrixData}. */
+    public static Optional<IffGrandPrixDataRecord> grandPrixData(int typeid) {
+        IffGrandPrixDataIndex grandPrix = snapshot.grandPrixData();
+        if (grandPrix.isEmpty()) {
+            return Optional.empty();
+        }
+        return grandPrix.find(typeid);
     }
 
     public static Optional<Path> source() {

@@ -13,8 +13,8 @@ Conteggio Channel: **197** handler `packet_func_sv` registrati in `GameService.i
 
 ## Questo turno
 
-Fatto: **`SetItem.iff`** parser (268-byte, 1088 rows) + `findSetItem` via `PangyaIffLoader` / `setItemIff` (Greenline Swimset `0x24200000` → 3 PART typeids); `IFF_GROUP_SET_ITEM=9`.
-Prossimo: pin `.gbin`; capture JP S9; remaining IFF (GrandPrixData, HoleCupDrop, …); set-item shop/gift expansion (`getItemOfSetItem`).
+Fatto: **`GrandPrixData.iff`** parser (816-byte, 741 rows) + `findGrandPrixData` via `PangyaIffLoader` / `grandPrixEvent` when IFF loaded (Shining Sand `0x80101` → course 10, 9 holes).
+Prossimo: pin `.gbin`; capture JP S9; GrandPrixSpecialHole / ticket-time gates; set-item shop/gift expansion (`getItemOfSetItem`).
 Blocco: pin `.gbin` binaries absent; nessuna capture client JP Season 9.
 
 Percentuale epic: **scheletro 85%** / **parità client reale 43%**.

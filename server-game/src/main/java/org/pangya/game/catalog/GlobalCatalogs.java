@@ -95,7 +95,7 @@ public final class GlobalCatalogs {
         reloadCourseData();
         reloadCoinCube();
         if (pangyaIffPath != null) {
-            log.info("auth reload IFF (Course/Part/Item/Card/Character/CharacterMastery/Enchant/ClubSet/Caddie/Mascot/ClubSetWorkShop/Cutin/TimeLimit/CadieMagicBox/SetItem from {})", pangyaIffPath);
+            log.info("auth reload IFF (Course/Part/Item/Card/Character/CharacterMastery/Enchant/ClubSet/Caddie/Mascot/ClubSetWorkShop/Cutin/TimeLimit/CadieMagicBox/SetItem/GrandPrixData from {})", pangyaIffPath);
         } else {
             log.info("auth reload IFF SQL stand-ins (set PANGYA_IFF_PATH for binary)");
         }
