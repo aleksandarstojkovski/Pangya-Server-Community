@@ -13,8 +13,8 @@ Conteggio Channel: **197** handler `packet_func_sv` registrati in `GameService.i
 
 ## Questo turno
 
-Fatto: … **`CharacterMastery.iff`**; **`Enchant.iff`** — POWER pcl0 pang **2100** from JP archive (SQL seed was 100).
-Prossimo: pin `.gbin`; capture JP S9; ClubSet/Caddie IFF.
+Fatto: … **`Enchant.iff`**; **`ClubSet.iff`** — Air Knight slots `[8,9,8,3,3]`, workshop tipo **-1** from JP archive.
+Prossimo: pin `.gbin`; capture JP S9; Caddie IFF.
 Blocco: pin `.gbin` binaries absent; nessuna capture client JP Season 9.
 
 Percentuale epic: **scheletro 85%** / **parità client reale 43%**.
