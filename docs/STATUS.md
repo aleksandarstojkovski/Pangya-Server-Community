@@ -1,8 +1,22 @@
 # STATUS — Pangya Java 21 JP rewrite
 
-**Aggiornato:** 2026-08-29 13:01 UTC
-**HEAD:** `5d20738` (branch `Develop`; audit su branch `cursor/phase0-recovery-audit-0d4c`)
+**Aggiornato:** 2026-08-29 13:20 UTC
+**HEAD:** `5d20738` (branch di lavoro `cursor/phase0-recovery-audit-0d4c`)
 **Fonte comportamento C#:** `reference/pangya-server-community` (`Server/JP/`, branch `Develop`)
+
+## Questo turno (2026-08-29 ~13:20 UTC)
+
+1. **Ri-verifica** (obbligatoria): riletti STATUS/EPIC; ri-lanciato compose health (7/7) e
+   `./gradlew --rerun-tasks` completo → riconfermato 386 test, 1 flake `FlywayMigrationTest`.
+   Nessuna discrepanza con lo stato dichiarato.
+2. **EPIC.md** riscritto come piano slice MVP Torneo (S-T1..S-T6).
+3. **S-T1 FATTO**: `./gradlew test` ora **verde deterministico** (vedi §3). Fix: (a)
+   `FlywayMigrationTest` su DB dedicato isolato; (b) `build.gradle.kts` serializza i task
+   `Test` via build service `maxParallelUsages=1`. Commit `abe9f09`.
+
+**Prossima slice:** S-T4 — IT Torneo end-to-end fino a finish + risultato (`GameHandler:4018`).
+**Blocker:** nessuno. Ambiguità aperta (non blocca S-T4): DoD#4 "ranking aggiornato" = placar
+in-partita e/o Ranking server globale (wiring assente) — da chiarire, tratto entrambi.
 
 > Questo file è stato **riscritto da zero** in un audit di recovery (Fase 0). Le versioni
 > precedenti di `STATUS.md`/`EPIC.md` contenevano affermazioni non verificabili: ogni riga
@@ -61,41 +75,32 @@ Risultati reali estratti dai report JUnit XML:
 | `server-messenger`| 20  | 0 | **PASS** |
 | **Totale**        | **386** | **1** | 385 verdi |
 
+> Questo era il **baseline pre-fix** (l'unico rosso era il flake shared-DB). Dopo S-T1 il run
+> parallelo completo è **386/386 verde deterministico** — vedi §3.
+
 ---
 
-## 3. Unico test rosso: `FlywayMigrationTest.migratesAndIsIdempotent`
+## 3. Flakiness shared-DB — RISOLTA in S-T1 ✅
 
-Messaggio reale:
+**Prima (pre-fix):** in run parallelo (`org.gradle.parallel=true`) fallivano a rotazione
+assert basati su contatori/idempotenza, perché più moduli migravano/mutavano lo **stesso**
+DB `pangya` concorrentemente. Esempi osservati: `FlywayMigrationTest.migratesAndIsIdempotent`
+(`expected <0> but was <4>`) e, in run diversi, `GameFlowIT.attendanceCheck…`
+(`expected <3> but was <0>`) / `personalShopBuy…`. **Prova di causa:** run **single-worker**
+completo già verde (386/386), quindi non era un bug di schema/logica ma isolamento test.
 
+**Fix (S-T1, commit `abe9f09`):**
+1. `FlywayMigrationTest` migra un **DB dedicato** (`pangya_flyway_it`, drop+create) → idempotenza deterministica.
+2. `build.gradle.kts`: build service `pangyaSharedDatabase` (`maxParallelUsages=1`) su tutti i task `Test` → serializzati (condividono il DB), resto del build parallelo.
+
+**Dopo (post-fix), `./gradlew test` parallel default, 2 run consecutivi:**
 ```
-org.opentest4j.AssertionFailedError: expected: <0> but was: <4>
-   (core-db/.../FlywayMigrationTest.java:23  "second migrate must be a no-op")
-```
-
-**Causa individuata (VERIFICATA), NON è un bug di migrazione.** Il test migra il Postgres
-Compose **condiviso** (`localhost:5432/pangya`) e non fa DROP dello schema, così altri
-moduli/container possono usarlo in parallelo (`org.gradle.parallel=true`, e i container
-`auth`/`game` migrano lo stesso DB con `PANGYA_MIGRATE_ON_START`). L'assert di idempotenza
-"secondo migrate == 0" si rompe quando un altro `migrate()` gira concorrentemente tra le
-due chiamate.
-
-Prova che è contaminazione di stato condiviso e non correttezza schema — lo stesso test
-contro un DB **fresco isolato**, single-worker, passa al 100%:
-
-```
-$ docker exec <pg> psql -U pangya -c "create database pangya_audit;"
-$ PANGYA_TEST_JDBC_URL=jdbc:postgresql://localhost:5432/pangya_audit \
-    ./gradlew --no-daemon --rerun-tasks --max-workers=1 :core-db:test
-BUILD SUCCESSFUL in 13s     # 45/45 PASS, incl. assert 202 tabelle + tutti i seed
+$ ./gradlew --no-daemon --rerun-tasks test    (x2)
+BUILD SUCCESSFUL in 2m / 1m 57s     # tests=386  failures+errors=0
 ```
 
-Migrazioni reali nel repo: **43 file** `V1..V43` (0 repeatable `R__`). Il test verde
-isolato conferma 202 tabelle schema `pangya` e i seed (testuser/testuser2/newuser, shop,
-cadie, IFF character/enchant/card/part…).
-
-**Nota storica:** i doc precedenti citavano ANCHE un secondo fallimento
-`GameFlowIT.personalShopBuyIncrementsAchievementCounter`. **Non riprodotto**:
-`server-game` è 195/195 verde (il test esiste e passa).
+Migrazioni reali nel repo: **43 file** `V1..V43` (0 repeatable). Il run verde conferma 202
+tabelle schema `pangya` e i seed (testuser/testuser2/newuser, shop, cadie, IFF …).
 
 ---
 
@@ -149,7 +154,8 @@ MVP** (vedi EPIC). Non buttato: parcheggiato, da validare più avanti.
 | Comando | Esito |
 |---|---|
 | `docker compose ps` + `curl /health` (x5) | 7/7 healthy, 5/5 `ok` |
-| `./gradlew --rerun-tasks --continue :*:test` (8 moduli) | EXIT 1 — 385/386, 1 flake shared-DB |
+| `./gradlew --rerun-tasks test` (parallel default, **post-S-T1**, x2) | **BUILD SUCCESSFUL, 386/386, 0 fail** (deterministico) |
+| `./gradlew --rerun-tasks --continue :*:test` (pre-fix) | EXIT 1 — 385/386, 1 flake shared-DB |
 | `./gradlew --max-workers=1 :core-db:test` (DB isolato) | BUILD SUCCESSFUL, 45/45 |
 | `grep addPacketCall GameService.cs` | 479 |
 | `grep case CLIENT_ GameHandler.java` | 196 |
@@ -171,5 +177,6 @@ Mappato il flusso finish/ranking Torneo C#→Java per de-rischiare la Fase 1 (de
 
 ## 9. Prossimo passo
 
-Fase 0 completa. **Gate:** in attesa di conferma utente per iniziare la Fase 1
-(re-scope MVP Torneo) e sul rollback (raccomandato NO). Definition of Done e piano in `docs/EPIC.md`.
+Fase 0 completa; MVP Torneo avviato. **S-T1 fatto** (baseline verde deterministico).
+**Prossima slice: S-T4** — IT Torneo end-to-end fino a finish + risultato/ranking
+(path last-hole `TIPO_TOURNEY`, `GameHandler:4018`). Piano slice completo in `docs/EPIC.md`.
