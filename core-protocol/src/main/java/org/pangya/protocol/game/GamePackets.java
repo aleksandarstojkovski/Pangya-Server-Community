@@ -378,6 +378,12 @@ public final class GamePackets {
     public static final int SERVER_GP_HOLE_TIME_OVER = 0x259;
     /** C# {@code GrandPrix.sendAllToNextHole} when every player cleared the hole. */
     public static final int SERVER_GP_ALL_NEXT_HOLE = 0x255;
+    /** C# {@code GrandPrix.sendRankPlayerDisplayCharacter} podium rows. */
+    public static final int SERVER_GP_RANK_PLAYER_DISPLAY = 0x258;
+    /** C# {@code GrandPrix.sendTrofel} GP trophy update. */
+    public static final int SERVER_GP_TROPHY_UPDATE = 0x25C;
+    /** C# {@code RankPlayerDisplayChracter.ToArray} wire size. */
+    public static final int GP_RANK_PLAYER_DISPLAY_BYTES = 222;
     /**
      * C# My Room enter character {@code 0x168} {@code PlayerRoomInfoEx}.
      * Same numeric as {@link #CLIENT_WORKSHOP_TRANSFORM_CONFIRM}, opposite
@@ -5576,6 +5582,81 @@ public final class GamePackets {
                 .u32(typeIdLink)
                 .u32(position)
                 .toBytes();
+    }
+
+    /** C# {@code GrandPrix.sendRankPlayerDisplayCharacter}: u32 0 + u8 count + rows. */
+    public static byte[] gpRankPlayerDisplay(List<RankPlayerDisplayRow> rows) {
+        PacketWriter w = new PacketWriter().opcode(SERVER_GP_RANK_PLAYER_DISPLAY).u32(0);
+        int count = rows == null ? 0 : rows.size();
+        if (count > 255) {
+            count = 255;
+        }
+        w.u8(count);
+        if (rows != null) {
+            for (int i = 0; i < count; i++) {
+                w.bytes(rows.get(i).toArray());
+            }
+        }
+        return w.toBytes();
+    }
+
+    /** C# {@code GrandPrix.sendTrofel}: u32 0 + trophy typeid. */
+    public static byte[] gpTrophyUpdate(int trophyTypeid) {
+        return new PacketWriter()
+                .opcode(SERVER_GP_TROPHY_UPDATE)
+                .u32(0)
+                .u32(trophyTypeid)
+                .toBytes();
+    }
+
+    /** C# {@code grand_prix_type.RankPlayerDisplayChracter}. */
+    public record RankPlayerDisplayRow(
+            long uid,
+            int rank,
+            int defaultHair,
+            int defaultShirts,
+            int[] partsTypeid,
+            int[] auxparts,
+            int[] partsId) {
+
+        public byte[] toArray() {
+            int[] parts = partsTypeid == null ? new int[24] : partsTypeid;
+            int[] aux = auxparts == null ? new int[5] : auxparts;
+            int[] ids = partsId == null ? new int[24] : partsId;
+            PacketWriter w = new PacketWriter();
+            w.u32((int) uid);
+            w.u32(rank);
+            w.u8(defaultHair);
+            w.u8(defaultShirts);
+            for (int i = 0; i < 24; i++) {
+                w.u32(i < parts.length ? parts[i] : 0);
+            }
+            for (int i = 0; i < 5; i++) {
+                w.u32(i < aux.length ? aux[i] : 0);
+            }
+            for (int i = 0; i < 24; i++) {
+                w.u32(i < ids.length ? ids[i] : 0);
+            }
+            byte[] body = w.toBytes();
+            if (body.length != GP_RANK_PLAYER_DISPLAY_BYTES) {
+                throw new IllegalStateException("RankPlayerDisplayRow size " + body.length);
+            }
+            return body;
+        }
+
+        public static RankPlayerDisplayRow fromCharacter(long uid, int rank, CharacterInfo character) {
+            if (character == null) {
+                return new RankPlayerDisplayRow(uid, rank, 0, 0, new int[24], new int[5], new int[24]);
+            }
+            return new RankPlayerDisplayRow(
+                    uid,
+                    rank,
+                    character.defaultHair,
+                    character.defaultShirts,
+                    character.partsTypeid.clone(),
+                    character.auxparts.clone(),
+                    character.partsId.clone());
+        }
     }
 
     /**

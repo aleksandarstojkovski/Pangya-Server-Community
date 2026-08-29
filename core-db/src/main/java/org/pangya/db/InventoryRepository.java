@@ -466,6 +466,14 @@ public interface InventoryRepository {
 
     void deleteGrandPrixClear(long uid, int typeid);
 
+    /**
+     * C# {@code ItemManager.addItem} IFF_GROUP.MATCH subtype 3 →
+     * {@code pangya.pangya_trofel_grandprix}.
+     */
+    record GrandPrixTrofelInsert(long itemId, int qntdAnt, int qntdDep) {}
+
+    Optional<GrandPrixTrofelInsert> addGrandPrixTrofel(long uid, int typeid);
+
     /** C# {@code getItemOfSetItem} validation for gift/mail (no warehouse insert). */
     boolean setItemExpandable(int setTypeid);
 

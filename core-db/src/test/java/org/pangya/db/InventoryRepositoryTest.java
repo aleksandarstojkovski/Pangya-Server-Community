@@ -889,6 +889,42 @@ class InventoryRepositoryTest {
     }
 
     @Test
+    void addGrandPrixTrofelInsertsAndIncrementsQntd() {
+        String url = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        DatabaseSupport.migrate(url, user, password);
+
+        try (var ds = DatabaseSupport.dataSource(url, user, password)) {
+            InventoryRepository repo = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
+            int trophyTypeid = 0x1a009999;
+            try (var h = DatabaseSupport.jdbi(ds).open()) {
+                h.createUpdate("""
+                                DELETE FROM pangya.pangya_trofel_grandprix
+                                 WHERE "UID" = 10001 AND typeid = :typeid
+                                """)
+                        .bind("typeid", trophyTypeid)
+                        .execute();
+            }
+            var first = repo.addGrandPrixTrofel(10001, trophyTypeid).orElseThrow();
+            assertEquals(0, first.qntdAnt());
+            assertEquals(1, first.qntdDep());
+            var second = repo.addGrandPrixTrofel(10001, trophyTypeid).orElseThrow();
+            assertEquals(first.itemId(), second.itemId());
+            assertEquals(1, second.qntdAnt());
+            assertEquals(2, second.qntdDep());
+            try (var h = DatabaseSupport.jdbi(ds).open()) {
+                h.createUpdate("""
+                                DELETE FROM pangya.pangya_trofel_grandprix
+                                 WHERE "UID" = 10001 AND typeid = :typeid
+                                """)
+                        .bind("typeid", trophyTypeid)
+                        .execute();
+            }
+        }
+    }
+
+    @Test
     void addAwardItemInsertsCharacterWhenAbsent() {
         var jpIff = java.nio.file.Path.of(
                 "reference/pangya-server-community/Server/JP/GameServer/data/pangya_jp.iff");

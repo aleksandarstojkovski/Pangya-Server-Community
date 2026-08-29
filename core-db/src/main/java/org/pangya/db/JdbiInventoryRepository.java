@@ -4721,6 +4721,56 @@ public final class JdbiInventoryRepository implements InventoryRepository {
     }
 
     @Override
+    public Optional<GrandPrixTrofelInsert> addGrandPrixTrofel(long uid, int typeid) {
+        if (typeid == 0) {
+            return Optional.empty();
+        }
+        return jdbi.inTransaction(h -> {
+            Integer existingId = h.createQuery("""
+                            SELECT item_id
+                              FROM pangya.pangya_trofel_grandprix
+                             WHERE "UID" = :uid AND typeid = :typeid
+                             LIMIT 1
+                            """)
+                    .bind("uid", (int) uid)
+                    .bind("typeid", typeid)
+                    .mapTo(Integer.class)
+                    .findOne()
+                    .orElse(null);
+            if (existingId != null) {
+                int qntdAnt = h.createQuery("""
+                                SELECT qntd
+                                  FROM pangya.pangya_trofel_grandprix
+                                 WHERE item_id = :id
+                                """)
+                        .bind("id", existingId)
+                        .mapTo(Integer.class)
+                        .one();
+                int qntdDep = qntdAnt + 1;
+                h.createUpdate("""
+                                UPDATE pangya.pangya_trofel_grandprix
+                                   SET qntd = :qntd
+                                 WHERE item_id = :id
+                                """)
+                        .bind("qntd", qntdDep)
+                        .bind("id", existingId)
+                        .execute();
+                return Optional.of(new GrandPrixTrofelInsert(existingId, qntdAnt, qntdDep));
+            }
+            long itemId = h.createUpdate("""
+                            INSERT INTO pangya.pangya_trofel_grandprix ("UID", typeid, qntd)
+                            VALUES (:uid, :typeid, 1)
+                            """)
+                    .bind("uid", (int) uid)
+                    .bind("typeid", typeid)
+                    .executeAndReturnGeneratedKeys("item_id")
+                    .mapTo(Long.class)
+                    .one();
+            return Optional.of(new GrandPrixTrofelInsert(itemId, 0, 1));
+        });
+    }
+
+    @Override
     public long legacyTikiPoints(long uid) {
         return jdbi.withHandle(h -> h.createQuery("""
                         SELECT COALESCE(MAX("Tiki_Points"), 0)

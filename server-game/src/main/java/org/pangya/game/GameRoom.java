@@ -81,6 +81,9 @@ final class GameRoom {
     /** C# Versus {@code m_timer} generation; increment cancels the running turn. */
     private volatile long turnTimerGen;
     private volatile Thread turnTimer;
+    /** C# {@code GrandPrix.m_rank_player_display_char}; built once at GP finish. */
+    volatile List<GamePackets.RankPlayerDisplayRow> gpRankDisplay = List.of();
+    volatile boolean gpRankDisplayBuilt;
 
     GameRoom(GamePackets.CreateRoom req, int numero, int masterUid, int ratePang, int rateExp, int channelId) {
         this.tipo = req.tipo();

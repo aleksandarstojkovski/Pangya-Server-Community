@@ -1579,8 +1579,8 @@ public final class GameHandler {
         int rankIndex = finishRankIndex(room, session);
         finishGameExp(session, room, rankIndex);
         if (room.tipo == GamePackets.TIPO_GRAND_PRIX) {
-            sendGrandPrixFinishRewards(session, room, rankIndex);
-            sendGrandPrixClearUpdate(session, room, rankIndex);
+            sendGrandPrixFinishDump(session, room, rankIndex, prizeTypeids);
+            return;
         }
         sendFinishGameDump(session, room, true, prizeTypeids);
     }
@@ -3363,6 +3363,100 @@ public final class GameHandler {
                 .filter(drop -> drop.typeid() != 0 && drop.qntd() > 0)
                 .mapToInt(GamePackets.DropItem::typeid)
                 .toArray();
+    }
+
+    /** C# {@code GrandPrix.requestFinishData} finish packet order. */
+    private void sendGrandPrixFinishDump(
+            Session session, GameRoom room, int rankIndex, int[] prizeTypeids) {
+        ensureGrandPrixRankDisplay(room);
+        GameRoom.PlayerShot shot = room.shots.get(session.oid());
+        int exp = shot == null ? 0 : shot.gameExp;
+        session.send(GamePackets.prizeList(prizeTypeids));
+        session.send(GamePackets.gameResult(
+                exp,
+                room.info.trophy,
+                grandPrixPlayerTrofel(rankIndex),
+                2));
+        session.send(GamePackets.gpRankPlayerDisplay(room.gpRankDisplay));
+        sendGrandPrixTrofel(session, room, rankIndex);
+        sendGrandPrixFinishRewards(session, room, rankIndex);
+        sendGrandPrixClearUpdate(session, room, rankIndex);
+        session.send(GamePackets.myStatistics(GamePackets.userInfoPublic(session.player().level)));
+        session.send(GamePackets.treasureHunterItem());
+        queueFinishGameAchievementCounters(session, room);
+        flushPendingAchievementCounters(session, room);
+        long uid = session.player().uid;
+        creditPlayerGamePang(session, room);
+        session.send(GamePackets.pangSpent(inventory.pang(uid), 0));
+    }
+
+    /** C# {@code GrandPrix.requestMakeRankPlayerDisplayCharacter} top-3 podium rows. */
+    private void ensureGrandPrixRankDisplay(GameRoom room) {
+        if (room.gpRankDisplayBuilt) {
+            return;
+        }
+        List<PlacarRankResolver.RankEntry> entries = new ArrayList<>();
+        for (Session member : room.snapshot()) {
+            GameRoom.PlayerShot memberShot = room.shots.get(member.oid());
+            entries.add(new PlacarRankResolver.RankEntry(
+                    member.oid(), placarScoreFor(memberShot), placarPangFor(memberShot)));
+        }
+        List<PlacarRankResolver.RankEntry> sorted =
+                PlacarRankResolver.sortRankEntries(entries);
+        List<GamePackets.RankPlayerDisplayRow> rows = new ArrayList<>();
+        for (int i = 0; i < sorted.size() && i < 3; i++) {
+            PlacarRankResolver.RankEntry entry = sorted.get(i);
+            Session member = room.findByOid(entry.oid());
+            if (member == null) {
+                continue;
+            }
+            GamePackets.UserEquip equip = inventory.userEquip(member.player().uid);
+            GamePackets.CharacterInfo character = equippedCharacter(member.player().uid, equip);
+            rows.add(GamePackets.RankPlayerDisplayRow.fromCharacter(
+                    member.player().uid, i + 1, character));
+        }
+        room.gpRankDisplay = List.copyOf(rows);
+        room.gpRankDisplayBuilt = true;
+    }
+
+    /** C# {@code PlayerGameInfo.trofel}: 1 gold / 2 silver / 3 bronze for top 3. */
+    private static int grandPrixPlayerTrofel(int rankIndex) {
+        return switch (rankIndex) {
+            case 0 -> 1;
+            case 1 -> 2;
+            case 2 -> 3;
+            default -> 0;
+        };
+    }
+
+    /** C# {@code GrandPrix.sendTrofel}: rank-reward trophy → {@code 0x25C} + {@code 0x216}. */
+    private void sendGrandPrixTrofel(Session session, GameRoom room, int rankIndex) {
+        if (room.info.gpRankTypeid == 0 || rankIndex < 0) {
+            return;
+        }
+        var rankRewards =
+                org.pangya.protocol.iff.PangyaIffLoader.grandPrixRankRewards(room.info.gpRankTypeid);
+        if (rankIndex >= rankRewards.size()) {
+            return;
+        }
+        int trophyTypeid = rankRewards.get(rankIndex).trophy();
+        if (trophyTypeid == 0) {
+            return;
+        }
+        long uid = session.player().uid;
+        inventory.addGrandPrixTrofel(uid, trophyTypeid).ifPresent(insert -> {
+            session.send(GamePackets.gpTrophyUpdate(trophyTypeid));
+            session.send(GamePackets.papelAwards(
+                    GamePackets.unixNow(),
+                    List.of(new GamePackets.PapelAward(
+                            GamePackets.PAPEL_AWARD_TYPE,
+                            trophyTypeid,
+                            (int) insert.itemId(),
+                            0,
+                            insert.qntdAnt(),
+                            insert.qntdDep(),
+                            1))));
+        });
     }
 
     /** C# {@code GrandPrix.sendRewardRankAndGrandPrix}: participation + rank IFF rewards. */

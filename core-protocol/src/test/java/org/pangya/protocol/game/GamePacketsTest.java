@@ -2025,6 +2025,28 @@ class GamePacketsTest {
         assertEquals(0, gpClear.u32());
         assertEquals(0x80100, gpClear.u32());
         assertEquals(1, gpClear.u32());
+        PacketReader gpTrophy = new PacketReader(GamePackets.gpTrophyUpdate(0x1a001234));
+        assertEquals(GamePackets.SERVER_GP_TROPHY_UPDATE, gpTrophy.opcode());
+        assertEquals(0, gpTrophy.u32());
+        assertEquals(0x1a001234, gpTrophy.u32());
+        GamePackets.CharacterInfo character = new GamePackets.CharacterInfo();
+        character.defaultHair = 2;
+        character.defaultShirts = 3;
+        character.partsTypeid[0] = 0x08006010;
+        character.partsId[0] = 42;
+        character.auxparts[0] = 0x1a000001;
+        GamePackets.RankPlayerDisplayRow gpRow =
+                GamePackets.RankPlayerDisplayRow.fromCharacter(10001, 1, character);
+        assertEquals(GamePackets.GP_RANK_PLAYER_DISPLAY_BYTES, gpRow.toArray().length);
+        PacketReader gpPodium = new PacketReader(GamePackets.gpRankPlayerDisplay(List.of(gpRow)));
+        assertEquals(GamePackets.SERVER_GP_RANK_PLAYER_DISPLAY, gpPodium.opcode());
+        assertEquals(0, gpPodium.u32());
+        assertEquals(1, gpPodium.u8());
+        assertEquals(10001, gpPodium.u32());
+        assertEquals(1, gpPodium.u32());
+        assertEquals(2, gpPodium.u8());
+        assertEquals(3, gpPodium.u8());
+        assertEquals(0x08006010, gpPodium.u32());
         PacketReader gpHoleTime = new PacketReader(GamePackets.gpHoleTimeOver());
         assertEquals(GamePackets.SERVER_GP_HOLE_TIME_OVER, gpHoleTime.opcode());
         assertEquals(0, gpHoleTime.u32());
