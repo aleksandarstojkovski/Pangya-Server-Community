@@ -1095,6 +1095,27 @@ class InventoryRepositoryTest {
         }
     }
 
+    @Test
+    void grantBoxAwardInsertsCardFromDraw() {
+        String url = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        DatabaseSupport.migrate(url, user, password);
+
+        try (var ds = DatabaseSupport.dataSource(url, user, password)) {
+            InventoryRepository repo = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
+            try {
+                repo.deleteCardByTypeid(10002, GamePackets.TYPEID_CARD_NORMAL);
+                var insert = repo.grantBoxAward(10002, GamePackets.TYPEID_CARD_NORMAL, 4).orElseThrow();
+                assertEquals(4, insert.addQntd());
+                assertTrue(repo.cards(10002).stream()
+                        .anyMatch(c -> c.typeid == GamePackets.TYPEID_CARD_NORMAL && c.qntd == 4));
+            } finally {
+                repo.deleteCardByTypeid(10002, GamePackets.TYPEID_CARD_NORMAL);
+            }
+        }
+    }
+
     private static String env(String name, String fallback) {
         String v = System.getenv(name);
         return (v == null || v.isBlank()) ? fallback : v;

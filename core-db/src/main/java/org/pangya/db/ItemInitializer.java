@@ -254,6 +254,30 @@ public final class ItemInitializer {
      * but {@code BuyItem.time} drives rental days ({@code flag_time=4}).
      */
     public static Optional<MailAwardRow> initShopAward(InitContext ctx, int typeid, int qntd, int buyTime) {
+        return initBoxAward(ctx, typeid, qntd, buyTime);
+    }
+
+    /** C# box {@code BuyItem} before {@code initItemFromBuyItem}: qntd vs rental days. */
+    public record BoxAwardParams(int qntd, int buyTime) {}
+
+    /**
+     * C# {@code requestOpenBoxMyRoom}/{@code requestOpenBoxMail}: maps draw qntd to
+     * {@code BuyItem.qntd/time}, then {@code initItemFromBuyItem}.
+     */
+    public static BoxAwardParams boxAwardParams(int typeid, int drawQntd) {
+        if (drawQntd <= 0) {
+            return new BoxAwardParams(0, 0);
+        }
+        return new BoxAwardParams(drawQntd, 0);
+    }
+
+    /** Box / lucky-pouch grant row (shop init with box qntd/time mapping). */
+    public static Optional<MailAwardRow> initBoxAward(InitContext ctx, int typeid, int drawQntd) {
+        BoxAwardParams params = boxAwardParams(typeid, drawQntd);
+        return initBoxAward(ctx, typeid, params.qntd(), params.buyTime());
+    }
+
+    public static Optional<MailAwardRow> initBoxAward(InitContext ctx, int typeid, int qntd, int buyTime) {
         if (typeid == 0 || qntd <= 0) {
             return Optional.empty();
         }
@@ -270,6 +294,20 @@ public final class ItemInitializer {
             case GamePackets.IFF_GROUP_CAD_ITEM -> initCadItem(typeid, flagTime, buyTime, qntd);
             default -> Optional.empty();
         };
+    }
+
+    /** Mail attachment for box reward before {@code sendMessageWithItem}. */
+    public static Optional<MailItemRef> boxMailRef(InitContext ctx, int typeid, int drawQntd) {
+        return initBoxAward(ctx, typeid, drawQntd).map(row -> {
+            int flagTime = row.rentFlag();
+            int tempoQntd = row.caddiePeriodDays();
+            int qntd = row.warehouse() != null ? row.warehouse().qntdDep() : row.qntd();
+            if (row.group() == GamePackets.IFF_GROUP_MASCOT) {
+                tempoQntd = row.mascotTimeDays();
+                flagTime = row.mascotTimeDays() > 0 ? 4 : 0;
+            }
+            return new MailItemRef(typeid, qntd, flagTime, tempoQntd);
+        });
     }
 
     /** Groups C# {@code requestTakeItemFomMail} initializes via {@code initItemFromEmailItem}. */
@@ -302,12 +340,21 @@ public final class ItemInitializer {
         if (!PangyaIffLoader.source().isPresent()) {
             return Optional.of(WarehouseInitRow.simple(typeid, qntd));
         }
-        return switch (GamePackets.itemGroupIdentify(typeid)) {
+        Optional<WarehouseInitRow> row = switch (GamePackets.itemGroupIdentify(typeid)) {
             case GamePackets.IFF_GROUP_ITEM -> initItem(typeid, qntd);
             case GamePackets.IFF_GROUP_PART -> initPart(typeid, qntd);
             case GamePackets.IFF_GROUP_CLUBSET -> initClubSet(typeid);
             case GamePackets.IFF_GROUP_BALL -> initBall(typeid, qntd, ctx.chkLevel());
             case GamePackets.IFF_GROUP_SET_ITEM -> initSetItem(typeid, qntd);
+            default -> Optional.empty();
+        };
+        if (row.isPresent()) {
+            return row;
+        }
+        return switch (GamePackets.itemGroupIdentify(typeid)) {
+            case GamePackets.IFF_GROUP_ITEM, GamePackets.IFF_GROUP_PART,
+                    GamePackets.IFF_GROUP_BALL, GamePackets.IFF_GROUP_CLUBSET ->
+                    Optional.of(WarehouseInitRow.simple(typeid, qntd));
             default -> Optional.empty();
         };
     }

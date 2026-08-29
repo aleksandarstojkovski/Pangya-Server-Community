@@ -4770,6 +4770,26 @@ public final class GameHandler {
      * consumes one box, adds the reward to warehouse, sends per-reward
      * {@code 0xAA}, then {@code 0x129}. Every failure is u8 1 + 12 zeros.
      */
+    private boolean canGrantBoxAward(long uid, int typeid, int drawQntd) {
+        ItemInitializer.InitContext ctx = new ItemInitializer.InitContext(0, false, false, true);
+        Optional<ItemInitializer.MailAwardRow> row = ItemInitializer.initBoxAward(ctx, typeid, drawQntd);
+        if (row.isEmpty()) {
+            return false;
+        }
+        ItemInitializer.MailAwardRow award = row.get();
+        if (award.group() == GamePackets.IFF_GROUP_CAD_ITEM) {
+            int caddieTypeid = GamePackets.caddieBaseTypeid(typeid);
+            return inventory.caddies(uid).stream().anyMatch(c -> c.typeid == caddieTypeid);
+        }
+        if (award.group() == GamePackets.IFF_GROUP_MASCOT && award.mascotTimeDays() > 0) {
+            return true;
+        }
+        if (!inventory.itemCanOverlap(typeid) && inventory.ownsAwardTypeid(uid, typeid)) {
+            return false;
+        }
+        return true;
+    }
+
     private void openLuckyPouch(Session session, PacketReader reader) {
         if (!inChannel(session)) {
             return;
@@ -4795,30 +4815,35 @@ public final class GameHandler {
                 return;
             }
             InventoryRepository.BoxMailReward reward = draw.get();
+            if (!canGrantBoxAward(uid, reward.rewardTypeid(), reward.rewardQntd())) {
+                session.send(GamePackets.luckyPouchFail());
+                return;
+            }
             OptionalInt boxRemaining = inventory.consumeWarehouseByTypeid(uid, typeid, 1);
             if (boxRemaining.isEmpty()) {
                 session.send(GamePackets.luckyPouchFail());
                 return;
             }
-            GamePackets.WarehouseItem existing = warehouseByTypeid(uid, reward.rewardTypeid());
-            int ant = existing == null ? 0 : existing.c[0] & 0xffff;
-            int rewardId = inventory.addWarehouseItem(
-                    uid, reward.rewardTypeid(), reward.rewardQntd());
-            if (rewardId <= 0) {
+            InventoryRepository.AwardInsert insert = inventory.grantBoxAward(
+                            uid, reward.rewardTypeid(), reward.rewardQntd())
+                    .orElse(null);
+            if (insert == null) {
                 session.send(GamePackets.luckyPouchFail());
                 return;
             }
-            int dep = ant + reward.rewardQntd();
             session.send(GamePackets.buyNewItems(
                     List.of(new GamePackets.BoughtItem(
-                            reward.rewardTypeid(), rewardId, 0, 0, dep)),
+                            reward.rewardTypeid(), insert.id(), 0, 0, insert.qntdDep())),
                     inventory.pang(uid),
                     inventory.cookie(uid)));
             session.send(GamePackets.luckyPouchOk(
                     typeid,
                     boxRemaining.getAsInt(),
                     List.of(new GamePackets.LuckyPouchAward(
-                            rewardId, reward.rewardTypeid(), reward.rewardQntd(), dep))));
+                            insert.id(),
+                            reward.rewardTypeid(),
+                            insert.addQntd(),
+                            insert.qntdDep()))));
         } catch (RuntimeException e) {
             log.debug("lucky pouch failed uid={}: {}", session.player().uid, e.toString());
             session.send(GamePackets.luckyPouchFail());
@@ -5552,10 +5577,10 @@ public final class GameHandler {
                 return;
             }
             if (reward.openedTypeid() != 0) {
-                GamePackets.WarehouseItem existing = warehouseByTypeid(uid, reward.openedTypeid());
-                int ant = existing == null ? 0 : existing.c[0] & 0xffff;
-                int openedId = inventory.addWarehouseItem(uid, reward.openedTypeid(), 1);
-                if (openedId <= 0) {
+                InventoryRepository.AwardInsert opened = inventory.grantBoxAward(
+                                uid, reward.openedTypeid(), 1)
+                        .orElse(null);
+                if (opened == null) {
                     session.send(GamePackets.boxMailFail(
                             GamePackets.shopSys(GamePackets.BOX_MAIL_ERR_OPENED)));
                     return;
@@ -5565,18 +5590,27 @@ public final class GameHandler {
                         List.of(new GamePackets.PapelAward(
                                 GamePackets.PAPEL_AWARD_TYPE,
                                 reward.openedTypeid(),
-                                openedId,
+                                opened.id(),
                                 0,
-                                ant,
-                                ant + 1,
-                                1))));
+                                opened.qntdAnt(),
+                                opened.qntdDep(),
+                                opened.addQntd()))));
             }
+            ItemInitializer.InitContext boxCtx = new ItemInitializer.InitContext(
+                    session.player().level, false, false, true);
+            ItemInitializer.MailItemRef mailRef = ItemInitializer.boxMailRef(
+                            boxCtx, reward.rewardTypeid(), reward.rewardQntd())
+                    .orElse(new ItemInitializer.MailItemRef(
+                            reward.rewardTypeid(), reward.rewardQntd()));
             mailboxes.add(
                     uid,
                     GamePackets.MAIL_FROM_ADM,
                     reward.message(),
                     List.of(new MailBoxStore.MailAttachment(
-                            reward.rewardTypeid(), reward.rewardQntd())));
+                            mailRef.typeid(),
+                            mailRef.qntd(),
+                            mailRef.flagTime(),
+                            mailRef.tempoQntd())));
             session.send(GamePackets.boxConsume(typeid, box.id, remaining.getAsInt()));
             session.send(GamePackets.buyNewItems(
                     List.of(), inventory.pang(uid), inventory.cookie(uid)));

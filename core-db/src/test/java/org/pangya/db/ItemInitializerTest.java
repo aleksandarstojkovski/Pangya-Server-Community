@@ -182,6 +182,24 @@ class ItemInitializerTest {
     }
 
     @Test
+    void initBoxAwardInitializesWarehouseRewardWhenIffUnloaded() {
+        PangyaIffLoader.reload(null);
+        var ctx = new ItemInitializer.InitContext(1, false, false, true);
+        var row = ItemInitializer.initBoxAward(ctx, GamePackets.TYPEID_SHOP_PANG_ITEM, 3).orElseThrow();
+        assertNotNull(row.warehouse());
+        assertEquals(3, row.warehouse().c0());
+    }
+
+    @Test
+    void boxMailRefMapsWarehouseReward() {
+        PangyaIffLoader.reload(null);
+        var ctx = new ItemInitializer.InitContext(1, false, false, true);
+        var ref = ItemInitializer.boxMailRef(ctx, GamePackets.TYPEID_SHOP_PANG_ITEM, 2).orElseThrow();
+        assertEquals(GamePackets.TYPEID_SHOP_PANG_ITEM, ref.typeid());
+        assertEquals(2, ref.qntd());
+    }
+
+    @Test
     void fallsBackWhenIffUnloaded() {
         PangyaIffLoader.reload(null);
         var row = ItemInitializer.initFromBuyItem(

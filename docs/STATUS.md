@@ -13,8 +13,8 @@ Conteggio Channel: **197** handler `packet_func_sv` registrati in `GameService.i
 
 ## Questo turno
 
-Fatto: shop buy via `initShopAward` + `insertAwardHandle` (caddie/mascot/card/skin/CAD_ITEM/warehouse); `GameHandler` passa `BuyItem.time`; test caddie rental catalog.
-Prossimo: pin `.gbin`; capture JP S9; box/attendance `initItemFromBuyItem`.
+Fatto: box/lucky-pouch via `initBoxAward` + `grantBoxAward`; mail attachment `boxMailRef`; IFF warehouse fallback.
+Prossimo: pin `.gbin`; capture JP S9; attendance enter-channel mail grant.
 Blocco: pin `.gbin` binaries absent; nessuna capture client JP Season 9.
 
 Percentuale epic: **scheletro 85%** / **parità client reale 43%**.

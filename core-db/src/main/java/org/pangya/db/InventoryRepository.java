@@ -178,6 +178,12 @@ public interface InventoryRepository {
      */
     Optional<AwardInsert> addAwardItem(long uid, ItemInitializer.MailAwardRow row);
 
+    /**
+     * C# box open {@code initItemFromBuyItem} + {@code addItem}: initializes then
+     * inserts via the award routing tables.
+     */
+    Optional<AwardInsert> grantBoxAward(long uid, int typeid, int drawQntd);
+
     /** C# {@code PlayerInfo.ownerItem}: true when the player already owns {@code typeid}. */
     boolean ownsAwardTypeid(long uid, int typeid);
 

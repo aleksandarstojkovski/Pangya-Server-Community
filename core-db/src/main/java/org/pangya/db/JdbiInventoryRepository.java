@@ -1392,6 +1392,26 @@ public final class JdbiInventoryRepository implements InventoryRepository {
         return jdbi.inTransaction(h -> insertAwardHandle(h, uid, row));
     }
 
+    @Override
+    public Optional<AwardInsert> grantBoxAward(long uid, int typeid, int drawQntd) {
+        if (typeid == 0 || drawQntd <= 0) {
+            return Optional.empty();
+        }
+        return jdbi.inTransaction(h -> {
+            int level = h.createQuery("SELECT COALESCE(\"level\", 0) FROM pangya.user_info WHERE \"UID\" = :uid")
+                    .bind("uid", uid)
+                    .mapTo(Integer.class)
+                    .findOne()
+                    .orElse(0);
+            ItemInitializer.InitContext ctx = new ItemInitializer.InitContext(level, false, false, true);
+            Optional<ItemInitializer.MailAwardRow> row = ItemInitializer.initBoxAward(ctx, typeid, drawQntd);
+            if (row.isEmpty()) {
+                return Optional.empty();
+            }
+            return insertAwardHandle(h, uid, row.get());
+        });
+    }
+
     private Optional<AwardInsert> insertAwardHandle(
             org.jdbi.v3.core.Handle h, long uid, ItemInitializer.MailAwardRow row) {
         return switch (row.group()) {
