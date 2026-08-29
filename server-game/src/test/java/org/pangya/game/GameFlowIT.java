@@ -1951,6 +1951,75 @@ class GameFlowIT {
     }
 
     @Test
+    void attendanceLoginBonusMailsTakeIntoWarehouse() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config);
+             PangyaFakeClient client = new PangyaFakeClient()) {
+            InventoryRepository inv = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
+            try {
+                inv.deleteAttendanceReward(10001);
+                inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_GP_TICKET);
+                inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_BOT_TICKET);
+                inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_FORTUNE_KEY);
+                inv.upsertItemIff(GamePackets.TYPEID_GP_TICKET);
+                inv.upsertItemIff(GamePackets.TYPEID_BOT_TICKET);
+                inv.upsertItemIff(GamePackets.TYPEID_FORTUNE_KEY);
+                inv.upsertAttendanceCatalog(
+                        GamePackets.TYPEID_SHOP_PANG_ITEM,
+                        1,
+                        GamePackets.ATTENDANCE_TIPO_NORMAL);
+                runtime.gameHandler().authReloadGlobalSystem(10);
+                LoginRepository repo = new JdbiLoginRepository(DatabaseSupport.jdbi(ds));
+                String loginKey = repo.generateAuthKeyLogin(10001);
+                String gameKey = repo.generateAuthKeyGame(10001, 20202);
+                keys.putLoginKey(10001, loginKey);
+                keys.putGameKey(10001, 20202, gameKey);
+                loginToChannel(client, runtime.port(), "testuser", 10001, loginKey, gameKey);
+
+                takeWarehouseMail(
+                        client,
+                        2,
+                        GamePackets.TYPEID_GP_TICKET,
+                        GamePackets.ATTENDANCE_GP_TICKET_GRANT);
+                takeWarehouseMail(
+                        client,
+                        3,
+                        GamePackets.TYPEID_BOT_TICKET,
+                        GamePackets.ATTENDANCE_DAILY_KEY_GRANT);
+                takeWarehouseMail(
+                        client,
+                        4,
+                        GamePackets.TYPEID_FORTUNE_KEY,
+                        GamePackets.ATTENDANCE_DAILY_KEY_GRANT);
+
+                assertEquals(
+                        GamePackets.ATTENDANCE_GP_TICKET_GRANT,
+                        warehouseQntd(inv, 10001, GamePackets.TYPEID_GP_TICKET));
+                assertEquals(
+                        GamePackets.ATTENDANCE_DAILY_KEY_GRANT,
+                        warehouseQntd(inv, 10001, GamePackets.TYPEID_BOT_TICKET));
+                assertEquals(
+                        GamePackets.ATTENDANCE_DAILY_KEY_GRANT,
+                        warehouseQntd(inv, 10001, GamePackets.TYPEID_FORTUNE_KEY));
+            } finally {
+                inv.deleteAttendanceCatalog(GamePackets.TYPEID_SHOP_PANG_ITEM);
+                inv.deleteAttendanceReward(10001);
+                inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_GP_TICKET);
+                inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_BOT_TICKET);
+                inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_FORTUNE_KEY);
+            }
+        }
+    }
+
+    @Test
     void itemBuffConsumesWarehouseAndSendsPacote181() throws Exception {
         String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
         String user = env("PANGYA_TEST_JDBC_USER", "pangya");
@@ -7301,6 +7370,31 @@ class GameFlowIT {
             }
         }
         return false;
+    }
+
+    private static void takeWarehouseMail(
+            PangyaFakeClient client, int mailId, int typeid, int qntd) throws Exception {
+        client.sendPlain(GamePackets.clientTakeMail(mailId));
+        PacketReader mailAward = awaitOpcode(client, GamePackets.SERVER_DAILY_QUEST_STAMP);
+        mailAward.u32();
+        assertEquals(1, mailAward.u32());
+        assertEquals(GamePackets.PAPEL_AWARD_TYPE, mailAward.u8());
+        assertEquals(typeid, mailAward.u32());
+        mailAward.i32();
+        mailAward.u32();
+        assertEquals(0, mailAward.i32());
+        assertEquals(qntd, mailAward.i32());
+        assertEquals(qntd, mailAward.i32());
+        mailAward.readBytes(15);
+        assertEquals(0, awaitOpcode(client, GamePackets.SERVER_MAIL_TAKE).u32());
+    }
+
+    private static int warehouseQntd(InventoryRepository inv, long uid, int typeid) {
+        return inv.warehouse(uid).stream()
+                .filter(w -> w.typeid == typeid)
+                .mapToInt(w -> w.c[0] & 0xffff)
+                .findFirst()
+                .orElse(0);
     }
 
     private static PacketReader awaitOpcode(PangyaFakeClient client, int opcode) throws InterruptedException {

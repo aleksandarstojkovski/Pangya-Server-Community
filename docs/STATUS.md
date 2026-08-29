@@ -13,7 +13,7 @@ Conteggio Channel: **197** handler `packet_func_sv` registrati in `GameService.i
 
 ## Questo turno
 
-Fatto: enter-channel + `0x16F` attendance login bonus mails (GP/bot/fortune); box/lucky-pouch `initBoxAward`; shop buy `initShopAward`.
+Fatto: attendance login bonus mail take (GP/bot/fortune → warehouse); enter-channel + `0x16F` bonus mails; box/shop init.
 Prossimo: pin `.gbin`; capture JP S9.
 Blocco: pin `.gbin` binaries absent; nessuna capture client JP Season 9.
 
