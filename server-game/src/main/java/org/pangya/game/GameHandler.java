@@ -1942,20 +1942,24 @@ public final class GameHandler {
         return PlacarRankResolver.rankIndex(PlacarRankResolver.sortRankEntries(entries), session.oid());
     }
 
-    private static int placarScoreFor(GameRoom.PlayerShot shot) {
+    /** C# {@code GameBase.sort_player_rank}: {@code pgi.data.score}, not profile media score. */
+    static int placarScoreFor(GameRoom.PlayerShot shot) {
         if (shot == null) {
             return 0;
         }
-        if (shot.userInfo != null) {
-            return shot.userInfo.mediaScore();
-        }
-        int score = 0;
+        int fromHoles = 0;
+        boolean anyHole = false;
         for (int i = 0; i < shot.holeTacada.length; i++) {
             if (shot.holeTacada[i] > 0) {
-                score += shot.holeTacada[i] - shot.holePar[i];
+                anyHole = true;
+                fromHoles += shot.holeTacada[i] - shot.holePar[i];
             }
         }
-        return score;
+        // GP time-over adds max-score holes only to shot.score.
+        if (shot.score != 0 || !anyHole) {
+            return shot.score;
+        }
+        return fromHoles;
     }
 
     private static long placarPangFor(GameRoom.PlayerShot shot) {

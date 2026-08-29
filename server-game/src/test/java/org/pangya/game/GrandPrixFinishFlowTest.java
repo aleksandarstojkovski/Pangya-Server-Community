@@ -75,6 +75,34 @@ final class GrandPrixFinishFlowTest {
     }
 
     @Test
+    void placarScoreUsesGameTotalNotProfileMediaScore() {
+        GameRoom.PlayerShot shot = new GameRoom.PlayerShot();
+        shot.score = 3;
+        shot.holeTacada[0] = 5;
+        shot.holePar[0] = 4;
+        assertEquals(3, GameHandler.placarScoreFor(shot));
+    }
+
+    @Test
+    void placarScoreDerivesFromHolesWhenRunningTotalUnset() {
+        GameRoom.PlayerShot shot = new GameRoom.PlayerShot();
+        shot.holeTacada[0] = 4;
+        shot.holePar[0] = 4;
+        shot.holeTacada[1] = 5;
+        shot.holePar[1] = 4;
+        assertEquals(1, GameHandler.placarScoreFor(shot));
+    }
+
+    @Test
+    void placarScorePrefersTimeOverPenaltyTotal() {
+        GameRoom.PlayerShot shot = new GameRoom.PlayerShot();
+        shot.score = 12;
+        shot.holeTacada[0] = 5;
+        shot.holePar[0] = 4;
+        assertEquals(12, GameHandler.placarScoreFor(shot));
+    }
+
+    @Test
     void myStatisticsUsesClientUserInfoWire() {
         byte[] wire = GamePackets.userInfoExWire(10, 5, 2, 4, 900L, 70, 1);
         PacketReader pkt = new PacketReader(GamePackets.myStatistics(wire));
