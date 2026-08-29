@@ -1,0 +1,34 @@
+server:
+  name: game
+  uid: 20202
+  tipo: 1
+  port: 20202
+  healthPort: 9202
+  ip: 127.0.0.1
+  maxUser: 2001
+  property: 2048
+  rateGrandPrixEvent: 1
+  version: Release.JP.983.00
+  clientVersion: "JP.R7.983.00"
+  packetVersion: 2017110200
+database:
+  url: jdbc:postgresql://postgres:5432/pangya
+  user: pangya
+  password: pangya
+redis:
+  uri: redis://redis:6379
+auth:
+  enabled: true
+  host: auth
+  port: 7777
+channels:
+  - name: Channel (Rookies)
+    maxUser: 500
+    maxLevel: 16
+    lowLevel: 0
+    flag: 0
+  - name: Channel (All)
+    maxUser: 500
+    maxLevel: 70
+    lowLevel: 0
+    flag: 0

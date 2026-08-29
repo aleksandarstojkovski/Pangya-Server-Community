@@ -1,0 +1,8 @@
+-- SQL stand-in for C# IFF ClubSetWorkShopRankUpExp.rank[6] (F–A / index by next rank).
+ALTER TABLE pangya.iff_clubset_rank_exp
+    ADD COLUMN rank0 INTEGER NOT NULL DEFAULT 0,
+    ADD COLUMN rank1 INTEGER NOT NULL DEFAULT 0,
+    ADD COLUMN rank2 INTEGER NOT NULL DEFAULT 0,
+    ADD COLUMN rank3 INTEGER NOT NULL DEFAULT 0,
+    ADD COLUMN rank4 INTEGER NOT NULL DEFAULT 0,
+    ADD COLUMN rank5 INTEGER NOT NULL DEFAULT 0;

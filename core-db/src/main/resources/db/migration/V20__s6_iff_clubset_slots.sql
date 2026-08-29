@@ -1,0 +1,13 @@
+-- SQL stand-in for C# IFF ClubSet.Stats / SlotStats (requestClubSetStatsUpdate).
+-- Defaults 0 match prior empty catalog (upgrade slots check fails until tests upsert).
+ALTER TABLE pangya.iff_clubset
+    ADD COLUMN stats0 SMALLINT NOT NULL DEFAULT 0,
+    ADD COLUMN stats1 SMALLINT NOT NULL DEFAULT 0,
+    ADD COLUMN stats2 SMALLINT NOT NULL DEFAULT 0,
+    ADD COLUMN stats3 SMALLINT NOT NULL DEFAULT 0,
+    ADD COLUMN stats4 SMALLINT NOT NULL DEFAULT 0,
+    ADD COLUMN slot0 SMALLINT NOT NULL DEFAULT 0,
+    ADD COLUMN slot1 SMALLINT NOT NULL DEFAULT 0,
+    ADD COLUMN slot2 SMALLINT NOT NULL DEFAULT 0,
+    ADD COLUMN slot3 SMALLINT NOT NULL DEFAULT 0,
+    ADD COLUMN slot4 SMALLINT NOT NULL DEFAULT 0;

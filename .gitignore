@@ -1,16 +1,30 @@
-## Visual Studio 2022 / .NET 10
-[Dd]ebug/
-[Rr]elease/
-x64/
-x86/
-bld/
-[Bb]in/
-[Oo]bj/
-/artifacts/
-/Server/Build
-*.user
-*.suo
-*.sln.docstates
-/.vs
-/Server/.vs
-/Server/JP/Build
+# Java / Gradle
+.gradle/
+**/build/
+*.class
+hs_err_pid*
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.cursor/
+
+# Env / secrets
+.env
+*.pem
+*.jks
+
+# C# reference clone (never commit)
+reference/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+.docker/
+
+# Logs
+*.log
+Log/

@@ -1,0 +1,41 @@
+server:
+  name: login
+  uid: 10203
+  tipo: 0
+  port: 10203
+  healthPort: 9103
+  ip: 127.0.0.1
+  maxUser: 2001
+  property: 2048
+  version: LS.Release.2.0
+  clientVersion: "JP.R7.983.00"
+  packetVersion: 2017110200
+  maintenance: false
+database:
+  url: jdbc:postgresql://postgres:5432/pangya
+  user: pangya
+  password: pangya
+redis:
+  uri: redis://redis:6379
+auth:
+  enabled: true
+  host: auth
+  port: 7777
+game:
+  name: Kuma(2.0)
+  uid: 20202
+  ip: 127.0.0.1
+  port: 20202
+  maxUser: 2001
+  property: 2048
+  version: Release.JP.983.00
+  clientVersion: "JP.R7.983.00"
+messenger:
+  name: Messenger Server
+  uid: 30201
+  ip: 127.0.0.1
+  port: 30201
+  maxUser: 2001
+  property: 4096
+  version: MS.Release.2.0
+  clientVersion: "JP.R7.983.01"

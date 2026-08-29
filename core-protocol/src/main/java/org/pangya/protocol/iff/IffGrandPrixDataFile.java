@@ -1,0 +1,130 @@
+package org.pangya.protocol.iff;
+
+import org.pangya.protocol.packet.PacketIo;
+
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.charset.Charset;
+import java.util.HashMap;
+import java.util.Map;
+
+/**
+ * C# {@code IFFFile<GrandPrixData>} index ({@code Marshal.SizeOf(GrandPrixData)} = 816 bytes).
+ */
+public final class IffGrandPrixDataFile {
+
+    public static final int VERSION = 13;
+    public static final int RECORD_BYTES = 816;
+
+    static final int NAME_OFFSET = 18;
+    static final int NAME_BYTES = 66;
+    static final int TICKET_OFFSET = 84;
+    static final int NATURAL_MODE_OFFSET = 133;
+    static final int SHOT_MODE_OFFSET = 134;
+    static final int RULE_OFFSET = 136;
+    static final int COURSE_OFFSET = 140;
+    static final int MODO_OFFSET = 144;
+    static final int HOLES_OFFSET = 148;
+    static final int MIN_LEVEL_OFFSET = 152;
+    static final int MAX_LEVEL_OFFSET = 153;
+    static final int CONDITION_OFFSET = 156;
+    static final int BOT_OFFSET = 164;
+    static final int GP_CLASS_OFFSET = 176;
+    static final int OPEN_OFFSET = 240;
+    static final int START_OFFSET = 256;
+    static final int CLEAR_GP_TYPEID_OFFSET = 292;
+    static final int LOCK_YN_OFFSET = 296;
+    static final int REWARD_OFFSET = 180;
+    static final int TYPE_GP_OFFSET = 12;
+    static final int TIME_HOLE_OFFSET = 16;
+
+    private static final Charset SHIFT_JIS = PacketIo.SHIFT_JIS;
+
+    private IffGrandPrixDataFile() {}
+
+    public static IffGrandPrixDataIndex loadIndex(byte[] data) {
+        IffHeader header = readHeader(data);
+        int expected = IffHeader.BYTES + header.count() * RECORD_BYTES;
+        if (data.length < expected) {
+            throw new IllegalArgumentException("GrandPrixData.iff truncated: need " + expected + " bytes");
+        }
+        Map<Integer, IffGrandPrixDataRecord> out = HashMap.newHashMap(header.count());
+        for (int i = 0; i < header.count(); i++) {
+            int base = IffHeader.BYTES + i * RECORD_BYTES;
+            int active = ByteBuffer.wrap(data, base, 4).order(ByteOrder.LITTLE_ENDIAN).getInt();
+            if (active == 0) {
+                continue;
+            }
+            int typeid = ByteBuffer.wrap(data, base + 4, 4).order(ByteOrder.LITTLE_ENDIAN).getInt();
+            int typeIdLink = ByteBuffer.wrap(data, base + 8, 4).order(ByteOrder.LITTLE_ENDIAN).getInt();
+            int typeGp = ByteBuffer.wrap(data, base + TYPE_GP_OFFSET, 4).order(ByteOrder.LITTLE_ENDIAN).getInt();
+            int timeHole = ByteBuffer.wrap(data, base + TIME_HOLE_OFFSET, 2)
+                    .order(ByteOrder.LITTLE_ENDIAN)
+                    .getShort() & 0xffff;
+            String name = readFixedString(data, base + NAME_OFFSET, NAME_BYTES);
+            int rule = ByteBuffer.wrap(data, base + RULE_OFFSET, 4).order(ByteOrder.LITTLE_ENDIAN).getInt();
+            int course = ByteBuffer.wrap(data, base + COURSE_OFFSET, 4).order(ByteOrder.LITTLE_ENDIAN).getInt();
+            int modo = ByteBuffer.wrap(data, base + MODO_OFFSET, 4).order(ByteOrder.LITTLE_ENDIAN).getInt();
+            int holes = data[base + HOLES_OFFSET] & 0xff;
+            boolean naturalMode = data[base + NATURAL_MODE_OFFSET] != 0;
+            boolean shotMode = data[base + SHOT_MODE_OFFSET] != 0;
+            int minLevel = data[base + MIN_LEVEL_OFFSET] & 0xff;
+            int maxLevel = data[base + MAX_LEVEL_OFFSET] & 0xff;
+            int ticketTypeid = ByteBuffer.wrap(data, base + TICKET_OFFSET, 4)
+                    .order(ByteOrder.LITTLE_ENDIAN)
+                    .getInt();
+            int ticketQntd = ByteBuffer.wrap(data, base + TICKET_OFFSET + 4, 4)
+                    .order(ByteOrder.LITTLE_ENDIAN)
+                    .getInt();
+            int conditionMin = ByteBuffer.wrap(data, base + CONDITION_OFFSET, 4)
+                    .order(ByteOrder.LITTLE_ENDIAN)
+                    .getInt();
+            int conditionMax = ByteBuffer.wrap(data, base + CONDITION_OFFSET + 4, 4)
+                    .order(ByteOrder.LITTLE_ENDIAN)
+                    .getInt();
+            int clearGpTypeid = ByteBuffer.wrap(data, base + CLEAR_GP_TYPEID_OFFSET, 4)
+                    .order(ByteOrder.LITTLE_ENDIAN)
+                    .getInt();
+            int lockYn = ByteBuffer.wrap(data, base + LOCK_YN_OFFSET, 4)
+                    .order(ByteOrder.LITTLE_ENDIAN)
+                    .getInt();
+            IffSystemTime open = IffSystemTime.read(data, base + OPEN_OFFSET);
+            IffSystemTime start = IffSystemTime.read(data, base + START_OFFSET);
+            IffRewardSlots reward = IffRewardSlots.read(data, base + REWARD_OFFSET);
+            int scoreBotMin = ByteBuffer.wrap(data, base + BOT_OFFSET, 4).order(ByteOrder.LITTLE_ENDIAN).getInt();
+            int scoreBotMed = ByteBuffer.wrap(data, base + BOT_OFFSET + 4, 4).order(ByteOrder.LITTLE_ENDIAN).getInt();
+            int scoreBotMax = ByteBuffer.wrap(data, base + BOT_OFFSET + 8, 4).order(ByteOrder.LITTLE_ENDIAN).getInt();
+            int gpClass = ByteBuffer.wrap(data, base + GP_CLASS_OFFSET, 4).order(ByteOrder.LITTLE_ENDIAN).getInt();
+            out.put(typeid, new IffGrandPrixDataRecord(
+                    typeid, typeIdLink, typeGp, timeHole, name, rule, course, modo, holes, naturalMode, shotMode,
+                    minLevel, maxLevel, ticketTypeid, ticketQntd, conditionMin, conditionMax, clearGpTypeid, lockYn,
+                    reward, open, start, scoreBotMin, scoreBotMed, scoreBotMax, gpClass));
+        }
+        return new IffGrandPrixDataIndex(Map.copyOf(out));
+    }
+
+    public static IffGrandPrixDataIndex loadIndex(PangyaIffArchive archive) throws java.io.IOException {
+        return loadIndex(archive.readEntry("GrandPrixData.iff"));
+    }
+
+    private static IffHeader readHeader(byte[] data) {
+        if (data.length < IffHeader.BYTES) {
+            throw new IllegalArgumentException("GrandPrixData.iff too short");
+        }
+        IffHeader header = IffHeader.read(ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN));
+        if (header.version() != VERSION) {
+            throw new IllegalArgumentException(
+                    "GrandPrixData.iff version " + header.version() + " != " + VERSION);
+        }
+        return header;
+    }
+
+    private static String readFixedString(byte[] data, int offset, int length) {
+        int end = offset;
+        int limit = offset + length;
+        while (end < limit && data[end] != 0) {
+            end++;
+        }
+        return new String(data, offset, end - offset, SHIFT_JIS);
+    }
+}
