@@ -13,8 +13,8 @@ Conteggio Channel: **197** handler `packet_func_sv` registrati in `GameService.i
 
 ## Questo turno
 
-Fatto: **`CadieMagicBox.iff`** (140-byte, 2056 recipes) + **`CadieMagicBoxRandom.iff`** (16-byte, 179 rows); `cadieExchange` uses IFF when `PANGYA_IFF_PATH` set (seq 1 receives `0x1A000133` for trade `0x1A00005B`; SQL seed used shop-pang self-trade).
-Prossimo: pin `.gbin`; capture JP S9; ClubSetOriginal IFF.
+Fatto: **`findClubSetOriginal`** from `ClubSet.iff` via `text_pangya` (Wingtross `0x1000005D` → 5 originals; SQL had 1 test row); extends existing ClubSet parser.
+Prossimo: pin `.gbin`; capture JP S9; remaining IFF (SetItem, HoleCupDrop, …).
 Blocco: pin `.gbin` binaries absent; nessuna capture client JP Season 9.
 
 Percentuale epic: **scheletro 85%** / **parità client reale 43%**.

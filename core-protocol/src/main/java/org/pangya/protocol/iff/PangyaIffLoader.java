@@ -180,6 +180,15 @@ public final class PangyaIffLoader {
         return clubSets.find(typeid);
     }
 
+    /** C# {@code sIff.findClubSetOriginal}. */
+    public static List<IffClubSetRecord> clubSetOriginals(int specialTypeid) {
+        IffClubSetIndex clubSets = snapshot.clubSets();
+        if (clubSets.isEmpty()) {
+            return List.of();
+        }
+        return clubSets.findOriginals(specialTypeid);
+    }
+
     /** C# {@code sIff.findCaddie}. */
     public static Optional<IffCaddieRecord> caddie(int typeid) {
         IffCaddieIndex caddies = snapshot.caddies();

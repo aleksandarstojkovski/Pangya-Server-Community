@@ -8,7 +8,8 @@ public record IffClubSetRecord(
         int workShopTipo,
         int tipoRankS,
         int totalRecovery,
-        int flagTransformar) {
+        int flagTransformar,
+        int textPangya) {
 
     public static final int STAT_BYTES = 5;
 

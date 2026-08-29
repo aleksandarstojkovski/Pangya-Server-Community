@@ -16,6 +16,7 @@ public final class IffClubSetFile {
     static final int STATS_OFFSET = 208;
     static final int SLOT_STATS_OFFSET = 218;
     static final int WORK_SHOP_OFFSET = 228;
+    static final int TEXT_PANGYA_OFFSET = 256;
 
     private IffClubSetFile() {}
 
@@ -40,8 +41,11 @@ public final class IffClubSetFile {
             int totalRecovery = ByteBuffer.wrap(data, ws + 8, 4).order(ByteOrder.LITTLE_ENDIAN).getInt();
             int tipoRankS = ByteBuffer.wrap(data, ws + 16, 4).order(ByteOrder.LITTLE_ENDIAN).getInt();
             int flagTransformar = ByteBuffer.wrap(data, ws + 20, 4).order(ByteOrder.LITTLE_ENDIAN).getInt();
+            int textPangya = ByteBuffer.wrap(data, base + TEXT_PANGYA_OFFSET, 4)
+                    .order(ByteOrder.LITTLE_ENDIAN)
+                    .getInt();
             out.put(typeid, new IffClubSetRecord(
-                    typeid, stats, slots, workShopTipo, tipoRankS, totalRecovery, flagTransformar));
+                    typeid, stats, slots, workShopTipo, tipoRankS, totalRecovery, flagTransformar, textPangya));
         }
         return new IffClubSetIndex(Map.copyOf(out));
     }

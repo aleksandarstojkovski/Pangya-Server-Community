@@ -28,6 +28,18 @@ class IffClubSetFileTest {
         assertEquals(-1, air.workShopTipo());
         assertArrayEquals(new short[] {6, 6, 4, 3, 3}, air.stats());
         assertArrayEquals(new short[] {8, 9, 8, 3, 3}, air.slots());
+        assertEquals(0, air.textPangya());
+    }
+
+    @Test
+    void findClubSetOriginalMatchesTextPangya() throws Exception {
+        assumeReferenceIffPresent();
+        PangyaIffLoader.reload(JP_IFF);
+        var originals = PangyaIffLoader.clubSetOriginals(GamePackets.TYPEID_WINGTROSS_EVO);
+        assertEquals(5, originals.size());
+        assertEquals(GamePackets.TYPEID_WINGTROSS_EVO, originals.getFirst().typeid());
+        assertArrayEquals(new short[] {12, 10, 8, 3, 2}, originals.getFirst().slots());
+        assertEquals(93, originals.getFirst().textPangya());
     }
 
     @Test

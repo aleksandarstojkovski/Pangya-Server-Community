@@ -412,6 +412,7 @@ class InventoryRepositoryTest {
                 assertTrue(repo.clubSetLevelUpAny(0));
                 assertEquals(7, repo.clubSetLevelUpLimit(0, 0).orElseThrow()[0]);
                 assertEquals(100, repo.clubSetLevelUpProb(0).orElseThrow()[0]);
+                PangyaIffLoader.reload(null);
                 repo.deleteClubSetOriginal(GamePackets.TYPEID_WINGTROSS_EVO);
                 repo.upsertClubSetOriginal(
                         GamePackets.TYPEID_WINGTROSS_EVO,

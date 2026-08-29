@@ -2868,6 +2868,9 @@ public final class JdbiInventoryRepository implements InventoryRepository {
 
     @Override
     public boolean clubSetOriginalAny(int specialTypeid) {
+        if (org.pangya.protocol.iff.PangyaIffLoader.source().isPresent()) {
+            return !org.pangya.protocol.iff.PangyaIffLoader.clubSetOriginals(specialTypeid).isEmpty();
+        }
         return jdbi.withHandle(h -> h.createQuery("""
                         SELECT 1 FROM pangya.iff_clubset_original
                          WHERE special_typeid = :special
@@ -2881,6 +2884,11 @@ public final class JdbiInventoryRepository implements InventoryRepository {
 
     @Override
     public List<ClubSetOriginal> clubSetOriginals(int specialTypeid) {
+        if (org.pangya.protocol.iff.PangyaIffLoader.source().isPresent()) {
+            return org.pangya.protocol.iff.PangyaIffLoader.clubSetOriginals(specialTypeid).stream()
+                    .map(row -> new ClubSetOriginal(row.typeid(), row.slots()))
+                    .toList();
+        }
         return jdbi.withHandle(h -> h.createQuery("""
                         SELECT original_typeid, slot0, slot1, slot2, slot3, slot4
                           FROM pangya.iff_clubset_original
