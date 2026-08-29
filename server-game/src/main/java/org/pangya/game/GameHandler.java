@@ -861,6 +861,10 @@ public final class GameHandler {
             session.send(GamePackets.startGameFailed(GamePackets.START_GAME_NOT_READY));
             return;
         }
+        if (room.tipo == GamePackets.TIPO_GRAND_PRIX && !consumeGrandPrixTickets(room)) {
+            session.send(GamePackets.startGameFailed(GamePackets.START_GAME_GP_TICKET));
+            return;
+        }
         room.inGame = true;
         room.info.state = 0;
         room.startMillis = System.currentTimeMillis();
@@ -9209,6 +9213,47 @@ public final class GameHandler {
             }
         }
         return null;
+    }
+
+    /** C# {@code GrandPrix.consomeTicket}: debit GP ticket from every player before init. */
+    private boolean consumeGrandPrixTickets(GameRoom room) {
+        if (room.grandPrixTypeid == 0) {
+            return true;
+        }
+        var gpIff = PangyaIffLoader.grandPrixData(room.grandPrixTypeid);
+        if (gpIff.isEmpty()) {
+            return true;
+        }
+        var gp = gpIff.get();
+        if (gp.ticketQntd() <= 0 || gp.ticketTypeid() <= 0) {
+            return true;
+        }
+        int ticketTypeid = gp.ticketTypeid();
+        int ticketQntd = gp.ticketQntd();
+        for (Session member : room.snapshot()) {
+            long uid = member.player().uid;
+            GamePackets.WarehouseItem ticket = warehouseByTypeid(uid, ticketTypeid);
+            if (ticket == null || (ticket.c[0] & 0xffff) < ticketQntd) {
+                return false;
+            }
+            int ant = ticket.c[0] & 0xffff;
+            java.util.OptionalInt remaining =
+                    inventory.consumeWarehouseByTypeid(uid, ticketTypeid, ticketQntd);
+            if (remaining.isEmpty()) {
+                return false;
+            }
+            member.send(GamePackets.papelAwards(
+                    GamePackets.unixNow(),
+                    List.of(new GamePackets.PapelAward(
+                            GamePackets.PAPEL_AWARD_TYPE,
+                            ticketTypeid,
+                            ticket.id,
+                            0,
+                            ant,
+                            remaining.getAsInt(),
+                            -ticketQntd))));
+        }
+        return true;
     }
 
     /** C# {@code PlayerInfo.checkEquipedItem}: equipped item slots store typeids. */

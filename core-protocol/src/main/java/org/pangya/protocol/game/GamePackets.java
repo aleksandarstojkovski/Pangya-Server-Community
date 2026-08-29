@@ -1165,6 +1165,8 @@ public final class GamePackets {
 
     /** C# start-game fail when the room is not ready ({@code 0x5900202}). */
     public static final int START_GAME_NOT_READY = 0x5900202;
+    /** C# Grand Prix {@code consomeTicket} missing/qntd fail ({@code 0x5900203}). */
+    public static final int START_GAME_GP_TICKET = 0x5900203;
 
     /** C# {@code CourseManager} always materializes 18 {@code HoleManager} entries. */
     public static final int COURSE_HOLE_COUNT = 18;

@@ -5317,6 +5317,103 @@ class GameFlowIT {
         }
     }
 
+    @Test
+    void grandPrixStartConsumesTicketWhenIffLoaded() throws Exception {
+        var jpIff = java.nio.file.Path.of(
+                "reference/pangya-server-community/Server/JP/GameServer/data/pangya_jp.iff");
+        if (!jpIff.toFile().isFile()) {
+            return;
+        }
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        AppConfig config = new AppConfig(testYamlWithIff(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config);
+             PangyaFakeClient client = new PangyaFakeClient()) {
+            InventoryRepository inv = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
+            inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_GP_TICKET);
+            try {
+                inv.addWarehouseItem(10001, GamePackets.TYPEID_GP_TICKET, 1);
+                LoginRepository repo = new JdbiLoginRepository(DatabaseSupport.jdbi(ds));
+                String loginKey = repo.generateAuthKeyLogin(10001);
+                String gameKey = repo.generateAuthKeyGame(10001, 20202);
+                keys.putLoginKey(10001, loginKey);
+                keys.putGameKey(10001, 20202, gameKey);
+                loginToChannel(client, runtime.port(), "testuser", 10001, loginKey, gameKey);
+
+                client.sendPlain(GamePackets.clientGpEnter(0x100));
+                assertEquals(0, awaitOpcode(client, GamePackets.SERVER_ROOM_ENTER_RESULT).i16());
+
+                client.sendPlain(GamePackets.clientStartGame());
+                PacketReader ticket = awaitOpcode(client, GamePackets.SERVER_DAILY_QUEST_STAMP);
+                ticket.u32();
+                assertEquals(1, ticket.u32());
+                assertEquals(GamePackets.PAPEL_AWARD_TYPE, ticket.u8());
+                assertEquals(GamePackets.TYPEID_GP_TICKET, ticket.u32());
+                ticket.i32();
+                ticket.u32();
+                assertEquals(1, ticket.i32());
+                assertEquals(0, ticket.i32());
+                assertEquals(-1, ticket.i32());
+                ticket.readBytes(GamePackets.PAPEL_AWARD_PAD);
+
+                awaitOpcode(client, GamePackets.SERVER_START_GAME_FLAG);
+                awaitOpcode(client, GamePackets.SERVER_START_GAME_FLAG2);
+                awaitOpcode(client, GamePackets.SERVER_PANG_RATE);
+                assertEquals(0, warehouseQntd(inv, 10001, GamePackets.TYPEID_GP_TICKET));
+            } finally {
+                inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_GP_TICKET);
+            }
+        }
+    }
+
+    @Test
+    void grandPrixStartFailsWithoutTicketWhenIffLoaded() throws Exception {
+        var jpIff = java.nio.file.Path.of(
+                "reference/pangya-server-community/Server/JP/GameServer/data/pangya_jp.iff");
+        if (!jpIff.toFile().isFile()) {
+            return;
+        }
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        AppConfig config = new AppConfig(testYamlWithIff(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config);
+             PangyaFakeClient client = new PangyaFakeClient()) {
+            InventoryRepository inv = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
+            inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_GP_TICKET);
+            try {
+                inv.addWarehouseItem(10001, GamePackets.TYPEID_GP_TICKET, 1);
+                LoginRepository repo = new JdbiLoginRepository(DatabaseSupport.jdbi(ds));
+                String loginKey = repo.generateAuthKeyLogin(10001);
+                String gameKey = repo.generateAuthKeyGame(10001, 20202);
+                keys.putLoginKey(10001, loginKey);
+                keys.putGameKey(10001, 20202, gameKey);
+                loginToChannel(client, runtime.port(), "testuser", 10001, loginKey, gameKey);
+
+                client.sendPlain(GamePackets.clientGpEnter(0x100));
+                assertEquals(0, awaitOpcode(client, GamePackets.SERVER_ROOM_ENTER_RESULT).i16());
+                inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_GP_TICKET);
+
+                client.sendPlain(GamePackets.clientStartGame());
+                assertEquals(GamePackets.START_GAME_GP_TICKET,
+                        awaitOpcode(client, GamePackets.SERVER_START_GAME_FAIL).u32());
+            } finally {
+                inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_GP_TICKET);
+            }
+        }
+    }
+
     /** JP beginner GP {@code 0x180501}: equip slot must carry {@code 0x10000000}. */
     @Test
     void grandPrixEnterRequiresEquipWhenIffLoaded() throws Exception {
