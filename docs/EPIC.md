@@ -32,7 +32,7 @@ Lasciato nel repo. **Non** è “fatto” solo perché compila o perché un IT d
 - [x] `docker compose` Postgres + Redis + Auth + Login + Game + Ranking + Messenger healthcheck verdi — **verificato 2026-08-29T15:05:37Z** (curl `/health` → `ok … HTTP 200` × 5; `compose ps` 7/7 healthy). Rebuild `--build` **non eseguito**.
 - [~] Protocollo framing + cipher su fixture C# — tabelle `CryptoOracle` prefix C# + test verdi; ciphertext golden **assente** (vedi S-T1).
 - [x] Login e2e fake client, session key ricevuta — `LoginFlowIT` in `:server-login:test` EXIT=0 `--rerun-tasks`.
-- [x] Fake client: canale → iscrizione Torneo → partita fino alla fine → `SERVER_GAME_RESULT` + `user_info.Jogado` (`tourneyFakeClientPlaysToFinishAndReceivesResult` EXIT=0). Registry `pangya_rank_atual` non è nel finish C# Game
+- [x] Fake client: canale → iscrizione Torneo → partita fino alla fine → `SERVER_GAME_RESULT` + `GeraRankAll` registry (`tourneyFinishRebuildsRankingRegistry` + ranking fake-client EXIT=0)
 - [x] Crash di sessione non abbatte il processo — `SessionIsolationTest.throwingHandlerDoesNotKillServer` PASSED
 - [x] Questo file + `docs/STATUS.md` aggiornati a fine turno
 
