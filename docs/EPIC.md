@@ -1,200 +1,146 @@
-# EPIC — Pangya Java rewrite
+# EPIC — Pangya Java rewrite (C# JP → Java 21+)
 
-Sorgente di verità del comportamento: clone read-only
-`reference/pangya-server-community` (`https://github.com/luismk/Pangya-Server-Community`, branch `Develop`).
-Questo repo è **solo** la riscrittura Java.
+**Obiettivo:** riscrittura bit-compatible con client JP Season 9.  
+**Fonte comportamento:** `reference/pangya-server-community` (`Server/JP/`, branch C# `Develop`).  
+**Codice attuale:** branch git **`Develop`** — non ricostruire slice già mergeate lì.
 
-## Progresso
+**HEAD (2026-08-29):** `d79b5f6` — Merge PR #7 *Grand Prix parity (GP exit, timers, placar, leaveRoom)*.
 
-S0 [x] S1 [x] S2 [x] S3 [x] S4 [~] S5 [~] S6 [x]
+---
 
-S4 profondità: **173** opcode success 1:1 / **0** opcode solo fail-stub / **0** stimati rimanenti dal C# Channel
+## Progresso slice
 
-(Channel C# = 197 `packet_func_sv`. Dettaglio in `docs/STATUS.md`. **S4 non è done.**)
+```
+S0 [x]  S1 [x]  S2 [x]  S3 [x]  S4 [~]  S5 [~]  S6 [~]
+```
 
-## Questo turno
+| Metrica | Valore | Note |
+|---------|--------|------|
+| **Scheletro (S0–S6)** | **4/7 chiusi, 3 parziali** | S0–S3 done; S4–S6 aperti |
+| **Parità client** | **97/98** `GameFlowIT` + **0** capture S9 | IFF da archive reference; pin `.gbin` live non verificato |
+
+Percentuali inventate (**85% / 43%**) rimosse — non verificabili da git/test/grep.
+
+---
+
+## Questo turno (solo `d79b5f6`)
 
 | Campo | Valore |
 |-------|--------|
-| Fatto | `FriendManager` cache + auth-confirm login + auth inbound `0x0B`–`0x0D` |
-| Prossimo opcode/file C# | IFF pin/cube/`initComboDef`, capture JP S9 |
-| Percentuale epic | scheletro **85%** / parità client reale **43%** |
-| VM | Java 21.0.10, Docker 29.7.2, Compose v5.5.0, 4 CPU / 15 GiB |
+| Commit | `d79b5f6` merge PR #7 |
+| Incluso nel merge | GP `requestSaveInfo` (option 0 finish, 1 quit, 5 DC) + `UserInfoMerge` + SQL `user_info`; `leaveRoom` centralizza `deleteGrandPrixPlayer`; batch timer/placar/exit/bot da commit `7fde00f`…`bdc6597` |
+| Verifica | `./gradlew test --no-daemon` → **EXIT_CODE=1** |
 
-## Mappa C# → Java
+---
+
+## Verifica `./gradlew test` (Develop, 2026-08-29)
+
+```
+./gradlew test --no-daemon
+EXIT_CODE=1
+```
+
+Failure verificati:
+
+1. `FlywayMigrationTest.migratesAndIsIdempotent` — expected migrate count 0, was 4 (`:core-db:test`)
+2. `GameFlowIT.personalShopBuyIncrementsAchievementCounter` — `IllegalStateException: no server packet` (`:server-game:test`)
+
+Moduli con test verdi nel run: `:core-protocol`, `:core-network`, `:server-auth`, `:server-login`, `:server-ranking`, `:server-messenger` (non rieseguiti singolarmente dopo il fail).
+
+---
+
+## Git log `Develop` (ultimi 30 commit, estratto)
+
+```
+d79b5f6 Merge PR #7 GP finish extras
+7fde00f Persist GP finish stats via requestSaveInfo option 0
+4facc86 Wire GP quit requestSaveInfo to user_info SQL
+4bd594a Wire GP deletePlayer into generic leaveRoom
+901507b Align GP bad-conduct kick with deletePlayer wire order
+bc20ad7 Merge PR #6 GP finish extras
+6b5bf63 Wire GP exit deletePlayer parity before 0x254
+d5b0635 Stop GP rule timer on hole load and hole timeout
+f1f023b Fix GP placar ranking (game score not mediaScore)
+829a98a Fix GP rule timer stop on sync-shot hole-out
+… (GP bot, early exit, rewards IFF, tickets, enter gates — commit bc20ad7…bdc6597)
+```
+
+Tema dominante su `Develop`: **Grand Prix parity** (PR #6 + #7). Doc precedenti che citavano FriendManager/attendance come “questo turno” erano **fuori sync**.
+
+---
+
+## Inventario handler Channel (grep)
+
+| | C# `GameService.funcs` | Java `GameHandler` switch |
+|--|----------------------|---------------------------|
+| Opcode client unici | **193** | **196** (include KEEPALIVE + 2 extra) |
+| Mancanti in Java | **0** | — |
+| No-op Java `{ }` | — | **9** opcode |
+
+No-op verificati: `0x88` GAMEGUARD, `0xB4` INVITE_RELOGIN, `0x61` REQUEST_KICK, `0xFE` UCC_LOAD, `0x12D` GZ_INITIAL, `0x192` EVENT_ARIN, `0xF4` HEARTBEAT, `0x01` KEEPALIVE, `0x29` CHECK_INVITE.
+
+Affermazione storica “173 success 1:1 / 0 fail-stub”: **non verificata** in questo audit.
+
+---
+
+## Lacune grep (handler / IFF / not ported)
+
+| Pattern | Risultato |
+|---------|-----------|
+| `CoinCubeLocationUpdateSystem` / `calcule_shot_to_coin` in Java | **0 match** — C# `TourneyBase.requestSyncShot` li chiama; Java `syncShot` no |
+| `requestSaveInfo` fuori GP | **non verificato** wiring Tourney/Versus/Match |
+| `not ported` | `GlobalCatalogs` auth reload tipo **18** smart calculator |
+| `stub` | `GlobalCatalogs` auth reload tipi **12–17** event SQL |
+| TODO IFF espliciti | **0** in `server-game/` (solo commenti “not ported” sopra) |
+
+---
+
+## Piano slice (checklist)
+
+| Slice | Scope | Stato Develop |
+|-------|-------|---------------|
+| **S0** | Gradle, Compose, Flyway, stub 5 server | [x] — 43 migration; test Flyway idempotency **FAIL** |
+| **S1** | Netty, Cipher, MiniLZO, session | [x] — test verdi |
+| **S2** | Auth + Login + Redis session key | [x] — test verdi |
+| **S3** | Game core + Practice | [x] — IT verde |
+| **S4** | Modalità C# + manager char/card/caddie/achievement | [~] — dispatch 193/196; GP deep parity mergeato; coin-cube learning + save-info altri modi aperti |
+| **S5** | Ranking + Messenger | [~] — moduli + IT base; capture client non verificato |
+| **S6** | Metriche, load 3000, `scripts/verify.sh` | [~] — SessionLoadIT OK; **`./gradlew test` FAIL**; verify.sh non eseguito |
+
+---
+
+## Mappa C# → Java (invariata)
 
 | C# (JP) | Java |
 |---------|------|
-| `PangyaAPI.Network.Cryptor.Cipher` | `org.pangya.protocol.crypto.Cipher` (S1 done) |
-| `PangyaAPI.Network.Cryptor.CryptoOracle` | `org.pangya.protocol.crypto.CryptoOracle` — tabelle 4096 byte embeddate da C# |
-| `PangyaAPI.Network.Cryptor.MiniLzo` | `org.pangya.protocol.crypto.MiniLzo` (S1 done) |
-| `PangyaAPI.Network.PangyaPacket.PacketBuffer` | `org.pangya.protocol.frame.PacketBuffer` (S1) |
-| `PangyaAPI.Network.PangyaSession.Session` | `org.pangya.network.session.Session` (S1) |
-| `PangyaAPI.Network.PangyaUtil.ConfigDDos` | `org.pangya.network.ddos.IpDdosFilter` (S1) |
-| `PangyaAPI.Network.PangyaUnit.unit_auth_server_connect` | `org.pangya.network.auth.AuthServerConnector` (S2 done) |
-| `PangyaAPI.SQL` ODBC/SQL Server | `org.pangya.db` Jdbi + PostgreSQL. **Niente stored proc**: 502 `Proc*` restano in C#; Java userà SQL esplicito equivalente quando serve un comando |
-| `AuthServer` tipo=5 port 7777 | `:server-auth` |
-| `LoginServer` tipo=0 port 10203 | `:server-login` |
-| `GameServer` tipo=1 port 20202 | `:server-game` |
-| `RankingServer` tipo=4 port 4774 | `:server-ranking` |
-| `MessengerServer` tipo=3 port 30201 | `:server-messenger` |
-| `server.ini` | `application.yml` + env vars |
-| kernel32 / dbghelp / Console.Title / DSN | **non portati** |
+| `PangyaAPI.Network.Cryptor.Cipher` | `org.pangya.protocol.crypto.Cipher` |
+| `PangyaAPI.Network.Cryptor.CryptoOracle` | `org.pangya.protocol.crypto.CryptoOracle` |
+| `PangyaAPI.Network.Cryptor.MiniLzo` | `org.pangya.protocol.crypto.MiniLzo` |
+| `PangyaAPI.SQL` + stored proc | `org.pangya.db` Jdbi + PostgreSQL SQL esplicito |
+| `AuthServer` / `LoginServer` / `GameServer` / `RankingServer` / `MessengerServer` | `:server-auth` / `:server-login` / `:server-game` / `:server-ranking` / `:server-messenger` |
+| `server.ini` | `application.yml` + env |
 
-Canali Game: restano in config YAML (come INI C#), non in DB.
+502 stored procedures C# **non portate** — equivalente Java = SQL Jdbi per-comando (`V1__pangya_schema.sql` commento).
 
-### Porte Auth
-
-Nel dump JP Auth INI usa `5577`; Login/Game Java restano su **7777** (stesso bind Compose/test). Le porte client Login/Game restano 10203/20202 (JP INI 10903/20301) così i test e Compose non cambiano; il client prende la lista GS dal Login.
-
-## Piano slice
-
-| Slice | Scope | Verifica dichiarata |
-|-------|-------|---------------------|
-| **S0** | Gradle, Compose postgres+redis, Flyway V1 175 tabelle, stub 5 server, docs | `docker compose up -d postgres redis` healthy; `./gradlew :core-db:test :core-protocol:test :core-network:test`; Flyway su Postgres vuoto |
-| **S1** | Netty + framing LE + Cipher bit-compat + session + no Sleep-poll | `./gradlew :core-protocol:test :core-network:test` + handshake fake client |
-| **S2** | Auth + Login + Redis session key + fake client login | compose Auth+Login+db+redis |
-| **S3** | Game core + Practice | integrazione Practice; kill sessione non crasha |
-| **S4** | Tutte le modalità C# + manager char/card/caddie/achievement | **non done** — Channel 197; ~173 success 1:1 / 0 fail-stub / 0 remaining; IFF cubes/combo/capture aperti |
-| **S5** | Ranking + Messenger | compose 5 server |
-| **S6** | Metriche, carico ≥3000 o max VM, `scripts/verify.sh` completo | gradle test + compose health |
+---
 
 ## Schema PostgreSQL
 
-- Tradotto da `SQL/bk-schema-mssql-complet2022.sql` (UTF-16) con `scripts/convert-mssql-schema.py`.
-- **175** tabelle in schema `pangya` (esclusi `temp_*` usati solo dentro stored proc) più **V8** `shop_catalog`, **V11** `cadie_magic_box`/`iff_caddie`/`iff_mascot`, **V12** `iff_card`, **V13** `iff_character_mastery`, **V14** `iff_character`/`iff_enchant`, **V15** `iff_card.efeito`, **V17** `iff_time_limit_item`, **V18** `iff_clubset`, **V19** `iff_part`, **V20** `iff_clubset` SlotStats, **V21** `iff_clubset_rank_exp`/`tipo_rank_s`, **V22** `iff_item`/`iff_clubset_level_up_limit`/`prob`/`total_recovery`, **V23** `iff_clubset_rank_exp.rank0`–`rank5`, **V24** `flag_transformar`/`iff_clubset_original`, **V25** `iff_cutin_information`, **V26** `box_mail_catalog`, **V27** `iff_card.efeito_tempo`, **V28** `card_pack_catalog`, **V29** `memorial_reward_catalog`, **V30** `ticket_report_catalog`, **V31** `grand_prix_event`, **V32** `legacy_tiki_item_value`, **V33** new-Tiki metadata, **V34** daily quest IFF e **V35** warehouse UCC fields (200).
-- Tipi: `NVARCHAR`/`VARCHAR(n)` → `VARCHAR(n)` o `TEXT`; `DATETIME`/`DATETIME2` → `TIMESTAMPTZ`; `IDENTITY` → `GENERATED BY DEFAULT AS IDENTITY`; `TINYINT` → `SMALLINT`; `BIT` → `BOOLEAN`; `UNIQUEIDENTIFIER` → `UUID`.
-- Nomi colonna originali preservati (quoted), inclusi `"Tempo tacadas"`, `"O.B"`, `"Long-putt"`, `"16bit_naosei"`.
-- **502 stored procedures non convertite.** Equivalente Java = SQL Jdbi per-comando, non funzioni PG, salvo se una query ranking/inventario risulta semanticamente ambigua (gate).
-- Seed minimo V2: `pangya_rank_config` (refresh_time_H=1). Cataloghi achievement/gacha/eventi: slice successive, dump C# come fonte.
-- DB di partenza: **vuoto** (niente migrazione dati SQL Server).
+- Flyway **V1–V43** su `Develop`.
+- `FlywayMigrationTest` assert **202** tabelle schema `pangya` (doc vecchio “175”: **obsoleto**).
+- Seed/cataloghi IFF in migration S4–S6 (shop, GP event, coin_cube, daily quest, …).
 
-## Cipher / framing (da implementare in S1, già mappato)
+---
 
-Dati già estratti in `core-protocol/src/main/resources/org/pangya/protocol/crypto/*.bin`.
+## Prossima slice (dopo `Develop`, non da S0)
 
-**ServerEncrypt** (`Cipher.cs:124-159`): MiniLZO compress → header 8 byte (salt, len LE tot-3, public^private, z/y/x size triple) → XOR reverse da fine → XOR `buffer[7]` con private[idx]. Salt usato in produzione = 0.
+1. **Verde `./gradlew test`** — fix `FlywayMigrationTest` + `GameFlowIT.personalShopBuyIncrementsAchievementCounter`.
+2. **S4:** port/wire `calcule_shot_to_coin` + `CoinCubeLocationUpdateSystem` in `syncShot` (C# `TourneyBase` / GP override).
 
-**DecryptClient** (`Cipher.cs:16-44`): frame 5 byte; `buffer[4] = private[(key<<8)+source[0]]`; XOR chain da i=8; strip 5 byte. No compress client→server.
+**Stop:** nessun nuovo opcode finché questa riconciliazione doc non è approvata.
 
-**Primo pacchetto raw (non cifrato):**
-- Login: JP `makeRaw` opcode 0 + int32 key + int32 server uid (`PacketIo.loginHello`)
-- Game: raw opcode `0x3F` + key + IP (`makeRaw`)
-- Auth (server-to-server): raw `0x00` + uint32 key + int32 server uid
+---
 
-Plaintext dopo decrypt: `int16 LE` opcode + payload. Stringhe Shift_JIS nel C#.
+## Contraddizioni doc precedenti vs `Develop`
 
-## Rischi
-
-1. MiniLZO deve essere il port del C# (`MiniLzo.cs`), non una lib LZO generica — golden bytes dal C# in S1.
-2. 502 proc: parità query-by-query; rischio di semantica ranking/inventario (gate se due interpretazioni cambiano il gameplay).
-3. Client binario Pangya non è nell'env; da S2 in poi fake client + fixture. Non scaricare warez.
-4. IFF files (catalogo item) ancora da decidere: parser Java vs leggere i binari client se presenti in `Server/JP` reference. Non bloccante per S0–S1.
-5. Collation / locking SQL Server vs PG: default PG; si interviene solo se test di gioco divergono.
-
-## Comandi di verifica (S0)
-
-Eseguiti 2026-08-28 su questa VM:
-
-```
-docker compose up -d postgres redis
-# postgres=healthy redis=healthy  (postgres:16-alpine, redis:7.4.11)
-
-./gradlew --no-daemon :core-protocol:test :core-network:test :core-db:test
-# CryptoOracleTest 2/2 PASSED
-# PangyaProcessTest 2/2 PASSED
-# FlywayMigrationTest migratesEmptyDatabaseAndIsIdempotent PASSED
-# BUILD SUCCESSFUL
-
-docker compose exec -T postgres psql -U pangya -d pangya \
-  -c "select count(*) from information_schema.tables where table_schema='pangya';"
-# pangya_tables = 175
-```
-
-Nota VM: Docker nested overlayfs fallisce (`invalid argument`); daemon.json `storage-driver: vfs` fa partire i container. Non è parte del repo.
-
-## S1 evidenza (2026-08-28)
-
-```
-./gradlew --no-daemon :core-protocol:test :core-network:test
-# CipherTest miniLzoRoundtrip / serverEncryptDecrypt / clientEncryptDecrypt PASSED
-# PacketIoTest loginHello + gameHello PASSED
-# HandshakeNettyTest loginClientReceivesHardcodedKeyFrame PASSED
-# BUILD SUCCESSFUL
-```
-
-Cipher + MiniLZO portati da `Cipher.cs` / `MiniLzo.cs`. Roundtrip Java encrypt↔decrypt verde. Handshake Login 14-byte (key al byte 6) verificato con client Netty. Dispatch dominio su virtual thread; eccezione handler non abbatte il process (`SessionIsolationTest`).
-
-Golden bytes da capture client reale: ancora assenti (gap documentato).
-
-## S2 evidenza (2026-08-28)
-
-JP `Develop` è la fonte dei byte Login (`packet_func_ls.pacote001` option=0: PStr id, uid, cap, byte 1, int32 0, byte 1, int32 5, SYSTEMTIME, PStr acess_code/web key, uint64 0, PStr nick). GB S9 ha un layout diverso — **non** usato.
-
-Flusso implementato:
-1. Login hello JP `makeRaw` opcode 0 + int32 key + int32 server uid → CLIENT_CONNECT `0x01` (`LoginData`) → ban IP → verify ID/pass su `pangya.account` (password **come inviata dal client**, JP sovrascrive l'MD5) → `user_info.level` → success `0x10` authkey + web key + `0x01` + `0x02` GS list + `0x09` MS list + `0x06` 9×64 macros.
-2. CLIENT_SELECT_GS `0x03` → `0x03` auth key game (8 hex) in `authkey_game` + Redis.
-3. Auth S2S: raw `0x00` key+uid → child `0x01` register (tipo, uid, PStr name/key/version, packetVersion) → ack `0x01` int32 oid. Chiave in `pangya_auth_key`. Reconnect exponential backoff su virtual thread.
-4. Seed V3: account `testuser`/`testpass` uid=10001, FIRST_LOGIN=1, FIRST_SET=1. Login heartbeat mantiene `pangya_server_list` (Game type=1, Messenger type=3) dentro la finestra 8s di `ProcGetServerList`.
-
-```
-./gradlew --no-daemon :core-protocol:test :core-network:test :core-db:test :server-login:test :server-auth:test
-# LoginPacketsTest 11/11 PASSED
-# LoginRepositoryTest PASSED (auth keys 8/16, server list upsert)
-# LoginFlowIT fakeClientLoginReceivesServerListAndCanSelectGs PASSED
-# LoginFlowIT badPasswordSendsOption6 PASSED
-# AuthS2sIT loginChildRegistersAndReceivesOid PASSED
-# BUILD SUCCESSFUL
-```
-
-Create-user flag C# (`CREATEUSER=1`) **non** portato in S2: account assente → option 6. FIRST_LOGIN/FIRST_SET packet 0xD8/0xD9: seed `testuser` è già completo; seed V7 `newuser` esercita 0x06/0x07/0x08.
-
-## Inventario Practice (S3)
-
-C# `LoginTask.sendCompleteData` invia `pacote044` option 0 con JP `principal()` (PStr `JP.R7.983.00` + 12270 byte fissi: MemberInfoEx 299, UserInfo 265, niente pad 277 GB) poi **ordine JP**: characters `0x70` + caddies `0x71` + warehouse `0x73` + mascot `0xE1` + equip `0x72` + `pacote04D` + coda (`0x102`, `0x131`, counter/achievement, **`0xF1`**, **`0x135`**, `0x144`… due `0x25D`; **niente** GB `0x1B1`). Java carica warehouse/character/caddie/`user_equip`/mascot/card da SQL (seed V4: Nuri `0x4000000`, Air Knight `0x10000000`, ball `0x14000000`). Create-room accetta tutti i `RoomInfo.TIPO` 0–20 e risponde `pacote049` con `Room.getInfo().ToArray()` (210 byte). Start-game `0x0E` manda `0x230`+`0x231`+`0x77` per Practice/GP/GZ; Versus/Tourney a un giocatore fallisce con `0x253` come C#. Hole/shot IFF restano aperti.
-
-## S3 evidenza (2026-08-28)
-
-`RoomInfo.TIPO.PRACTICE = 19` (SSC = 18). Game hello raw `0x3F`. CLIENT `0x02` valida auth keys Redis+SQL e `Version_Decrypt` (XOR GUID). Success: `0x44` + JP `principal()` + **JP inventory order** chars/caddies/warehouse/mascot/equip + `0x4D`. `0x04` → `0x4E` option 1. Leave `0x130`. Kill sessione: secondo login dopo disconnect.
-
-```
-./gradlew --no-daemon :core-protocol:test :core-network:test :core-db:test :server-login:test :server-auth:test :server-game:test
-# GamePacketsTest principalPayloadMatchesJpLayout PASSED
-# GameFlowIT fakeClientLogsInEntersChannelCreatesAndLeavesPractice PASSED
-# GameFlowIT badGameKeySendsSecurityAck PASSED
-# BUILD SUCCESSFUL
-```
-
-## S4/S5/S6 evidenza (2026-08-28)
-
-`RoomInfoEx.ToArray` = 210 byte. Practice `tipo_show=4`, `tipo_ex=19`. Start-game C# `requestStartGame`: `0x230`, `0x231`, `0x77` pang rate; Versus 1 player → `0x253` `0x5900202`. Ranking hello raw `0x1388` key+type 5; first page `0x1389` empty registry. Messenger hello raw `0x2E` + uint32 key; login `0x2F` + friend `0x30` sub `0x115`. `/metrics` Prometheus su ogni health port.
-
-```
-./gradlew --no-daemon :core-protocol:test :core-network:test :core-db:test \
-  :server-login:test :server-auth:test :server-game:test :server-ranking:test :server-messenger:test
-# GamePacketsTest warehouseAndCharacterSizesMatchCsharp PASSED (RoomInfo 210, Mascot 62, Card 58)
-# GameFlowIT fakeClientLogsInEntersChannelCreatesAndLeavesPractice PASSED
-# RankingFlowIT fakeClientLoginReceivesEmptyFirstPage PASSED
-# MessengerFlowIT fakeClientLoginThenEmptyFriendList PASSED
-# SessionLoadIT loginHellosHoldThousandsOfSessions PASSED (3000)
-# PangyaProcessTest metricsEndpointScrapesSessionGauge PASSED
-# BUILD SUCCESSFUL
-```
-
-Compose 5-server `/health` verified 2026-08-28 on this VM (nested Docker vfs: Java → Postgres/Redis/Auth via `host.docker.internal` because the compose bridge drops inter-container packets):
-
-```
-docker compose up -d --force-recreate auth login game ranking messenger
-# auth/login/game/ranking/messenger = healthy
-curl -fsS http://127.0.0.1:9077/health   # ok auth
-curl -fsS http://127.0.0.1:9103/health   # ok login
-curl -fsS http://127.0.0.1:9202/health   # ok game
-curl -fsS http://127.0.0.1:9474/health   # ok ranking
-curl -fsS http://127.0.0.1:9302/health   # ok messenger
-```
-
-Hole/shot IFF cubes (live pin/cube coords from client IFF) e IFF `initComboDef` restano aperti. Shop buy usa SQL `shop_catalog` al posto dei binari IFF: CLIENT `0x1D` → `0xC8`/`pacote0AA`/`0x68` option 0 per typeid `0x1A000006`. Gift CLIENT `0x1F` at level ≥6 charges pang without warehouse then `0x6A` 0. Personal-shop listing CLIENT `0x7C` → `0xEB` u32 1 + nick 22 + uid + 172-byte items; buy CLIENT `0x7D` → `0xEC` both + `0xED` + seller `0x40` option 7. Papel play CLIENT `0x14B`/`0x186` with SQL `pangya_papel_shop_*` → `0x216` awards + `0xFB` -1/-3 + `0x21B`/`0x26C` balls (price 1000/3000). Practice `0x76`/`0x52`/`0x1A`/`0x1B`/`0x1C`, Versus 2p `0x76` dump + load-ok `0x9E`/`0x5B`/`0x53` + CONTINUE_GO `0x5B`/`0x63`, **Match** 2p versus dump, **Tourney** 2p `0x76`+`0x52`, **Grand Prix** solo `0x76`+`0x52`, **GZ INT** solo `0x76` tipo_show 11, **SSC** 2p Tourney path, lounge CLIENT `0xEB` → `0x196`, lobby CLIENT `0x81` → `0x46`/`0x47`/`0xF5`, chat `0x03`→`0x40`, ready `0x0D`→`0x78`, change-room `0x0A`→`0x4A`, player info CLIENT `0x2F` dump+`0x89`, macros `0x69`, GS list `0x9F`, rank `0xA2`, team `0x7D`, room detail `0x2D`→`0x86`, leave master `0x7C`, kick `0x26`, nick `0x07`→`0xA1`, messenger `0x30`/`0x102` pages, `pacote048`/`0x4A`, equip `0x20` type 0/1/3/5/8, ranking SQL + live CharacterInfo, friend CRUD, Login first-set `0x06`/`0x07`/`0x08` sono nel fake-client.
-
-## Note GC / Netty (S6)
-
-Prometheus `/metrics` su ogni health port (`pangya_sessions`, `pangya_uptime_seconds`). `SessionLoadIT` apre 3000 hello Login (filtro anti-DDoS disattivato per il test sintetico da un solo IP). Compose health dei 5 server: `docker compose up --build` + `/health` su 9077/9103/9202/9474/9302.
+Vedi tabella completa in `docs/STATUS.md`. In sintesi: “questo turno” errato, percentuali inventate, S6 marcato done con test rossi, conteggio opcode/stub non allineato, tabelle 175 vs 202, evidenza Compose 2026-08-28 non ri-verificata.
