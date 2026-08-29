@@ -56,6 +56,10 @@ final class GameRoom {
             new ConcurrentHashMap<>();
     /** C# {@code pgi.finish_item_used}: oid → finished item settlement. */
     final ConcurrentHashMap<Integer, Boolean> finishItemUsed = new ConcurrentHashMap<>();
+    /** C# server {@code RateValue.clubset} from {@code SERVERINFO.CLUBMASTERYRATE}. */
+    int clubMasteryServerRate = 100;
+    /** C# {@code used_item.club}: per-player club mastery accumulator. */
+    final ConcurrentHashMap<Integer, ClubMasteryState> clubMastery = new ConcurrentHashMap<>();
     /**
      * C# {@code PlayerGameInfo.flag} ({@link GamePackets#FLAG_GAME_PLAYING} …).
      */
@@ -236,6 +240,7 @@ final class GameRoom {
         activeUses.remove(session.oid());
         passiveUses.remove(session.oid());
         finishItemUsed.remove(session.oid());
+        clubMastery.remove(session.oid());
         gameFlags.remove(session.oid());
         pendingAchievementCounters.remove(session.player().uid);
         shops.remove(session.player().uid);
@@ -579,6 +584,49 @@ final class GameRoom {
                 uses.merge(typeid, 1, Integer::sum);
             }
         }
+    }
+
+    /** C# {@code UsedItem.club}: equipped clubset mastery accumulation. */
+    static final class ClubMasteryState {
+        int clubTypeid;
+        int clubId;
+        int accumulated;
+        float clubRate = 1.0f;
+        int playerRateClub = 100;
+    }
+
+    /** C# {@code requestIniItemUsedGame} clubset block. */
+    void initClubMastery(int oid, int clubTypeid, int clubId, float clubRate, int playerRateClub) {
+        if (clubTypeid == 0 || clubId == 0) {
+            return;
+        }
+        ClubMasteryState state = new ClubMasteryState();
+        state.clubTypeid = clubTypeid;
+        state.clubId = clubId;
+        state.clubRate = clubRate;
+        state.playerRateClub = playerRateClub;
+        clubMastery.put(oid, state);
+    }
+
+    /** C# {@code GameBase.requestUpdateItemUsedGame} club mastery increment. */
+    void updateClubMasteryOnHoleFinish(int oid) {
+        ClubMasteryState state = clubMastery.get(oid);
+        if (state == null) {
+            return;
+        }
+        int increment = (int) (10.0f
+                * state.clubRate
+                * transfServerRate(clubMasteryServerRate)
+                * transfServerRate(state.playerRateClub));
+        state.accumulated += Math.max(0, increment);
+    }
+
+    ClubMasteryState clubMasteryState(int oid) {
+        return clubMastery.get(oid);
+    }
+
+    static float transfServerRate(int value) {
+        return value <= 0 ? 1.0f : value / 100.0f;
     }
 
     boolean hasFinishItemUsed(int oid) {

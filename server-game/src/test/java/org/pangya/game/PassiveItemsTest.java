@@ -45,4 +45,17 @@ class PassiveItemsTest {
         assertTrue(room.tryUseActive(1, 0x18000025));
         assertEquals(1, use.count);
     }
+
+    @Test
+    void clubMasteryAccumulatesTenPointsPerHoleAtDefaultRates() {
+        PacketReader created = new PacketReader(GamePackets.clientCreatePractice("t", "s"));
+        created.opcode();
+        GameRoom room = new GameRoom(GamePackets.readCreateRoom(created), 1, 10001, 100, 100, 0);
+        room.clubMasteryServerRate = 100;
+        room.initClubMastery(1, GamePackets.TYPEID_AIR_KNIGHT, 9, 1.0f, 100);
+        room.updateClubMasteryOnHoleFinish(1);
+        assertEquals(10, room.clubMasteryState(1).accumulated);
+        room.updateClubMasteryOnHoleFinish(1);
+        assertEquals(20, room.clubMasteryState(1).accumulated);
+    }
 }

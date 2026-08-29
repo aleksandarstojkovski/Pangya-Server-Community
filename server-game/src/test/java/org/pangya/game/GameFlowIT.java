@@ -350,6 +350,9 @@ class GameFlowIT {
             PacketReader joined = awaitOpcode(guest, GamePackets.SERVER_ROOM_ENTER_RESULT);
             assertEquals(0, joined.i16());
 
+            InventoryRepository inv = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
+            inv.addWarehouseItem(10001, PassiveItems.TIME_BOOSTER, 5);
+
             host.sendPlain(GamePackets.clientStartGame());
             awaitOpcode(host, GamePackets.SERVER_START_GAME_FLAG);
             awaitOpcode(host, GamePackets.SERVER_START_GAME_FLAG2);

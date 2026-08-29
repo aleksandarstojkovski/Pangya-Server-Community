@@ -854,6 +854,8 @@ public final class GameHandler {
         room.activeUses.clear();
         room.passiveUses.clear();
         room.finishItemUsed.clear();
+        room.clubMastery.clear();
+        room.clubMasteryServerRate = liveRateClubMastery;
         if (room.tipo == GamePackets.TIPO_MATCH) {
             room.resetMatchTeams();
         }
@@ -864,6 +866,10 @@ public final class GameHandler {
             GamePackets.UserEquip equip = inventory.userEquip(uid);
             room.initActiveItems(member.oid(), equip.itemSlot);
             initPassiveItemsForGame(room, member.oid(), uid, equip);
+            GamePackets.WarehouseItem club = warehouseById(uid, equip.clubsetId);
+            if (club != null) {
+                room.initClubMastery(member.oid(), club.typeid, club.id, 1.0f, 100);
+            }
         }
         room.broadcast(GamePackets.startGameFlag());
         room.broadcast(GamePackets.startGameFlag2());
@@ -1379,7 +1385,31 @@ public final class GameHandler {
         if (equipChanged) {
             inventory.updateUserEquip(uid, equip);
         }
+        applyClubMasteryAtFinish(session, room, oid, uid);
         room.markFinishItemUsed(oid);
+    }
+
+    /** C# {@code requestFinishItemUsedGame} club mastery persist + {@code 0x216} type {@code 0xCC}. */
+    private void applyClubMasteryAtFinish(Session session, GameRoom room, int oid, long uid) {
+        GameRoom.ClubMasteryState state = room.clubMasteryState(oid);
+        if (state == null || state.accumulated <= 0) {
+            return;
+        }
+        GamePackets.WarehouseItem club = warehouseById(uid, state.clubId);
+        if (club == null || club.typeid != state.clubTypeid) {
+            return;
+        }
+        int mastery = club.workshopMastery + state.accumulated;
+        inventory.setClubSetMasteryPts(uid, club.id, mastery);
+        session.send(GamePackets.workshopCcUpdate(
+                GamePackets.unixNow(),
+                club.typeid,
+                club.id,
+                club.workshopC,
+                mastery,
+                club.workshopLevel,
+                club.workshopRank,
+                club.workshopRecovery));
     }
 
     /**
@@ -1407,6 +1437,7 @@ public final class GameHandler {
                 session.oid(),
                 equip.ballTypeid,
                 character == null ? null : character.auxparts);
+        room.updateClubMasteryOnHoleFinish(session.oid());
         shot.tacadaNum = 0;
     }
 
@@ -1651,9 +1682,9 @@ public final class GameHandler {
     }
 
     /**
-     * C# {@code packet065}: f32 speed → {@code 0xC7}. C# non-premium consumes
-     * warehouse TIME_BOOSTER (IFF); without that item the catch is silent.
-     * Java skips consume and always replies.
+     * C# {@code packet065} / VersusBase {@code requestActiveBooster}: f32 speed →
+     * {@code 0xC7}. Non-premium requires warehouse Time Booster in {@code v_passive};
+     * missing item or spent uses is silent (C# catch).
      */
     private void activeBooster(Session session, PacketReader reader) {
         GameRoom room = inGameRoom(session);
@@ -1661,6 +1692,11 @@ public final class GameHandler {
             return;
         }
         float speed = reader.f32();
+        GamePackets.WarehouseItem item = warehouseByTypeid(session.player().uid, PassiveItems.TIME_BOOSTER);
+        int qntd = item == null ? 0 : item.c[0] & 0xffff;
+        if (room.tryUsePassive(session.oid(), PassiveItems.TIME_BOOSTER, qntd) != 0) {
+            return;
+        }
         byte[] pkt = GamePackets.speedRate(speed, session.oid());
         if (GamePackets.usesVersusInitialData(room.tipo)) {
             room.broadcast(pkt);
@@ -2892,6 +2928,8 @@ public final class GameHandler {
         room.activeUses.clear();
         room.passiveUses.clear();
         room.finishItemUsed.clear();
+        room.clubMastery.clear();
+        room.clubMasteryServerRate = liveRateClubMastery;
         room.gameFlags.clear();
         room.clearPendingAchievementCounters();
         if (room.tipo == GamePackets.TIPO_MATCH) {
