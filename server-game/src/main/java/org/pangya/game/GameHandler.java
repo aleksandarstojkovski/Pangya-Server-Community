@@ -535,13 +535,158 @@ public final class GameHandler {
         PlayerContext pi = session.player();
         if (pi.channelId == channelId) {
             session.send(GamePackets.channelEnter(GamePackets.CHANNEL_ENTER_OK));
+            processEnterChannelAttendance(session);
             return true;
         }
         adjustChannelCount(pi.channelId, -1);
         pi.channelId = channelId;
         found.currUser++;
         session.send(GamePackets.channelEnter(GamePackets.CHANNEL_ENTER_OK));
+        processEnterChannelAttendance(session);
         return true;
+    }
+
+    private static final String ATTENDANCE_MAIL_MESSAGE = "Your Attendance rewards have arrived!";
+
+    /**
+     * C# {@code GameService.requestEnterChannel} after {@code pacote04E(1)}:
+     * mails {@code ari.now} and sends {@code pacote248} on login state 2/3 or
+     * {@code passedOneDay}. GP/fortune/bot ticket grants remain deferred.
+     */
+    private void processEnterChannelAttendance(Session session) {
+        long uid = session.player().uid;
+        InventoryRepository.AttendanceReward ari = inventory.attendanceReward(uid)
+                .orElse(new InventoryRepository.AttendanceReward(0, 0, 0, 0, 0, null));
+        int loginState = attendanceLoginState(ari);
+        Instant today = attendanceToday();
+        if (loginState == 2 || loginState == 3) {
+            grantEnterChannelFreshAttendance(session, uid, ari, today);
+            return;
+        }
+        if (passedOneDay(ari.lastLogin())) {
+            grantEnterChannelDailyAttendance(session, uid, ari, today);
+        }
+    }
+
+    /** C# {@code CmdAttendanceRewardInfo}: {@code login} 2/3 when {@code counter==0}. */
+    private static int attendanceLoginState(InventoryRepository.AttendanceReward ari) {
+        if (ari.counter() != 0) {
+            return 0;
+        }
+        if (ari.afterTypeid() == 0 && ari.afterQntd() == 0) {
+            return 3;
+        }
+        if (ari.nowTypeid() == 0 && ari.nowQntd() == 0) {
+            return 2;
+        }
+        return 0;
+    }
+
+    private void grantEnterChannelFreshAttendance(
+            Session session,
+            long uid,
+            InventoryRepository.AttendanceReward ari,
+            Instant today) {
+        int counter = ari.counter() == 0 ? 1 : ari.counter() + 1;
+        Optional<InventoryRepository.AttendanceCatalogItem> reward =
+                drawAttendance(GamePackets.ATTENDANCE_TIPO_NORMAL);
+        if (reward.isEmpty()) {
+            return;
+        }
+        int nowTypeid = reward.get().typeid();
+        int nowQntd = reward.get().qntd();
+        int afterTypeid = ari.afterTypeid();
+        int afterQntd = ari.afterQntd();
+        if (!attendanceCatalogExists(nowTypeid)) {
+            Optional<InventoryRepository.AttendanceCatalogItem> retry =
+                    drawAttendance(attendanceTipo(counter));
+            if (retry.isEmpty()) {
+                return;
+            }
+            nowTypeid = retry.get().typeid();
+            nowQntd = retry.get().qntd();
+        } else if (!attendanceCatalogExists(afterTypeid)) {
+            Optional<InventoryRepository.AttendanceCatalogItem> after =
+                    drawAttendance(attendanceTipo(counter));
+            if (after.isPresent()) {
+                afterTypeid = after.get().typeid();
+                afterQntd = after.get().qntd();
+            }
+        }
+        mailAttendanceReward(uid, nowTypeid, nowQntd);
+        inventory.upsertAttendanceReward(uid, new InventoryRepository.AttendanceReward(
+                0, nowTypeid, nowQntd, afterTypeid, afterQntd, today));
+        session.send(GamePackets.attendanceOk(
+                GamePackets.SERVER_ATTENDANCE,
+                0, nowTypeid, nowQntd, afterTypeid, afterQntd, 0));
+    }
+
+    private void grantEnterChannelDailyAttendance(
+            Session session,
+            long uid,
+            InventoryRepository.AttendanceReward ari,
+            Instant today) {
+        int counter = ari.counter();
+        int nowTypeid = ari.afterTypeid();
+        int nowQntd = ari.afterQntd();
+        int afterTypeid = ari.afterTypeid();
+        int afterQntd = ari.afterQntd();
+        if (nowTypeid == 0 || !attendanceCatalogExists(nowTypeid)) {
+            Optional<InventoryRepository.AttendanceCatalogItem> draw =
+                    drawAttendance(attendanceTipo(counter + 1));
+            if (draw.isEmpty()) {
+                return;
+            }
+            nowTypeid = draw.get().typeid();
+            nowQntd = draw.get().qntd();
+            if (nowTypeid == 0) {
+                draw = drawAttendance(attendanceTipo(counter + 1));
+                if (draw.isEmpty()) {
+                    return;
+                }
+                nowTypeid = draw.get().typeid();
+                nowQntd = draw.get().qntd();
+            }
+        } else if (!attendanceCatalogExists(afterTypeid)) {
+            Optional<InventoryRepository.AttendanceCatalogItem> after =
+                    drawAttendance(attendanceTipo(counter + 1));
+            if (after.isPresent()) {
+                afterTypeid = after.get().typeid();
+                afterQntd = after.get().qntd();
+                if (afterTypeid == 0) {
+                    after = drawAttendance(attendanceTipo(counter + 1));
+                    if (after.isPresent()) {
+                        afterTypeid = after.get().typeid();
+                        afterQntd = after.get().qntd();
+                    }
+                }
+            }
+        }
+        afterTypeid = 0;
+        afterQntd = 0;
+        mailAttendanceReward(uid, nowTypeid, nowQntd);
+        counter = counter + 1;
+        inventory.upsertAttendanceReward(uid, new InventoryRepository.AttendanceReward(
+                counter, nowTypeid, nowQntd, afterTypeid, afterQntd, today));
+        session.send(GamePackets.attendanceOk(
+                GamePackets.SERVER_ATTENDANCE,
+                0, nowTypeid, nowQntd, afterTypeid, afterQntd, counter));
+    }
+
+    private boolean attendanceCatalogExists(int typeid) {
+        return typeid != 0 && inventory.itemIff(typeid);
+    }
+
+    private void mailAttendanceReward(long uid, int typeid, int qntd) {
+        ItemInitializer.InitContext ctx = new ItemInitializer.InitContext(0, false, false, true);
+        ItemInitializer.MailItemRef ref = ItemInitializer.boxMailRef(ctx, typeid, qntd)
+                .orElse(new ItemInitializer.MailItemRef(typeid, qntd));
+        mailboxes.add(
+                uid,
+                GamePackets.MAIL_FROM_ADM,
+                ATTENDANCE_MAIL_MESSAGE,
+                List.of(new MailBoxStore.MailAttachment(
+                        ref.typeid(), ref.qntd(), ref.flagTime(), ref.tempoQntd())));
     }
 
     /**

@@ -1817,6 +1817,7 @@ class GameFlowIT {
             final int qntd = 3;
             try {
                 inv.deleteAttendanceReward(10001);
+                inv.upsertItemIff(GamePackets.TYPEID_SHOP_PANG_ITEM);
                 inv.upsertAttendanceCatalog(
                         GamePackets.TYPEID_SHOP_PANG_ITEM,
                         qntd,
@@ -1827,18 +1828,62 @@ class GameFlowIT {
                 String gameKey = repo.generateAuthKeyGame(10001, 20202);
                 keys.putLoginKey(10001, loginKey);
                 keys.putGameKey(10001, 20202, gameKey);
-                loginToChannel(client, runtime.port(), "testuser", 10001, loginKey, gameKey);
+                client.connect("127.0.0.1", runtime.port(), PangyaFakeClient.HelloKind.GAME);
+                client.awaitHello(5, TimeUnit.SECONDS);
+                client.sendPlain(GamePackets.clientLogin(
+                        "testuser", 10001, loginKey, GamePackets.JP_CLIENT_VERSION,
+                        GamePackets.xorPacketVersion(GamePackets.JP_PACKET_VERSION), gameKey));
+                collect(client, GamePackets.LOGIN_DUMP_PACKET_COUNT, 8, TimeUnit.SECONDS);
+                client.sendPlain(GamePackets.clientEnterChannel(0));
+                PacketReader entered = awaitOpcode(client, GamePackets.SERVER_CHANNEL_ENTER_ACK);
+                assertEquals(GamePackets.CHANNEL_ENTER_OK, entered.u8());
+                PacketReader enterAttend = awaitOpcode(client, GamePackets.SERVER_ATTENDANCE);
+                assertEquals(GamePackets.ATTENDANCE_OK, enterAttend.i32());
+                assertEquals(0, enterAttend.u8());
+                assertEquals(GamePackets.TYPEID_SHOP_PANG_ITEM, enterAttend.u32());
+                assertEquals(qntd, enterAttend.u32());
+                assertEquals(GamePackets.TYPEID_SHOP_PANG_ITEM, enterAttend.u32());
+                assertEquals(qntd, enterAttend.u32());
+                assertEquals(0, enterAttend.u32());
 
                 client.sendPlain(GamePackets.clientEmpty(GamePackets.CLIENT_ATTENDANCE));
                 PacketReader first = awaitOpcode(client, GamePackets.SERVER_ATTENDANCE);
                 assertEquals(GamePackets.ATTENDANCE_OK, first.i32());
-                assertEquals(GamePackets.ATTENDANCE_LOGIN_NEW_DAY, first.u8());
+                assertEquals(GamePackets.ATTENDANCE_LOGIN_SAME_DAY, first.u8());
+                assertEquals(GamePackets.TYPEID_SHOP_PANG_ITEM, first.u32());
+                assertEquals(qntd, first.u32());
                 assertEquals(GamePackets.TYPEID_SHOP_PANG_ITEM, first.u32());
                 assertEquals(qntd, first.u32());
                 assertEquals(0, first.u32());
-                assertEquals(0, first.u32());
-                assertEquals(1, first.u32());
                 assertEquals(0, first.remaining());
+
+                client.sendPlain(GamePackets.clientOpenMailBox(1));
+                PacketReader mailPage = awaitOpcode(client, GamePackets.SERVER_MAILBOX);
+                assertEquals(0, mailPage.i32());
+                assertEquals(1, mailPage.i32());
+                assertEquals(1, mailPage.i32());
+                assertEquals(1, mailPage.i32());
+                int mailId = mailPage.i32();
+                mailPage.readBytes(GamePackets.MAIL_BOX_ENTRY_BYTES - 4);
+                inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_SHOP_PANG_ITEM);
+                client.sendPlain(GamePackets.clientTakeMail(mailId));
+                PacketReader mailAward = awaitOpcode(client, GamePackets.SERVER_DAILY_QUEST_STAMP);
+                mailAward.u32();
+                assertEquals(1, mailAward.u32());
+                assertEquals(GamePackets.PAPEL_AWARD_TYPE, mailAward.u8());
+                assertEquals(GamePackets.TYPEID_SHOP_PANG_ITEM, mailAward.u32());
+                mailAward.i32();
+                mailAward.u32();
+                assertEquals(0, mailAward.i32());
+                assertEquals(qntd, mailAward.i32());
+                assertEquals(qntd, mailAward.i32());
+                mailAward.readBytes(15);
+                assertEquals(0, awaitOpcode(client, GamePackets.SERVER_MAIL_TAKE).u32());
+                assertEquals(qntd, inv.warehouse(10001).stream()
+                        .filter(w -> w.typeid == GamePackets.TYPEID_SHOP_PANG_ITEM)
+                        .mapToInt(w -> w.c[0] & 0xffff)
+                        .findFirst()
+                        .orElse(0));
 
                 client.sendPlain(GamePackets.clientEmpty(GamePackets.CLIENT_ATTENDANCE));
                 PacketReader sameDay = awaitOpcode(client, GamePackets.SERVER_ATTENDANCE);
@@ -1846,9 +1891,9 @@ class GameFlowIT {
                 assertEquals(GamePackets.ATTENDANCE_LOGIN_SAME_DAY, sameDay.u8());
                 assertEquals(GamePackets.TYPEID_SHOP_PANG_ITEM, sameDay.u32());
                 assertEquals(qntd, sameDay.u32());
+                assertEquals(GamePackets.TYPEID_SHOP_PANG_ITEM, sameDay.u32());
+                assertEquals(qntd, sameDay.u32());
                 assertEquals(0, sameDay.u32());
-                assertEquals(0, sameDay.u32());
-                assertEquals(1, sameDay.u32());
 
                 client.sendPlain(GamePackets.clientEmpty(GamePackets.CLIENT_ATTENDANCE_LOGIN));
                 PacketReader loginCount = awaitOpcode(client, GamePackets.SERVER_ATTENDANCE_LOGIN);
@@ -1858,11 +1903,11 @@ class GameFlowIT {
                 assertEquals(qntd, loginCount.u32());
                 assertEquals(GamePackets.TYPEID_SHOP_PANG_ITEM, loginCount.u32());
                 assertEquals(qntd, loginCount.u32());
-                assertEquals(1, loginCount.u32());
+                assertEquals(0, loginCount.u32());
                 assertEquals(0, loginCount.remaining());
 
                 var stored = inv.attendanceReward(10001).orElseThrow();
-                assertEquals(1, stored.counter());
+                assertEquals(0, stored.counter());
                 assertEquals(GamePackets.TYPEID_SHOP_PANG_ITEM, stored.nowTypeid());
                 assertEquals(qntd, stored.nowQntd());
                 assertEquals(GamePackets.TYPEID_SHOP_PANG_ITEM, stored.afterTypeid());
@@ -6763,6 +6808,18 @@ class GameFlowIT {
         client.sendPlain(GamePackets.clientEnterChannel(0));
         PacketReader entered = awaitOpcode(client, GamePackets.SERVER_CHANNEL_ENTER_ACK);
         assertEquals(GamePackets.CHANNEL_ENTER_OK, entered.u8());
+        drainOptionalAttendance(client);
+    }
+
+    private static void drainOptionalAttendance(PangyaFakeClient client) throws InterruptedException {
+        for (byte[] raw : client.drainPlain(500)) {
+            PacketReader r = new PacketReader(raw);
+            if (r.opcode() == GamePackets.SERVER_ATTENDANCE) {
+                return;
+            }
+            throw new IllegalStateException(
+                    "unexpected opcode 0x" + Integer.toHexString(r.opcode()) + " after enter channel");
+        }
     }
 
     @Test
