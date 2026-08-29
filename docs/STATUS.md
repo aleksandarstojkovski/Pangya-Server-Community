@@ -13,8 +13,8 @@ Conteggio Channel: **197** handler `packet_func_sv` registrati in `GameService.i
 
 ## Questo turno
 
-Fatto: enter-channel attendance mail + `pacote248`; box/lucky-pouch `initBoxAward`; shop buy `initShopAward`.
-Prossimo: pin `.gbin`; capture JP S9; attendance GP/fortune/bot ticket mail grants.
+Fatto: enter-channel attendance mail + login bonus mails (GP/bot/fortune ticket); box/lucky-pouch `initBoxAward`; shop buy `initShopAward`.
+Prossimo: pin `.gbin`; capture JP S9.
 Blocco: pin `.gbin` binaries absent; nessuna capture client JP Season 9.
 
 Percentuale epic: **scheletro 85%** / **parità client reale 43%**.
