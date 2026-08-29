@@ -43,6 +43,9 @@ public interface InventoryRepository {
 
     long cookie(long uid);
 
+    /** C# {@code UserInfo.getQuitRate}: {@code quitado * 100 / jogado}. */
+    float quitRate(long uid);
+
     void equipCharacter(long uid, int characterId);
 
     void equipCaddie(long uid, int caddieId);

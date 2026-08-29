@@ -1,5 +1,6 @@
 package org.pangya.game;
 
+import org.pangya.game.catalog.AngelWingsResolver;
 import org.pangya.game.catalog.CourseDropResolver;
 import org.pangya.game.catalog.CubeCoinResolver;
 import org.pangya.game.catalog.DropRateResolver;
@@ -1255,8 +1256,8 @@ public final class GameHandler {
             int courseHoleNum,
             int seqHole,
             List<GamePackets.DropItem> drops) {
-        int charMotion = charMotionItem(session, room);
         GameRoom.PlayerDropCtx dropCtx = room.dropCtx(session.oid());
+        int charMotion = dropCtx.charMotion();
         int rateDrop = dropCtx.rateDrop();
         int angelWings = dropCtx.angelWings();
         int qntdHole = room.info.holes;
@@ -1320,15 +1321,6 @@ public final class GameHandler {
             GamePackets.DropItem drop) {
         shot.holeDrops.add(drop);
         drops.add(drop);
-    }
-
-    /** C# {@code checkCharMotionItem}; defaults to 1 when motion tracking is unavailable. */
-    private static int charMotionItem(Session session, GameRoom room) {
-        GamePackets.PlayerRoomInfo pri = room.playerInfo(session);
-        if (pri != null && pri.character != null && pri.character.typeid != 0) {
-            return 1;
-        }
-        return 1;
     }
 
     /**
@@ -1449,7 +1441,11 @@ public final class GameHandler {
                 }
             }
         }
-        room.initDropCtx(oid, DropRateResolver.computeDropRate(auxparts, mascotTypeid), 0);
+        float quitRate = inventory.quitRate(uid);
+        int angelWings = AngelWingsResolver.angelEquipped(character, quitRate);
+        int charMotion = MotionItems.hasMotionPart(character) ? 1 : 0;
+        int rateDrop = DropRateResolver.computeDropRate(auxparts, mascotTypeid);
+        room.initDropCtx(oid, rateDrop, angelWings, charMotion);
     }
 
     private GamePackets.CharacterInfo equippedCharacter(long uid, GamePackets.UserEquip equip) {

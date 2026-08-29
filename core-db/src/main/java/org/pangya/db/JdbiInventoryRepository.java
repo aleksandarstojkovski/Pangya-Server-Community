@@ -414,6 +414,26 @@ public final class JdbiInventoryRepository implements InventoryRepository {
     }
 
     @Override
+    public float quitRate(long uid) {
+        return jdbi.withHandle(h -> h.createQuery(
+                        """
+                        SELECT COALESCE("Jogado", 0), COALESCE("Quitado", 0)
+                        FROM pangya.user_info WHERE "UID" = :uid
+                        """)
+                .bind("uid", uid)
+                .map((rs, ctx) -> {
+                    long jogado = rs.getLong(1);
+                    long quitado = rs.getLong(2);
+                    if (jogado <= 0) {
+                        return 0f;
+                    }
+                    return quitado * 100f / jogado;
+                })
+                .findOne()
+                .orElse(0f));
+    }
+
+    @Override
     public void equipCharacter(long uid, int characterId) {
         jdbi.useHandle(h -> h.createUpdate(
                         "UPDATE pangya.pangya_user_equip SET character_id = :id WHERE \"UID\" = :uid")
