@@ -1832,6 +1832,7 @@ public final class GameHandler {
             target.send(sold);
         }
         owner.send(GamePackets.chat(GamePackets.CHAT_NOTICE, GamePackets.SHOP_SALE_NICK, GamePackets.SHOP_SALE_MSG));
+        finishCounterIncrements(session, session.player().uid, GamePackets.TYPEID_PERSONAL_SHOP_BUY_COUNTER, 1);
     }
 
     /** C# {@code packet098}: {@code 0x10B} u32 0 + i64 daily limit. */
@@ -1876,6 +1877,7 @@ public final class GameHandler {
         session.send(GamePackets.papelRemain(
                 GamePackets.PAPEL_UNLIMITED_REMAIN, GamePackets.PAPEL_UNLIMITED_FLAG));
         session.send(GamePackets.papelPlayOk(ack, 0, result.balls(), result.pang(), result.cookie()));
+        finishCounterIncrements(session, session.player().uid, GamePackets.TYPEID_PAPEL_PLAY_COUNTER, 1);
     }
 
     /**

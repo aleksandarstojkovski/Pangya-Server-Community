@@ -313,7 +313,7 @@ C#: `GameServer/PangyaEnums/PacketGame.cs` → Java `org.pangya.protocol.game.Ga
 | S | `SERVER_LOLO` | `0x22A` | fail u32 error; success u32 0 + u32 typeid |
 | S | `SERVER_CADIE` | `0x22F` | u32 0 + seq + receive item on success; u32 error on fail |
 | C | `CLIENT_SHOP_OPEN_ITEMS` | `0x7C` | u32 count + 172-byte `PersonalShopItem`; success `0xEB` u32 1 + nick 22 + uid + items. Count 0/`>10` `shopSys(5200251)`; no shop `shopSys(5200252)`; truncated/IFF/`qntd`/price → full `5200250`. Opposite SERVER master `0x7C` |
-| C | `CLIENT_SHOP_BUY` | `0x7D` | u32 owner + item; missing shop `0xEC` `shopSys(5200552)`; truncated/`ToRead`/buy errors full `5200550`. Success `0xEC` both (u8 1 seller / 0 buyer) + `0xED` + seller `0x40` option 7. Opposite SERVER team `0x7D` |
+| C | `CLIENT_SHOP_BUY` | `0x7D` | u32 owner + item; missing shop `0xEC` `shopSys(5200552)`; truncated/`ToRead`/buy errors full `5200550`. Success `0xEC` both (u8 1 seller / 0 buyer) + `0xED` + seller `0x40` option 7; buyer `0x6C400083` counter via `finish_and_update`. Opposite SERVER team `0x7D` |
 | S | `SERVER_SHOP_ITEMS` | `0xEB` | u32 1 + nick 22 + uid + count + items, or u32 error |
 | S | `SERVER_SHOP_BUY` | `0xEC` | u32 1 + u8 remove + u64 pang + item 172 + group u8 + warehouse 196; opposite CLIENT comet `0xEC` |
 | S | `SERVER_SHOP_SOLD` | `0xED` | PStr nick + uid + item + i32 (3 empty / 1 remain) |

@@ -4441,6 +4441,181 @@ class GameFlowIT {
     }
 
     @Test
+    void personalShopBuyIncrementsAchievementCounter() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config);
+             PangyaFakeClient host = new PangyaFakeClient();
+             PangyaFakeClient guest = new PangyaFakeClient()) {
+            var inv = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
+            cleanupDailyQuest(ds);
+            inv.deleteDailyQuestStuff(GamePackets.TYPEID_DAILY_QUEST_STUFF_TEST);
+            inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_SHOP_PANG_ITEM);
+            inv.deleteWarehouseByTypeid(10002, GamePackets.TYPEID_SHOP_PANG_ITEM);
+            inv.setPangCookie(10001, 100000, 0);
+            inv.setPangCookie(10002, 100000, 0);
+            try {
+                inv.upsertDailyQuestStuff(
+                        GamePackets.TYPEID_DAILY_QUEST_STUFF_TEST,
+                        GamePackets.TYPEID_PERSONAL_SHOP_BUY_COUNTER,
+                        1);
+                int achievementId = insertDailyAchievement(ds, 10002);
+                var stock = inv.buyShopItem(
+                        10001, GamePackets.TYPEID_SHOP_PANG_ITEM, 1, GamePackets.SHOP_PANG_PRICE, 0);
+                assertEquals(0, stock.code());
+                inv.setPangCookie(10001, 100000, 0);
+                loginTwoPlayers(ds, keys, host, guest, runtime.port());
+
+                guest.sendPlain(GamePackets.clientAcceptDailyQuest(achievementId));
+                awaitOpcode(guest, GamePackets.SERVER_DAILY_QUEST_STAMP);
+                awaitOpcode(guest, GamePackets.SERVER_DAILY_QUEST_ACCEPT);
+
+                host.sendPlain(GamePackets.clientCreateRoom(GamePackets.TIPO_LOUNGE, "LG", ""));
+                PacketReader created = awaitOpcode(host, GamePackets.SERVER_ROOM_ENTER_RESULT);
+                assertEquals(0, created.i16());
+                int numero = roomNumberFromInfo(created.readBytes(GamePackets.ROOM_INFO_BYTES));
+                guest.sendPlain(GamePackets.clientJoinRoom(numero, ""));
+                assertEquals(0, awaitOpcode(guest, GamePackets.SERVER_ROOM_ENTER_RESULT).i16());
+
+                host.sendPlain(GamePackets.clientShopOpenEdit());
+                awaitOpcode(host, GamePackets.SERVER_SHOP_EDIT);
+                host.sendPlain(GamePackets.clientShopName("MyShop"));
+                awaitOpcode(host, GamePackets.SERVER_SHOP_NAME);
+
+                GamePackets.PersonalShopItem listed = new GamePackets.PersonalShopItem();
+                listed.index = 1;
+                listed.typeid = GamePackets.TYPEID_SHOP_PANG_ITEM;
+                listed.id = stock.itemId();
+                listed.qntd = 1;
+                listed.pang = 1000;
+                host.sendPlain(GamePackets.clientShopOpenItems(List.of(listed)));
+                awaitOpcode(host, GamePackets.SERVER_SHOP_ITEMS);
+
+                guest.sendPlain(GamePackets.clientShopView(10001));
+                awaitOpcode(guest, GamePackets.SERVER_SHOP_VIEW);
+                guest.sendPlain(GamePackets.clientShopBuy(10001, listed));
+                awaitOpcode(guest, GamePackets.SERVER_SHOP_BUY);
+                awaitOpcode(guest, GamePackets.SERVER_SHOP_SOLD);
+                awaitOpcode(host, GamePackets.SERVER_SHOP_BUY);
+                awaitOpcode(host, GamePackets.SERVER_SHOP_SOLD);
+                awaitOpcode(host, GamePackets.SERVER_CHAT);
+
+                PacketReader counterUpd = awaitOpcode(guest, GamePackets.SERVER_DAILY_QUEST_STAMP);
+                counterUpd.u32();
+                assertEquals(1, counterUpd.u32());
+                assertEquals(GamePackets.PAPEL_AWARD_TYPE, counterUpd.u8());
+                assertEquals(GamePackets.TYPEID_PERSONAL_SHOP_BUY_COUNTER, counterUpd.u32());
+                counterUpd.i32();
+                counterUpd.u32();
+                assertEquals(0, counterUpd.i32());
+                assertEquals(1, counterUpd.i32());
+                assertEquals(1, counterUpd.i32());
+                counterUpd.readBytes(GamePackets.PAPEL_AWARD_PAD);
+
+                PacketReader questClear = awaitOpcode(guest, GamePackets.SERVER_ACHIEVEMENT_CLEAR_QUEST);
+                assertEquals(1, questClear.u32());
+                assertEquals(GamePackets.TYPEID_DAILY_ACHIEVEMENT_TEST, questClear.u32());
+                assertEquals(GamePackets.TYPEID_DAILY_QUEST_STUFF_TEST, questClear.u32());
+
+                PacketReader achUpd = awaitOpcode(guest, GamePackets.SERVER_ACHIEVEMENT_UPDATE);
+                assertEquals(0, achUpd.i32());
+                assertEquals(1, achUpd.u32());
+                assertEquals(1, achUpd.u8());
+                assertEquals(GamePackets.TYPEID_DAILY_ACHIEVEMENT_TEST, achUpd.u32());
+                assertEquals(achievementId, achUpd.i32());
+                assertEquals(GamePackets.ACHIEVEMENT_STATUS_CONCLUDED, achUpd.i32());
+            } finally {
+                cleanupDailyQuest(ds);
+                inv.deleteDailyQuestStuff(GamePackets.TYPEID_DAILY_QUEST_STUFF_TEST);
+                inv.setPangCookie(10001, 100000, 0);
+                inv.setPangCookie(10002, 100000, 0);
+                inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_SHOP_PANG_ITEM);
+                inv.deleteWarehouseByTypeid(10002, GamePackets.TYPEID_SHOP_PANG_ITEM);
+            }
+        }
+    }
+
+    @Test
+    void papelPlayIncrementsAchievementCounter() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config);
+             PangyaFakeClient client = new PangyaFakeClient()) {
+            var inv = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
+            cleanupDailyQuest(ds);
+            inv.deleteDailyQuestStuff(GamePackets.TYPEID_DAILY_QUEST_STUFF_TEST);
+            inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_SHOP_PANG_ITEM);
+            inv.setPangCookie(10001, 100000, 0);
+            try {
+                inv.upsertDailyQuestStuff(
+                        GamePackets.TYPEID_DAILY_QUEST_STUFF_TEST,
+                        GamePackets.TYPEID_PAPEL_PLAY_COUNTER,
+                        1);
+                int achievementId = insertDailyAchievement(ds);
+                LoginRepository repo = new JdbiLoginRepository(DatabaseSupport.jdbi(ds));
+                String loginKey = repo.generateAuthKeyLogin(10001);
+                String gameKey = repo.generateAuthKeyGame(10001, 20202);
+                keys.putLoginKey(10001, loginKey);
+                keys.putGameKey(10001, 20202, gameKey);
+                loginToChannel(client, runtime.port(), "testuser", 10001, loginKey, gameKey);
+
+                client.sendPlain(GamePackets.clientAcceptDailyQuest(achievementId));
+                awaitOpcode(client, GamePackets.SERVER_DAILY_QUEST_STAMP);
+                awaitOpcode(client, GamePackets.SERVER_DAILY_QUEST_ACCEPT);
+
+                client.sendPlain(GamePackets.clientPapelPlay());
+                awaitOpcode(client, GamePackets.SERVER_DAILY_QUEST_STAMP);
+                awaitOpcode(client, GamePackets.SERVER_PAPEL_REMAIN);
+                awaitOpcode(client, GamePackets.SERVER_PAPEL_PLAY);
+
+                PacketReader counterUpd = awaitOpcode(client, GamePackets.SERVER_DAILY_QUEST_STAMP);
+                counterUpd.u32();
+                assertEquals(1, counterUpd.u32());
+                assertEquals(GamePackets.PAPEL_AWARD_TYPE, counterUpd.u8());
+                assertEquals(GamePackets.TYPEID_PAPEL_PLAY_COUNTER, counterUpd.u32());
+                counterUpd.i32();
+                counterUpd.u32();
+                assertEquals(0, counterUpd.i32());
+                assertEquals(1, counterUpd.i32());
+                assertEquals(1, counterUpd.i32());
+                counterUpd.readBytes(GamePackets.PAPEL_AWARD_PAD);
+
+                PacketReader questClear = awaitOpcode(client, GamePackets.SERVER_ACHIEVEMENT_CLEAR_QUEST);
+                assertEquals(1, questClear.u32());
+                assertEquals(GamePackets.TYPEID_DAILY_ACHIEVEMENT_TEST, questClear.u32());
+                assertEquals(GamePackets.TYPEID_DAILY_QUEST_STUFF_TEST, questClear.u32());
+
+                PacketReader achUpd = awaitOpcode(client, GamePackets.SERVER_ACHIEVEMENT_UPDATE);
+                assertEquals(0, achUpd.i32());
+                assertEquals(1, achUpd.u32());
+                assertEquals(1, achUpd.u8());
+                assertEquals(GamePackets.TYPEID_DAILY_ACHIEVEMENT_TEST, achUpd.u32());
+                assertEquals(achievementId, achUpd.i32());
+                assertEquals(GamePackets.ACHIEVEMENT_STATUS_CONCLUDED, achUpd.i32());
+            } finally {
+                cleanupDailyQuest(ds);
+                inv.deleteDailyQuestStuff(GamePackets.TYPEID_DAILY_QUEST_STUFF_TEST);
+                inv.setPangCookie(10001, 100000, 0);
+                inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_SHOP_PANG_ITEM);
+            }
+        }
+    }
+
+    @Test
     void mailboxOpenSendDeleteMatchCsharp() throws Exception {
         String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
         String user = env("PANGYA_TEST_JDBC_USER", "pangya");
@@ -7658,22 +7833,28 @@ class GameFlowIT {
     }
 
     private static int insertDailyAchievement(javax.sql.DataSource ds) {
+        return insertDailyAchievement(ds, 10001);
+    }
+
+    private static int insertDailyAchievement(javax.sql.DataSource ds, long uid) {
         return DatabaseSupport.jdbi(ds).inTransaction(h -> {
             int id = h.createQuery("""
                             INSERT INTO pangya.pangya_achievement (
                                 "UID", "Nome", "TypeID", active, status)
-                            VALUES (10001, 'Daily test', :typeid, 1, 2)
+                            VALUES (:uid, 'Daily test', :typeid, 1, 2)
                             RETURNING "ID_ACHIEVEMENT"
                             """)
+                    .bind("uid", uid)
                     .bind("typeid", GamePackets.TYPEID_DAILY_ACHIEVEMENT_TEST)
                     .mapTo(Integer.class)
                     .one();
             h.createUpdate("""
                             INSERT INTO pangya.pangya_quest (
                                 achievement_id, uid, "name", typeid, counter_item_id, "Date")
-                            VALUES (:achievement, 10001, 'Daily stuff', :typeid, 0, NULL)
+                            VALUES (:achievement, :uid, 'Daily stuff', :typeid, 0, NULL)
                             """)
                     .bind("achievement", id)
+                    .bind("uid", uid)
                     .bind("typeid", GamePackets.TYPEID_DAILY_QUEST_STUFF_TEST)
                     .execute();
             return id;
@@ -7681,36 +7862,49 @@ class GameFlowIT {
     }
 
     private static void cleanupDailyQuest(javax.sql.DataSource ds) {
+        cleanupDailyQuestForUid(ds, 10001);
+        cleanupDailyQuestForUid(ds, 10002);
+    }
+
+    private static void cleanupDailyQuestForUid(javax.sql.DataSource ds, long uid) {
         DatabaseSupport.jdbi(ds).useTransaction(h -> {
             List<Integer> ids = h.createQuery("""
                             SELECT "ID_ACHIEVEMENT" FROM pangya.pangya_achievement
-                             WHERE "UID" = 10001 AND "TypeID" = :typeid
+                             WHERE "UID" = :uid AND "TypeID" = :typeid
                             """)
+                    .bind("uid", uid)
                     .bind("typeid", GamePackets.TYPEID_DAILY_ACHIEVEMENT_TEST)
                     .mapTo(Integer.class)
                     .list();
             if (!ids.isEmpty()) {
                 h.createUpdate("""
                                 DELETE FROM pangya.pangya_quest
-                                 WHERE uid = 10001 AND achievement_id IN (<ids>)
+                                 WHERE uid = :uid AND achievement_id IN (<ids>)
                                 """)
+                        .bind("uid", uid)
                         .bindList("ids", ids)
                         .execute();
                 h.createUpdate("""
                                 DELETE FROM pangya.pangya_achievement
-                                 WHERE "UID" = 10001 AND "ID_ACHIEVEMENT" IN (<ids>)
+                                 WHERE "UID" = :uid AND "ID_ACHIEVEMENT" IN (<ids>)
                                 """)
+                        .bind("uid", uid)
                         .bindList("ids", ids)
                         .execute();
             }
             h.createUpdate("""
                             DELETE FROM pangya.pangya_counter_item
-                             WHERE "UID" = 10001 AND "TypeID" IN (:daily, :login)
+                             WHERE "UID" = :uid AND "TypeID" IN (<typeids>)
                             """)
-                    .bind("daily", GamePackets.TYPEID_DAILY_COUNTER_TEST)
-                    .bind("login", GamePackets.TYPEID_LOGIN_COUNT_COUNTER)
+                    .bind("uid", uid)
+                    .bindList("typeids", List.of(
+                            GamePackets.TYPEID_DAILY_COUNTER_TEST,
+                            GamePackets.TYPEID_LOGIN_COUNT_COUNTER,
+                            GamePackets.TYPEID_PERSONAL_SHOP_BUY_COUNTER,
+                            GamePackets.TYPEID_PAPEL_PLAY_COUNTER))
                     .execute();
-            h.createUpdate("DELETE FROM pangya.pangya_daily_quest_player WHERE uid = 10001")
+            h.createUpdate("DELETE FROM pangya.pangya_daily_quest_player WHERE uid = :uid")
+                    .bind("uid", uid)
                     .execute();
         });
     }
