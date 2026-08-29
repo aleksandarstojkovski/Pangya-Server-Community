@@ -29,10 +29,10 @@ Lasciato nel repo. **Non** è “fatto” solo perché compila o perché un IT d
 
 ## Definition of Done
 
-- [x] `docker compose` Postgres + Redis + Auth + Login + Game + Ranking + Messenger healthcheck verdi — **verificato 2026-08-29T15:05:37Z** (curl `/health` → `ok … HTTP 200` × 5; `compose ps` 7/7 healthy). Rebuild `--build` **non eseguito**.
+- [x] `docker compose` Postgres + Redis + Auth + Login + Game + Ranking + Messenger healthcheck verdi — **`docker compose up --build -d` 2026-08-29T15:26:56Z** (immagini nuove; curl `/health` → `ok … HTTP 200` × 5; `compose ps` 7/7 healthy). Ranking log: `GeraRankAll rows=26`.
 - [~] Protocollo framing + cipher su fixture C# — tabelle `CryptoOracle` prefix C# + test verdi; ciphertext golden **assente** (vedi S-T1).
 - [x] Login e2e fake client, session key ricevuta — `LoginFlowIT` in `:server-login:test` EXIT=0 `--rerun-tasks`.
-- [x] Fake client: canale → iscrizione Torneo → partita fino alla fine → `SERVER_GAME_RESULT` + `GeraRankAll` registry (`tourneyFinishRebuildsRankingRegistry` + ranking fake-client EXIT=0)
+- [x] Fake client: canale → iscrizione Torneo → partita fino alla fine → `SERVER_GAME_RESULT` + ranking fake-client BL board (`tourneyFinishRebuildsRankingRegistry` EXIT=0)
 - [x] Crash di sessione non abbatte il processo — `SessionIsolationTest.throwingHandlerDoesNotKillServer` PASSED
 - [x] Questo file + `docs/STATUS.md` aggiornati a fine turno
 
@@ -108,14 +108,20 @@ ST4_EXIT=0
 
 C# path: `Tourney.finish_game` → `requestSaveRecordCourse` → Ranking `CmdUpdateRankRegistry` (`pangya.GeraRankAll`) → `ProcGetRankRegistryInfo`.
 
-Java: `saveRecordCourse` per `TIPO_TOURNEY` (option 1 se 18 hole last-hole); `RankRepository.geraRankAll()` porta le board user_info + score + per-course. **Non** chiamato automaticamente da `RankingRuntime` (C# lo fa in `init_systems`) — invocato esplicitamente dagli IT.
+Java: `saveRecordCourse` per `TIPO_TOURNEY` (option 1 se 18 hole last-hole); `RankRepository.geraRankAll()` porta le board user_info + score + per-course. `RankingRuntime` chiama `geraRankAll()` all’avvio (C# `init_systems` / `CmdUpdateRankRegistry`).
 
 ```
-GameFlowIT > tourneyFinishRebuildsRankingRegistry() PASSED
+# 2026-08-29T15:25Z  --rerun-tasks
+RankingFlowIT > registryPageAndPlayerFullInfoComeFromSql() PASSED
 RankingFlowIT > geraRankAllFirstPageIsServedToFakeClient() PASSED
 RankRepositoryTest > geraRankAllWritesLevelBoardForEligibleAccounts() PASSED
+GameFlowIT > tourneyFinishRebuildsRankingRegistry() PASSED
+BUILD SUCCESSFUL in 17s
+19 actionable tasks: 19 executed
 FINAL_EXIT=0
 ```
+
+IT e2e unico: finish 18-hole last-hole → `RankingRuntime` (auto-GeraRankAll) → fake-client ranking menu 1 item 0 (Blue Lagoon) trova uid 10001 valor 0. Messenger: C# `Tourney.cs` non chiama Messenger — minimo = ITs modulo già verdi, nessun accoppiamento inventato.
 
 ### S-T6 — Hardening leggero
 
@@ -134,14 +140,16 @@ Due client, sink che lancia `RuntimeException`, `seen==2`, server ancora bound. 
 
 ## Verifica comandi di questo turno (incollati)
 
-Health (2026-08-29T15:05:37Z):
+Health dopo `docker compose up --build -d` (2026-08-29T15:26:56Z):
 
 ```
+COMPOSE_EXIT=0
 auth http://127.0.0.1:9077/health -> ok auth HTTP 200
 login http://127.0.0.1:9103/health -> ok login HTTP 200
 game http://127.0.0.1:9202/health -> ok game HTTP 200
 ranking http://127.0.0.1:9474/health -> ok ranking HTTP 200
 messenger http://127.0.0.1:9302/health -> ok messenger HTTP 200
+ranking log: GeraRankAll rows=26 (C# CmdUpdateRankRegistry / init_systems)
 ```
 
 Moduli S-T1/S-T2/S-T5 base:
@@ -184,7 +192,6 @@ FLYWAY_EXIT=1
 Residui onesti:
 
 - **S-T1:** ciphertext golden di rete assente — **gate capture**.
-- `RankingRuntime` non chiama `GeraRankAll` all’avvio (C# `init_systems` sì) — gli IT lo invocano esplicitamente.
 - `FlywayMigrationTest` riga 129 `iff_item` = inquinamento IT.
 
 Nessun nuovo opcode. Nessun lavoro Practice/GP/Versus.

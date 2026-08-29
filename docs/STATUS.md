@@ -40,7 +40,7 @@ compose ps: postgres, redis, auth, login, game, ranking, messenger
             tutti "Up … (healthy)"
 ```
 
-DoD MVP «`docker compose up` + healthcheck verdi»: **verificato in questo turno** (immagini preesistenti dello snapshot, non `compose up --build` da zero). Rebuild da Dockerfile **non eseguito**.
+DoD MVP «`docker compose up` + healthcheck verdi»: **verificato con rebuild** 2026-08-29T15:26:56Z (`docker compose up --build -d`, `COMPOSE_EXIT=0`). Immagini `workspace-{auth,login,game,ranking,messenger}` create in quel minuto. Ranking container: `GeraRankAll rows=26`. Ricontrollo 15:27:19Z ancora 200 × 5.
 
 ---
 
@@ -114,7 +114,7 @@ GAME_IT_EXIT=0
 | **S-T2** Auth + Login | [x] | `:server-auth:test` + `:server-login:test` EXIT=0. `LoginFlowIT.fakeClientLoginReceivesServerListAndCanSelectGs` riceve `SERVER_AUTH_KEY_LOGIN` 8 char = Redis `getLoginKey(10001)`. |
 | **S-T3** canale + iscrizione Torneo | [x] | Coperta da `twoPlayersStartTourneyAndReceiveCourse` + IT S-T4 (stesso path create/join/start). Entrambi PASSED `--rerun-tasks`. |
 | **S-T4** partita Torneo e2e | [x] | `tourneyFakeClientPlaysToFinishAndReceivesResult` PASSED (vedi comando sotto). `requestSaveInfo(..., 0)` wired per `TIPO_TOURNEY`. |
-| **S-T5** ranking/messenger minimi | [x] | `GeraRankAll` (C# `CmdUpdateRankRegistry`) + `requestSaveRecordCourse` Torneo. IT: `tourneyFinishRebuildsRankingRegistry` + `geraRankAllFirstPageIsServedToFakeClient` PASSED. |
+| **S-T5** ranking/messenger minimi | [x] | `RankingRuntime` chiama `GeraRankAll` all’avvio. E2e unico: Tourney finish → ranking fake-client BL board (`tourneyFinishRebuildsRankingRegistry` PASSED). Messenger: nessun hook in C# `Tourney.cs`. |
 | **S-T6** hardening leggero | [x] | Esistente `SessionIsolationTest.throwingHandlerDoesNotKillServer` PASSED `--rerun-tasks` (due client, handler throw, server resta bound). `SessionLoadIT` 3000 = **fuori scope**, non rieseguito. |
 
 ### Presente, fuori scope MVP, non validato
@@ -130,10 +130,10 @@ Codice/test già in repo (compila / alcuni IT verdi). **Non** marcati fatti per 
 
 ## DoD MVP Torneo (checklist)
 
-- [x] Compose healthcheck verdi (questo turno; no rebuild) — ricontrollo 2026-08-29T15:12:25Z ancora 200
+- [x] Compose healthcheck verdi dopo `docker compose up --build -d` (2026-08-29T15:26:56Z; ricontrollo 15:27:19Z ancora 200)
 - [~] Protocollo framing + cipher su fixture C# (tabelle oracle 4096 identiche al C#; ciphertext di rete **assente**)
 - [x] Login e2e fake client + session key
-- [x] Fake client: canale → iscrizione Torneo → partita fino alla fine → risultato + `GeraRankAll` registry (BL board + ranking fake-client level page)
+- [x] Fake client: canale → iscrizione Torneo → partita fino alla fine → risultato + ranking fake-client BL board (`RankingRuntime` auto-GeraRankAll)
 - [x] Crash sessione non abbatte il processo — `SessionIsolationTest` PASSED
 - [x] EPIC.md + STATUS.md aggiornati in questo turno
 
@@ -189,14 +189,45 @@ FINAL_EXIT=0
 
 ---
 
+### S-T5 + RankingRuntime + compose --build (incollato, 2026-08-29T15:25–15:27Z)
+
+```
+./gradlew --no-daemon --rerun-tasks \
+  :server-ranking:test --tests org.pangya.ranking.RankingFlowIT \
+  :core-db:test --tests org.pangya.db.RankRepositoryTest \
+  :server-game:test --tests org.pangya.game.GameFlowIT.tourneyFinishRebuildsRankingRegistry
+RankingFlowIT > registryPageAndPlayerFullInfoComeFromSql() PASSED
+RankingFlowIT > geraRankAllFirstPageIsServedToFakeClient() PASSED
+RankRepositoryTest > geraRankAllWritesLevelBoardForEligibleAccounts() PASSED
+GameFlowIT > tourneyFinishRebuildsRankingRegistry() PASSED
+BUILD SUCCESSFUL in 17s
+19 actionable tasks: 19 executed
+FINAL_EXIT=0
+```
+
+```
+docker compose up --build -d
+COMPOSE_EXIT=0
+date-u: 2026-08-29T15:26:56Z
+auth       http://127.0.0.1:9077/health -> ok auth HTTP 200
+login      http://127.0.0.1:9103/health -> ok login HTTP 200
+game       http://127.0.0.1:9202/health -> ok game HTTP 200
+ranking    http://127.0.0.1:9474/health -> ok ranking HTTP 200
+messenger  http://127.0.0.1:9302/health -> ok messenger HTTP 200
+compose ps: 7/7 Up … (healthy)
+ranking log: GeraRankAll rows=26 (C# CmdUpdateRankRegistry / init_systems)
+```
+
+---
+
 ## Questo turno
 
 | Campo | Valore |
 |-------|--------|
-| Data/ora | 2026-08-29T15:20Z |
-| Fatto | S-T5: port `GeraRankAll` + `requestSaveRecordCourse` Torneo; S-T1 prefix cipher 32 byte C#; IT ranking e2e verdi |
-| Commit codice | `1ddbe14` feat: port GeraRankAll…; `5518b2c`/`9f3c509` fix assert flaky su Postgres condiviso |
-| Prossima slice | Ciphertext golden di rete (gate capture). `RankingRuntime` non chiama `GeraRankAll` all’avvio (C# sì) — esplicito negli IT. Flyway `iff_item` invariato. |
+| Data/ora | 2026-08-29T15:27Z |
+| Fatto | `RankingRuntime` GeraRankAll all’avvio (C# `init_systems`); e2e Tourney finish → ranking fake-client BL; `docker compose up --build` 7/7 healthy |
+| Commit codice | `a3b020a` feat: run GeraRankAll on RankingRuntime start |
+| Residuo | Ciphertext golden di rete (gate capture). Flyway `iff_item` invariato. |
 | Blocker | Ciphertext di rete assente. Non inventare. |
 
 ---
