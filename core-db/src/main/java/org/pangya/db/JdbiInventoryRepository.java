@@ -4626,6 +4626,42 @@ public final class JdbiInventoryRepository implements InventoryRepository {
     }
 
     @Override
+    public java.util.OptionalInt grandPrixClearPosition(long uid, int typeid) {
+        if (typeid == 0) {
+            return java.util.OptionalInt.empty();
+        }
+        Integer flag = jdbi.withHandle(h -> h.createQuery("""
+                        SELECT flag
+                          FROM pangya.pangya_grandprix_clear
+                         WHERE uid = :uid AND typeid = :typeid
+                         LIMIT 1
+                        """)
+                .bind("uid", (int) uid)
+                .bind("typeid", typeid)
+                .mapTo(Integer.class)
+                .findOne()
+                .orElse(null));
+        return flag == null ? java.util.OptionalInt.empty() : java.util.OptionalInt.of(flag);
+    }
+
+    @Override
+    public boolean updateGrandPrixClearIfBetter(long uid, int typeid, int position) {
+        if (typeid == 0 || position <= 0) {
+            return false;
+        }
+        java.util.OptionalInt existing = grandPrixClearPosition(uid, typeid);
+        if (existing.isEmpty()) {
+            upsertGrandPrixClear(uid, typeid, position);
+            return true;
+        }
+        if (existing.getAsInt() > position) {
+            upsertGrandPrixClear(uid, typeid, position);
+            return true;
+        }
+        return false;
+    }
+
+    @Override
     public void upsertGrandPrixClear(long uid, int typeid, int flag) {
         jdbi.useHandle(h -> {
             Integer existing = h.createQuery("""

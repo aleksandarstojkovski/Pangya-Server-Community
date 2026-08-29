@@ -1436,10 +1436,16 @@ public final class GameHandler {
             queueRecordAchievementCounters(session, room, ui);
         }
         consumeFinishItemUsed(session, room);
+        int[] prizeTypeids = holeDropPrizeTypeids(room, session.oid());
         saveHoleDrops(session, room);
         calculeGamePang(session, room);
-        finishGameExp(session, room, finishRankIndex(room, session));
-        sendFinishGameDump(session, room, true);
+        int rankIndex = finishRankIndex(room, session);
+        finishGameExp(session, room, rankIndex);
+        if (room.tipo == GamePackets.TIPO_GRAND_PRIX) {
+            sendGrandPrixFinishRewards(session, room, rankIndex);
+            sendGrandPrixClearUpdate(session, room, rankIndex);
+        }
+        sendFinishGameDump(session, room, true, prizeTypeids);
     }
 
     /** C# {@code requestInitItemUsedGame}: warehouse passive, ball, auxparts. */
@@ -3207,7 +3213,78 @@ public final class GameHandler {
     }
 
     private void sendFinishGameDump(Session session, GameRoom room, boolean creditPang) {
-        session.send(GamePackets.prizeList(new int[0]));
+        sendFinishGameDump(session, room, creditPang, new int[0]);
+    }
+
+    /** C# {@code TourneyBase.sendDropItem}: hole drop typeids for {@code 0xCE}. */
+    private static int[] holeDropPrizeTypeids(GameRoom room, int oid) {
+        GameRoom.PlayerShot shot = room.shots.get(oid);
+        if (shot == null || shot.holeDrops.isEmpty()) {
+            return new int[0];
+        }
+        return shot.holeDrops.stream()
+                .filter(drop -> drop.typeid() != 0 && drop.qntd() > 0)
+                .mapToInt(GamePackets.DropItem::typeid)
+                .toArray();
+    }
+
+    /** C# {@code GrandPrix.sendRewardRankAndGrandPrix}: participation + rank IFF rewards. */
+    private void sendGrandPrixFinishRewards(Session session, GameRoom room, int rankIndex) {
+        if (room.grandPrixTypeid == 0) {
+            return;
+        }
+        var gpIff = org.pangya.protocol.iff.PangyaIffLoader.grandPrixData(room.grandPrixTypeid);
+        if (gpIff.isEmpty()) {
+            return;
+        }
+        long uid = session.player().uid;
+        List<org.pangya.game.catalog.GrandPrixRewardResolver.Grant> grants = new ArrayList<>();
+        grants.addAll(org.pangya.game.catalog.GrandPrixRewardResolver.grantsFromReward(
+                inventory, uid, gpIff.get().reward()));
+        var rankRewards =
+                org.pangya.protocol.iff.PangyaIffLoader.grandPrixRankRewards(room.info.gpRankTypeid);
+        if (rankIndex >= 0 && rankIndex < rankRewards.size()) {
+            grants.addAll(org.pangya.game.catalog.GrandPrixRewardResolver.grantsFromReward(
+                    inventory, uid, rankRewards.get(rankIndex).reward()));
+        }
+        if (grants.isEmpty()) {
+            return;
+        }
+        java.util.Map<Integer, Integer> merged = new java.util.LinkedHashMap<>();
+        for (var grant : grants) {
+            merged.merge(grant.typeid(), grant.qntd(), Integer::sum);
+        }
+        List<GamePackets.PapelAward> updates = new ArrayList<>();
+        for (var entry : merged.entrySet()) {
+            int typeid = entry.getKey();
+            int qntd = entry.getValue();
+            GamePackets.WarehouseItem existing = warehouseByTypeid(uid, typeid);
+            int ant = existing == null ? 0 : existing.c[0] & 0xffff;
+            int itemId = inventory.addWarehouseItem(uid, typeid, qntd);
+            updates.add(new GamePackets.PapelAward(
+                    GamePackets.PAPEL_AWARD_TYPE, typeid, itemId, 0, ant, ant + qntd, qntd));
+        }
+        session.send(GamePackets.papelAwards(GamePackets.unixNow(), updates));
+    }
+
+    /** C# {@code GrandPrix.requestSaveGrandPrixClear}. */
+    private void sendGrandPrixClearUpdate(Session session, GameRoom room, int rankIndex) {
+        int typeIdLink = room.info.gpRankTypeid;
+        if (typeIdLink == 0) {
+            return;
+        }
+        int position = rankIndex + 1;
+        if (position <= 0) {
+            return;
+        }
+        if (!inventory.updateGrandPrixClearIfBetter(session.player().uid, typeIdLink, position)) {
+            return;
+        }
+        session.send(GamePackets.gpClearUpdate(typeIdLink, position));
+    }
+
+    private void sendFinishGameDump(Session session, GameRoom room, boolean creditPang, int[] prizeTypeids) {
+        session.send(GamePackets.prizeList(prizeTypeids));
         session.send(GamePackets.gameResult(0, room.info.trophy, 0, 2));
         session.send(GamePackets.myStatistics(GamePackets.userInfoPublic(session.player().level)));
         session.send(GamePackets.treasureHunterItem());

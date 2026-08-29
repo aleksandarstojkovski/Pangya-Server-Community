@@ -2020,6 +2020,11 @@ class GamePacketsTest {
         assertEquals(GamePackets.SERVER_GP_EXIT_ROOM, gpExit.opcode());
         assertEquals(0, gpExit.u32());
         assertEquals(-1, gpExit.i16());
+        PacketReader gpClear = new PacketReader(GamePackets.gpClearUpdate(0x80100, 1));
+        assertEquals(GamePackets.SERVER_GP_CLEAR_UPDATE, gpClear.opcode());
+        assertEquals(0, gpClear.u32());
+        assertEquals(0x80100, gpClear.u32());
+        assertEquals(1, gpClear.u32());
         PacketReader clientMarker = new PacketReader(GamePackets.clientMarker(1f, 2f, 3f));
         assertEquals(GamePackets.CLIENT_MARKER, clientMarker.opcode());
         assertEquals(1f, clientMarker.f32());
@@ -2706,6 +2711,7 @@ class GamePacketsTest {
         assertEquals(GamePackets.GP_ENTER_ERR_TIME, 0x670000C);
         assertEquals(GamePackets.START_GAME_GP_TICKET, 0x5900203);
         assertEquals(GamePackets.SERVER_TOURNEY_TIME_OVER, 0x8C);
+        assertEquals(GamePackets.SERVER_GP_CLEAR_UPDATE, 0x25A);
         assertEquals(GamePackets.TYPEID_GP_PLAY_COUNTER, 0x6C4000A9);
         assertEquals(GamePackets.TYPEID_GP_CLASS_ROOKIE_COUNTER, 0x6C4000AA);
         assertEquals(GamePackets.TYPEID_GP_CLASS_EVENT_SPECIAL_COUNTER, 0x6C4000AE);

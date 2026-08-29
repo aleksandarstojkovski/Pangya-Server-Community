@@ -453,6 +453,15 @@ public interface InventoryRepository {
     /** C# {@code PlayerInfo.findGrandPrixClear}: cleared GP {@code TypeID_Link}. */
     boolean hasGrandPrixClear(long uid, int typeid);
 
+    /** Best finish position stored for {@code TypeID_Link}; empty when never cleared. */
+    java.util.OptionalInt grandPrixClearPosition(long uid, int typeid);
+
+    /**
+     * C# {@code updateGrandPrixClear}: insert or improve stored rank; returns true when
+     * client should receive {@code 0x25A}.
+     */
+    boolean updateGrandPrixClearIfBetter(long uid, int typeid, int position);
+
     void upsertGrandPrixClear(long uid, int typeid, int flag);
 
     void deleteGrandPrixClear(long uid, int typeid);

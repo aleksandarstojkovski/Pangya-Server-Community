@@ -372,6 +372,8 @@ public final class GamePackets {
     public static final int SERVER_GP_LOBBY = 0x250;
     /** C# Grand Prix leave lobby {@code 0x251} u32 0. */
     public static final int SERVER_GP_LEAVE = 0x251;
+    /** C# {@code requestSaveGrandPrixClear} rank update {@code 0x25A}. */
+    public static final int SERVER_GP_CLEAR_UPDATE = 0x25A;
     /**
      * C# My Room enter character {@code 0x168} {@code PlayerRoomInfoEx}.
      * Same numeric as {@link #CLIENT_WORKSHOP_TRANSFORM_CONFIRM}, opposite
@@ -5550,6 +5552,16 @@ public final class GamePackets {
     /** C# {@code leaveRoomGrandPrix} {@code 0x254}: u32 0 + i16 -1. */
     public static byte[] gpExitRoomAck() {
         return new PacketWriter().opcode(SERVER_GP_EXIT_ROOM).u32(0).i16(-1).toBytes();
+    }
+
+    /** C# {@code requestSaveGrandPrixClear}: u32 0 + typeIdLink + rank position. */
+    public static byte[] gpClearUpdate(int typeIdLink, int position) {
+        return new PacketWriter()
+                .opcode(SERVER_GP_CLEAR_UPDATE)
+                .u32(0)
+                .u32(typeIdLink)
+                .u32(position)
+                .toBytes();
     }
 
     /**

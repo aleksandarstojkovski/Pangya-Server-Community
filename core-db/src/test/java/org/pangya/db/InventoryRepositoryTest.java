@@ -866,6 +866,29 @@ class InventoryRepositoryTest {
     }
 
     @Test
+    void grandPrixClearUpdatesOnlyWhenRankImproves() {
+        String url = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        DatabaseSupport.migrate(url, user, password);
+
+        try (var ds = DatabaseSupport.dataSource(url, user, password)) {
+            InventoryRepository repo = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
+            try {
+                repo.deleteGrandPrixClear(10001, 0x80100);
+                assertTrue(repo.updateGrandPrixClearIfBetter(10001, 0x80100, 3));
+                assertEquals(3, repo.grandPrixClearPosition(10001, 0x80100).orElseThrow());
+                assertFalse(repo.updateGrandPrixClearIfBetter(10001, 0x80100, 5));
+                assertEquals(3, repo.grandPrixClearPosition(10001, 0x80100).orElseThrow());
+                assertTrue(repo.updateGrandPrixClearIfBetter(10001, 0x80100, 1));
+                assertEquals(1, repo.grandPrixClearPosition(10001, 0x80100).orElseThrow());
+            } finally {
+                repo.deleteGrandPrixClear(10001, 0x80100);
+            }
+        }
+    }
+
+    @Test
     void addAwardItemInsertsCharacterWhenAbsent() {
         var jpIff = java.nio.file.Path.of(
                 "reference/pangya-server-community/Server/JP/GameServer/data/pangya_jp.iff");
