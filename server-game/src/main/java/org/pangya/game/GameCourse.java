@@ -21,8 +21,12 @@ final class GameCourse {
     final int seed;
     final List<GamePackets.HoleInfo> holes = new ArrayList<>(GamePackets.COURSE_HOLE_COUNT);
     final List<List<GamePackets.CourseCubeEntry>> cubesByHole = new ArrayList<>(GamePackets.COURSE_HOLE_COUNT);
+    /** C# {@code m_holes_rain} + {@code m_chr} from {@code init_dados_rain}. */
+    CourseRainStats rainStats;
+    private int qntdHoles;
 
     GameCourse(GamePackets.RoomInfo info, GlobalCatalogs catalogs) {
+        this.qntdHoles = info.holes;
         this.seed = SEED;
         int roomCourse = info.course & 0x7f;
         boolean coinCubeActive =
@@ -49,6 +53,13 @@ final class GameCourse {
             cubesByHole.add(CoinCubeGenerator.generate(
                     catalogs, holeCourse, holeNum, n - 1, enableCube, enableCoin));
         }
+        rebuildRainStats(qntdHoles);
+    }
+
+    /** C# {@code CourseManager.init_dados_rain} after hole weather is known. */
+    void rebuildRainStats(int qntdHole) {
+        qntdHoles = qntdHole;
+        rainStats = CourseRainStats.build(holes, qntdHole);
     }
 
     /** C# {@code CourseManager.init_seq} for GP special holes + FRONT fallback. */
@@ -108,6 +119,7 @@ final class GameCourse {
                 holes.set(i, new GamePackets.HoleInfo(
                         hole.id(), hole.pin(), hole.course(), hole.numero(),
                         weather, hole.wind(), hole.degree()));
+                rebuildRainStats(qntdHoles);
                 return true;
             }
         }

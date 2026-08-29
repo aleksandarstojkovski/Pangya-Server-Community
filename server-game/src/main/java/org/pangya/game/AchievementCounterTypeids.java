@@ -126,6 +126,31 @@ final class AchievementCounterTypeids {
         }
     }
 
+    /** C# {@code GameBase.rain_count} + {@code rain_hole_consecutivos_count}. */
+    static void queueRainCounters(GameRoom room, long uid, CourseRainStats rainStats, int holeSeq) {
+        if (rainStats == null || holeSeq <= 0) {
+            return;
+        }
+        if (rainStats.hasRainHoles()) {
+            int rainPlayed = rainStats.countHolesRainBySeq(holeSeq);
+            if (rainPlayed > 0) {
+                room.addPendingAchievementCounter(uid, GamePackets.TYPEID_RAIN_COUNTER, rainPlayed);
+            }
+        }
+        int rain2 = rainStats.countRain2ConsecBySeq(holeSeq);
+        if (rain2 > 0) {
+            room.addPendingAchievementCounter(uid, GamePackets.TYPEID_RAIN_2_CONSEC_COUNTER, rain2);
+        }
+        int rain3 = rainStats.countRain3ConsecBySeq(holeSeq);
+        if (rain3 > 0) {
+            room.addPendingAchievementCounter(uid, GamePackets.TYPEID_RAIN_3_CONSEC_COUNTER, rain3);
+        }
+        int rain4 = rainStats.countRain4PlusConsecBySeq(holeSeq);
+        if (rain4 > 0) {
+            room.addPendingAchievementCounter(uid, GamePackets.TYPEID_RAIN_4_CONSEC_COUNTER, rain4);
+        }
+    }
+
     /** C# {@code GameBase.update_sync_shot_achievement} from {@code ShotSyncData}. */
     static void queueSyncShotCounters(
             GameRoom room,

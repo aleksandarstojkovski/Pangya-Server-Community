@@ -1799,6 +1799,16 @@ public final class GamePackets {
     public static final int TYPEID_COBRA_COUNTER = 0x6C40006E;
     /** C# {@code update_sync_shot_achievement} beam impact hole-out. */
     public static final int TYPEID_BEAM_IMPACT_COUNTER = 0x6C40006F;
+    /** C# {@code rain_count} bad-weather holes played. */
+    public static final int TYPEID_RAIN_COUNTER = 0x6C40009A;
+    /** C# {@code rain_hole_consecutivos_count} two consecutive rain holes. */
+    public static final int TYPEID_RAIN_2_CONSEC_COUNTER = 0x6C40009B;
+    /** C# {@code rain_hole_consecutivos_count} three consecutive rain holes. */
+    public static final int TYPEID_RAIN_3_CONSEC_COUNTER = 0x6C40009C;
+    /** C# {@code rain_hole_consecutivos_count} four or more consecutive rain holes. */
+    public static final int TYPEID_RAIN_4_CONSEC_COUNTER = 0x6C40009D;
+    /** C# {@code HoleManager.getWeather()} rain / recovery weather id. */
+    public static final int WEATHER_RAIN = 2;
     /** C# 18-hole game counter from {@code getQntdHoleCounterTypeId}. */
     public static final int TYPEID_18_HOLES_COUNTER = 0x6C40006C;
     /** C# Blue Lagoon course counter from {@code getCourseCounterTypeId}. */

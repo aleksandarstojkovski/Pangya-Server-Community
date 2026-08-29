@@ -1281,17 +1281,17 @@ public final class GameHandler {
         }
     }
 
-    /** C# {@code requestSaveInfo} records + {@code score_consecutivos_count} + finish-game dump. */
+    /** C# {@code requestSaveInfo} records + rain/score counters + finish-game dump. */
     private void finishGamePlayerDump(Session session, GameRoom room) {
+        queueRainCounters(session, room);
+        queueScoreConsecutivosCounters(session, room);
         GameRoom.PlayerShot shot = room.shots.get(session.oid());
         GamePackets.UserInfoEx ui = shot == null || shot.userInfo == null
                 ? null
                 : shot.userInfo;
-        if (ui == null) {
-            return;
+        if (ui != null) {
+            queueRecordAchievementCounters(session, room, ui);
         }
-        queueScoreConsecutivosCounters(session, room);
-        queueRecordAchievementCounters(session, room, ui);
         sendFinishGameDump(session, room, true);
     }
 
@@ -1325,6 +1325,16 @@ public final class GameHandler {
         return (float) (Math.sqrt(dx * dx + dy * dy + dz * dz) * GamePackets.MEDIDA_PARA_YARDS);
     }
 
+    private void queueRainCounters(Session session, GameRoom room) {
+        if (room.course == null || room.course.rainStats == null) {
+            return;
+        }
+        GameRoom.PlayerShot shot = room.shots.get(session.oid());
+        int holeSeq = shot != null && shot.hole > 0 ? shot.hole : room.info.holes;
+        AchievementCounterTypeids.queueRainCounters(
+                room, session.player().uid, room.course.rainStats, holeSeq);
+    }
+
     private void queueScoreConsecutivosCounters(Session session, GameRoom room) {
         GameRoom.PlayerShot shot = room.shots.get(session.oid());
         if (shot == null) {
@@ -1349,6 +1359,7 @@ public final class GameHandler {
             return;
         }
         for (Session member : room.snapshot()) {
+            queueRainCounters(member, room);
             queueScoreConsecutivosCounters(member, room);
             flushPendingAchievementCounters(member, room);
         }
