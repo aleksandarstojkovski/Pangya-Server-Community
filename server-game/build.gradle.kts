@@ -13,6 +13,7 @@ dependencies {
     implementation(libs.bundles.logging)
     implementation(libs.jedis)
     implementation(libs.micrometer.prometheus)
+    testImplementation(project(":server-ranking"))
     testImplementation(libs.bundles.test)
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }

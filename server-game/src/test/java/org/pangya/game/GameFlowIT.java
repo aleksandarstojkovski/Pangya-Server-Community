@@ -5,9 +5,7 @@ import org.pangya.db.DatabaseSupport;
 import org.pangya.db.InventoryRepository;
 import org.pangya.db.JdbiInventoryRepository;
 import org.pangya.db.JdbiLoginRepository;
-import org.pangya.db.JdbiRankRepository;
 import org.pangya.db.LoginRepository;
-import org.pangya.db.RankRepository;
 import org.pangya.network.AppConfig;
 import org.pangya.network.auth.AuthOutbound;
 import org.pangya.network.client.PangyaFakeClient;
@@ -18,6 +16,8 @@ import org.pangya.protocol.login.ServerInfo;
 import org.pangya.protocol.packet.PacketIo;
 import org.pangya.protocol.packet.PacketReader;
 import org.pangya.protocol.packet.PacketWriter;
+import org.pangya.protocol.ranking.RankingPackets;
+import org.pangya.ranking.RankingRuntime;
 
 import java.net.ServerSocket;
 import java.util.ArrayList;
@@ -3880,9 +3880,10 @@ class GameFlowIT {
     }
 
     /**
-     * S-T5: 18-hole Tourney last-hole finish writes {@code pangya_record}
-     * ({@code requestSaveRecordCourse} option 1) then {@code GeraRankAll}
-     * exposes the player on the Blue Lagoon board (C# tipo_rank=1 seq=0).
+     * S-T5 e2e: 18-hole Tourney last-hole finish writes {@code pangya_record}
+     * ({@code requestSaveRecordCourse} option 1). {@code RankingRuntime} then
+     * runs C# {@code init_systems}/{@code GeraRankAll} and a ranking fake client
+     * reads the Blue Lagoon board (tipo_rank=1 seq=0).
      */
     @Test
     void tourneyFinishRebuildsRankingRegistry() throws Exception {
@@ -3943,11 +3944,43 @@ class GameFlowIT {
             awaitOpcode(host, GamePackets.SERVER_PRIZE_LIST);
             awaitOpcode(host, GamePackets.SERVER_GAME_RESULT);
 
-            RankRepository ranks = new JdbiRankRepository(DatabaseSupport.jdbi(ds));
-            assertTrue(ranks.geraRankAll() > 0);
-            var bl = ranks.findInMenu(1, 0, 10001);
-            assertTrue(bl.isPresent(), "GeraRankAll tipo 1 seq 0 is Blue Lagoon best_score");
-            assertEquals(0, bl.get().value());
+            AppConfig rankConfig = new AppConfig(rankingTestYaml(jdbc, user, password, redisUri));
+            try (RankingRuntime ranking = new RankingRuntime(rankConfig);
+                 PangyaFakeClient rankClient = new PangyaFakeClient()) {
+                rankClient.connect("127.0.0.1", ranking.port(), PangyaFakeClient.HelloKind.RANKING);
+                rankClient.awaitHello(5, TimeUnit.SECONDS);
+                rankClient.sendPlain(RankingPackets.clientLogin(10001, "testuser", 1, 0, 0, 0, 0));
+                PacketReader page = new PacketReader(rankClient.awaitPlain(5, TimeUnit.SECONDS));
+                assertEquals(RankingPackets.SERVER_SEND_FIRST_PAGE, page.opcode());
+                assertEquals(0, page.u8());
+                assertEquals(1, page.u8());
+                assertEquals(0, page.u8());
+                page.u8();
+                page.u8();
+                assertTrue(page.u32() >= 1);
+                page.u32();
+                int n = page.u16();
+                assertTrue(n >= 1, "Blue Lagoon board must have at least one row after GeraRankAll");
+                boolean found = false;
+                int blScore = Integer.MIN_VALUE;
+                for (int i = 0; i < n; i++) {
+                    long uid = page.u32();
+                    page.u32();
+                    page.u32();
+                    int valor = page.i32();
+                    page.u8();
+                    page.u8();
+                    page.u8();
+                    page.pstr();
+                    page.pstr();
+                    if (uid == 10001) {
+                        found = true;
+                        blScore = valor;
+                    }
+                }
+                assertTrue(found, "ranking fake-client BL board must include testuser after Tourney finish");
+                assertEquals(0, blScore);
+            }
         }
     }
 
@@ -8381,6 +8414,22 @@ class GameFlowIT {
             }
         }
         return out;
+    }
+
+    private static Map<String, Object> rankingTestYaml(String jdbc, String user, String password, String redis) {
+        Map<String, Object> root = new LinkedHashMap<>();
+        root.put("server", Map.of(
+                "name", "ranking-test",
+                "uid", 4774,
+                "tipo", 4,
+                "port", 0,
+                "healthPort", freePort(),
+                "ip", "127.0.0.1"
+        ));
+        root.put("database", Map.of("url", jdbc, "user", user, "password", password));
+        root.put("redis", Map.of("uri", redis));
+        root.put("auth", Map.of("enabled", false, "host", "127.0.0.1", "port", 1));
+        return root;
     }
 
     private static Map<String, Object> testYaml(String jdbc, String user, String password, String redis) {
