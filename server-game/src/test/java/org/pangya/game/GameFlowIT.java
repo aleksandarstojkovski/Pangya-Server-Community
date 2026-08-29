@@ -5589,6 +5589,127 @@ class GameFlowIT {
     }
 
     @Test
+    void practiceFinishGameFlushesAchievementCounters() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config);
+             PangyaFakeClient client = new PangyaFakeClient()) {
+            InventoryRepository inv = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
+            cleanupDailyQuest(ds);
+            inv.deleteDailyQuestStuff(GamePackets.TYPEID_DAILY_QUEST_STUFF_TEST);
+            inv.setPangCookie(10001, 100_000, 0);
+            try {
+                inv.upsertDailyQuestStuff(
+                        GamePackets.TYPEID_DAILY_QUEST_STUFF_TEST,
+                        GamePackets.TYPEID_HOLE_COUNT_COUNTER,
+                        1);
+                int achievementId = insertDailyAchievement(ds);
+                LoginRepository repo = new JdbiLoginRepository(DatabaseSupport.jdbi(ds));
+                String loginKey = repo.generateAuthKeyLogin(10001);
+                String gameKey = repo.generateAuthKeyGame(10001, 20202);
+                keys.putLoginKey(10001, loginKey);
+                keys.putGameKey(10001, 20202, gameKey);
+                loginToChannel(client, runtime.port(), "testuser", 10001, loginKey, gameKey);
+
+                client.sendPlain(GamePackets.clientAcceptDailyQuest(achievementId));
+                awaitOpcode(client, GamePackets.SERVER_DAILY_QUEST_STAMP);
+                awaitOpcode(client, GamePackets.SERVER_DAILY_QUEST_ACCEPT);
+
+                client.sendPlain(GamePackets.clientLobbyItem(GamePackets.ITEM_CHARACTER, 1));
+                awaitOpcode(client, GamePackets.SERVER_ROOM_USER_INFO_CHANGED);
+
+                client.sendPlain(GamePackets.clientCreatePractice("ach-counter", "secret"));
+                PacketReader room = awaitOpcode(client, GamePackets.SERVER_ROOM_ENTER_RESULT);
+                assertEquals(0, room.i16());
+                byte[] practiceInfo = room.readBytes(GamePackets.ROOM_INFO_BYTES);
+
+                client.sendPlain(GamePackets.clientRoomItem(GamePackets.ITEM_CHARACTER, 1));
+                awaitOpcode(client, GamePackets.SERVER_ROOM_USER_INFO_CHANGED);
+
+                client.sendPlain(GamePackets.clientStartGame());
+                awaitOpcode(client, GamePackets.SERVER_START_GAME_FLAG);
+                awaitOpcode(client, GamePackets.SERVER_START_GAME_FLAG2);
+                awaitOpcode(client, GamePackets.SERVER_PANG_RATE);
+                awaitOpcode(client, GamePackets.SERVER_GAME_INIT);
+                PacketReader course = awaitOpcode(client, GamePackets.SERVER_COURSE);
+                skipCoursePacketAfterCourseId(course);
+
+                byte[] roomKey = new byte[16];
+                System.arraycopy(practiceInfo, 69, roomKey, 0, 16);
+                client.sendPlain(GamePackets.clientInitHole(18, 0, 0, 4, 1.5f, 2.5f, 10f, 20f));
+                awaitOpcode(client, GamePackets.SERVER_WEATHER);
+                awaitOpcode(client, GamePackets.SERVER_WIND);
+                awaitOpcode(client, GamePackets.SERVER_REMAIN_TIME);
+
+                client.sendPlain(GamePackets.clientEmpty(GamePackets.CLIENT_SHOT_END));
+                client.sendPlain(GamePackets.clientShotEnd(GamePackets.shotEndLocationSample()));
+                awaitOpcode(client, GamePackets.SERVER_SHOT_END);
+                client.sendPlain(GamePackets.clientLoadOk());
+                client.sendPlain(GamePackets.clientShot());
+                int display = GamePackets.DISPLAY_ACERTO_HOLE | GamePackets.DISPLAY_CLEAR_BONUS;
+                int oid = oidOf(runtime, 10001);
+                byte[] shotPlain = GamePackets.shotSyncPlain(
+                        oid, 1.5f, 0f, 2.5f, 2, 0, 0, 0, 0, display, 0x11, 100, 0);
+                client.sendPlain(GamePackets.clientShotResult(GamePackets.xorRoomKey(shotPlain, roomKey)));
+                awaitOpcode(client, GamePackets.SERVER_SYNC_SHOT);
+                client.sendPlain(GamePackets.clientShotAck());
+                awaitOpcode(client, GamePackets.SERVER_END_SHOT);
+                awaitOpcode(client, GamePackets.SERVER_LAST_HOLE);
+
+                client.sendPlain(GamePackets.clientFinishGame());
+                awaitOpcode(client, GamePackets.SERVER_PRIZE_LIST);
+                awaitOpcode(client, GamePackets.SERVER_GAME_RESULT);
+                awaitOpcode(client, GamePackets.SERVER_MY_STATISTICS);
+                awaitOpcode(client, GamePackets.SERVER_UPDATE_TREASURE_GIFT_LIST);
+
+                PacketReader counterUpd = awaitOpcode(client, GamePackets.SERVER_DAILY_QUEST_STAMP);
+                counterUpd.u32();
+                assertEquals(1, counterUpd.u32());
+                assertEquals(GamePackets.PAPEL_AWARD_TYPE, counterUpd.u8());
+                assertEquals(GamePackets.TYPEID_HOLE_COUNT_COUNTER, counterUpd.u32());
+                int holeCounterId = counterUpd.i32();
+                counterUpd.u32();
+                assertEquals(0, counterUpd.i32());
+                assertEquals(1, counterUpd.i32());
+                assertEquals(1, counterUpd.i32());
+                counterUpd.readBytes(GamePackets.PAPEL_AWARD_PAD);
+                assertEquals(0, counterUpd.remaining());
+
+                PacketReader questClear = awaitOpcode(client, GamePackets.SERVER_ACHIEVEMENT_CLEAR_QUEST);
+                assertEquals(1, questClear.u32());
+                assertEquals(GamePackets.TYPEID_DAILY_ACHIEVEMENT_TEST, questClear.u32());
+                assertEquals(GamePackets.TYPEID_DAILY_QUEST_STUFF_TEST, questClear.u32());
+
+                PacketReader achUpd = awaitOpcode(client, GamePackets.SERVER_ACHIEVEMENT_UPDATE);
+                assertEquals(0, achUpd.i32());
+                assertEquals(1, achUpd.u32());
+                assertEquals(1, achUpd.u8());
+                assertEquals(GamePackets.TYPEID_DAILY_ACHIEVEMENT_TEST, achUpd.u32());
+                assertEquals(achievementId, achUpd.i32());
+                assertEquals(GamePackets.ACHIEVEMENT_STATUS_CONCLUDED, achUpd.i32());
+                assertEquals(1, achUpd.u32());
+                assertEquals(GamePackets.TYPEID_DAILY_QUEST_STUFF_TEST, achUpd.u32());
+                assertEquals(GamePackets.TYPEID_HOLE_COUNT_COUNTER, achUpd.u32());
+                assertEquals(holeCounterId, achUpd.u32());
+                assertTrue(achUpd.u32() > 0);
+                assertEquals(0, achUpd.remaining());
+
+                awaitOpcode(client, GamePackets.SERVER_PANG_SPENT);
+            } finally {
+                cleanupDailyQuest(ds);
+                inv.deleteDailyQuestStuff(GamePackets.TYPEID_DAILY_QUEST_STUFF_TEST);
+            }
+        }
+    }
+
+    @Test
     void versusLastHoleClearBonusCreditsPang() throws Exception {
         String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
         String user = env("PANGYA_TEST_JDBC_USER", "pangya");

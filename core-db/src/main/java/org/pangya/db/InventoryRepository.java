@@ -4,6 +4,7 @@ import org.pangya.protocol.game.GamePackets;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.OptionalLong;
@@ -63,6 +64,9 @@ public interface InventoryRepository {
      * {@code 0x22E}/{@code 0x220}.
      */
     CounterApplyResult applyCounterIncrements(long uid, int counterTypeid, int delta);
+
+    /** C# {@code finish_and_update}: apply multiple in-memory counter deltas in one batch. */
+    CounterApplyResult applyCounterIncrements(long uid, Map<Integer, Integer> deltas);
 
     List<GamePackets.AchievementInfo> achievements(long uid);
 

@@ -903,6 +903,10 @@ public final class GameHandler {
         shot.hole = hole.numero();
         shot.x = hole.teeX();
         shot.z = hole.teeZ();
+        if (room.tipo == GamePackets.TIPO_PRACTICE) {
+            room.addPendingAchievementCounter(
+                    session.player().uid, GamePackets.TYPEID_HOLE_COUNT_COUNTER, 1);
+        }
         if (GamePackets.usesTourneyInitialData(room.tipo)) {
             session.send(GamePackets.weather(info.weather()));
             session.send(GamePackets.wind(info.wind(), 0, info.degree(), 1));
@@ -1199,6 +1203,12 @@ public final class GameHandler {
             return;
         }
         session.send(GamePackets.lastHole());
+        if (room.tipo == GamePackets.TIPO_PRACTICE) {
+            int counterTypeid = room.info.modo == GamePackets.MODO_REPEAT
+                    ? GamePackets.TYPEID_HOLE_REPEAT_COUNTER
+                    : GamePackets.TYPEID_COURSE_PRACTICE_COUNTER;
+            room.addPendingAchievementCounter(session.player().uid, counterTypeid, 1);
+        }
         if ((shot.displayState & GamePackets.DISPLAY_CLEAR_BONUS) == 0) {
             return;
         }
@@ -2467,6 +2477,7 @@ public final class GameHandler {
         session.send(GamePackets.gameResult(0, room.info.trophy, 0, 2));
         session.send(GamePackets.myStatistics(GamePackets.userInfoPublic(session.player().level)));
         session.send(GamePackets.treasureHunterItem());
+        flushPendingAchievementCounters(session, room);
         long uid = session.player().uid;
         if (creditPang) {
             if (room.tipo == GamePackets.TIPO_MATCH) {
@@ -2661,6 +2672,7 @@ public final class GameHandler {
         room.activeUses.clear();
         room.autoCommandUses.clear();
         room.gameFlags.clear();
+        room.clearPendingAchievementCounters();
         if (room.tipo == GamePackets.TIPO_MATCH) {
             room.resetMatchTeams();
         }
@@ -7043,8 +7055,22 @@ public final class GameHandler {
     }
 
     private void finishCounterIncrements(Session session, long uid, int counterTypeid, int delta) {
-        InventoryRepository.CounterApplyResult result =
-                inventory.applyCounterIncrements(uid, counterTypeid, delta);
+        finishCounterIncrements(session, uid, java.util.Map.of(counterTypeid, delta));
+    }
+
+    private void finishCounterIncrements(Session session, long uid, java.util.Map<Integer, Integer> deltas) {
+        if (deltas.isEmpty()) {
+            return;
+        }
+        sendCounterApplyResult(session, inventory.applyCounterIncrements(uid, deltas));
+    }
+
+    /** C# Practice {@code finish_game(6)} {@code finish_and_update} after in-game counter batch. */
+    private void flushPendingAchievementCounters(Session session, GameRoom room) {
+        finishCounterIncrements(session, session.player().uid, room.takePendingAchievementCounters(session.player().uid));
+    }
+
+    private void sendCounterApplyResult(Session session, InventoryRepository.CounterApplyResult result) {
         if (result.updatedAchievements().isEmpty()) {
             return;
         }
@@ -7069,7 +7095,7 @@ public final class GameHandler {
                 .toList();
         session.send(GamePackets.achievementClearQuest(clears));
         session.send(GamePackets.achievementUpdate(
-                result.updatedAchievements(), inventory.counters(uid)));
+                result.updatedAchievements(), inventory.counters(session.player().uid)));
     }
 
     /**

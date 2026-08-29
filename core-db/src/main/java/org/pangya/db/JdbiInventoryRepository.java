@@ -547,8 +547,24 @@ public final class JdbiInventoryRepository implements InventoryRepository {
     @Override
     public InventoryRepository.CounterApplyResult applyCounterIncrements(
             long uid, int counterTypeid, int delta) {
-        List<InventoryRepository.CounterIncrement> increments =
-                incrementActiveCounters(uid, counterTypeid, delta);
+        return applyCounterIncrements(uid, Map.of(counterTypeid, delta));
+    }
+
+    @Override
+    public InventoryRepository.CounterApplyResult applyCounterIncrements(
+            long uid, Map<Integer, Integer> deltas) {
+        if (deltas == null || deltas.isEmpty()) {
+            return new InventoryRepository.CounterApplyResult(List.of(), List.of(), List.of(), List.of());
+        }
+        List<InventoryRepository.CounterIncrement> increments = new ArrayList<>();
+        for (Map.Entry<Integer, Integer> entry : deltas.entrySet()) {
+            int counterTypeid = entry.getKey();
+            int delta = entry.getValue();
+            if (counterTypeid == 0 || delta == 0) {
+                continue;
+            }
+            increments.addAll(incrementActiveCounters(uid, counterTypeid, delta));
+        }
         if (increments.isEmpty()) {
             return new InventoryRepository.CounterApplyResult(List.of(), List.of(), List.of(), List.of());
         }

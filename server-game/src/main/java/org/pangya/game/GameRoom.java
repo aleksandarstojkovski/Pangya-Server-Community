@@ -59,6 +59,9 @@ final class GameRoom {
      * C# {@code PlayerGameInfo.flag} ({@link GamePackets#FLAG_GAME_PLAYING} …).
      */
     final ConcurrentHashMap<Integer, Integer> gameFlags = new ConcurrentHashMap<>();
+    /** C# {@code PlayerGameInfo.sys_achieve} in-memory counter buffer until {@code finish_and_update}. */
+    final ConcurrentHashMap<Long, ConcurrentHashMap<Integer, Integer>> pendingAchievementCounters =
+            new ConcurrentHashMap<>();
     /** C# {@code init_first_hole_gz} barrier set by CLIENT {@code 0x137}. */
     final ConcurrentHashMap<Integer, Boolean> gzFirstHole = new ConcurrentHashMap<>();
     /** C# Versus {@code m_timer} generation; increment cancels the running turn. */
@@ -232,6 +235,7 @@ final class GameRoom {
         activeUses.remove(session.oid());
         autoCommandUses.remove(session.oid());
         gameFlags.remove(session.oid());
+        pendingAchievementCounters.remove(session.player().uid);
         shops.remove(session.player().uid);
         for (PersonalShop shop : shops.values()) {
             shop.viewers.remove(session.player().uid);
@@ -524,6 +528,26 @@ final class GameRoom {
 
     void setGameFlag(int oid, int flag) {
         gameFlags.put(oid, flag);
+    }
+
+    /** C# {@code sys_achieve.incrementCounter} during a game (flushed at {@code finish_and_update}). */
+    void addPendingAchievementCounter(long uid, int counterTypeid, int delta) {
+        if (counterTypeid == 0 || delta == 0) {
+            return;
+        }
+        pendingAchievementCounters
+                .computeIfAbsent(uid, k -> new ConcurrentHashMap<>())
+                .merge(counterTypeid, delta, Integer::sum);
+    }
+
+    /** Takes and clears pending counters for one player at game finish. */
+    java.util.Map<Integer, Integer> takePendingAchievementCounters(long uid) {
+        ConcurrentHashMap<Integer, Integer> pending = pendingAchievementCounters.remove(uid);
+        return pending == null ? java.util.Map.of() : java.util.Map.copyOf(pending);
+    }
+
+    void clearPendingAchievementCounters() {
+        pendingAchievementCounters.clear();
     }
 
     void initGameFlags() {
