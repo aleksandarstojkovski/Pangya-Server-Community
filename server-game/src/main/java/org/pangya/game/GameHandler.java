@@ -1476,9 +1476,66 @@ public final class GameHandler {
         }
         GameRoom leftover = room;
         leaveRoom(session, false);
-        if (leftover.info.numPlayer > 0 && leftover.inGame && leftover.allGrandPrixPlayersClearedHole()) {
-            leftover.clearGrandPrixFinishHoleFlags();
-            leftover.broadcast(GamePackets.gpAllNextHole());
+        grandPrixAfterPlayerRemoved(leftover);
+    }
+
+    /**
+     * C# {@code GrandPrix.deletePlayer} when {@code m_game_init_state == 1}: stop timers,
+     * persist item use, {@code 0x61}/{@code 0x6C} option 3/{@code 0x45} option -1.
+     *
+     * @return {@code true} when {@link GameRoom#allGrandPrixPlayersFinished()} after quit flag
+     */
+    private boolean deleteGrandPrixPlayer(Session session, GameRoom room) {
+        if (!room.inGame || room.tipo != GamePackets.TIPO_GRAND_PRIX) {
+            return false;
+        }
+        if (room.gameFlag(session.oid()) != GamePackets.FLAG_GAME_PLAYING) {
+            return false;
+        }
+        int oid = session.oid();
+        GameRoom.PlayerShot shot = room.shots.get(oid);
+        room.stopGpHoleTimer(oid);
+        room.stopGpRuleTimer(oid);
+        prepareFinishItemUsed(session, room);
+        if (!isRookieNormalGrandPrix(room)) {
+            queueRainCounters(session, room);
+            queueScoreConsecutivosCounters(session, room);
+            queueItemUsedCounters(session, room);
+            if (shot != null && shot.userInfo != null) {
+                queueRecordAchievementCounters(session, room, shot.userInfo);
+            }
+        }
+        consumeFinishItemUsed(session, room);
+        room.setGameFlag(oid, GamePackets.FLAG_GAME_QUIT);
+        for (Session member : room.snapshot()) {
+            if (member != session) {
+                member.send(GamePackets.scoreLeave(oid));
+            }
+        }
+        room.broadcast(GamePackets.gamePlayerState(oid, 3));
+        session.send(GamePackets.myStatistics(finishUserInfoWire(session, shot)));
+        if (shot != null && shot.badConduct >= 3 && (shot.giveUp > 0 || shot.timeOuts > 0)) {
+            room.addPendingAchievementCounter(
+                    session.player().uid, GamePackets.TYPEID_NORMAL_GAME_COMPLETE_COUNTER, 1);
+            flushPendingAchievementCounters(session, room);
+            session.send(GamePackets.newEndGameFlag());
+            session.send(GamePackets.newEndGameFlag2());
+        }
+        return room.allGrandPrixPlayersFinished();
+    }
+
+    /** C# {@code GrandPrix.deletePlayer} tail: finish room or advance hole when all cleared. */
+    private void grandPrixAfterPlayerRemoved(GameRoom room) {
+        if (room == null || room.info.numPlayer <= 0 || !room.inGame) {
+            return;
+        }
+        if (room.allGrandPrixPlayersFinished()) {
+            maybeFinishGrandPrixGame(room);
+            return;
+        }
+        if (room.allGrandPrixPlayersClearedHole()) {
+            room.clearGrandPrixFinishHoleFlags();
+            room.broadcast(GamePackets.gpAllNextHole());
         }
     }
 
@@ -8946,8 +9003,14 @@ public final class GameHandler {
         if (session.player().roomNumber < 0) {
             return;
         }
+        GameRoom room = rooms.get(session.player().roomNumber);
+        if (room != null && room.inGame && room.tipo == GamePackets.TIPO_GRAND_PRIX) {
+            deleteGrandPrixPlayer(session, room);
+        }
+        GameRoom leftover = room;
         leaveRoom(session, false);
         session.send(GamePackets.gpExitRoomAck());
+        grandPrixAfterPlayerRemoved(leftover);
     }
 
     /**
