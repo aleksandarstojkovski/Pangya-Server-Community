@@ -1013,7 +1013,7 @@ class InventoryRepositoryTest {
                 repo.deleteWarehouseByTypeid(10002, GamePackets.TYPEID_SKIN_RABBITS);
                 var timedSkin = ItemInitializer.MailAwardRow.skinTimed(
                         GamePackets.TYPEID_SKIN_RABBITS, 4, 2);
-                int skinId = repo.addAwardItem(10002, timedSkin).orElseThrow().id();
+                repo.addAwardItem(10002, timedSkin).orElseThrow();
                 assertTrue(repo.warehouse(10002).stream()
                         .anyMatch(w -> w.typeid == GamePackets.TYPEID_SKIN_RABBITS && w.flag == 0x40));
 

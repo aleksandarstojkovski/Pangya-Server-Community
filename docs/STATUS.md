@@ -13,8 +13,8 @@ Conteggio Channel: **197** handler `packet_func_sv` registrati in `GameService.i
 
 ## Questo turno
 
-Fatto: **skin** (group 14) + **CAD_ITEM** (group 8) mail init/award; **IffCommonFile** name lookup; GM giveitem/goldenbell mail text con nome IFF (`Necklace of Good Fortune`).
-Prossimo: pin `.gbin`; capture JP S9; timed mascot/skin/CAD_ITEM rental da full C# `initItemFromBuyItem`.
+Fatto: mail **flag_time/tempo_qntd** su attachment; init temporizzato skin/mascot/CAD_ITEM; skin `EndDate`; mascot estensione tempo su duplicato; shop gift passa `BuyItem.time`.
+Prossimo: pin `.gbin`; capture JP S9; shop/box/attendance `initItemFromBuyItem` oltre mail.
 Blocco: pin `.gbin` binaries absent; nessuna capture client JP Season 9.
 
 Percentuale epic: **scheletro 85%** / **parità client reale 43%**.
