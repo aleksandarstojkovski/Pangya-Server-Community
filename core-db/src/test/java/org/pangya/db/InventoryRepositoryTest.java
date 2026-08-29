@@ -671,6 +671,52 @@ class InventoryRepositoryTest {
     }
 
     @Test
+    void buySetItemExpandsGreenlineSwimsetWithIffInit() {
+        var jpIff = java.nio.file.Path.of(
+                "reference/pangya-server-community/Server/JP/GameServer/data/pangya_jp.iff");
+        if (!jpIff.toFile().isFile()) {
+            return;
+        }
+        String url = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        DatabaseSupport.migrate(url, user, password);
+
+        try (var ds = DatabaseSupport.dataSource(url, user, password)) {
+            InventoryRepository repo = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
+            int setTypeid = 0x24200000;
+            try {
+                PangyaIffLoader.reload(jpIff);
+                DatabaseSupport.jdbi(ds).useHandle(h -> h.createUpdate("""
+                                INSERT INTO pangya.shop_catalog (typeid, pang_price, cookie_price, can_overlap)
+                                VALUES (:typeid, 5000, 0, 0)
+                                ON CONFLICT (typeid) DO UPDATE
+                                   SET pang_price = EXCLUDED.pang_price, can_overlap = EXCLUDED.can_overlap
+                                """)
+                        .bind("typeid", setTypeid)
+                        .execute());
+                for (int part : new int[] {0x08006010, 0x0801000A, 0x0800080A}) {
+                    repo.deleteWarehouseByTypeid(10001, part);
+                }
+                repo.setPangCookie(10001, 100000, 0);
+                var bought = repo.buyShopItem(10001, setTypeid, 1, 5000, 0);
+                assertEquals(0, bought.code());
+                assertEquals(3, bought.awards().size());
+                var wh = repo.warehouse(10001);
+                assertTrue(wh.stream().anyMatch(w -> w.typeid == 0x08006010 && w.c[0] == 1));
+                assertTrue(wh.stream().anyMatch(w -> w.typeid == 0x0801000A && w.c[0] == 1));
+                assertTrue(wh.stream().anyMatch(w -> w.typeid == 0x0800080A && w.c[0] == 1));
+            } finally {
+                PangyaIffLoader.reload(null);
+                for (int part : new int[] {0x08006010, 0x0801000A, 0x0800080A}) {
+                    repo.deleteWarehouseByTypeid(10001, part);
+                }
+                repo.setPangCookie(10001, 100000, 0);
+            }
+        }
+    }
+
+    @Test
     void setItemIffLoadsGreenlineSwimsetFromReferenceArchive() {
         var jpIff = java.nio.file.Path.of(
                 "reference/pangya-server-community/Server/JP/GameServer/data/pangya_jp.iff");

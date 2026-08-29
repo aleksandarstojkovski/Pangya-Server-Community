@@ -2631,11 +2631,22 @@ public final class GameHandler {
             for (int i = 0; i < qntd; i++) {
                 items.add(GamePackets.readBuyItem(reader));
             }
+            List<MailBoxStore.MailAttachment> mailItems = new ArrayList<>();
             long pangAfter = pang;
             long cookieAfter = cookie;
             long pangSpent = 0;
             long cookieSpent = 0;
             for (GamePackets.BuyItem item : items) {
+                if (GamePackets.itemGroupIdentify(item.typeid()) == GamePackets.IFF_GROUP_SET_ITEM) {
+                    if (inventory.ownerSetItem(toUid, item.typeid())) {
+                        session.send(GamePackets.giftFailed(GamePackets.BUY_FAIL_OWNED, pang, cookie));
+                        return;
+                    }
+                    if (!inventory.setItemExpandable(item.typeid())) {
+                        session.send(GamePackets.giftFailed(GamePackets.BUY_FAIL_NOT_BUYABLE, pang, cookie));
+                        return;
+                    }
+                }
                 InventoryRepository.ShopBuyResult result = inventory.giftShopItem(
                         session.player().uid, item.typeid(), item.qntd(), item.pang(), item.cookie());
                 if (result.code() != 0) {
@@ -2646,9 +2657,10 @@ public final class GameHandler {
                 cookieAfter = result.cookie();
                 pangSpent += result.pangSpent();
                 cookieSpent += result.cookieSpent();
+                mailItems.add(new MailBoxStore.MailAttachment(item.typeid(), item.qntd()));
             }
             String fromId = session.player().nickname == null ? "" : session.player().nickname;
-            mailboxes.add(toUid, fromId, msg == null ? "" : msg, items.size());
+            mailboxes.add(toUid, fromId, msg == null ? "" : msg, mailItems);
             if (pangSpent > 0) {
                 session.send(GamePackets.pangSpent(pangAfter, pangSpent));
             }

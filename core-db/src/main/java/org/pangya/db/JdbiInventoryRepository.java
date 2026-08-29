@@ -614,7 +614,12 @@ public final class JdbiInventoryRepository implements InventoryRepository {
 
     @Override
     public ShopBuyResult giftShopItem(long uid, int typeid, int qntd, int clientPang, int clientCookie) {
-        return jdbi.inTransaction(h -> chargeShopItem(h, uid, typeid, qntd, clientPang, clientCookie, false));
+        return jdbi.inTransaction(h -> {
+            if (GamePackets.itemGroupIdentify(typeid) == GamePackets.IFF_GROUP_SET_ITEM) {
+                return chargeSetShopItem(h, uid, typeid, qntd, clientPang, clientCookie, false);
+            }
+            return chargeShopItem(h, uid, typeid, qntd, clientPang, clientCookie, false);
+        });
     }
 
     @Override
@@ -632,7 +637,7 @@ public final class JdbiInventoryRepository implements InventoryRepository {
     private ShopBuyResult chargeShopItem(
             Handle h, long uid, int typeid, int qntd, int clientPang, int clientCookie, boolean addWarehouse) {
         if (addWarehouse && GamePackets.itemGroupIdentify(typeid) == GamePackets.IFF_GROUP_SET_ITEM) {
-            return chargeSetShopItem(h, uid, typeid, qntd, clientPang, clientCookie);
+            return chargeSetShopItem(h, uid, typeid, qntd, clientPang, clientCookie, true);
         }
         ShopItem item = h.createQuery("""
                         SELECT typeid, pang_price, cookie_price, can_overlap
@@ -686,7 +691,14 @@ public final class JdbiInventoryRepository implements InventoryRepository {
         }
         int itemId = 0;
         if (addWarehouse) {
-            itemId = insertWarehouse(h, uid, typeid, qntd);
+            ItemInitializer.InitContext ctx = new ItemInitializer.InitContext(
+                    playerLevel(h, uid), true, false, false);
+            Optional<ItemInitializer.WarehouseInitRow> init =
+                    ItemInitializer.initFromBuyItem(ctx, typeid, qntd, 0);
+            if (init.isEmpty()) {
+                return ShopBuyResult.fail(GamePackets.BUY_FAIL_NOT_BUYABLE);
+            }
+            itemId = insertWarehouse(h, uid, init.get());
         }
         long pangAfter = pang - pangSpent;
         long cookieAfter = cookie - cookieSpent;
@@ -704,7 +716,7 @@ public final class JdbiInventoryRepository implements InventoryRepository {
     }
 
     private ShopBuyResult chargeSetShopItem(
-            Handle h, long uid, int setTypeid, int qntd, int clientPang, int clientCookie) {
+            Handle h, long uid, int setTypeid, int qntd, int clientPang, int clientCookie, boolean addWarehouse) {
         Optional<SetItemIff> setOpt = setItemIff(setTypeid);
         if (setOpt.isEmpty()) {
             return ShopBuyResult.fail(GamePackets.BUY_FAIL_NOT_BUYABLE);
@@ -749,27 +761,25 @@ public final class JdbiInventoryRepository implements InventoryRepository {
         if (pang < pangSpent || cookie < cookieSpent) {
             return ShopBuyResult.fail(GamePackets.BUY_FAIL_FUNDS);
         }
-        SetItemIff set = setOpt.get();
         List<GamePackets.BoughtItem> awards = new ArrayList<>();
-        for (int i = 0; i < set.total(); i++) {
-            int compTypeid = set.itemTypeids()[i];
-            if (compTypeid == 0) {
-                continue;
+        if (addWarehouse) {
+            List<ItemInitializer.WarehouseInitRow> components =
+                    ItemInitializer.expandSetItem(true, setTypeid);
+            if (components.isEmpty()) {
+                return ShopBuyResult.fail(GamePackets.BUY_FAIL_NOT_BUYABLE);
             }
-            if (GamePackets.itemGroupIdentify(compTypeid) == GamePackets.IFF_GROUP_CHARACTER) {
-                continue;
+            for (ItemInitializer.WarehouseInitRow comp : components) {
+                if (!item.canOverlap() && ownsWarehouseTypeid(h, uid, comp.typeid())) {
+                    continue;
+                }
+                int id = insertWarehouse(h, uid, comp);
+                awards.add(new GamePackets.BoughtItem(
+                        comp.typeid(), id, 0, 0, comp.qntdDep()));
             }
-            if (!item.canOverlap() && ownsWarehouseTypeid(h, uid, compTypeid)) {
-                continue;
-            }
-            int compQntd = set.itemQntds()[i];
-            if (compQntd <= 0) {
-                compQntd = 1;
-            }
-            int id = insertWarehouse(h, uid, compTypeid, compQntd);
-            awards.add(new GamePackets.BoughtItem(compTypeid, id, 0, 0, compQntd));
+        } else if (ItemInitializer.expandSetItem(true, setTypeid).isEmpty()) {
+            return ShopBuyResult.fail(GamePackets.BUY_FAIL_NOT_BUYABLE);
         }
-        if (awards.isEmpty()) {
+        if (addWarehouse && awards.isEmpty()) {
             return ShopBuyResult.fail(GamePackets.BUY_FAIL_NOT_BUYABLE);
         }
         long pangAfter = pang - pangSpent;
@@ -783,9 +793,24 @@ public final class JdbiInventoryRepository implements InventoryRepository {
                 .bind("cookie", cookieAfter)
                 .bind("uid", uid)
                 .execute();
-        GamePackets.BoughtItem first = awards.getFirst();
+        GamePackets.BoughtItem first = awards.isEmpty()
+                ? new GamePackets.BoughtItem(setTypeid, 0, 0, 0, qntd)
+                : awards.getFirst();
         return new ShopBuyResult(
                 0, first.id(), setTypeid, first.qntdDep(), pangAfter, cookieAfter, pangSpent, cookieSpent, awards);
+    }
+
+    @Override
+    public boolean setItemExpandable(int setTypeid) {
+        return !ItemInitializer.expandSetItem(true, setTypeid).isEmpty();
+    }
+
+    private static int playerLevel(Handle h, long uid) {
+        return h.createQuery("SELECT COALESCE(\"level\", 0) FROM pangya.user_info WHERE \"UID\" = :uid")
+                .bind("uid", uid)
+                .mapTo(Integer.class)
+                .findOne()
+                .orElse(0);
     }
 
     private static boolean ownsWarehouseTypeid(Handle h, long uid, int typeid) {
@@ -1290,7 +1315,7 @@ public final class JdbiInventoryRepository implements InventoryRepository {
                         .execute();
                 return existing;
             }
-            return insertWarehouse(h, uid, typeid, qntd);
+            return insertWarehouse(h, uid, ItemInitializer.WarehouseInitRow.simple(typeid, qntd));
         });
     }
 
@@ -1336,7 +1361,7 @@ public final class JdbiInventoryRepository implements InventoryRepository {
         });
     }
 
-    private static int insertWarehouse(Handle h, long uid, int typeid, int qntd) {
+    private static int insertWarehouse(Handle h, long uid, ItemInitializer.WarehouseInitRow row) {
         return h.createQuery("""
                         INSERT INTO pangya.pangya_item_warehouse (
                             "UID", typeid, valid, "Gift_flag", flag,
@@ -1346,18 +1371,29 @@ public final class JdbiInventoryRepository implements InventoryRepository {
                             "Mastery_Pts", "Recovery_Pts", "Level", "Up",
                             "Total_Mastery_Pts", "Mastery_Gasto"
                         ) VALUES (
-                            :uid, :typeid, 1, 0, 0,
-                            :qntd, 0, 0, 0, 0, 1, 2,
+                            :uid, :typeid, 1, 0, :flag,
+                            :c0, :c1, :c2, :c3, :c4, :purchase, :itemType,
                             0, 0, 0, 0, 0, 0,
                             0, 0, 0, 0, 0, 0
                         )
                         RETURNING item_id
                         """)
                 .bind("uid", uid)
-                .bind("typeid", typeid)
-                .bind("qntd", qntd)
+                .bind("typeid", row.typeid())
+                .bind("flag", row.flag())
+                .bind("c0", row.c0())
+                .bind("c1", row.c1())
+                .bind("c2", row.c2())
+                .bind("c3", row.c3())
+                .bind("c4", row.c4())
+                .bind("purchase", row.purchase())
+                .bind("itemType", row.itemType())
                 .mapTo(Integer.class)
                 .one();
+    }
+
+    private static int insertWarehouse(Handle h, long uid, int typeid, int qntd) {
+        return insertWarehouse(h, uid, ItemInitializer.WarehouseInitRow.simple(typeid, qntd));
     }
 
     @Override

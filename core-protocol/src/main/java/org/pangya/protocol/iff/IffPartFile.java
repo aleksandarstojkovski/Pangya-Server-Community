@@ -18,6 +18,8 @@ public final class IffPartFile {
     public static final int RECORD_BYTES = 568;
     /** C# {@code Part.valor_rental} offset within each record. */
     public static final int VALOR_RENTAL_OFFSET = 560;
+    /** C# {@code Part.type_item} after {@code IFFCommon} + {@code MPet}. */
+    public static final int TYPE_ITEM_OFFSET = 192 + 40;
 
     private IffPartFile() {}
 
@@ -37,6 +39,7 @@ public final class IffPartFile {
 
         Set<Integer> ids = HashSet.newHashSet(header.count());
         Map<Integer, Long> rentals = new HashMap<>();
+        Map<Integer, Integer> typeItems = new HashMap<>();
         for (int i = 0; i < header.count(); i++) {
             int base = IffHeader.BYTES + i * RECORD_BYTES;
             int typeid = ByteBuffer.wrap(data, base + 4, 4).order(ByteOrder.LITTLE_ENDIAN).getInt();
@@ -46,8 +49,12 @@ public final class IffPartFile {
             if (rental > 0) {
                 rentals.put(typeid, rental);
             }
+            int typeItem = ByteBuffer.wrap(data, base + TYPE_ITEM_OFFSET, 4)
+                    .order(ByteOrder.LITTLE_ENDIAN)
+                    .getInt();
+            typeItems.put(typeid, typeItem);
         }
-        return new IffPartIndex(Set.copyOf(ids), Map.copyOf(rentals));
+        return new IffPartIndex(Set.copyOf(ids), Map.copyOf(rentals), Map.copyOf(typeItems));
     }
 
     public static IffPartIndex loadIndex(PangyaIffArchive archive) throws java.io.IOException {

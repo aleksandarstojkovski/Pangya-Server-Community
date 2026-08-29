@@ -370,6 +370,9 @@ public interface InventoryRepository {
 
     void deleteGrandPrixClear(long uid, int typeid);
 
+    /** C# {@code getItemOfSetItem} validation for gift/mail (no warehouse insert). */
+    boolean setItemExpandable(int setTypeid);
+
     /** C# {@code PlayerInfo.ownerSetItem}: true when any non-character package member is owned. */
     boolean ownerSetItem(long uid, int setTypeid);
 
