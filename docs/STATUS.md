@@ -13,8 +13,8 @@ Conteggio Channel: **197** handler `packet_func_sv` registrati in `GameService.i
 
 ## Questo turno
 
-Fatto: **`GrandPrixData.iff`** parser (816-byte, 741 rows) + `findGrandPrixData` via `PangyaIffLoader` / `grandPrixEvent` when IFF loaded (Shining Sand `0x80101` → course 10, 9 holes).
-Prossimo: pin `.gbin`; capture JP S9; GrandPrixSpecialHole / ticket-time gates; set-item shop/gift expansion (`getItemOfSetItem`).
+Fatto: **`GrandPrixSpecialHole.iff`** (20-byte, 84 rows) + GP hole sequence in `GameCourse` (rank `0x100` → maps 11/16/20); `gpRankTypeid` from `TypeID_Link` on GP enter.
+Prossimo: pin `.gbin`; capture JP S9; GP ticket/time/clear gates; set-item shop/gift expansion (`getItemOfSetItem`).
 Blocco: pin `.gbin` binaries absent; nessuna capture client JP Season 9.
 
 Percentuale epic: **scheletro 85%** / **parità client reale 43%**.

@@ -44,6 +44,7 @@ public final class IffGrandPrixDataFile {
                 continue;
             }
             int typeid = ByteBuffer.wrap(data, base + 4, 4).order(ByteOrder.LITTLE_ENDIAN).getInt();
+            int typeIdLink = ByteBuffer.wrap(data, base + 8, 4).order(ByteOrder.LITTLE_ENDIAN).getInt();
             String name = readFixedString(data, base + NAME_OFFSET, NAME_BYTES);
             int rule = ByteBuffer.wrap(data, base + RULE_OFFSET, 4).order(ByteOrder.LITTLE_ENDIAN).getInt();
             int course = ByteBuffer.wrap(data, base + COURSE_OFFSET, 4).order(ByteOrder.LITTLE_ENDIAN).getInt();
@@ -53,7 +54,7 @@ public final class IffGrandPrixDataFile {
             int minLevel = data[base + MIN_LEVEL_OFFSET] & 0xff;
             int maxLevel = data[base + MAX_LEVEL_OFFSET] & 0xff;
             out.put(typeid, new IffGrandPrixDataRecord(
-                    typeid, name, rule, course, modo, holes, naturalMode, minLevel, maxLevel));
+                    typeid, typeIdLink, name, rule, course, modo, holes, naturalMode, minLevel, maxLevel));
         }
         return new IffGrandPrixDataIndex(Map.copyOf(out));
     }

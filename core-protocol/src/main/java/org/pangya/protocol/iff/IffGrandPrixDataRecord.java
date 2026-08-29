@@ -3,6 +3,7 @@ package org.pangya.protocol.iff;
 /** Parsed subset of C# {@code GrandPrixData} for room enter and course init. */
 public record IffGrandPrixDataRecord(
         int typeid,
+        int typeIdLink,
         String name,
         int rule,
         int course,

@@ -3,13 +3,15 @@ package org.pangya.game;
 import org.pangya.game.catalog.CoinCubeGenerator;
 import org.pangya.game.catalog.GlobalCatalogs;
 import org.pangya.protocol.game.GamePackets;
+import org.pangya.protocol.iff.IffGrandPrixSpecialHoleRecord;
+import org.pangya.protocol.iff.PangyaIffLoader;
 
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Synthetic C# {@code CourseManager} without IFF files: 18 holes, FRONT sequence 1..18,
- * pin {@code (n-1)%3}. Cube/coin rows come from SQL via {@link CoinCubeGenerator}.
+ * C# {@code CourseManager} subset: hole sequence (incl. GP special holes), synthetic pin
+ * {@code (n-1)%3}. Cube/coin rows come from SQL via {@link CoinCubeGenerator}.
  */
 final class GameCourse {
 
@@ -22,14 +24,18 @@ final class GameCourse {
 
     GameCourse(GamePackets.RoomInfo info, GlobalCatalogs catalogs) {
         this.seed = SEED;
-        int course = info.course & 0x7f;
+        int roomCourse = info.course & 0x7f;
         boolean coinCubeActive =
                 info.gpActive != 1
-                        && catalogs.coinCubeCourseActive().getOrDefault((short) course, false);
-        boolean isWizCity = course == CoinCubeGenerator.COURSE_WIZ_CITY;
+                        && catalogs.coinCubeCourseActive().getOrDefault((short) roomCourse, false);
+        boolean isWizCity = roomCourse == CoinCubeGenerator.COURSE_WIZ_CITY;
         int modo = info.modo;
+        List<int[]> sequence = holeSequence(info, roomCourse);
         for (int n = 1; n <= GamePackets.COURSE_HOLE_COUNT; n++) {
-            holes.add(new GamePackets.HoleInfo(n, (n - 1) % 3, course, n, 0, 0, 0));
+            int[] slot = sequence.get(n - 1);
+            int holeCourse = slot[0];
+            int holeNum = slot[1];
+            holes.add(new GamePackets.HoleInfo(n, (n - 1) % 3, holeCourse, holeNum, 0, 0, 0));
             boolean enableCube = false;
             if (coinCubeActive) {
                 if (isWizCity) {
@@ -41,8 +47,30 @@ final class GameCourse {
             }
             boolean enableCoin = coinCubeActive;
             cubesByHole.add(CoinCubeGenerator.generate(
-                    catalogs, course, n, n - 1, enableCube, enableCoin));
+                    catalogs, holeCourse, holeNum, n - 1, enableCube, enableCoin));
         }
+    }
+
+    /** C# {@code CourseManager.init_seq} for GP special holes + FRONT fallback. */
+    static List<int[]> holeSequence(GamePackets.RoomInfo info, int roomCourse) {
+        List<int[]> seq = new ArrayList<>(GamePackets.COURSE_HOLE_COUNT);
+        if (info.gpActive == 1 && info.gpRankTypeid > 0) {
+            List<IffGrandPrixSpecialHoleRecord> special =
+                    PangyaIffLoader.grandPrixSpecialHoles(info.gpRankTypeid);
+            if (!special.isEmpty()) {
+                for (IffGrandPrixSpecialHoleRecord row : special) {
+                    seq.add(new int[] {row.map(), row.hole()});
+                }
+                for (int i = seq.size() + 1; i <= GamePackets.COURSE_HOLE_COUNT; i++) {
+                    seq.add(new int[] {roomCourse, i});
+                }
+                return List.copyOf(seq);
+            }
+        }
+        for (int i = 1; i <= GamePackets.COURSE_HOLE_COUNT; i++) {
+            seq.add(new int[] {roomCourse, i});
+        }
+        return List.copyOf(seq);
     }
 
     GamePackets.HoleInfo find(int numero) {

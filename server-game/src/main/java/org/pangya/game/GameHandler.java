@@ -6906,6 +6906,9 @@ public final class GameHandler {
             room.grandPrixTypeid = typeid;
             room.info.gpActive = 1;
             room.info.gpDadosTypeid = typeid;
+            room.info.gpRankTypeid = org.pangya.protocol.iff.PangyaIffLoader.grandPrixData(typeid)
+                    .map(org.pangya.protocol.iff.IffGrandPrixDataRecord::typeIdLink)
+                    .orElse(typeid);
             if (!room.addPlayer(session)) {
                 session.send(GamePackets.sysAck(
                         GamePackets.SERVER_START_GAME_FAIL,
