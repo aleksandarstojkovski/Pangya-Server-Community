@@ -2028,6 +2028,8 @@ class GamePacketsTest {
         PacketReader gpHoleTime = new PacketReader(GamePackets.gpHoleTimeOver());
         assertEquals(GamePackets.SERVER_GP_HOLE_TIME_OVER, gpHoleTime.opcode());
         assertEquals(0, gpHoleTime.u32());
+        PacketReader gpNext = new PacketReader(GamePackets.gpAllNextHole());
+        assertEquals(GamePackets.SERVER_GP_ALL_NEXT_HOLE, gpNext.opcode());
         PacketReader clientMarker = new PacketReader(GamePackets.clientMarker(1f, 2f, 3f));
         assertEquals(GamePackets.CLIENT_MARKER, clientMarker.opcode());
         assertEquals(1f, clientMarker.f32());

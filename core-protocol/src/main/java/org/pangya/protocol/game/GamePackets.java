@@ -376,6 +376,8 @@ public final class GamePackets {
     public static final int SERVER_GP_CLEAR_UPDATE = 0x25A;
     /** C# {@code GrandPrix.timeIsOver} per-hole timer expired ({@code u32} 0). */
     public static final int SERVER_GP_HOLE_TIME_OVER = 0x259;
+    /** C# {@code GrandPrix.sendAllToNextHole} when every player cleared the hole. */
+    public static final int SERVER_GP_ALL_NEXT_HOLE = 0x255;
     /**
      * C# My Room enter character {@code 0x168} {@code PlayerRoomInfoEx}.
      * Same numeric as {@link #CLIENT_WORKSHOP_TRANSFORM_CONFIRM}, opposite
@@ -3700,6 +3702,11 @@ public final class GamePackets {
     /** C# {@code GrandPrix.timeIsOver}: hole timer expired for one player. */
     public static byte[] gpHoleTimeOver() {
         return new PacketWriter().opcode(SERVER_GP_HOLE_TIME_OVER).u32(0).toBytes();
+    }
+
+    /** C# {@code GrandPrix.sendAllToNextHole}. */
+    public static byte[] gpAllNextHole() {
+        return new PacketWriter().opcode(SERVER_GP_ALL_NEXT_HOLE).toBytes();
     }
 
     /** C# {@code TourneyBase.sendSyncShot} {@code 0x6E}. */

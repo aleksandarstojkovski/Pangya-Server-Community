@@ -18,6 +18,8 @@ final class GameRoom {
     int tipo;
     /** C# {@code RoomInfoEx.grand_prix.dados_typeid}; zero outside GP. */
     int grandPrixTypeid;
+    /** C# {@code m_gp.rule} from {@code GrandPrixData.iff}. */
+    int gpRule;
     final int channelId;
     final List<Session> players = new ArrayList<>();
     final ConcurrentHashMap<Integer, GamePackets.PlayerRoomInfo> playerInfos = new ConcurrentHashMap<>();
@@ -33,6 +35,7 @@ final class GameRoom {
     final ConcurrentHashMap<Integer, Boolean> charIntro = new ConcurrentHashMap<>();
     /** Per-player GP hole timer generation (C# {@code GrandPrix.startTime}). */
     private final ConcurrentHashMap<Integer, Long> gpHoleTimerGen = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Integer, Long> gpRuleTimerGen = new ConcurrentHashMap<>();
     /** C# Versus {@code setLoadHole}; cleared when all players have sent {@code 0x11}. */
     final ConcurrentHashMap<Integer, Boolean> loadHole = new ConcurrentHashMap<>();
     /** C# Versus {@code m_player_turn.oid}; 0 until {@code sendReplyFinishLoadHole}. */
@@ -243,6 +246,7 @@ final class GameRoom {
         playerInfos.remove(session.oid());
         charIntro.remove(session.oid());
         stopGpHoleTimer(session.oid());
+        stopGpRuleTimer(session.oid());
         loadHole.remove(session.oid());
         activeUses.remove(session.oid());
         passiveUses.remove(session.oid());
@@ -490,6 +494,49 @@ final class GameRoom {
         gpHoleTimerGen.remove(oid);
     }
 
+    /** C# {@code GrandPrix.startTimeRule}: per-shot rule countdown. */
+    void startGpRuleTimer(int oid, int millis, Runnable onTimeout) {
+        stopGpRuleTimer(oid);
+        if (millis <= 0 || onTimeout == null) {
+            return;
+        }
+        long gen = System.nanoTime();
+        gpRuleTimerGen.put(oid, gen);
+        Thread.ofVirtual().start(() -> {
+            try {
+                Thread.sleep(millis);
+                if (gen == gpRuleTimerGen.get(oid)) {
+                    onTimeout.run();
+                }
+            } catch (InterruptedException ignored) {
+                Thread.currentThread().interrupt();
+            }
+        });
+    }
+
+    void stopGpRuleTimer(int oid) {
+        gpRuleTimerGen.remove(oid);
+    }
+
+    boolean allGrandPrixPlayersClearedHole() {
+        if (players.isEmpty()) {
+            return false;
+        }
+        for (Session member : snapshot()) {
+            PlayerShot shot = shots.get(member.oid());
+            if (shot == null || shot.finishHole == 0) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    void clearGrandPrixFinishHoleFlags() {
+        for (PlayerShot shot : shots.values()) {
+            shot.finishHole = 0;
+        }
+    }
+
     void broadcast(byte[] packet) {
         for (Session session : snapshot()) {
             session.send(packet);
@@ -535,6 +582,16 @@ final class GameRoom {
         int finishHole2;
         /** C# {@code PlayerGameInfo.finish_hole3}: hole finish packet handled once. */
         int finishHole3;
+        /** C# {@code pgi.finish_hole}: hole cleared for {@code checkAllClearHole}. */
+        int finishHole;
+        /** C# {@code pgi.data.penalidade}: extra strokes from rule timer / special shot. */
+        int penalidade;
+        /** C# {@code pgi.data.total_tacada_num}. */
+        int totalTacadaNum;
+        /** C# {@code pgi.data.score} running total vs par. */
+        int score;
+        /** C# {@code pgi.init_shot}: shot init received this turn. */
+        int initShot;
         /** C# {@code pgi.finish_game}; set by {@code requestFinishGame}. */
         boolean finishGame;
         /** Parsed {@code UserInfoEx} from {@code CLIENT_MY_STATISTICS}. */

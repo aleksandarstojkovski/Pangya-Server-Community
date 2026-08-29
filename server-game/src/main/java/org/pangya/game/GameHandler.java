@@ -994,6 +994,10 @@ public final class GameHandler {
             return;
         }
         GameRoom.PlayerShot shot = room.shots.computeIfAbsent(session.oid(), id -> new GameRoom.PlayerShot());
+        if (room.tipo == GamePackets.TIPO_GRAND_PRIX) {
+            room.stopGpRuleTimer(session.oid());
+            shot.initShot = 1;
+        }
         shot.acertoPangyaFlag = GamePackets.readAcertoPangyaFlag(reader);
     }
 
@@ -1042,13 +1046,47 @@ public final class GameHandler {
      */
     private void startTurnTime(Session session) {
         GameRoom room = inGameRoom(session);
-        if (room == null || !GamePackets.usesVersusInitialData(room.tipo) || room.info.timeVs <= 0) {
+        if (room == null) {
+            return;
+        }
+        if (room.tipo == GamePackets.TIPO_GRAND_PRIX) {
+            startGrandPrixTurnTime(session, room);
+            return;
+        }
+        if (!GamePackets.usesVersusInitialData(room.tipo) || room.info.timeVs <= 0) {
             return;
         }
         int oid = session.oid();
         GameRoom.PlayerShot turnShot = room.shots.computeIfAbsent(oid, id -> new GameRoom.PlayerShot());
         turnShot.tacadaNum++;
         room.startTurnTimer(room.info.timeVs, () -> onTurnTimeout(room, oid));
+    }
+
+    /** C# {@code GrandPrix.requestStartTurnTime}: clears init_shot, starts rule timer. */
+    private void startGrandPrixTurnTime(Session session, GameRoom room) {
+        GameRoom.PlayerShot shot = room.shots.computeIfAbsent(session.oid(), id -> new GameRoom.PlayerShot());
+        shot.initShot = 0;
+        int millis = org.pangya.game.catalog.GrandPrixRules.ruleMillis(room.gpRule);
+        if (millis <= 0) {
+            return;
+        }
+        int oid = session.oid();
+        room.startGpRuleTimer(oid, millis, () -> gpRuleTimeExpired(room, oid));
+    }
+
+    /** C# {@code GrandPrix.timeRuleIsOver}: stroke penalty when no init shot before rule timer. */
+    private void gpRuleTimeExpired(GameRoom room, int oid) {
+        if (!room.inGame || room.tipo != GamePackets.TIPO_GRAND_PRIX) {
+            return;
+        }
+        if (!org.pangya.game.catalog.GrandPrixRules.isTimedRule(room.gpRule)) {
+            return;
+        }
+        GameRoom.PlayerShot shot = room.shots.get(oid);
+        if (shot == null || shot.initShot != 0) {
+            return;
+        }
+        shot.penalidade++;
     }
 
     /**
@@ -1231,6 +1269,10 @@ public final class GameHandler {
             }
             if (room.tipo == GamePackets.TIPO_GRAND_PRIX) {
                 applyGrandPrixSyncShot(room, session.oid(), shot);
+                if (room.gpRule == org.pangya.game.catalog.GrandPrixRules.SPECIAL_SHOT
+                        && (shot.displayState & GamePackets.DISPLAY_SPECIAL_SHOT) != 0) {
+                    shot.penalidade++;
+                }
             }
         }
         if (room.tipo == GamePackets.TIPO_MATCH) {
@@ -1296,7 +1338,7 @@ public final class GameHandler {
                 CubeCoinResolver.resolve(catalogs, courseId, courseHoleNum, cubeBody));
         boolean holeOut = (shot.displayState & GamePackets.DISPLAY_ACERTO_HOLE) != 0;
         if (room.tipo == GamePackets.TIPO_GRAND_PRIX) {
-            holeOut = holeOut || shot.giveUp > 0;
+            holeOut = holeOut || shot.giveUp > 0 || shot.timeOuts > 0;
         }
         if (holeOut) {
             appendInitDropItems(session, room, shot, courseId, courseHoleNum, seqHole, drops);
@@ -1307,9 +1349,67 @@ public final class GameHandler {
             room.stopGpHoleTimer(session.oid());
         }
         if (holeOut) {
+            if (room.tipo == GamePackets.TIPO_GRAND_PRIX) {
+                applyGrandPrixPenalidade(shot);
+            }
             recordHoleFinish(session, room, shot);
+            if (room.tipo == GamePackets.TIPO_GRAND_PRIX) {
+                grandPrixAfterHoleOut(session, room, shot);
+            }
         }
         checkEndShotOfHole(session, room, shot);
+    }
+
+    /** C# {@code GrandPrix.finishHole}: add rule penalties before {@code requestFinishHole}. */
+    private static void applyGrandPrixPenalidade(GameRoom.PlayerShot shot) {
+        if (shot.timeOuts == 0 && shot.giveUp == 0) {
+            shot.tacadaNum += shot.penalidade;
+        }
+        shot.penalidade = 0;
+    }
+
+    /** C# {@code GrandPrix.changeHole} + {@code finishHole} tail after hole-out. */
+    private void grandPrixAfterHoleOut(Session session, GameRoom room, GameRoom.PlayerShot shot) {
+        if (shot.finishHole != 0) {
+            return;
+        }
+        int holeNum = shot.hole == 0 ? 1 : shot.hole;
+        int index = holeNum - 1;
+        if (index >= 0 && index < shot.holeTacada.length) {
+            int tacada = shot.holeTacada[index];
+            int par = shot.holePar[index];
+            if (tacada > 0) {
+                shot.totalTacadaNum += tacada;
+                shot.score += tacada - par;
+            }
+        }
+        room.stopGpHoleTimer(session.oid());
+        room.stopGpRuleTimer(session.oid());
+        shot.finishHole = 1;
+        shot.timeOuts = 0;
+        shot.giveUp = 0;
+        room.broadcast(GamePackets.updateHole(
+                session.oid(),
+                holeNum,
+                shot.totalTacadaNum & 0xff,
+                shot.score,
+                shot.pang,
+                shot.bonusPang,
+                1));
+        if (room.course != null && room.course.findHoleSeq(holeNum) == room.info.holes) {
+            session.send(GamePackets.lastHole());
+            if ((shot.displayState & GamePackets.DISPLAY_CLEAR_BONUS) != 0) {
+                int courseId = room.info.course & 0x7f;
+                MapCatalog.CourseCtx map = catalogs.courseMap(courseId);
+                if (map != null) {
+                    shot.bonusPang += MapCatalog.calculeClear30s(map, room.info.holes);
+                }
+            }
+        }
+        if (room.allGrandPrixPlayersClearedHole()) {
+            room.clearGrandPrixFinishHoleFlags();
+            room.broadcast(GamePackets.gpAllNextHole());
+        }
     }
 
     /** C# {@code requestInitDrop} hole-out drops (SSC, mana artefact, GP ticket). */
@@ -1395,9 +1495,12 @@ public final class GameHandler {
     private void checkEndShotOfHole(Session session, GameRoom room, GameRoom.PlayerShot shot) {
         boolean holeOut = (shot.displayState & GamePackets.DISPLAY_ACERTO_HOLE) != 0;
         if (room.tipo == GamePackets.TIPO_GRAND_PRIX) {
-            holeOut = holeOut || shot.giveUp > 0;
+            holeOut = holeOut || shot.giveUp > 0 || shot.timeOuts > 0;
         }
         if (!holeOut) {
+            return;
+        }
+        if (room.tipo == GamePackets.TIPO_GRAND_PRIX) {
             return;
         }
         if (!GamePackets.usesTourneyInitialData(room.tipo)) {
@@ -3915,8 +4018,11 @@ public final class GameHandler {
         if (room.tipo == GamePackets.TIPO_GRAND_PRIX) {
             shot.finishHole2 = 0;
             shot.finishHole3 = 0;
+            shot.finishHole = 0;
             shot.giveUp = 0;
             shot.timeOuts = 0;
+            shot.penalidade = 0;
+            shot.initShot = 0;
         }
         if (room.tipo == GamePackets.TIPO_GRAND_PRIX && room.info.gpTempo > 0) {
             int oid = session.oid();
@@ -8287,6 +8393,7 @@ public final class GameHandler {
             GameRoom room = new GameRoom(
                     request, number, (int) pi.uid, liveRatePang, liveRateExp, pi.channelId);
             room.grandPrixTypeid = typeid;
+            room.gpRule = gp.rule();
             room.info.gpActive = 1;
             room.info.gpDadosTypeid = typeid;
             room.info.gpRankTypeid = org.pangya.protocol.iff.PangyaIffLoader.grandPrixData(typeid)
