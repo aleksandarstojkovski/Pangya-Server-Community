@@ -348,6 +348,12 @@ public final class JdbiInventoryRepository implements InventoryRepository {
 
     @Override
     public boolean mascotMessageEnabled(int typeid) {
+        return org.pangya.protocol.iff.PangyaIffLoader.mascot(typeid)
+                .map(org.pangya.protocol.iff.IffMascotRecord::messageActive)
+                .orElseGet(() -> mascotMessageEnabledSql(typeid));
+    }
+
+    private boolean mascotMessageEnabledSql(int typeid) {
         return jdbi.withHandle(h -> h.createQuery("""
                         SELECT 1 FROM pangya.iff_mascot
                          WHERE typeid = :typeid AND msg_active = 1
@@ -1429,6 +1435,24 @@ public final class JdbiInventoryRepository implements InventoryRepository {
                 .orElse(null));
     }
 
+    private Integer mascotChangePrice(int typeid) {
+        return org.pangya.protocol.iff.PangyaIffLoader.mascot(typeid)
+                .filter(org.pangya.protocol.iff.IffMascotRecord::messageActive)
+                .map(org.pangya.protocol.iff.IffMascotRecord::changePrice)
+                .orElseGet(() -> mascotChangePriceSql(typeid));
+    }
+
+    private Integer mascotChangePriceSql(int typeid) {
+        return jdbi.withHandle(h -> h.createQuery("""
+                        SELECT change_price FROM pangya.iff_mascot
+                         WHERE typeid = :typeid AND msg_active = 1
+                        """)
+                .bind("typeid", typeid)
+                .mapTo(Integer.class)
+                .findOne()
+                .orElse(null));
+    }
+
     @Override
     public MascotMessageResult changeMascotMessage(long uid, int mascotId, String message) {
         return jdbi.inTransaction(h -> {
@@ -1452,14 +1476,7 @@ public final class JdbiInventoryRepository implements InventoryRepository {
             if (typeid == null) {
                 return MascotMessageResult.fail(pang);
             }
-            Integer price = h.createQuery("""
-                            SELECT change_price FROM pangya.iff_mascot
-                             WHERE typeid = :typeid AND msg_active = 1
-                            """)
-                    .bind("typeid", typeid)
-                    .mapTo(Integer.class)
-                    .findOne()
-                    .orElse(null);
+            Integer price = mascotChangePrice(typeid);
             if (price == null || pang < price) {
                 return MascotMessageResult.fail(pang);
             }

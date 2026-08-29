@@ -31,6 +31,7 @@ public final class PangyaIffLoader {
             IffEnchantIndex enchants,
             IffClubSetIndex clubSets,
             IffCaddieIndex caddies,
+            IffMascotIndex mascots,
             Path source) {
         static Snapshot empty() {
             return new Snapshot(
@@ -43,6 +44,7 @@ public final class PangyaIffLoader {
                     IffEnchantIndex.empty(),
                     IffClubSetIndex.empty(),
                     IffCaddieIndex.empty(),
+                    IffMascotIndex.empty(),
                     null);
         }
     }
@@ -68,10 +70,12 @@ public final class PangyaIffLoader {
             IffEnchantIndex enchants = IffEnchantFile.loadIndex(archive);
             IffClubSetIndex clubSets = IffClubSetFile.loadIndex(archive);
             IffCaddieIndex caddies = IffCaddieFile.loadIndex(archive);
+            IffMascotIndex mascots = IffMascotFile.loadIndex(archive);
             snapshot = new Snapshot(
-                    courses, parts, items, cards, characters, characterMastery, enchants, clubSets, caddies, path);
+                    courses, parts, items, cards, characters, characterMastery, enchants, clubSets, caddies,
+                    mascots, path);
             log.info(
-                    "loaded pangya iff {} ({} courses, {} parts, {} items, {} cards, {} chars, {} mastery, {} enchants, {} clubsets, {} caddies)",
+                    "loaded pangya iff {} ({} courses, {} parts, {} items, {} cards, {} chars, {} mastery, {} enchants, {} clubsets, {} caddies, {} mascots)",
                     path,
                     courses.size(),
                     parts.size(),
@@ -81,7 +85,8 @@ public final class PangyaIffLoader {
                     characterMastery.rowCount(),
                     enchants.size(),
                     clubSets.size(),
-                    caddies.size());
+                    caddies.size(),
+                    mascots.size());
         } catch (Exception e) {
             log.warn("failed to load pangya iff {}: {}", path, e.toString());
             snapshot = Snapshot.empty();
@@ -150,6 +155,15 @@ public final class PangyaIffLoader {
             return Optional.empty();
         }
         return caddies.find(typeid);
+    }
+
+    /** C# {@code sIff.findMascot}. */
+    public static Optional<IffMascotRecord> mascot(int typeid) {
+        IffMascotIndex mascots = snapshot.mascots();
+        if (mascots.isEmpty()) {
+            return Optional.empty();
+        }
+        return mascots.find(typeid);
     }
 
     public static Optional<Path> source() {

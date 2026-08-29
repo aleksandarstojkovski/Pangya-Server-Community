@@ -13,8 +13,8 @@ Conteggio Channel: **197** handler `packet_func_sv` registrati in `GameService.i
 
 ## Questo turno
 
-Fatto: … **`ClubSet.iff`**; **`Caddie.iff`** — holiday pay uses `valor_mensal` + `IsCash` from shop flags.
-Prossimo: pin `.gbin`; capture JP S9; Mascot IFF.
+Fatto: **`Mascot.iff`** — 304-byte records (69 mascots); `changeMascotMessage` uses `change_price` (default `0x40000000` **0** pang; SQL seed had **100**).
+Prossimo: pin `.gbin`; capture JP S9; ClubSetWorkShop / Cutin / TimeLimit IFF.
 Blocco: pin `.gbin` binaries absent; nessuna capture client JP Season 9.
 
 Percentuale epic: **scheletro 85%** / **parità client reale 43%**.
