@@ -918,4 +918,86 @@ public interface InventoryRepository {
 
     /** C# {@code stItem.stat} after {@code ItemManager.addItem}. */
     record AwardInsert(int id, int qntdAnt, int qntdDep, int addQntd) {}
+
+    /**
+     * C# {@code pangya.user_info} row loaded by {@code CmdUserInfo} /
+     * updated by {@code ProcUpdateUserInfo} (explicit SQL in Java).
+     */
+    record UserInfoRow(
+            long tacadas,
+            long putt,
+            long tempo,
+            long tempoTacadas,
+            float maxDistancia,
+            long acertoPangya,
+            int bunker,
+            long ob,
+            long totalDistancia,
+            long holes,
+            int holeIn,
+            long hio,
+            int timeout,
+            long fairway,
+            long albatross,
+            int maConduta,
+            long acertoPutt,
+            float longPutt,
+            float chipIn,
+            long xp,
+            int level,
+            long pang,
+            int mediaScore,
+            int bestScore0,
+            int bestScore1,
+            int bestScore2,
+            int bestScore3,
+            int bestScore4,
+            long maxPang0,
+            long maxPang1,
+            long maxPang2,
+            long maxPang3,
+            long maxPang4,
+            long sumPang,
+            int eventFlag,
+            long jogado,
+            long quitado,
+            long skinPang,
+            int skinWin,
+            int skinLose,
+            int skinRunHole,
+            int skinStrikePoint,
+            int skinAllinCount,
+            long todosCombos,
+            long combos,
+            int teamWin,
+            int teamGames,
+            long teamHole,
+            int ladderPoint,
+            int ladderWin,
+            int ladderLose,
+            int ladderDraw,
+            int ladderHole,
+            int eventValue,
+            int naoSei,
+            int maxJogoNaoSei,
+            int jogosNaoSei,
+            int gameCountSeason,
+            long cookie,
+            long totalPangWinGame,
+            int luckyMedal,
+            int fastMedal,
+            int bestDriveMedal,
+            int bestChipinMedal,
+            int bestPuttinMedal,
+            int bestRecoveryMedal,
+            int bit16NaoSei) {}
+
+    /** C# {@code CmdUserInfo} / {@code GetInfo_User}. */
+    Optional<UserInfoRow> userInfo(long uid);
+
+    /** C# {@code ProcUpdateUserInfo} — full row replace after in-memory merge. */
+    void updateUserInfo(long uid, UserInfoRow row);
+
+    /** C# {@code UserInfoEx.total_pang_win_game} increment on normal game finish. */
+    void addTotalPangWinGame(long uid, long credit);
 }

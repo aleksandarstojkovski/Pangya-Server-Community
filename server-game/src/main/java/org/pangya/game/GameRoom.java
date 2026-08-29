@@ -603,6 +603,8 @@ final class GameRoom {
         int finishShot;
         /** C# {@code pgi.finish_game}; set by {@code requestFinishGame}. */
         boolean finishGame;
+        /** C# {@code requestSaveInfo} already merged this round's stats to DB. */
+        boolean saveInfoPersisted;
         /** Parsed {@code UserInfoEx} from {@code CLIENT_MY_STATISTICS}. */
         GamePackets.UserInfoEx userInfo;
         /** Raw {@code UserInfoEx} wire from {@code CLIENT_MY_STATISTICS} for {@code 0x45}. */

@@ -5873,4 +5873,264 @@ public final class JdbiInventoryRepository implements InventoryRepository {
                         rs.getInt("Tipo")))
                 .list());
     }
+
+    private static final String USER_INFO_SELECT = """
+            SELECT "Tacadas", "Putt", "Tempo", "Tempo tacadas", "Max_distancia", "Acerto_pangya",
+                   "Bunker", "O.B", "Total_distancia", "Holes", "Holein", "HIO", "Timeout", "Fairway",
+                   "Albatross", "MaConduta", "Acerto_Putt", "Long-putt", "Chip-in", "Xp", "level", "Pang",
+                   "Media_score", "BestScore0", "BestScore1", "BestScore2", "BestScore3", "BestScore4",
+                   "MaxPang0", "maxPang1", "maxPang2", "maxPang3", "maxPang4", "SumPang", "EventFlag",
+                   "Jogado", "Quitado", "SkinPang", "SkinWin", "SkinLose", "SkinRunHole", "SkinStrikePoint",
+                   "SkinAllinCount", "Todos_combos", "Combos", "TeamWin", "TeamGames", "Teamhole",
+                   "LadderPoint", "LadderWin", "LadderLose", "LadderDraw", "LadderHole", "EventValue",
+                   "NaoSei", "MaxJogoNaoSei", "JogosNaoSei", "GameCountSeason", "Cookie",
+                   total_pang_win_game, lucky_medal, fast_medal, best_drive_medal, best_chipin_medal,
+                   best_puttin_medal, best_recovery_medal, "16bit_naosei"
+              FROM pangya.user_info
+             WHERE "UID" = :uid
+            """;
+
+    @Override
+    public Optional<UserInfoRow> userInfo(long uid) {
+        if (uid <= 0) {
+            return Optional.empty();
+        }
+        return jdbi.withHandle(h -> h.createQuery(USER_INFO_SELECT)
+                .bind("uid", uid)
+                .map((rs, ctx) -> mapUserInfoRow(rs))
+                .findOne());
+    }
+
+    private static UserInfoRow mapUserInfoRow(java.sql.ResultSet rs) throws java.sql.SQLException {
+        return new UserInfoRow(
+                rs.getLong("Tacadas"),
+                rs.getLong("Putt"),
+                rs.getLong("Tempo"),
+                rs.getLong("Tempo tacadas"),
+                rs.getFloat("Max_distancia"),
+                rs.getLong("Acerto_pangya"),
+                rs.getInt("Bunker"),
+                rs.getLong("O.B"),
+                rs.getLong("Total_distancia"),
+                rs.getLong("Holes"),
+                rs.getInt("Holein"),
+                rs.getLong("HIO"),
+                rs.getInt("Timeout"),
+                rs.getLong("Fairway"),
+                rs.getLong("Albatross"),
+                rs.getInt("MaConduta"),
+                rs.getLong("Acerto_Putt"),
+                rs.getFloat("Long-putt"),
+                rs.getFloat("Chip-in"),
+                rs.getLong("Xp"),
+                rs.getInt("level"),
+                rs.getLong("Pang"),
+                rs.getInt("Media_score"),
+                rs.getInt("BestScore0"),
+                rs.getInt("BestScore1"),
+                rs.getInt("BestScore2"),
+                rs.getInt("BestScore3"),
+                rs.getInt("BestScore4"),
+                rs.getLong("MaxPang0"),
+                rs.getLong("maxPang1"),
+                rs.getLong("maxPang2"),
+                rs.getLong("maxPang3"),
+                rs.getLong("maxPang4"),
+                rs.getLong("SumPang"),
+                rs.getInt("EventFlag"),
+                rs.getLong("Jogado"),
+                rs.getLong("Quitado"),
+                rs.getLong("SkinPang"),
+                rs.getInt("SkinWin"),
+                rs.getInt("SkinLose"),
+                rs.getInt("SkinRunHole"),
+                rs.getInt("SkinStrikePoint"),
+                rs.getInt("SkinAllinCount"),
+                rs.getLong("Todos_combos"),
+                rs.getLong("Combos"),
+                rs.getInt("TeamWin"),
+                rs.getInt("TeamGames"),
+                rs.getLong("Teamhole"),
+                rs.getInt("LadderPoint"),
+                rs.getInt("LadderWin"),
+                rs.getInt("LadderLose"),
+                rs.getInt("LadderDraw"),
+                rs.getInt("LadderHole"),
+                rs.getInt("EventValue"),
+                rs.getInt("NaoSei"),
+                rs.getInt("MaxJogoNaoSei"),
+                rs.getInt("JogosNaoSei"),
+                rs.getInt("GameCountSeason"),
+                rs.getLong("Cookie"),
+                rs.getLong("total_pang_win_game"),
+                rs.getInt("lucky_medal"),
+                rs.getInt("fast_medal"),
+                rs.getInt("best_drive_medal"),
+                rs.getInt("best_chipin_medal"),
+                rs.getInt("best_puttin_medal"),
+                rs.getInt("best_recovery_medal"),
+                rs.getInt("16bit_naosei"));
+    }
+
+    @Override
+    public void updateUserInfo(long uid, UserInfoRow row) {
+        if (uid <= 0 || row == null) {
+            return;
+        }
+        jdbi.useHandle(h -> h.createUpdate("""
+                        UPDATE pangya.user_info SET
+                            "Tacadas" = :tacadas,
+                            "Putt" = :putt,
+                            "Tempo" = :tempo,
+                            "Tempo tacadas" = :tempoTacadas,
+                            "Max_distancia" = :maxDistancia,
+                            "Acerto_pangya" = :acertoPangya,
+                            "Bunker" = :bunker,
+                            "O.B" = :ob,
+                            "Total_distancia" = :totalDistancia,
+                            "Holes" = :holes,
+                            "Holein" = :holeIn,
+                            "HIO" = :hio,
+                            "Timeout" = :timeout,
+                            "Fairway" = :fairway,
+                            "Albatross" = :albatross,
+                            "MaConduta" = :maConduta,
+                            "Acerto_Putt" = :acertoPutt,
+                            "Long-putt" = :longPutt,
+                            "Chip-in" = :chipIn,
+                            "Xp" = :xp,
+                            "level" = :level,
+                            "Pang" = :pang,
+                            "Media_score" = :mediaScore,
+                            "BestScore0" = :bestScore0,
+                            "BestScore1" = :bestScore1,
+                            "BestScore2" = :bestScore2,
+                            "BestScore3" = :bestScore3,
+                            "BestScore4" = :bestScore4,
+                            "MaxPang0" = :maxPang0,
+                            "maxPang1" = :maxPang1,
+                            "maxPang2" = :maxPang2,
+                            "maxPang3" = :maxPang3,
+                            "maxPang4" = :maxPang4,
+                            "SumPang" = :sumPang,
+                            "EventFlag" = :eventFlag,
+                            "Jogado" = :jogado,
+                            "Quitado" = :quitado,
+                            "SkinPang" = :skinPang,
+                            "SkinWin" = :skinWin,
+                            "SkinLose" = :skinLose,
+                            "SkinRunHole" = :skinRunHole,
+                            "SkinStrikePoint" = :skinStrikePoint,
+                            "SkinAllinCount" = :skinAllinCount,
+                            "Todos_combos" = :todosCombos,
+                            "Combos" = :combos,
+                            "TeamWin" = :teamWin,
+                            "TeamGames" = :teamGames,
+                            "Teamhole" = :teamHole,
+                            "LadderPoint" = :ladderPoint,
+                            "LadderWin" = :ladderWin,
+                            "LadderLose" = :ladderLose,
+                            "LadderDraw" = :ladderDraw,
+                            "LadderHole" = :ladderHole,
+                            "EventValue" = :eventValue,
+                            "NaoSei" = :naoSei,
+                            "MaxJogoNaoSei" = :maxJogoNaoSei,
+                            "JogosNaoSei" = :jogosNaoSei,
+                            "GameCountSeason" = :gameCountSeason,
+                            "Cookie" = :cookie,
+                            total_pang_win_game = :totalPangWinGame,
+                            lucky_medal = :luckyMedal,
+                            fast_medal = :fastMedal,
+                            best_drive_medal = :bestDriveMedal,
+                            best_chipin_medal = :bestChipinMedal,
+                            best_puttin_medal = :bestPuttinMedal,
+                            best_recovery_medal = :bestRecoveryMedal,
+                            "16bit_naosei" = :bit16NaoSei
+                         WHERE "UID" = :uid
+                        """)
+                .bind("uid", uid)
+                .bind("tacadas", row.tacadas())
+                .bind("putt", row.putt())
+                .bind("tempo", row.tempo())
+                .bind("tempoTacadas", row.tempoTacadas())
+                .bind("maxDistancia", row.maxDistancia())
+                .bind("acertoPangya", row.acertoPangya())
+                .bind("bunker", row.bunker())
+                .bind("ob", row.ob())
+                .bind("totalDistancia", row.totalDistancia())
+                .bind("holes", row.holes())
+                .bind("holeIn", row.holeIn())
+                .bind("hio", row.hio())
+                .bind("timeout", row.timeout())
+                .bind("fairway", row.fairway())
+                .bind("albatross", row.albatross())
+                .bind("maConduta", row.maConduta())
+                .bind("acertoPutt", row.acertoPutt())
+                .bind("longPutt", row.longPutt())
+                .bind("chipIn", row.chipIn())
+                .bind("xp", row.xp())
+                .bind("level", row.level())
+                .bind("pang", row.pang())
+                .bind("mediaScore", row.mediaScore())
+                .bind("bestScore0", row.bestScore0())
+                .bind("bestScore1", row.bestScore1())
+                .bind("bestScore2", row.bestScore2())
+                .bind("bestScore3", row.bestScore3())
+                .bind("bestScore4", row.bestScore4())
+                .bind("maxPang0", row.maxPang0())
+                .bind("maxPang1", row.maxPang1())
+                .bind("maxPang2", row.maxPang2())
+                .bind("maxPang3", row.maxPang3())
+                .bind("maxPang4", row.maxPang4())
+                .bind("sumPang", row.sumPang())
+                .bind("eventFlag", row.eventFlag())
+                .bind("jogado", row.jogado())
+                .bind("quitado", row.quitado())
+                .bind("skinPang", row.skinPang())
+                .bind("skinWin", row.skinWin())
+                .bind("skinLose", row.skinLose())
+                .bind("skinRunHole", row.skinRunHole())
+                .bind("skinStrikePoint", row.skinStrikePoint())
+                .bind("skinAllinCount", row.skinAllinCount())
+                .bind("todosCombos", row.todosCombos())
+                .bind("combos", row.combos())
+                .bind("teamWin", row.teamWin())
+                .bind("teamGames", row.teamGames())
+                .bind("teamHole", row.teamHole())
+                .bind("ladderPoint", row.ladderPoint())
+                .bind("ladderWin", row.ladderWin())
+                .bind("ladderLose", row.ladderLose())
+                .bind("ladderDraw", row.ladderDraw())
+                .bind("ladderHole", row.ladderHole())
+                .bind("eventValue", row.eventValue())
+                .bind("naoSei", row.naoSei())
+                .bind("maxJogoNaoSei", row.maxJogoNaoSei())
+                .bind("jogosNaoSei", row.jogosNaoSei())
+                .bind("gameCountSeason", row.gameCountSeason())
+                .bind("cookie", row.cookie())
+                .bind("totalPangWinGame", row.totalPangWinGame())
+                .bind("luckyMedal", row.luckyMedal())
+                .bind("fastMedal", row.fastMedal())
+                .bind("bestDriveMedal", row.bestDriveMedal())
+                .bind("bestChipinMedal", row.bestChipinMedal())
+                .bind("bestPuttinMedal", row.bestPuttinMedal())
+                .bind("bestRecoveryMedal", row.bestRecoveryMedal())
+                .bind("bit16NaoSei", row.bit16NaoSei())
+                .execute());
+    }
+
+    @Override
+    public void addTotalPangWinGame(long uid, long credit) {
+        if (uid <= 0 || credit <= 0) {
+            return;
+        }
+        jdbi.useHandle(h -> h.createUpdate("""
+                        UPDATE pangya.user_info
+                           SET total_pang_win_game = total_pang_win_game + :credit
+                         WHERE "UID" = :uid
+                        """)
+                .bind("uid", uid)
+                .bind("credit", credit)
+                .execute());
+    }
 }

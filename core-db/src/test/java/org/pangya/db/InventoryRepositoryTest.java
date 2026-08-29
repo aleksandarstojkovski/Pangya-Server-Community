@@ -1,6 +1,7 @@
 package org.pangya.db;
 
 import org.junit.jupiter.api.Test;
+import org.pangya.db.InventoryRepository.UserInfoRow;
 import org.pangya.protocol.game.GamePackets;
 import org.pangya.protocol.iff.PangyaIffLoader;
 
@@ -1292,6 +1293,90 @@ class InventoryRepositoryTest {
             } finally {
                 repo.deleteCardByTypeid(10002, GamePackets.TYPEID_CARD_NORMAL);
             }
+        }
+    }
+
+    @Test
+    void userInfoLoadUpdateRoundTrip() {
+        String url = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        DatabaseSupport.migrate(url, user, password);
+
+        try (var ds = DatabaseSupport.dataSource(url, user, password)) {
+            InventoryRepository repo = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
+            UserInfoRow loaded = repo.userInfo(10001).orElseThrow();
+            UserInfoRow updated = new UserInfoRow(
+                    loaded.tacadas() + 5,
+                    loaded.putt(),
+                    loaded.tempo(),
+                    loaded.tempoTacadas(),
+                    loaded.maxDistancia(),
+                    loaded.acertoPangya(),
+                    loaded.bunker(),
+                    loaded.ob(),
+                    loaded.totalDistancia(),
+                    loaded.holes(),
+                    loaded.holeIn(),
+                    loaded.hio(),
+                    loaded.timeout(),
+                    loaded.fairway(),
+                    loaded.albatross(),
+                    loaded.maConduta(),
+                    loaded.acertoPutt(),
+                    loaded.longPutt(),
+                    loaded.chipIn(),
+                    loaded.xp(),
+                    loaded.level(),
+                    loaded.pang(),
+                    loaded.mediaScore(),
+                    loaded.bestScore0(),
+                    loaded.bestScore1(),
+                    loaded.bestScore2(),
+                    loaded.bestScore3(),
+                    loaded.bestScore4(),
+                    loaded.maxPang0(),
+                    loaded.maxPang1(),
+                    loaded.maxPang2(),
+                    loaded.maxPang3(),
+                    loaded.maxPang4(),
+                    loaded.sumPang(),
+                    loaded.eventFlag(),
+                    loaded.jogado(),
+                    loaded.quitado(),
+                    loaded.skinPang(),
+                    loaded.skinWin(),
+                    loaded.skinLose(),
+                    loaded.skinRunHole(),
+                    loaded.skinStrikePoint(),
+                    loaded.skinAllinCount(),
+                    loaded.todosCombos(),
+                    loaded.combos(),
+                    loaded.teamWin(),
+                    loaded.teamGames(),
+                    loaded.teamHole(),
+                    loaded.ladderPoint(),
+                    loaded.ladderWin(),
+                    loaded.ladderLose(),
+                    loaded.ladderDraw(),
+                    loaded.ladderHole(),
+                    loaded.eventValue(),
+                    loaded.naoSei(),
+                    loaded.maxJogoNaoSei(),
+                    loaded.jogosNaoSei(),
+                    loaded.gameCountSeason(),
+                    loaded.cookie(),
+                    loaded.totalPangWinGame(),
+                    loaded.luckyMedal(),
+                    loaded.fastMedal(),
+                    loaded.bestDriveMedal(),
+                    loaded.bestChipinMedal(),
+                    loaded.bestPuttinMedal(),
+                    loaded.bestRecoveryMedal(),
+                    loaded.bit16NaoSei());
+            repo.updateUserInfo(10001, updated);
+            assertEquals(loaded.tacadas() + 5, repo.userInfo(10001).orElseThrow().tacadas());
+            repo.updateUserInfo(10001, loaded);
         }
     }
 
