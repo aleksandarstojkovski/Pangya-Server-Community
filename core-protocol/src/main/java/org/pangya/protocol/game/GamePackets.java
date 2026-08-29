@@ -50,6 +50,8 @@ public final class GamePackets {
     public static final int SERVER_UPDATE_TREASURE_GIFT_LIST = 0x134;
     /** C# empty last-hole notify after the final Tourney hole. */
     public static final int SERVER_LAST_HOLE = 0x199;
+    /** C# {@code SERVER_MOVE_NEXT_HOLE} / {@code VersusBase.updateFinishHole}. */
+    public static final int SERVER_MOVE_NEXT_HOLE = 0x65;
     public static final int SERVER_PANG_RATE = 0x77;
     public static final int SERVER_COURSE = 0x52;
     public static final int SERVER_WIND = 0x5B;
@@ -5724,6 +5726,11 @@ public final class GamePackets {
     /** C# empty {@code 0x199} after the last Tourney hole. */
     public static byte[] lastHole() {
         return new PacketWriter().opcode(SERVER_LAST_HOLE).toBytes();
+    }
+
+    /** C# {@code VersusBase.updateFinishHole} empty {@code 0x65}. */
+    public static byte[] moveNextHole() {
+        return new PacketWriter().opcode(SERVER_MOVE_NEXT_HOLE).toBytes();
     }
 
     /** C# {@code requestBuyItemShop} {@code 0x68} uint32 option. Extra pang/cookie only on option 0. */

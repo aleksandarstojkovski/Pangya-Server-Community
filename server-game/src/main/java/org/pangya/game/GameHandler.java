@@ -1822,6 +1822,10 @@ public final class GameHandler {
         if (room == null || !GamePackets.usesVersusInitialData(room.tipo)) {
             return;
         }
+        if (room.tipo == GamePackets.TIPO_MATCH) {
+            finishMatchGame(room, session);
+            return;
+        }
         for (Session member : room.snapshot()) {
             prepareFinishItemUsed(member, room);
             queueRainCounters(member, room);
@@ -1831,21 +1835,32 @@ public final class GameHandler {
             consumeFinishItemUsed(member, room);
             saveHoleDrops(member, room);
         }
-        if (room.tipo == GamePackets.TIPO_MATCH) {
-            room.mergeMatchTeamPangToPlayers();
-            for (Session member : room.snapshot()) {
-                calculeGamePang(member, room);
-                finishGameExp(member, room, finishRankIndex(room, member));
-                creditPlayerGamePang(member, room);
-            }
-            sendFinishGameDump(session, room, false);
-        } else {
-            for (Session member : room.snapshot()) {
-                calculeGamePang(member, room);
-                finishGameExp(member, room, finishRankIndex(room, member));
-            }
-            sendFinishGameDump(session, room, true);
+        for (Session member : room.snapshot()) {
+            calculeGamePang(member, room);
+            finishGameExp(member, room, finishRankIndex(room, member));
         }
+        sendFinishGameDump(session, room, true);
+        finishGameRoom(room);
+    }
+
+    /** C# {@code Match.finish_match}: team pang merge, calc pang/exp, finish dump. */
+    private void finishMatchGame(GameRoom room, Session session) {
+        for (Session member : room.snapshot()) {
+            prepareFinishItemUsed(member, room);
+            queueRainCounters(member, room);
+            queueScoreConsecutivosCounters(member, room);
+            queueItemUsedCounters(member, room);
+            flushPendingAchievementCounters(member, room);
+            consumeFinishItemUsed(member, room);
+            saveHoleDrops(member, room);
+        }
+        room.mergeMatchTeamPangToPlayers();
+        for (Session member : room.snapshot()) {
+            calculeGamePang(member, room);
+            finishGameExp(member, room, finishRankIndex(room, member));
+            creditPlayerGamePang(member, room);
+        }
+        sendFinishGameDump(session, room, false);
         finishGameRoom(room);
     }
 
@@ -1887,7 +1902,7 @@ public final class GameHandler {
         }
         applyVersusTurnEndClearBonus(room, session);
         if (room.tipo == GamePackets.TIPO_MATCH) {
-            if (finishMatchTeamHoleIfReady(room)) {
+            if (finishMatchTeamHoleIfReady(room, session)) {
                 return;
             }
             room.clearMatchTeamTimeouts();
@@ -1905,7 +1920,7 @@ public final class GameHandler {
      * C# {@code Match.requestFinishTeamHole}: award team hole point when the hole
      * ends ({@code changeTurn} state != 0). Returns true when the hole ended.
      */
-    private boolean finishMatchTeamHoleIfReady(GameRoom room) {
+    private boolean finishMatchTeamHoleIfReady(GameRoom room, Session session) {
         int turnOid = room.turnOid;
         GameRoom.PlayerShot turnShot = turnOid == 0 ? null : room.shots.get(turnOid);
         int holeNum = turnShot == null || turnShot.hole == 0 ? 1 : turnShot.hole;
@@ -1942,7 +1957,21 @@ public final class GameHandler {
         blue.stateFinish = 0;
         room.clearMatchTeamHoleFlags();
         room.clearMatchTeamTimeouts();
+        matchChangeHole(room, session, holeSeq);
         return true;
+    }
+
+    /** C# {@code Match.changeHole}: early game end or {@code updateFinishHole}. */
+    private void matchChangeHole(GameRoom room, Session session, int holeSeq) {
+        GameRoom.MatchTeam red = room.matchTeams[0];
+        GameRoom.MatchTeam blue = room.matchTeams[1];
+        if (PlacarRankResolver.matchGameEndsEarly(
+                red.point, blue.point, holeSeq, room.info.holes)) {
+            applyMatchClearBonus(room, holeSeq);
+            finishMatchGame(room, session);
+        } else if (holeSeq < room.info.holes) {
+            room.broadcast(GamePackets.moveNextHole());
+        }
     }
 
     /**
@@ -1985,9 +2014,6 @@ public final class GameHandler {
      * {@code calculeClearMatch} per team when the match ends on the last hole.
      */
     private void applyMatchEndClearBonus(GameRoom room) {
-        if (room.matchClearBonusApplied) {
-            return;
-        }
         int holes = room.info.holes;
         for (Session member : room.snapshot()) {
             GameRoom.PlayerShot shot = room.shots.get(member.oid());
@@ -1997,6 +2023,17 @@ public final class GameHandler {
                 return;
             }
         }
+        applyMatchClearBonus(room, holes);
+    }
+
+    /**
+     * C# {@code Match.changeHole}: broadcast {@code 0x199} and
+     * {@code calculeClearMatch} per team when the match ends.
+     */
+    private void applyMatchClearBonus(GameRoom room, int holeSeq) {
+        if (room.matchClearBonusApplied) {
+            return;
+        }
         room.matchClearBonusApplied = true;
         room.broadcast(GamePackets.lastHole());
         int courseId = room.info.course & 0x7f;
@@ -2005,9 +2042,8 @@ public final class GameHandler {
             log.warn("match clear bonus missing course map course={} room={}", courseId, room.info.numero);
             return;
         }
-        int holeSeq = holes;
         int bonusHole = MapCatalog.calculeClearMatch(map, holeSeq);
-        int bonusCourse = MapCatalog.calculeClearMatch(map, holes);
+        int bonusCourse = MapCatalog.calculeClearMatch(map, room.info.holes);
         for (GameRoom.MatchTeam team : room.matchTeams) {
             team.bonusPang += bonusHole;
             team.bonusPang += bonusCourse;

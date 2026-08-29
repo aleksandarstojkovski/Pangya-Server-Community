@@ -59,6 +59,19 @@ class PlacarRankResolverTest {
     }
 
     @Test
+    void matchGameEndsEarlyOnPointLeadOnly() {
+        assertTrue(PlacarRankResolver.matchGameEndsEarly(10, 0, 9, 18));
+        assertFalse(PlacarRankResolver.matchGameEndsEarly(5, 0, 9, 18));
+    }
+
+    @Test
+    void matchGameEndsIncludesLastHoleAndOddPlayers() {
+        assertTrue(PlacarRankResolver.matchGameEnds(1, 1, 18, 18, 4));
+        assertTrue(PlacarRankResolver.matchGameEnds(0, 0, 5, 18, 3));
+        assertFalse(PlacarRankResolver.matchGameEnds(5, 0, 9, 18, 4));
+    }
+
+    @Test
     void awardMatchHolePointIncrementsWinningTeam() {
         int[] points = PlacarRankResolver.awardMatchHolePoint(
                 0, 0, true, false, 9, 0, 2, 4);

@@ -100,4 +100,27 @@ public final class PlacarRankResolver {
         }
         return blueAcerto && !redTimeout && blueTacada == redTacada + 1 && bluePoint - redPoint > holeDiff;
     }
+
+    /**
+     * C# {@code Match.changeHole}: point lead exceeds remaining holes (early match end).
+     */
+    public static boolean matchGameEndsEarly(int redPoint, int bluePoint, int holeSeq, int qntdHole) {
+        int holeDiff = qntdHole - holeSeq;
+        return redPoint - bluePoint > holeDiff || bluePoint - redPoint > holeDiff;
+    }
+
+    /**
+     * C# {@code Match.changeHole} + {@code checkEndGame}: point lead, last hole seq,
+     * or odd player count.
+     */
+    public static boolean matchGameEnds(
+            int redPoint, int bluePoint, int holeSeq, int qntdHole, int playerCount) {
+        if (matchGameEndsEarly(redPoint, bluePoint, holeSeq, qntdHole)) {
+            return true;
+        }
+        if (holeSeq >= qntdHole) {
+            return true;
+        }
+        return (playerCount % 2) == 1;
+    }
 }
