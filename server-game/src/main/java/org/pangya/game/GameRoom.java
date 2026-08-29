@@ -308,7 +308,29 @@ final class GameRoom {
         for (MatchTeam team : matchTeams) {
             team.pang = 0;
             team.bonusPang = 0;
+            team.point = 0;
+            team.stateFinish = 0;
+            team.acertoHole = false;
+            team.tacadaNum = 0;
+            team.lastWin = 0;
         }
+    }
+
+    /** C# {@code Match.clear_all_clear_hole}. */
+    void clearMatchTeamHoleFlags() {
+        for (MatchTeam team : matchTeams) {
+            team.acertoHole = false;
+        }
+    }
+
+    /** C# {@code Match.checkAllClearHole}. */
+    boolean allMatchTeamsClearedHole() {
+        for (MatchTeam team : matchTeams) {
+            if (!team.acertoHole) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
@@ -328,6 +350,11 @@ final class GameRoom {
     static final class MatchTeam {
         long pang;
         long bonusPang;
+        int point;
+        int stateFinish;
+        boolean acertoHole;
+        int tacadaNum;
+        int lastWin;
     }
 
     /**

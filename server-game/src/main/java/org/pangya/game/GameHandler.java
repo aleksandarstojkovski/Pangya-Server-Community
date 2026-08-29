@@ -5,6 +5,7 @@ import org.pangya.game.catalog.CourseDropResolver;
 import org.pangya.game.catalog.CubeCoinResolver;
 import org.pangya.game.catalog.ExpFinishCalculator;
 import org.pangya.game.catalog.PangBonusCalculator;
+import org.pangya.game.catalog.PlacarRankResolver;
 import org.pangya.game.catalog.PlayerRateResolver;
 import org.pangya.game.catalog.PlayerRateResolver.PlayerRates;
 import org.pangya.protocol.iff.IffClubSetRecord;
@@ -1208,9 +1209,12 @@ public final class GameHandler {
             }
         }
         if (room.tipo == GamePackets.TIPO_MATCH) {
-            GameRoom.MatchTeam team = room.matchTeams[room.matchTeamId(session)];
+            int teamId = room.matchTeamId(session);
+            GameRoom.MatchTeam team = room.matchTeams[teamId];
             team.pang = shot.pang;
             team.bonusPang = shot.bonusPang;
+            team.acertoHole = (shot.displayState & GamePackets.DISPLAY_ACERTO_HOLE) != 0;
+            team.tacadaNum = shot.tacadaNum;
         }
         int hole = shot.hole == 0 ? 1 : shot.hole;
         room.broadcast(GamePackets.syncShot(sync.oid(), hole, shot.x, shot.z, shot.shotState, shot.tempo));
@@ -1503,8 +1507,20 @@ public final class GameHandler {
         }
         int holeNum = shot.hole == 0 ? 1 : shot.hole;
         int rawHoleSeq = room.course == null ? holeNum : room.course.findHoleSeq(holeNum);
+        boolean teamAcerto = false;
+        float matchTeamFactor = 1.0f;
+        if (room.tipo == GamePackets.TIPO_MATCH) {
+            GameRoom.MatchTeam team = room.matchTeams[room.matchTeamId(session)];
+            teamAcerto = team.acertoHole;
+            int teamWin = PlacarRankResolver.calcMatchTeamWin(
+                    room.matchTeams[0].point,
+                    room.matchTeams[0].pang,
+                    room.matchTeams[1].point,
+                    room.matchTeams[1].pang);
+            matchTeamFactor = PlacarRankResolver.matchExpFactor(teamWin, room.matchTeamId(session));
+        }
         int holeSeq = ExpFinishCalculator.resolveHoleSeq(
-                rawHoleSeq, room.info.holes, shot.displayState, false);
+                rawHoleSeq, room.info.holes, shot.displayState, teamAcerto);
         GameRoom.PlayerDropCtx ctx = room.dropCtx(session.oid());
         int exp = ExpFinishCalculator.finishExpForRoom(
                 room.tipo,
@@ -1514,7 +1530,7 @@ public final class GameHandler {
                 ctx.rateExp(),
                 room.info.rateExp,
                 rankIndex,
-                1.0f);
+                matchTeamFactor);
         if (exp <= 0) {
             return;
         }
@@ -1523,16 +1539,35 @@ public final class GameHandler {
         shot.gameExp = exp;
     }
 
-    /** Stand-in for C# {@code m_player_order} rank index until placar ranking exists. */
+    /** C# {@code m_player_order} index from {@code requestCalculeRankPlace}. */
     private static int finishRankIndex(GameRoom room, Session session) {
-        int index = 0;
+        List<PlacarRankResolver.RankEntry> entries = new ArrayList<>();
         for (Session member : room.snapshot()) {
-            if (member.oid() == session.oid()) {
-                return index;
-            }
-            index++;
+            GameRoom.PlayerShot shot = room.shots.get(member.oid());
+            entries.add(new PlacarRankResolver.RankEntry(
+                    member.oid(), placarScoreFor(shot), placarPangFor(shot)));
         }
-        return 0;
+        return PlacarRankResolver.rankIndex(PlacarRankResolver.sortRankEntries(entries), session.oid());
+    }
+
+    private static int placarScoreFor(GameRoom.PlayerShot shot) {
+        if (shot == null) {
+            return 0;
+        }
+        if (shot.userInfo != null) {
+            return shot.userInfo.mediaScore();
+        }
+        int score = 0;
+        for (int i = 0; i < shot.holeTacada.length; i++) {
+            if (shot.holeTacada[i] > 0) {
+                score += shot.holeTacada[i] - shot.holePar[i];
+            }
+        }
+        return score;
+    }
+
+    private static long placarPangFor(GameRoom.PlayerShot shot) {
+        return shot == null ? 0L : shot.pang;
     }
 
     private GamePackets.CharacterInfo equippedCharacter(long uid, GamePackets.UserEquip equip) {
@@ -1811,11 +1846,12 @@ public final class GameHandler {
      */
     private void teamFinishHole(Session session, PacketReader reader) {
         GameRoom room = inGameRoom(session);
-        if (room == null) {
+        if (room == null || room.tipo != GamePackets.TIPO_MATCH) {
             return;
         }
         if (reader.remaining() >= 2) {
-            reader.u16();
+            int stateFinish = reader.u16();
+            room.matchTeams[room.matchTeamId(session)].stateFinish = stateFinish;
         }
     }
 
@@ -1841,6 +1877,9 @@ public final class GameHandler {
             return;
         }
         applyVersusTurnEndClearBonus(room, session);
+        if (room.tipo == GamePackets.TIPO_MATCH) {
+            finishMatchTeamHoleIfReady(room);
+        }
         int oid = room.rotateTurn();
         if (oid == 0) {
             return;
@@ -1848,6 +1887,30 @@ public final class GameHandler {
         GamePackets.HoleInfo info = versusHole(room, oid);
         room.broadcast(GamePackets.wind(info.wind(), 0, info.degree(), 1));
         room.broadcast(GamePackets.playerTurn(oid));
+    }
+
+    /**
+     * C# {@code Match.requestFinishTeamHole}: award team hole point when both teams
+     * cleared the hole.
+     */
+    private void finishMatchTeamHoleIfReady(GameRoom room) {
+        if (!room.allMatchTeamsClearedHole()) {
+            return;
+        }
+        int[] points = PlacarRankResolver.awardMatchHolePoint(
+                room.matchTeams[0].point,
+                room.matchTeams[1].point,
+                room.matchTeams[0].acertoHole,
+                room.matchTeams[1].acertoHole,
+                room.matchTeams[0].stateFinish,
+                room.matchTeams[1].stateFinish,
+                room.matchTeams[0].tacadaNum,
+                room.matchTeams[1].tacadaNum);
+        room.matchTeams[0].point = points[0];
+        room.matchTeams[1].point = points[1];
+        room.matchTeams[0].stateFinish = 0;
+        room.matchTeams[1].stateFinish = 0;
+        room.clearMatchTeamHoleFlags();
     }
 
     /**
