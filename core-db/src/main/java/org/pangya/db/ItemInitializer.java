@@ -243,6 +243,35 @@ public final class ItemInitializer {
                 .toList();
     }
 
+    /** Groups C# shop {@code initItemFromBuyItem} can grant (set items use {@code expandSetItem}). */
+    public static boolean isShopAwardGroup(int typeid) {
+        return isMailAwardGroup(typeid)
+                && GamePackets.itemGroupIdentify(typeid) != GamePackets.IFF_GROUP_SET_ITEM;
+    }
+
+    /**
+     * C# {@code initItemFromBuyItem} for shop buy / box grant: same award rows as mail
+     * but {@code BuyItem.time} drives rental days ({@code flag_time=4}).
+     */
+    public static Optional<MailAwardRow> initShopAward(InitContext ctx, int typeid, int qntd, int buyTime) {
+        if (typeid == 0 || qntd <= 0) {
+            return Optional.empty();
+        }
+        int flagTime = buyTime > 0 ? 4 : 0;
+        return switch (GamePackets.itemGroupIdentify(typeid)) {
+            case GamePackets.IFF_GROUP_ITEM, GamePackets.IFF_GROUP_PART,
+                    GamePackets.IFF_GROUP_BALL, GamePackets.IFF_GROUP_CLUBSET ->
+                    initFromBuyItem(ctx, typeid, qntd, buyTime).map(MailAwardRow::warehouse);
+            case GamePackets.IFF_GROUP_CADDIE -> initCaddie(typeid, buyTime);
+            case GamePackets.IFF_GROUP_MASCOT -> initMascot(typeid, flagTime, buyTime, qntd);
+            case GamePackets.IFF_GROUP_CARD -> initCard(typeid, qntd);
+            case GamePackets.IFF_GROUP_CHARACTER -> initCharacter(typeid);
+            case GamePackets.IFF_GROUP_SKIN_WAREHOUSE -> initSkin(typeid, flagTime, buyTime, qntd);
+            case GamePackets.IFF_GROUP_CAD_ITEM -> initCadItem(typeid, flagTime, buyTime, qntd);
+            default -> Optional.empty();
+        };
+    }
+
     /** Groups C# {@code requestTakeItemFomMail} initializes via {@code initItemFromEmailItem}. */
     public static boolean isMailAwardGroup(int typeid) {
         return switch (GamePackets.itemGroupIdentify(typeid)) {
@@ -292,7 +321,7 @@ public final class ItemInitializer {
             case GamePackets.IFF_GROUP_ITEM, GamePackets.IFF_GROUP_PART,
                     GamePackets.IFF_GROUP_BALL, GamePackets.IFF_GROUP_CLUBSET ->
                     initFromBuyItem(ctx, typeid, qntd, 0).map(MailAwardRow::warehouse);
-            case GamePackets.IFF_GROUP_CADDIE -> initCaddie(typeid);
+            case GamePackets.IFF_GROUP_CADDIE -> initCaddie(typeid, 0);
             case GamePackets.IFF_GROUP_MASCOT -> initMascot(typeid, flagTime, tempoQntd, qntd);
             case GamePackets.IFF_GROUP_CARD -> initCard(typeid, qntd);
             case GamePackets.IFF_GROUP_CHARACTER -> initCharacter(typeid);
@@ -356,9 +385,11 @@ public final class ItemInitializer {
         return Optional.of(MailAwardRow.character(typeid));
     }
 
-    private static Optional<MailAwardRow> initCaddie(int typeid) {
+    private static Optional<MailAwardRow> initCaddie(int typeid, int buyTime) {
         if (!PangyaIffLoader.source().isPresent()) {
-            return Optional.of(MailAwardRow.caddie(typeid, 1, 0));
+            int period = buyTime > 0 ? buyTime : 0;
+            return Optional.of(MailAwardRow.caddie(
+                    typeid, period > 0 ? GamePackets.CADDIE_RENT_HOLIDAY : 1, period));
         }
         Optional<IffCaddieRecord> caddieOpt = PangyaIffLoader.caddie(typeid);
         if (caddieOpt.isEmpty()) {
@@ -366,7 +397,8 @@ public final class ItemInitializer {
         }
         IffCaddieRecord caddie = caddieOpt.get();
         if (caddie.valorMensal() > 0) {
-            return Optional.of(MailAwardRow.caddie(typeid, GamePackets.CADDIE_RENT_HOLIDAY, 30));
+            int period = buyTime > 0 ? buyTime : 30;
+            return Optional.of(MailAwardRow.caddie(typeid, GamePackets.CADDIE_RENT_HOLIDAY, period));
         }
         return Optional.of(MailAwardRow.caddie(typeid, 1, 0));
     }

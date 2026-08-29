@@ -609,7 +609,13 @@ public final class JdbiInventoryRepository implements InventoryRepository {
 
     @Override
     public ShopBuyResult buyShopItem(long uid, int typeid, int qntd, int clientPang, int clientCookie) {
-        return jdbi.inTransaction(h -> chargeShopItem(h, uid, typeid, qntd, clientPang, clientCookie, true));
+        return buyShopItem(uid, typeid, qntd, clientPang, clientCookie, 0);
+    }
+
+    @Override
+    public ShopBuyResult buyShopItem(
+            long uid, int typeid, int qntd, int clientPang, int clientCookie, int buyTime) {
+        return jdbi.inTransaction(h -> chargeShopItem(h, uid, typeid, qntd, clientPang, clientCookie, true, buyTime));
     }
 
     @Override
@@ -618,7 +624,7 @@ public final class JdbiInventoryRepository implements InventoryRepository {
             if (GamePackets.itemGroupIdentify(typeid) == GamePackets.IFF_GROUP_SET_ITEM) {
                 return chargeSetShopItem(h, uid, typeid, qntd, clientPang, clientCookie, false);
             }
-            return chargeShopItem(h, uid, typeid, qntd, clientPang, clientCookie, false);
+            return chargeShopItem(h, uid, typeid, qntd, clientPang, clientCookie, false, 0);
         });
     }
 
@@ -635,7 +641,14 @@ public final class JdbiInventoryRepository implements InventoryRepository {
     }
 
     private ShopBuyResult chargeShopItem(
-            Handle h, long uid, int typeid, int qntd, int clientPang, int clientCookie, boolean addWarehouse) {
+            Handle h,
+            long uid,
+            int typeid,
+            int qntd,
+            int clientPang,
+            int clientCookie,
+            boolean addWarehouse,
+            int buyTime) {
         if (addWarehouse && GamePackets.itemGroupIdentify(typeid) == GamePackets.IFF_GROUP_SET_ITEM) {
             return chargeSetShopItem(h, uid, typeid, qntd, clientPang, clientCookie, true);
         }
@@ -662,15 +675,10 @@ public final class JdbiInventoryRepository implements InventoryRepository {
             return ShopBuyResult.fail(GamePackets.BUY_FAIL_PRICE);
         }
         if (addWarehouse && !item.canOverlap()) {
-            int owned = h.createQuery("""
-                            SELECT COUNT(*) FROM pangya.pangya_item_warehouse
-                             WHERE "UID" = :uid AND typeid = :typeid AND valid = 1
-                            """)
-                    .bind("uid", uid)
-                    .bind("typeid", typeid)
-                    .mapTo(Integer.class)
-                    .one();
-            if (owned > 0) {
+            int group = GamePackets.itemGroupIdentify(typeid);
+            if (group != GamePackets.IFF_GROUP_CAD_ITEM
+                    && !(group == GamePackets.IFF_GROUP_MASCOT && buyTime > 0)
+                    && ownsAwardTypeid(uid, typeid)) {
                 return ShopBuyResult.fail(GamePackets.BUY_FAIL_OWNED);
             }
         }
@@ -690,15 +698,42 @@ public final class JdbiInventoryRepository implements InventoryRepository {
             return ShopBuyResult.fail(GamePackets.BUY_FAIL_FUNDS);
         }
         int itemId = 0;
+        int qntdDep = qntd;
+        java.util.List<org.pangya.protocol.game.GamePackets.BoughtItem> bought = java.util.List.of();
         if (addWarehouse) {
-            ItemInitializer.InitContext ctx = new ItemInitializer.InitContext(
-                    playerLevel(h, uid), true, false, false);
-            Optional<ItemInitializer.WarehouseInitRow> init =
-                    ItemInitializer.initFromBuyItem(ctx, typeid, qntd, 0);
-            if (init.isEmpty()) {
+            if (!ItemInitializer.isShopAwardGroup(typeid)) {
                 return ShopBuyResult.fail(GamePackets.BUY_FAIL_NOT_BUYABLE);
             }
-            itemId = insertWarehouse(h, uid, init.get());
+            ItemInitializer.InitContext ctx = new ItemInitializer.InitContext(
+                    playerLevel(h, uid), true, false, false);
+            Optional<ItemInitializer.MailAwardRow> awardOpt =
+                    ItemInitializer.initShopAward(ctx, typeid, qntd, buyTime);
+            if (awardOpt.isEmpty()) {
+                return ShopBuyResult.fail(GamePackets.BUY_FAIL_NOT_BUYABLE);
+            }
+            ItemInitializer.MailAwardRow award = awardOpt.get();
+            if (award.group() != GamePackets.IFF_GROUP_CAD_ITEM
+                    && !(award.group() == GamePackets.IFF_GROUP_MASCOT && award.mascotTimeDays() > 0)
+                    && !item.canOverlap()
+                    && ownsAwardTypeid(uid, typeid)) {
+                return ShopBuyResult.fail(GamePackets.BUY_FAIL_OWNED);
+            }
+            if (award.group() == GamePackets.IFF_GROUP_CAD_ITEM
+                    && !ownsCaddieTypeid(h, uid, GamePackets.caddieBaseTypeid(typeid))) {
+                return ShopBuyResult.fail(GamePackets.BUY_FAIL_NOT_BUYABLE);
+            }
+            Optional<AwardInsert> insert = insertAwardHandle(h, uid, award);
+            if (insert.isEmpty()) {
+                int fail = award.group() == GamePackets.IFF_GROUP_CADDIE
+                        || award.group() == GamePackets.IFF_GROUP_SKIN_WAREHOUSE
+                        ? GamePackets.BUY_FAIL_OWNED
+                        : GamePackets.BUY_FAIL_NOT_BUYABLE;
+                return ShopBuyResult.fail(fail);
+            }
+            itemId = insert.get().id();
+            qntdDep = insert.get().addQntd();
+            bought = java.util.List.of(new org.pangya.protocol.game.GamePackets.BoughtItem(
+                    typeid, itemId, buyTime, award.rentFlag(), qntdDep));
         }
         long pangAfter = pang - pangSpent;
         long cookieAfter = cookie - cookieSpent;
@@ -712,7 +747,7 @@ public final class JdbiInventoryRepository implements InventoryRepository {
                 .bind("uid", uid)
                 .execute();
         return new ShopBuyResult(
-                0, itemId, typeid, qntd, pangAfter, cookieAfter, pangSpent, cookieSpent, List.of());
+                0, itemId, typeid, qntdDep, pangAfter, cookieAfter, pangSpent, cookieSpent, bought);
     }
 
     private ShopBuyResult chargeSetShopItem(
@@ -1354,79 +1389,315 @@ public final class JdbiInventoryRepository implements InventoryRepository {
         if (row == null || row.typeid() == 0) {
             return Optional.empty();
         }
+        return jdbi.inTransaction(h -> insertAwardHandle(h, uid, row));
+    }
+
+    private Optional<AwardInsert> insertAwardHandle(
+            org.jdbi.v3.core.Handle h, long uid, ItemInitializer.MailAwardRow row) {
         return switch (row.group()) {
             case GamePackets.IFF_GROUP_ITEM, GamePackets.IFF_GROUP_PART,
                     GamePackets.IFF_GROUP_BALL, GamePackets.IFF_GROUP_CLUBSET ->
-                    addWarehouseAward(uid, row);
-            case GamePackets.IFF_GROUP_CADDIE -> addCaddieAward(uid, row);
-            case GamePackets.IFF_GROUP_MASCOT -> addMascotAward(uid, row);
-            case GamePackets.IFF_GROUP_CARD -> addCardAward(uid, row.typeid(), row.qntd());
-            case GamePackets.IFF_GROUP_CHARACTER -> addCharacterAward(uid, row.typeid());
-            case GamePackets.IFF_GROUP_SKIN_WAREHOUSE -> addSkinAward(uid, row);
-            case GamePackets.IFF_GROUP_CAD_ITEM -> addCadItemAward(uid, row);
+                    insertWarehouseAwardHandle(h, uid, row);
+            case GamePackets.IFF_GROUP_CADDIE -> insertCaddieAwardHandle(h, uid, row);
+            case GamePackets.IFF_GROUP_MASCOT -> insertMascotAwardHandle(h, uid, row);
+            case GamePackets.IFF_GROUP_CARD -> insertCardAwardHandle(h, uid, row.typeid(), row.qntd());
+            case GamePackets.IFF_GROUP_CHARACTER -> insertCharacterAwardHandle(h, uid, row.typeid());
+            case GamePackets.IFF_GROUP_SKIN_WAREHOUSE -> insertSkinAwardHandle(h, uid, row);
+            case GamePackets.IFF_GROUP_CAD_ITEM -> insertCadItemAwardHandle(h, uid, row);
             default -> Optional.empty();
         };
     }
 
-    private Optional<AwardInsert> addSkinAward(long uid, ItemInitializer.MailAwardRow row) {
-        if (row.warehouse() == null || ownsWarehouseTypeid(uid, row.typeid())) {
+    private Optional<AwardInsert> insertSkinAwardHandle(
+            org.jdbi.v3.core.Handle h, long uid, ItemInitializer.MailAwardRow row) {
+        if (row.warehouse() == null || ownsWarehouseTypeid(h, uid, row.typeid())) {
             return Optional.empty();
         }
-        return jdbi.inTransaction(h -> {
-            int id = insertWarehouse(h, uid, row.warehouse());
-            long seconds = ItemInitializer.stdaTimeSeconds(row.rentFlag(), row.caddiePeriodDays());
-            if (seconds > 0) {
-                h.createUpdate("""
-                                UPDATE pangya.pangya_item_warehouse
-                                   SET "EndDate" = NOW() + (:secs * INTERVAL '1 second')
-                                 WHERE item_id = :id
-                                """)
-                        .bind("secs", seconds)
-                        .bind("id", id)
-                        .execute();
-            }
-            return Optional.of(new AwardInsert(id, 0, 1, 1));
-        });
+        int id = insertWarehouse(h, uid, row.warehouse());
+        long seconds = ItemInitializer.stdaTimeSeconds(row.rentFlag(), row.caddiePeriodDays());
+        if (seconds > 0) {
+            h.createUpdate("""
+                            UPDATE pangya.pangya_item_warehouse
+                               SET "EndDate" = NOW() + (:secs * INTERVAL '1 second')
+                             WHERE item_id = :id
+                            """)
+                    .bind("secs", seconds)
+                    .bind("id", id)
+                    .execute();
+        }
+        return Optional.of(new AwardInsert(id, 0, 1, 1));
     }
 
-    private Optional<AwardInsert> addCadItemAward(long uid, ItemInitializer.MailAwardRow row) {
+    private Optional<AwardInsert> insertCadItemAwardHandle(
+            org.jdbi.v3.core.Handle h, long uid, ItemInitializer.MailAwardRow row) {
         int caddieTypeid = GamePackets.caddieBaseTypeid(row.typeid());
-        return jdbi.inTransaction(h -> {
-            int[] caddie = h.createQuery("""
-                            SELECT item_id, parts_typeid,
-                                   EXTRACT(EPOCH FROM "parts_EndDate")::bigint AS parts_end
-                              FROM pangya.pangya_caddie_information
-                             WHERE "UID" = :uid AND typeid = :typeid AND "Valid" = 1
-                             ORDER BY item_id
-                             LIMIT 1
-                            """)
-                    .bind("uid", uid)
-                    .bind("typeid", caddieTypeid)
-                    .map((rs, ctx) -> new int[] {
-                            rs.getInt("item_id"),
-                            rs.getInt("parts_typeid"),
-                            rs.getLong("parts_end") > 0 ? (int) rs.getLong("parts_end") : 0
-                    })
-                    .findOne()
-                    .orElse(null);
-            if (caddie == null) {
-                return Optional.empty();
-            }
-            int itemId = caddie[0];
-            int currentParts = caddie[1];
-            java.time.Instant endInstant = cadItemPartsEnd(row, currentParts == row.typeid(), caddie[2]);
+        int[] caddie = h.createQuery("""
+                        SELECT item_id, parts_typeid,
+                               EXTRACT(EPOCH FROM "parts_EndDate")::bigint AS parts_end
+                          FROM pangya.pangya_caddie_information
+                         WHERE "UID" = :uid AND typeid = :typeid AND "Valid" = 1
+                         ORDER BY item_id
+                         LIMIT 1
+                        """)
+                .bind("uid", uid)
+                .bind("typeid", caddieTypeid)
+                .map((rs, ctx) -> new int[] {
+                        rs.getInt("item_id"),
+                        rs.getInt("parts_typeid"),
+                        rs.getLong("parts_end") > 0 ? (int) rs.getLong("parts_end") : 0
+                })
+                .findOne()
+                .orElse(null);
+        if (caddie == null) {
+            return Optional.empty();
+        }
+        int itemId = caddie[0];
+        int currentParts = caddie[1];
+        java.time.Instant endInstant = cadItemPartsEnd(row, currentParts == row.typeid(), caddie[2]);
+        h.createUpdate("""
+                        UPDATE pangya.pangya_caddie_information
+                           SET parts_typeid = :partsTypeid,
+                               "parts_EndDate" = :endDate
+                         WHERE item_id = :itemId
+                        """)
+                .bind("partsTypeid", row.typeid())
+                .bind("endDate", endInstant == null ? null : java.sql.Timestamp.from(endInstant))
+                .bind("itemId", itemId)
+                .execute();
+        return Optional.of(new AwardInsert(itemId, 0, 1, 1));
+    }
+
+    private Optional<AwardInsert> insertWarehouseAwardHandle(
+            org.jdbi.v3.core.Handle h, long uid, ItemInitializer.MailAwardRow row) {
+        if (row.warehouse() == null) {
+            return Optional.empty();
+        }
+        ItemInitializer.WarehouseInitRow wh = row.warehouse();
+        int[] existing = h.createQuery("""
+                        SELECT item_id, "C0" FROM pangya.pangya_item_warehouse
+                         WHERE "UID" = :uid AND typeid = :typeid AND valid = 1
+                         ORDER BY item_id
+                         LIMIT 1
+                        """)
+                .bind("uid", uid)
+                .bind("typeid", wh.typeid())
+                .map((rs, ctx) -> new int[] {rs.getInt("item_id"), rs.getInt("C0") & 0xffff})
+                .findOne()
+                .orElse(null);
+        int addC0 = wh.c0() & 0xffff;
+        int ant = existing == null ? 0 : existing[1];
+        int id;
+        if (existing != null) {
+            id = existing[0];
             h.createUpdate("""
-                            UPDATE pangya.pangya_caddie_information
-                               SET parts_typeid = :partsTypeid,
-                                   "parts_EndDate" = :endDate
+                            UPDATE pangya.pangya_item_warehouse
+                               SET "C0" = "C0" + :c0
                              WHERE item_id = :itemId
                             """)
-                    .bind("partsTypeid", row.typeid())
-                    .bind("endDate", endInstant == null ? null : java.sql.Timestamp.from(endInstant))
-                    .bind("itemId", itemId)
+                    .bind("c0", addC0)
+                    .bind("itemId", id)
                     .execute();
-            return Optional.of(new AwardInsert(itemId, 0, 1, 1));
-        });
+        } else {
+            id = insertWarehouse(h, uid, wh);
+        }
+        return Optional.of(new AwardInsert(id, ant, ant + addC0, addC0));
+    }
+
+    private Optional<AwardInsert> insertCaddieAwardHandle(
+            org.jdbi.v3.core.Handle h, long uid, ItemInitializer.MailAwardRow row) {
+        if (ownsCaddieTypeid(h, uid, row.typeid())) {
+            return Optional.empty();
+        }
+        int rentFlag = row.rentFlag() <= 0 ? 1 : row.rentFlag();
+        int period = row.caddiePeriodDays();
+        Integer id = h.createQuery("""
+                        INSERT INTO pangya.pangya_caddie_information (
+                            "UID", typeid, parts_typeid, gift_flag, "cLevel", "Exp",
+                            "RegDate", "Period", "EndDate", "RentFlag", "Purchase",
+                            "parts_EndDate", "CheckEnd", "Valid"
+                        ) VALUES (
+                            :uid, :typeid, 0, 1, 0, 0,
+                            NOW(), :period,
+                            CASE WHEN :rent = :holiday THEN NOW() + make_interval(days => :period) ELSE NULL END,
+                            :rent, 0, NULL, 1, 1
+                        )
+                        RETURNING item_id
+                        """)
+                .bind("uid", uid)
+                .bind("typeid", row.typeid())
+                .bind("period", period)
+                .bind("rent", rentFlag)
+                .bind("holiday", GamePackets.CADDIE_RENT_HOLIDAY)
+                .mapTo(Integer.class)
+                .one();
+        return Optional.of(new AwardInsert(id, 0, 1, 1));
+    }
+
+    private Optional<AwardInsert> insertMascotAwardHandle(
+            org.jdbi.v3.core.Handle h, long uid, ItemInitializer.MailAwardRow row) {
+        int[] existing = h.createQuery("""
+                        SELECT item_id, "Price",
+                               EXTRACT(EPOCH FROM "EndDate")::bigint AS end_unix
+                          FROM pangya.pangya_mascot_info
+                         WHERE "UID" = :uid AND typeid = :typeid AND "Valid" = 1
+                         ORDER BY item_id
+                         LIMIT 1
+                        """)
+                .bind("uid", uid)
+                .bind("typeid", row.typeid())
+                .map((rs, ctx) -> new int[] {
+                        rs.getInt("item_id"),
+                        rs.getInt("Price"),
+                        rs.getLong("end_unix") > 0 ? (int) rs.getLong("end_unix") : 0
+                })
+                .findOne()
+                .orElse(null);
+        int timeDays = row.mascotTimeDays();
+        if (existing != null) {
+            if (timeDays <= 0) {
+                return Optional.empty();
+            }
+            long base = existing[2] > 0
+                    ? existing[2]
+                    : java.time.Instant.now().getEpochSecond();
+            java.time.Instant end = java.time.Instant.ofEpochSecond(base + timeDays * 86400L);
+            h.createUpdate("""
+                            UPDATE pangya.pangya_mascot_info
+                               SET "Tipo" = 1,
+                                   "Period" = :period,
+                                   "EndDate" = :endDate
+                             WHERE item_id = :id
+                            """)
+                    .bind("period", timeDays)
+                    .bind("endDate", java.sql.Timestamp.from(end))
+                    .bind("id", existing[0])
+                    .execute();
+            return Optional.of(new AwardInsert(existing[0], 0, 1, 1));
+        }
+        int price = org.pangya.protocol.iff.PangyaIffLoader.mascot(row.typeid())
+                .map(org.pangya.protocol.iff.IffMascotRecord::changePrice)
+                .orElseGet(() -> {
+                    Integer sqlPrice = mascotChangePriceSql(row.typeid());
+                    return sqlPrice != null ? sqlPrice : 0;
+                });
+        String message = row.mascotMessage() == null ? "" : row.mascotMessage();
+        int tipo = row.mascotTipo();
+        Integer id = h.createQuery("""
+                        INSERT INTO pangya.pangya_mascot_info (
+                            "UID", typeid, "mLevel", "mExp", "Flag", "Tipo",
+                            "RegDate", "Period", "EndDate", "Message", "IsCash", "Price", "Valid"
+                        ) VALUES (
+                            :uid, :typeid, 0, 0, 0, :tipo,
+                            NOW(), :period,
+                            CASE WHEN :tipo = 1 AND :timeDays > 0
+                                 THEN NOW() + make_interval(days => :timeDays)
+                                 ELSE NULL END,
+                            :message, 0, :price, 1
+                        )
+                        RETURNING item_id
+                        """)
+                .bind("uid", uid)
+                .bind("typeid", row.typeid())
+                .bind("tipo", tipo)
+                .bind("period", timeDays)
+                .bind("timeDays", timeDays)
+                .bind("message", message)
+                .bind("price", price)
+                .mapTo(Integer.class)
+                .one();
+        return Optional.of(new AwardInsert(id, 0, 1, 1));
+    }
+
+    private Optional<AwardInsert> insertCardAwardHandle(
+            org.jdbi.v3.core.Handle h, long uid, int typeid, int qntd) {
+        if (qntd <= 0) {
+            return Optional.empty();
+        }
+        int[] existing = h.createQuery("""
+                        SELECT card_itemid, COALESCE("QNTD", 0) FROM pangya.pangya_card
+                         WHERE "UID" = :uid AND card_typeid = :typeid
+                         ORDER BY card_itemid
+                         LIMIT 1
+                        """)
+                .bind("uid", uid)
+                .bind("typeid", typeid)
+                .map((rs, ctx) -> new int[] {rs.getInt("card_itemid"), rs.getInt(2)})
+                .findOne()
+                .orElse(null);
+        int ant = existing == null ? 0 : existing[1];
+        int id;
+        if (existing != null) {
+            id = existing[0];
+            h.createUpdate("""
+                            UPDATE pangya.pangya_card
+                               SET "QNTD" = COALESCE("QNTD", 0) + :qntd
+                             WHERE card_itemid = :id
+                            """)
+                    .bind("qntd", qntd)
+                    .bind("id", id)
+                    .execute();
+        } else {
+            id = h.createQuery("""
+                            INSERT INTO pangya.pangya_card (
+                                "UID", card_typeid, "QNTD", "GET_DT",
+                                "Slot", "Efeito", "Efeito_Qntd", card_type, "USE_YN"
+                            ) VALUES (
+                                :uid, :typeid, :qntd, NOW(),
+                                0, 0, 0, 1, 'N'
+                            )
+                            RETURNING card_itemid
+                            """)
+                    .bind("uid", uid)
+                    .bind("typeid", typeid)
+                    .bind("qntd", qntd)
+                    .mapTo(Integer.class)
+                    .one();
+        }
+        return Optional.of(new AwardInsert(id, ant, ant + qntd, qntd));
+    }
+
+    private Optional<AwardInsert> insertCharacterAwardHandle(
+            org.jdbi.v3.core.Handle h, long uid, int typeid) {
+        if (h.createQuery("""
+                        SELECT 1 FROM pangya.pangya_character_information
+                         WHERE "UID" = :uid AND typeid = :typeid
+                         LIMIT 1
+                        """)
+                .bind("uid", uid)
+                .bind("typeid", typeid)
+                .mapTo(Integer.class)
+                .findOne()
+                .isPresent()) {
+            return Optional.empty();
+        }
+        int[] parts = CharacterComboDefSql.defaultParts(h, typeid);
+        var q = h.createQuery("""
+                        INSERT INTO pangya.pangya_character_information (
+                            typeid, "UID",
+                            parts_1, parts_2, parts_3, parts_4, parts_5, parts_6, parts_7, parts_8,
+                            parts_9, parts_10, parts_11, parts_12, parts_13, parts_14, parts_15, parts_16,
+                            parts_17, parts_18, parts_19, parts_20, parts_21, parts_22, parts_23, parts_24,
+                            default_hair, default_shirts, gift_flag,
+                            "PCL0", "PCL1", "PCL2", "PCL3", "PCL4", "Purchase",
+                            auxparts_1, auxparts_2, auxparts_3, auxparts_4, auxparts_5,
+                            "CutIn_1", "CutIn_2", "CutIn_3", "CutIn_4", "Mastery"
+                        ) VALUES (
+                            :typeid, :uid,
+                            :p1, :p2, :p3, :p4, :p5, :p6, :p7, :p8,
+                            :p9, :p10, :p11, :p12, :p13, :p14, :p15, :p16,
+                            :p17, :p18, :p19, :p20, :p21, :p22, :p23, :p24,
+                            0, 0, 1,
+                            0, 0, 0, 0, 0, 0,
+                            0, 0, 0, 0, 0,
+                            0, 0, 0, 0, 0
+                        )
+                        RETURNING item_id
+                        """)
+                .bind("typeid", typeid)
+                .bind("uid", uid);
+        CharacterPartsBinder.bind(q, parts);
+        int id = q.mapTo(Integer.class).one();
+        return Optional.of(new AwardInsert(id, 0, 1, 1));
     }
 
     private static java.time.Instant cadItemPartsEnd(
@@ -1444,235 +1715,6 @@ public final class JdbiInventoryRepository implements InventoryRepository {
                 ? existingEndUnix
                 : java.time.Instant.now().getEpochSecond();
         return java.time.Instant.ofEpochSecond(base + addSeconds);
-    }
-
-    private Optional<AwardInsert> addWarehouseAward(long uid, ItemInitializer.MailAwardRow row) {
-        if (row.warehouse() == null) {
-            return Optional.empty();
-        }
-        ItemInitializer.WarehouseInitRow wh = row.warehouse();
-        return jdbi.inTransaction(h -> {
-            int[] existing = h.createQuery("""
-                            SELECT item_id, "C0" FROM pangya.pangya_item_warehouse
-                             WHERE "UID" = :uid AND typeid = :typeid AND valid = 1
-                             ORDER BY item_id
-                             LIMIT 1
-                            """)
-                    .bind("uid", uid)
-                    .bind("typeid", wh.typeid())
-                    .map((rs, ctx) -> new int[] {rs.getInt("item_id"), rs.getInt("C0") & 0xffff})
-                    .findOne()
-                    .orElse(null);
-            int addC0 = wh.c0() & 0xffff;
-            int ant = existing == null ? 0 : existing[1];
-            int id;
-            if (existing != null) {
-                id = existing[0];
-                h.createUpdate("""
-                                UPDATE pangya.pangya_item_warehouse
-                                   SET "C0" = "C0" + :c0
-                                 WHERE item_id = :itemId
-                                """)
-                        .bind("c0", addC0)
-                        .bind("itemId", id)
-                        .execute();
-            } else {
-                id = insertWarehouse(h, uid, wh);
-            }
-            return Optional.of(new AwardInsert(id, ant, ant + addC0, addC0));
-        });
-    }
-
-    private Optional<AwardInsert> addCaddieAward(long uid, ItemInitializer.MailAwardRow row) {
-        if (ownsCaddieTypeid(uid, row.typeid())) {
-            return Optional.empty();
-        }
-        int rentFlag = row.rentFlag() <= 0 ? 1 : row.rentFlag();
-        int period = row.caddiePeriodDays();
-        return jdbi.inTransaction(h -> {
-            Integer id = h.createQuery("""
-                            INSERT INTO pangya.pangya_caddie_information (
-                                "UID", typeid, parts_typeid, gift_flag, "cLevel", "Exp",
-                                "RegDate", "Period", "EndDate", "RentFlag", "Purchase",
-                                "parts_EndDate", "CheckEnd", "Valid"
-                            ) VALUES (
-                                :uid, :typeid, 0, 1, 0, 0,
-                                NOW(), :period,
-                                CASE WHEN :rent = :holiday THEN NOW() + make_interval(days => :period) ELSE NULL END,
-                                :rent, 0, NULL, 1, 1
-                            )
-                            RETURNING item_id
-                            """)
-                    .bind("uid", uid)
-                    .bind("typeid", row.typeid())
-                    .bind("period", period)
-                    .bind("rent", rentFlag)
-                    .bind("holiday", GamePackets.CADDIE_RENT_HOLIDAY)
-                    .mapTo(Integer.class)
-                    .one();
-            return Optional.of(new AwardInsert(id, 0, 1, 1));
-        });
-    }
-
-    private Optional<AwardInsert> addMascotAward(long uid, ItemInitializer.MailAwardRow row) {
-        return jdbi.inTransaction(h -> {
-            int[] existing = h.createQuery("""
-                            SELECT item_id, "Price",
-                                   EXTRACT(EPOCH FROM "EndDate")::bigint AS end_unix
-                              FROM pangya.pangya_mascot_info
-                             WHERE "UID" = :uid AND typeid = :typeid AND "Valid" = 1
-                             ORDER BY item_id
-                             LIMIT 1
-                            """)
-                    .bind("uid", uid)
-                    .bind("typeid", row.typeid())
-                    .map((rs, ctx) -> new int[] {
-                            rs.getInt("item_id"),
-                            rs.getInt("Price"),
-                            rs.getLong("end_unix") > 0 ? (int) rs.getLong("end_unix") : 0
-                    })
-                    .findOne()
-                    .orElse(null);
-            int timeDays = row.mascotTimeDays();
-            if (existing != null) {
-                if (timeDays <= 0) {
-                    return Optional.empty();
-                }
-                long base = existing[2] > 0
-                        ? existing[2]
-                        : java.time.Instant.now().getEpochSecond();
-                java.time.Instant end = java.time.Instant.ofEpochSecond(base + timeDays * 86400L);
-                h.createUpdate("""
-                                UPDATE pangya.pangya_mascot_info
-                                   SET "Tipo" = 1,
-                                       "Period" = :period,
-                                       "EndDate" = :endDate
-                                 WHERE item_id = :id
-                                """)
-                        .bind("period", timeDays)
-                        .bind("endDate", java.sql.Timestamp.from(end))
-                        .bind("id", existing[0])
-                        .execute();
-                return Optional.of(new AwardInsert(existing[0], 0, 1, 1));
-            }
-            int price = org.pangya.protocol.iff.PangyaIffLoader.mascot(row.typeid())
-                    .map(org.pangya.protocol.iff.IffMascotRecord::changePrice)
-                    .orElseGet(() -> {
-                        Integer sqlPrice = mascotChangePriceSql(row.typeid());
-                        return sqlPrice != null ? sqlPrice : 0;
-                    });
-            String message = row.mascotMessage() == null ? "" : row.mascotMessage();
-            int tipo = row.mascotTipo();
-            Integer id = h.createQuery("""
-                            INSERT INTO pangya.pangya_mascot_info (
-                                "UID", typeid, "mLevel", "mExp", "Flag", "Tipo",
-                                "RegDate", "Period", "EndDate", "Message", "IsCash", "Price", "Valid"
-                            ) VALUES (
-                                :uid, :typeid, 0, 0, 0, :tipo,
-                                NOW(), :period,
-                                CASE WHEN :tipo = 1 AND :timeDays > 0
-                                     THEN NOW() + make_interval(days => :timeDays)
-                                     ELSE NULL END,
-                                :message, 0, :price, 1
-                            )
-                            RETURNING item_id
-                            """)
-                    .bind("uid", uid)
-                    .bind("typeid", row.typeid())
-                    .bind("tipo", tipo)
-                    .bind("period", timeDays)
-                    .bind("timeDays", timeDays)
-                    .bind("message", message)
-                    .bind("price", price)
-                    .mapTo(Integer.class)
-                    .one();
-            return Optional.of(new AwardInsert(id, 0, 1, 1));
-        });
-    }
-
-    private Optional<AwardInsert> addCardAward(long uid, int typeid, int qntd) {
-        if (qntd <= 0) {
-            return Optional.empty();
-        }
-        return jdbi.inTransaction(h -> {
-            int[] existing = h.createQuery("""
-                            SELECT card_itemid, COALESCE("QNTD", 0) FROM pangya.pangya_card
-                             WHERE "UID" = :uid AND card_typeid = :typeid
-                             ORDER BY card_itemid
-                             LIMIT 1
-                            """)
-                    .bind("uid", uid)
-                    .bind("typeid", typeid)
-                    .map((rs, ctx) -> new int[] {rs.getInt("card_itemid"), rs.getInt(2)})
-                    .findOne()
-                    .orElse(null);
-            int ant = existing == null ? 0 : existing[1];
-            int id;
-            if (existing != null) {
-                id = existing[0];
-                h.createUpdate("""
-                                UPDATE pangya.pangya_card
-                                   SET "QNTD" = COALESCE("QNTD", 0) + :qntd
-                                 WHERE card_itemid = :id
-                                """)
-                        .bind("qntd", qntd)
-                        .bind("id", id)
-                        .execute();
-            } else {
-                id = h.createQuery("""
-                                INSERT INTO pangya.pangya_card (
-                                    "UID", card_typeid, "QNTD", "GET_DT",
-                                    "Slot", "Efeito", "Efeito_Qntd", card_type, "USE_YN"
-                                ) VALUES (
-                                    :uid, :typeid, :qntd, NOW(),
-                                    0, 0, 0, 1, 'N'
-                                )
-                                RETURNING card_itemid
-                                """)
-                        .bind("uid", uid)
-                        .bind("typeid", typeid)
-                        .bind("qntd", qntd)
-                        .mapTo(Integer.class)
-                        .one();
-            }
-            return Optional.of(new AwardInsert(id, ant, ant + qntd, qntd));
-        });
-    }
-
-    private Optional<AwardInsert> addCharacterAward(long uid, int typeid) {
-        if (ownsAwardTypeid(uid, typeid)) {
-            return Optional.empty();
-        }
-        return jdbi.inTransaction(h -> {
-            int[] parts = CharacterComboDefSql.defaultParts(h, typeid);
-            var q = h.createQuery("""
-                            INSERT INTO pangya.pangya_character_information (
-                                typeid, "UID",
-                                parts_1, parts_2, parts_3, parts_4, parts_5, parts_6, parts_7, parts_8,
-                                parts_9, parts_10, parts_11, parts_12, parts_13, parts_14, parts_15, parts_16,
-                                parts_17, parts_18, parts_19, parts_20, parts_21, parts_22, parts_23, parts_24,
-                                default_hair, default_shirts, gift_flag,
-                                "PCL0", "PCL1", "PCL2", "PCL3", "PCL4", "Purchase",
-                                auxparts_1, auxparts_2, auxparts_3, auxparts_4, auxparts_5,
-                                "CutIn_1", "CutIn_2", "CutIn_3", "CutIn_4", "Mastery"
-                            ) VALUES (
-                                :typeid, :uid,
-                                :p1, :p2, :p3, :p4, :p5, :p6, :p7, :p8,
-                                :p9, :p10, :p11, :p12, :p13, :p14, :p15, :p16,
-                                :p17, :p18, :p19, :p20, :p21, :p22, :p23, :p24,
-                                0, 0, 1,
-                                0, 0, 0, 0, 0, 0,
-                                0, 0, 0, 0, 0,
-                                0, 0, 0, 0, 0
-                            )
-                            RETURNING item_id
-                            """)
-                    .bind("typeid", typeid)
-                    .bind("uid", uid);
-            CharacterPartsBinder.bind(q, parts);
-            int id = q.mapTo(Integer.class).one();
-            return Optional.of(new AwardInsert(id, 0, 1, 1));
-        });
     }
 
     @Override
@@ -1706,8 +1748,8 @@ public final class JdbiInventoryRepository implements InventoryRepository {
                 .isPresent());
     }
 
-    private boolean ownsCaddieTypeid(long uid, int typeid) {
-        return jdbi.withHandle(h -> h.createQuery("""
+    private boolean ownsCaddieTypeid(org.jdbi.v3.core.Handle h, long uid, int typeid) {
+        return h.createQuery("""
                         SELECT 1 FROM pangya.pangya_caddie_information
                          WHERE "UID" = :uid AND typeid = :typeid AND "Valid" = 1
                          LIMIT 1
@@ -1716,7 +1758,11 @@ public final class JdbiInventoryRepository implements InventoryRepository {
                 .bind("typeid", typeid)
                 .mapTo(Integer.class)
                 .findOne()
-                .isPresent());
+                .isPresent();
+    }
+
+    private boolean ownsCaddieTypeid(long uid, int typeid) {
+        return jdbi.withHandle(h -> ownsCaddieTypeid(h, uid, typeid));
     }
 
     @Override

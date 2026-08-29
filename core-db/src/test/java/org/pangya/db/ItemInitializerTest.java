@@ -153,6 +153,35 @@ class ItemInitializerTest {
     }
 
     @Test
+    void initShopAwardUsesBuyTimeForCaddieWhenIffLoaded() {
+        if (!JP_IFF.toFile().isFile()) {
+            return;
+        }
+        PangyaIffLoader.reload(JP_IFF);
+        int caddieTypeid = 0x1C000002;
+        var ctx = new ItemInitializer.InitContext(10, true, false, false);
+        var row = ItemInitializer.initShopAward(ctx, caddieTypeid, 1, 7).orElseThrow();
+        assertEquals(GamePackets.IFF_GROUP_CADDIE, row.group());
+        assertEquals(GamePackets.CADDIE_RENT_HOLIDAY, row.rentFlag());
+        assertEquals(7, row.caddiePeriodDays());
+    }
+
+    @Test
+    void initShopAwardInitializesWarehouseItemWhenIffUnloaded() {
+        PangyaIffLoader.reload(null);
+        var ctx = new ItemInitializer.InitContext(1, true, false, false);
+        var row = ItemInitializer.initShopAward(ctx, GamePackets.TYPEID_SHOP_PANG_ITEM, 2, 0).orElseThrow();
+        assertNotNull(row.warehouse());
+        assertEquals(2, row.warehouse().c0());
+    }
+
+    @Test
+    void isShopAwardGroupExcludesSetItems() {
+        assertTrue(ItemInitializer.isShopAwardGroup(GamePackets.TYPEID_SHOP_PANG_ITEM));
+        assertFalse(ItemInitializer.isShopAwardGroup(0x24200000));
+    }
+
+    @Test
     void fallsBackWhenIffUnloaded() {
         PangyaIffLoader.reload(null);
         var row = ItemInitializer.initFromBuyItem(

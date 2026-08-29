@@ -2593,7 +2593,7 @@ public final class GameHandler {
             long cookieSpent = 0;
             for (GamePackets.BuyItem item : req.items()) {
                 InventoryRepository.ShopBuyResult result = inventory.buyShopItem(
-                        session.player().uid, item.typeid(), item.qntd(), item.pang(), item.cookie());
+                        session.player().uid, item.typeid(), item.qntd(), item.pang(), item.cookie(), item.time());
                 if (result.code() != 0) {
                     session.send(GamePackets.buyFailed(result.code()));
                     return;

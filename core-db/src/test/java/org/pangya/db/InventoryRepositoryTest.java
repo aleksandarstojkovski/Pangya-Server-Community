@@ -1038,6 +1038,63 @@ class InventoryRepositoryTest {
         }
     }
 
+    @Test
+    void buyShopItemInsertsCaddieWhenInCatalog() {
+        Path jpIff = Path.of("reference/pangya-server-community/Server/JP/GameServer/data/pangya_jp.iff");
+        if (!jpIff.toFile().isFile()) {
+            return;
+        }
+        int caddieTypeid = 0x1C000002;
+        String url = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        DatabaseSupport.migrate(url, user, password);
+
+        try (var ds = DatabaseSupport.dataSource(url, user, password)) {
+            InventoryRepository repo = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
+            var jdbi = DatabaseSupport.jdbi(ds);
+            try {
+                PangyaIffLoader.reload(jpIff);
+                jdbi.useHandle(h -> h.createUpdate("""
+                                DELETE FROM pangya.pangya_caddie_information
+                                 WHERE "UID" = 10002 AND typeid = :typeid
+                                """)
+                        .bind("typeid", caddieTypeid)
+                        .execute());
+                jdbi.useHandle(h -> h.createUpdate("""
+                                INSERT INTO pangya.shop_catalog (typeid, pang_price, cookie_price, can_overlap)
+                                VALUES (:typeid, 50000, 0, 0)
+                                ON CONFLICT (typeid) DO UPDATE
+                                   SET pang_price = EXCLUDED.pang_price, can_overlap = EXCLUDED.can_overlap
+                                """)
+                        .bind("typeid", caddieTypeid)
+                        .execute());
+                repo.setPangCookie(10002, 100000, 0);
+                var bought = repo.buyShopItem(
+                        10002, caddieTypeid, 1, 50000, 0, 30);
+                assertEquals(0, bought.code());
+                assertEquals(50000, bought.pangSpent());
+                assertEquals(1, bought.awards().size());
+                assertEquals(caddieTypeid, bought.awards().getFirst().typeid());
+                assertEquals(30, bought.awards().getFirst().time());
+                assertTrue(repo.caddies(10002).stream()
+                        .anyMatch(c -> c.typeid == caddieTypeid
+                                && c.rentFlag == GamePackets.CADDIE_RENT_HOLIDAY));
+                var owned = repo.buyShopItem(10002, caddieTypeid, 1, 50000, 0, 30);
+                assertEquals(GamePackets.BUY_FAIL_OWNED, owned.code());
+            } finally {
+                PangyaIffLoader.reload(null);
+                jdbi.useHandle(h -> h.createUpdate("""
+                                DELETE FROM pangya.pangya_caddie_information
+                                 WHERE "UID" = 10002 AND typeid = :typeid
+                                """)
+                        .bind("typeid", caddieTypeid)
+                        .execute());
+                repo.setPangCookie(10002, 100000, 0);
+            }
+        }
+    }
+
     private static String env(String name, String fallback) {
         String v = System.getenv(name);
         return (v == null || v.isBlank()) ? fallback : v;

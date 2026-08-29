@@ -60,6 +60,9 @@ public interface InventoryRepository {
 
     ShopBuyResult buyShopItem(long uid, int typeid, int qntd, int clientPang, int clientCookie);
 
+    /** C# shop buy with {@code BuyItem.time} rental days. */
+    ShopBuyResult buyShopItem(long uid, int typeid, int qntd, int clientPang, int clientCookie, int buyTime);
+
     /**
      * C# gift {@code consomeMoeda} without adding warehouse to the sender.
      * Catalog miss is {@link GamePackets#BUY_FAIL_NOT_BUYABLE}.
