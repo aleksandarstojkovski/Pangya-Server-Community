@@ -3,6 +3,7 @@ package org.pangya.game;
 import org.pangya.game.catalog.AngelWingsResolver;
 import org.pangya.game.catalog.CourseDropResolver;
 import org.pangya.game.catalog.CubeCoinResolver;
+import org.pangya.game.catalog.PangBonusCalculator;
 import org.pangya.game.catalog.PlayerRateResolver;
 import org.pangya.game.catalog.PlayerRateResolver.PlayerRates;
 import org.pangya.protocol.iff.IffClubSetRecord;
@@ -1409,6 +1410,7 @@ public final class GameHandler {
         }
         consumeFinishItemUsed(session, room);
         saveHoleDrops(session, room);
+        calculeGamePang(session, room);
         sendFinishGameDump(session, room, true);
     }
 
@@ -1461,6 +1463,26 @@ public final class GameHandler {
                 character,
                 mascotTypeid);
         room.initDropCtx(oid, rates.drop(), rates.exp(), rates.pang(), rates.club(), angelWings, charMotion);
+    }
+
+    /** C# {@code requestCalculePang} (+ Practice tax) before pang credit. */
+    private void calculeGamePang(Session session, GameRoom room) {
+        GameRoom.PlayerShot shot = room.shots.get(session.oid());
+        if (shot == null) {
+            return;
+        }
+        GameRoom.PlayerDropCtx ctx = room.dropCtx(session.oid());
+        shot.bonusPang = PangBonusCalculator.calculeBonusPang(
+                shot.pang,
+                shot.bonusPang,
+                room.info.ratePang,
+                ctx.ratePang(),
+                room.info.course,
+                room.info.modo);
+        long[] taxed = PangBonusCalculator.applyPracticePangTax(
+                shot.pang, shot.bonusPang, room.tipo, room.info.modo);
+        shot.pang = taxed[0];
+        shot.bonusPang = taxed[1];
     }
 
     private GamePackets.CharacterInfo equippedCharacter(long uid, GamePackets.UserEquip equip) {
@@ -1718,10 +1740,14 @@ public final class GameHandler {
         if (room.tipo == GamePackets.TIPO_MATCH) {
             room.mergeMatchTeamPangToPlayers();
             for (Session member : room.snapshot()) {
+                calculeGamePang(member, room);
                 creditPlayerGamePang(member, room);
             }
             sendFinishGameDump(session, room, false);
         } else {
+            for (Session member : room.snapshot()) {
+                calculeGamePang(member, room);
+            }
             sendFinishGameDump(session, room, true);
         }
         finishGameRoom(room);

@@ -5589,9 +5589,9 @@ class GameFlowIT {
             awaitOpcode(client, GamePackets.SERVER_MY_STATISTICS);
             awaitOpcode(client, GamePackets.SERVER_UPDATE_TREASURE_GIFT_LIST);
             PacketReader pangPkt = awaitOpcode(client, GamePackets.SERVER_PANG_SPENT);
-            assertEquals(100_180, pangPkt.u64());
+            assertEquals(100_054, pangPkt.u64());
             assertEquals(0, pangPkt.u64());
-            assertEquals(100_180, inv.pang(10001));
+            assertEquals(100_054, inv.pang(10001));
         }
     }
 
@@ -5886,9 +5886,9 @@ class GameFlowIT {
             awaitOpcode(host, GamePackets.SERVER_MY_STATISTICS);
             awaitOpcode(host, GamePackets.SERVER_UPDATE_TREASURE_GIFT_LIST);
             PacketReader pangPkt = awaitOpcode(host, GamePackets.SERVER_PANG_SPENT);
-            assertEquals(100_360, pangPkt.u64());
+            assertEquals(100_324, pangPkt.u64());
             assertEquals(0, pangPkt.u64());
-            assertEquals(100_360, inv.pang(10001));
+            assertEquals(100_324, inv.pang(10001));
         }
     }
 
@@ -5981,10 +5981,10 @@ class GameFlowIT {
             awaitOpcode(host, GamePackets.SERVER_MY_STATISTICS);
             awaitOpcode(host, GamePackets.SERVER_UPDATE_TREASURE_GIFT_LIST);
             PacketReader hostPang = awaitOpcode(host, GamePackets.SERVER_PANG_SPENT);
-            assertEquals(100_720, hostPang.u64());
+            assertEquals(100_648, hostPang.u64());
             assertEquals(0, hostPang.u64());
-            assertEquals(100_720, inv.pang(10001));
-            assertEquals(100_720, inv.pang(10002));
+            assertEquals(100_648, inv.pang(10001));
+            assertEquals(100_648, inv.pang(10002));
         }
     }
 
