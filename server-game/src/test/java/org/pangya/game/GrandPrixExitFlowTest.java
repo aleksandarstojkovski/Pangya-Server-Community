@@ -19,6 +19,13 @@ final class GrandPrixExitFlowTest {
     }
 
     @Test
+    void quitSaveInfoOptionMatchesCSharp() {
+        assertEquals(1, GameHandler.grandPrixQuitSaveInfoOption(0));
+        assertEquals(1, GameHandler.grandPrixQuitSaveInfoOption(2));
+        assertEquals(5, GameHandler.grandPrixQuitSaveInfoOption(0x800));
+    }
+
+    @Test
     void badConductAchievementGateMatchesCSharp() {
         GameRoom.PlayerShot shot = new GameRoom.PlayerShot();
         shot.badConduct = 2;
