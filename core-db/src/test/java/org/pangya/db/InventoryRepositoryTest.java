@@ -940,6 +940,75 @@ class InventoryRepositoryTest {
     }
 
     @Test
+    void addCompanionExpUpdatesEquippedCaddieAndMascot() {
+        String url = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        DatabaseSupport.migrate(url, user, password);
+
+        try (var ds = DatabaseSupport.dataSource(url, user, password)) {
+            var jdbi = DatabaseSupport.jdbi(ds);
+            InventoryRepository repo = new JdbiInventoryRepository(jdbi);
+            int caddieId = repo.caddies(10001).getFirst().id;
+            int mascotId = repo.mascots(10001).getFirst().id;
+            GamePackets.UserEquip saved = repo.userEquip(10001);
+            var caddieBefore = repo.caddies(10001).stream()
+                    .filter(c -> c.id == caddieId).findFirst().orElseThrow();
+            var mascotBefore = repo.mascots(10001).stream()
+                    .filter(m -> m.id == mascotId).findFirst().orElseThrow();
+            try {
+                repo.equipCaddie(10001, caddieId);
+                repo.equipMascot(10001, mascotId);
+                jdbi.useHandle(h -> {
+                    h.createUpdate("""
+                                    UPDATE pangya.pangya_caddie_information
+                                       SET "cLevel" = 0, "Exp" = 0
+                                     WHERE "UID" = 10001 AND item_id = :id
+                                    """)
+                            .bind("id", caddieId)
+                            .execute();
+                    h.createUpdate("""
+                                    UPDATE pangya.pangya_mascot_info
+                                       SET "mLevel" = 0, "mExp" = 0
+                                     WHERE "UID" = 10001 AND item_id = :id
+                                    """)
+                            .bind("id", mascotId)
+                            .execute();
+                });
+                var caddie = repo.addCaddieExp(10001, 520).orElseThrow();
+                assertEquals(1, caddie.level);
+                assertEquals(0, caddie.exp);
+                var mascot = repo.addMascotExp(10001, 50).orElseThrow();
+                assertEquals(1, mascot.level);
+                assertEquals(0, mascot.exp);
+            } finally {
+                jdbi.useHandle(h -> {
+                    h.createUpdate("""
+                                    UPDATE pangya.pangya_caddie_information
+                                       SET "cLevel" = :level, "Exp" = :exp
+                                     WHERE "UID" = 10001 AND item_id = :id
+                                    """)
+                            .bind("level", caddieBefore.level)
+                            .bind("exp", caddieBefore.exp)
+                            .bind("id", caddieId)
+                            .execute();
+                    h.createUpdate("""
+                                    UPDATE pangya.pangya_mascot_info
+                                       SET "mLevel" = :level, "mExp" = :exp
+                                     WHERE "UID" = 10001 AND item_id = :id
+                                    """)
+                            .bind("level", mascotBefore.level)
+                            .bind("exp", mascotBefore.exp)
+                            .bind("id", mascotId)
+                            .execute();
+                });
+                repo.equipCaddie(10001, saved.caddieId);
+                repo.equipMascot(10001, saved.mascotId);
+            }
+        }
+    }
+
+    @Test
     void addGrandPrixTrofelInsertsAndIncrementsQntd() {
         String url = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
         String user = env("PANGYA_TEST_JDBC_USER", "pangya");

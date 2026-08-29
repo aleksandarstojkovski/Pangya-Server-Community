@@ -3621,7 +3621,11 @@ public final class GameHandler {
         }
         consumeFinishItemUsed(session, room);
         finishGameExp(session, room, finishRankIndex(room, session));
+        if (shot != null && shot.gameExp > 0) {
+            addCompanionExp(session, shot.gameExp);
+        }
         sendUpdateInfoAndMapStatistics(session, room, shot);
+        sendMascotEquipUpdate(session);
         flushPendingAchievementCounters(session, room);
         session.send(GamePackets.newEndGameFlag());
         session.send(GamePackets.newEndGameFlag2());
@@ -3714,6 +3718,28 @@ public final class GameHandler {
                 toMapStatWire(uid, GamePackets.MAP_STAT_TIPO_NATURAL, course, 1),
                 toMapStatWire(uid, GamePackets.MAP_STAT_TIPO_GRAND_PRIX, course, 0),
                 toMapStatWire(uid, GamePackets.MAP_STAT_TIPO_GRAND_PRIX, course, 1)));
+    }
+
+    /** C# GP early exit: {@code addCaddieExp}/{@code addMascotExp} after player exp. */
+    private void addCompanionExp(Session session, int exp) {
+        long uid = session.player().uid;
+        inventory.addCaddieExp(uid, exp);
+        inventory.addMascotExp(uid, exp);
+    }
+
+    /** C# GP early exit: {@code pacote06B(_session.m_pi, 8)} when mascot equipped. */
+    private void sendMascotEquipUpdate(Session session) {
+        long uid = session.player().uid;
+        GamePackets.UserEquip equip = inventory.userEquip(uid);
+        if (equip.mascotId == 0) {
+            return;
+        }
+        for (GamePackets.MascotInfo mascot : inventory.mascots(uid)) {
+            if (mascot.id == equip.mascotId) {
+                session.send(GamePackets.mascotEquipAck(mascot));
+                return;
+            }
+        }
     }
 
     private GamePackets.MapStatisticsWire toMapStatWire(long uid, int tipo, int course, int assist) {

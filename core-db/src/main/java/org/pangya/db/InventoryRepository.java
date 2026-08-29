@@ -158,6 +158,12 @@ public interface InventoryRepository {
     /** C# {@code PlayerInfo.addExp}: persist level/XP after level-up loop. */
     AddExpResult addExp(long uid, int expGain);
 
+    /** C# {@code Player.addCaddieExp}: add exp to equipped caddie and persist. */
+    Optional<GamePackets.CaddieInfo> addCaddieExp(long uid, int exp);
+
+    /** C# {@code Player.addMascotExp}: add exp to equipped mascot and persist. */
+    Optional<GamePackets.MascotInfo> addMascotExp(long uid, int exp);
+
     void deleteWarehouseByTypeid(long uid, int typeid);
 
     /** C# {@code CmdDeleteRental}: {@code valid = 0}. */

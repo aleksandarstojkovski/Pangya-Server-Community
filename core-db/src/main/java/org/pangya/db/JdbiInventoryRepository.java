@@ -965,6 +965,132 @@ public final class JdbiInventoryRepository implements InventoryRepository {
         });
     }
 
+    private static final int LIMIT_LEVEL_CADDIE = 3;
+    private static final int LIMIT_LEVEL_MASCOT = 9;
+
+    private static int caddieExpThreshold(int level) {
+        return 520 + (160 * level);
+    }
+
+    private static int mascotExpThreshold(int level) {
+        return 50 + (((20 + (20 + ((level - 1) * 10))) * level) / 2);
+    }
+
+    @Override
+    public Optional<GamePackets.CaddieInfo> addCaddieExp(long uid, int exp) {
+        if (exp <= 0) {
+            return Optional.empty();
+        }
+        GamePackets.UserEquip equip = userEquip(uid);
+        if (equip.caddieId == 0) {
+            return Optional.empty();
+        }
+        return jdbi.inTransaction(h -> {
+            GamePackets.CaddieInfo caddie = h.createQuery("""
+                            SELECT item_id, typeid, parts_typeid, "cLevel", "Exp", "RentFlag",
+                                   "Purchase", "CheckEnd"
+                              FROM pangya.pangya_caddie_information
+                             WHERE "UID" = :uid AND item_id = :caddieId AND "Valid" = 1
+                             LIMIT 1
+                            """)
+                    .bind("uid", (int) uid)
+                    .bind("caddieId", equip.caddieId)
+                    .map((rs, ctx) -> {
+                        GamePackets.CaddieInfo c = new GamePackets.CaddieInfo();
+                        c.id = rs.getInt("item_id");
+                        c.typeid = rs.getInt("typeid");
+                        c.partsTypeid = rs.getInt("parts_typeid");
+                        c.level = rs.getInt("cLevel");
+                        c.exp = rs.getInt("Exp");
+                        c.rentFlag = rs.getInt("RentFlag");
+                        c.purchase = rs.getInt("Purchase");
+                        c.checkEnd = rs.getInt("CheckEnd");
+                        return c;
+                    })
+                    .findOne()
+                    .orElse(null);
+            if (caddie == null) {
+                return Optional.<GamePackets.CaddieInfo>empty();
+            }
+            if (caddie.level >= LIMIT_LEVEL_CADDIE) {
+                return Optional.of(caddie);
+            }
+            caddie.exp += exp;
+            while (caddie.level < LIMIT_LEVEL_CADDIE
+                    && caddie.exp >= caddieExpThreshold(caddie.level)) {
+                caddie.exp -= caddieExpThreshold(caddie.level);
+                caddie.level++;
+            }
+            h.createUpdate("""
+                            UPDATE pangya.pangya_caddie_information
+                               SET "cLevel" = :level, "Exp" = :exp
+                             WHERE "UID" = :uid AND item_id = :caddieId AND "Valid" = 1
+                            """)
+                    .bind("level", caddie.level)
+                    .bind("exp", caddie.exp)
+                    .bind("uid", (int) uid)
+                    .bind("caddieId", caddie.id)
+                    .execute();
+            return Optional.of(caddie);
+        });
+    }
+
+    @Override
+    public Optional<GamePackets.MascotInfo> addMascotExp(long uid, int exp) {
+        if (exp <= 0) {
+            return Optional.empty();
+        }
+        GamePackets.UserEquip equip = userEquip(uid);
+        if (equip.mascotId == 0) {
+            return Optional.empty();
+        }
+        return jdbi.inTransaction(h -> {
+            GamePackets.MascotInfo mascot = h.createQuery("""
+                            SELECT item_id, typeid, "mLevel", "mExp", "Tipo", "Message"
+                              FROM pangya.pangya_mascot_info
+                             WHERE "UID" = :uid AND item_id = :mascotId AND "Valid" = 1
+                             LIMIT 1
+                            """)
+                    .bind("uid", (int) uid)
+                    .bind("mascotId", equip.mascotId)
+                    .map((rs, ctx) -> {
+                        GamePackets.MascotInfo m = new GamePackets.MascotInfo();
+                        m.id = rs.getInt("item_id");
+                        m.typeid = rs.getInt("typeid");
+                        m.level = rs.getInt("mLevel");
+                        m.exp = rs.getInt("mExp");
+                        m.tipo = rs.getInt("Tipo");
+                        m.message = rs.getString("Message");
+                        return m;
+                    })
+                    .findOne()
+                    .orElse(null);
+            if (mascot == null || mascot.typeid == 0) {
+                return Optional.<GamePackets.MascotInfo>empty();
+            }
+            if (mascot.level >= LIMIT_LEVEL_MASCOT) {
+                return Optional.of(mascot);
+            }
+            mascot.exp += exp;
+            while (mascot.level < LIMIT_LEVEL_MASCOT
+                    && mascot.exp >= mascotExpThreshold(mascot.level)) {
+                mascot.exp -= mascotExpThreshold(mascot.level);
+                mascot.level++;
+            }
+            h.createUpdate("""
+                            UPDATE pangya.pangya_mascot_info
+                               SET "mLevel" = :level, "mExp" = :exp
+                             WHERE "UID" = :uid AND item_id = :mascotId AND "Valid" = 1
+                            """)
+                    .bind("level", mascot.level)
+                    .bind("exp", mascot.exp)
+                    .bind("uid", (int) uid)
+                    .bind("mascotId", mascot.id)
+                    .execute();
+            return Optional.of(mascot);
+        });
+    }
+
     private ShopBuyResult chargeShopItem(
             Handle h,
             long uid,

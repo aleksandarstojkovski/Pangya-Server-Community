@@ -154,6 +154,12 @@ class GamePacketsTest {
         assertEquals(GamePackets.SERVER_EQUIP_ACK, eq.opcode());
         assertEquals(GamePackets.EQUIP_OK, eq.u8());
         assertEquals(5, eq.u8());
+        PacketReader mascotAck = new PacketReader(
+                GamePackets.mascotEquipAck(new GamePackets.MascotInfo()));
+        assertEquals(GamePackets.SERVER_EQUIP_ACK, mascotAck.opcode());
+        assertEquals(GamePackets.EQUIP_OK, mascotAck.u8());
+        assertEquals(GamePackets.ITEM_MASCOT, mascotAck.u8());
+        assertEquals(GamePackets.MASCOT_INFO_BYTES, mascotAck.remaining());
         GamePackets.PlayerRoomInfo pri = new GamePackets.PlayerRoomInfo();
         pri.oid = 1;
         pri.nickname = "TestNick";

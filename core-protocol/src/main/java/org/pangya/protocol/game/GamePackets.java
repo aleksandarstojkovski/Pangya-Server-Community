@@ -3788,6 +3788,11 @@ public final class GamePackets {
         return w.toBytes();
     }
 
+    /** C# {@code pacote06B} type {@link #ITEM_MASCOT}: mascot {@link MascotInfo#toArray()}. */
+    public static byte[] mascotEquipAck(MascotInfo mascot) {
+        return equipAck(EQUIP_OK, ITEM_MASCOT, mascot == null ? null : mascot.toArray());
+    }
+
     /**
      * C# {@code pacote04B}: i32 error; on 0, type + oid + type-specific extra.
      */
