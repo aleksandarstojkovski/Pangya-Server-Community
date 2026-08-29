@@ -4,6 +4,7 @@ package org.pangya.protocol.iff;
 public record IffGrandPrixDataRecord(
         int typeid,
         int typeIdLink,
+        int typeGp,
         String name,
         int rule,
         int course,
@@ -13,4 +14,8 @@ public record IffGrandPrixDataRecord(
         int minLevel,
         int maxLevel,
         int ticketTypeid,
-        int ticketQntd) {}
+        int ticketQntd,
+        int conditionMin,
+        int conditionMax,
+        int clearGpTypeid,
+        int lockYn) {}

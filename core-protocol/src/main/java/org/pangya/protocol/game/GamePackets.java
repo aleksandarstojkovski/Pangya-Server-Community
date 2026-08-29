@@ -2013,6 +2013,14 @@ public final class GamePackets {
     public static final int GP_ENTER_ERR_LEVEL = 0x6700006;
     /** C# GP room missing ticket CHANNEL sys {@code 0x6700009}. */
     public static final int GP_ENTER_ERR_TICKET = 0x6700009;
+    /** C# GP room equip condition CHANNEL sys {@code 0x6700007}. */
+    public static final int GP_ENTER_ERR_EQUIP = 0x6700007;
+    /** C# GP room avg score CHANNEL sys {@code 0x6700008}. */
+    public static final int GP_ENTER_ERR_AVG = 0x6700008;
+    /** C# GP room clear prereq CHANNEL sys {@code 0x670000A}. */
+    public static final int GP_ENTER_ERR_CLEAR = 0x670000A;
+    /** C# GP room type inactive CHANNEL sys {@code 0x670000B}. */
+    public static final int GP_ENTER_ERR_TYPE = 0x670000B;
     /** C# GP ticket item from JP {@code GrandPrixData.ticket} ({@code 0x1A000264}). */
     public static final int TYPEID_GP_TICKET = 0x1A000264;
     /** C# {@code pacote24E} holes-per-phase literal. */

@@ -3686,6 +3686,93 @@ public final class JdbiInventoryRepository implements InventoryRepository {
     }
 
     @Override
+    public float mediaScore(long uid) {
+        return jdbi.withHandle(h -> h.createQuery("""
+                        SELECT COALESCE("Holes", 0), COALESCE("Holein", 0), COALESCE("Media_score", 0)
+                          FROM pangya.user_info
+                         WHERE "UID" = :uid
+                        """)
+                .bind("uid", uid)
+                .map((rs, ctx) -> mediaScoreFromStats(
+                        rs.getLong(1), rs.getInt(2), rs.getInt(3)))
+                .findOne()
+                .orElse(0f));
+    }
+
+    static float mediaScoreFromStats(long holes, int holeIn, int rawMediaScore) {
+        if (holes - holeIn == 0) {
+            return 0f;
+        }
+        return (18.0f / (holes - holeIn)) * rawMediaScore + 72.0f;
+    }
+
+    @Override
+    public boolean hasGrandPrixClear(long uid, int typeid) {
+        if (typeid == 0) {
+            return false;
+        }
+        return jdbi.withHandle(h -> Boolean.TRUE.equals(h.createQuery("""
+                        SELECT 1
+                          FROM pangya.pangya_grandprix_clear
+                         WHERE uid = :uid AND typeid = :typeid
+                         LIMIT 1
+                        """)
+                .bind("uid", (int) uid)
+                .bind("typeid", typeid)
+                .mapTo(Integer.class)
+                .findOne()
+                .isPresent()));
+    }
+
+    @Override
+    public void upsertGrandPrixClear(long uid, int typeid, int flag) {
+        jdbi.useHandle(h -> {
+            Integer existing = h.createQuery("""
+                            SELECT "index"
+                              FROM pangya.pangya_grandprix_clear
+                             WHERE uid = :uid AND typeid = :typeid
+                             LIMIT 1
+                            """)
+                    .bind("uid", (int) uid)
+                    .bind("typeid", typeid)
+                    .mapTo(Integer.class)
+                    .findOne()
+                    .orElse(null);
+            if (existing == null) {
+                h.createUpdate("""
+                                INSERT INTO pangya.pangya_grandprix_clear (uid, typeid, flag)
+                                VALUES (:uid, :typeid, :flag)
+                                """)
+                        .bind("uid", (int) uid)
+                        .bind("typeid", typeid)
+                        .bind("flag", flag)
+                        .execute();
+            } else {
+                h.createUpdate("""
+                                UPDATE pangya.pangya_grandprix_clear
+                                   SET flag = :flag
+                                 WHERE uid = :uid AND typeid = :typeid
+                                """)
+                        .bind("uid", (int) uid)
+                        .bind("typeid", typeid)
+                        .bind("flag", flag)
+                        .execute();
+            }
+        });
+    }
+
+    @Override
+    public void deleteGrandPrixClear(long uid, int typeid) {
+        jdbi.useHandle(h -> h.createUpdate("""
+                        DELETE FROM pangya.pangya_grandprix_clear
+                         WHERE uid = :uid AND typeid = :typeid
+                        """)
+                .bind("uid", (int) uid)
+                .bind("typeid", typeid)
+                .execute());
+    }
+
+    @Override
     public long legacyTikiPoints(long uid) {
         return jdbi.withHandle(h -> h.createQuery("""
                         SELECT COALESCE(MAX("Tiki_Points"), 0)

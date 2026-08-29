@@ -2648,6 +2648,10 @@ class GamePacketsTest {
         assertEquals(GamePackets.GP_ENTER_ERR_CREATE, 0x6700002);
         assertEquals(GamePackets.GP_ENTER_ERR_LEVEL, 0x6700006);
         assertEquals(GamePackets.GP_ENTER_ERR_TICKET, 0x6700009);
+        assertEquals(GamePackets.GP_ENTER_ERR_EQUIP, 0x6700007);
+        assertEquals(GamePackets.GP_ENTER_ERR_AVG, 0x6700008);
+        assertEquals(GamePackets.GP_ENTER_ERR_CLEAR, 0x670000A);
+        assertEquals(GamePackets.GP_ENTER_ERR_TYPE, 0x670000B);
         assertEquals(GamePackets.TIKI_EXCHANGE_ITEM_BYTES, 16);
         assertEquals(GamePackets.TIKI_EXCHANGE_TP_BYTES, 12);
         assertEquals(GamePackets.TIKI_EXCHANGE_OK, 0);

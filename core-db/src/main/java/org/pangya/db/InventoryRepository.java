@@ -360,6 +360,16 @@ public interface InventoryRepository {
 
     void deleteGrandPrixEvent(int typeid);
 
+    /** C# {@code UserInfo.getMediaScore}: avg score used by GP enter gate. */
+    float mediaScore(long uid);
+
+    /** C# {@code PlayerInfo.findGrandPrixClear}: cleared GP {@code TypeID_Link}. */
+    boolean hasGrandPrixClear(long uid, int typeid);
+
+    void upsertGrandPrixClear(long uid, int typeid, int flag);
+
+    void deleteGrandPrixClear(long uid, int typeid);
+
     /** C# {@code PlayerInfo.ownerSetItem}: true when any non-character package member is owned. */
     boolean ownerSetItem(long uid, int setTypeid);
 

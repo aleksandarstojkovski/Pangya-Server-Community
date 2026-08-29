@@ -43,6 +43,24 @@ class IffGrandPrixDataFileTest {
     }
 
     @Test
+    void loadsClearPrereqFromBeginnerRow() throws Exception {
+        assumeReferenceIffPresent();
+        PangyaIffLoader.reload(JP_IFF);
+        IffGrandPrixDataRecord row = PangyaIffLoader.grandPrixData(0x200).orElseThrow();
+        assertEquals(1, row.lockYn());
+        assertEquals(0x100, row.clearGpTypeid());
+    }
+
+    @Test
+    void loadsAvgScoreWindowFromEventRow() throws Exception {
+        assumeReferenceIffPresent();
+        PangyaIffLoader.reload(JP_IFF);
+        IffGrandPrixDataRecord row = PangyaIffLoader.grandPrixData(0x180101).orElseThrow();
+        assertEquals(44, row.conditionMin());
+        assertEquals(4294967269L, Integer.toUnsignedLong(row.conditionMax()));
+    }
+
+    @Test
     void fileLoaderMatchesArchiveSize() throws Exception {
         assumeReferenceIffPresent();
         IffGrandPrixDataIndex index = IffGrandPrixDataFile.loadIndex(new PangyaIffArchive(JP_IFF));

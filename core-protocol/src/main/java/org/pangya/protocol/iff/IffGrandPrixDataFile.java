@@ -26,6 +26,10 @@ public final class IffGrandPrixDataFile {
     static final int HOLES_OFFSET = 148;
     static final int MIN_LEVEL_OFFSET = 152;
     static final int MAX_LEVEL_OFFSET = 153;
+    static final int CONDITION_OFFSET = 156;
+    static final int CLEAR_GP_TYPEID_OFFSET = 292;
+    static final int LOCK_YN_OFFSET = 296;
+    static final int TYPE_GP_OFFSET = 12;
 
     private static final Charset SHIFT_JIS = PacketIo.SHIFT_JIS;
 
@@ -46,6 +50,7 @@ public final class IffGrandPrixDataFile {
             }
             int typeid = ByteBuffer.wrap(data, base + 4, 4).order(ByteOrder.LITTLE_ENDIAN).getInt();
             int typeIdLink = ByteBuffer.wrap(data, base + 8, 4).order(ByteOrder.LITTLE_ENDIAN).getInt();
+            int typeGp = ByteBuffer.wrap(data, base + TYPE_GP_OFFSET, 4).order(ByteOrder.LITTLE_ENDIAN).getInt();
             String name = readFixedString(data, base + NAME_OFFSET, NAME_BYTES);
             int rule = ByteBuffer.wrap(data, base + RULE_OFFSET, 4).order(ByteOrder.LITTLE_ENDIAN).getInt();
             int course = ByteBuffer.wrap(data, base + COURSE_OFFSET, 4).order(ByteOrder.LITTLE_ENDIAN).getInt();
@@ -60,9 +65,21 @@ public final class IffGrandPrixDataFile {
             int ticketQntd = ByteBuffer.wrap(data, base + TICKET_OFFSET + 4, 4)
                     .order(ByteOrder.LITTLE_ENDIAN)
                     .getInt();
+            int conditionMin = ByteBuffer.wrap(data, base + CONDITION_OFFSET, 4)
+                    .order(ByteOrder.LITTLE_ENDIAN)
+                    .getInt();
+            int conditionMax = ByteBuffer.wrap(data, base + CONDITION_OFFSET + 4, 4)
+                    .order(ByteOrder.LITTLE_ENDIAN)
+                    .getInt();
+            int clearGpTypeid = ByteBuffer.wrap(data, base + CLEAR_GP_TYPEID_OFFSET, 4)
+                    .order(ByteOrder.LITTLE_ENDIAN)
+                    .getInt();
+            int lockYn = ByteBuffer.wrap(data, base + LOCK_YN_OFFSET, 4)
+                    .order(ByteOrder.LITTLE_ENDIAN)
+                    .getInt();
             out.put(typeid, new IffGrandPrixDataRecord(
-                    typeid, typeIdLink, name, rule, course, modo, holes, naturalMode, minLevel, maxLevel,
-                    ticketTypeid, ticketQntd));
+                    typeid, typeIdLink, typeGp, name, rule, course, modo, holes, naturalMode, minLevel, maxLevel,
+                    ticketTypeid, ticketQntd, conditionMin, conditionMax, clearGpTypeid, lockYn));
         }
         return new IffGrandPrixDataIndex(Map.copyOf(out));
     }

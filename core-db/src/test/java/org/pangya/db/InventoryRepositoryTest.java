@@ -753,6 +753,33 @@ class InventoryRepositoryTest {
         }
     }
 
+    @Test
+    void mediaScoreMatchesCSharpFormula() {
+        assertEquals(0f, JdbiInventoryRepository.mediaScoreFromStats(0, 0, 0));
+        assertEquals(72f, JdbiInventoryRepository.mediaScoreFromStats(18, 0, 0));
+        assertEquals(70f, JdbiInventoryRepository.mediaScoreFromStats(18, 0, -2));
+    }
+
+    @Test
+    void grandPrixClearRoundTrip() {
+        String url = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        DatabaseSupport.migrate(url, user, password);
+
+        try (var ds = DatabaseSupport.dataSource(url, user, password)) {
+            InventoryRepository repo = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
+            try {
+                repo.deleteGrandPrixClear(10001, 0x100);
+                assertFalse(repo.hasGrandPrixClear(10001, 0x100));
+                repo.upsertGrandPrixClear(10001, 0x100, 1);
+                assertTrue(repo.hasGrandPrixClear(10001, 0x100));
+            } finally {
+                repo.deleteGrandPrixClear(10001, 0x100);
+            }
+        }
+    }
+
     private static String env(String name, String fallback) {
         String v = System.getenv(name);
         return (v == null || v.isBlank()) ? fallback : v;

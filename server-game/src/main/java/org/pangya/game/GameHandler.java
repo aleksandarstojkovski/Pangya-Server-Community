@@ -6876,6 +6876,22 @@ public final class GameHandler {
         var iffGp = org.pangya.protocol.iff.PangyaIffLoader.grandPrixData(typeid);
         if (iffGp.isPresent()) {
             var gpIff = iffGp.get();
+            var equipCondition =
+                    org.pangya.protocol.iff.PangyaIffLoader.grandPrixConditionEquip(gpIff.typeIdLink());
+            if (equipCondition.isPresent()
+                    && !checkEquippedItem(pi.uid, equipCondition.get().itemTypeid())) {
+                session.send(GamePackets.sysAck(
+                        GamePackets.SERVER_START_GAME_FAIL,
+                        GamePackets.shopSys(GamePackets.GP_ENTER_ERR_EQUIP)));
+                return;
+            }
+            float avgScore = inventory.mediaScore(pi.uid);
+            if (avgScoreOutOfRange(avgScore, gpIff.conditionMin(), gpIff.conditionMax())) {
+                session.send(GamePackets.sysAck(
+                        GamePackets.SERVER_START_GAME_FAIL,
+                        GamePackets.shopSys(GamePackets.GP_ENTER_ERR_AVG)));
+                return;
+            }
             if (gpIff.ticketQntd() > 0 && gpIff.ticketTypeid() > 0) {
                 GamePackets.WarehouseItem ticket = warehouseByTypeid(pi.uid, gpIff.ticketTypeid());
                 if (ticket == null || (ticket.c[0] & 0xffff) < gpIff.ticketQntd()) {
@@ -6884,6 +6900,20 @@ public final class GameHandler {
                             GamePackets.shopSys(GamePackets.GP_ENTER_ERR_TICKET)));
                     return;
                 }
+            }
+            if (gpIff.lockYn() > 0
+                    && gpIff.clearGpTypeid() != 0
+                    && !inventory.hasGrandPrixClear(pi.uid, gpIff.clearGpTypeid())) {
+                session.send(GamePackets.sysAck(
+                        GamePackets.SERVER_START_GAME_FAIL,
+                        GamePackets.shopSys(GamePackets.GP_ENTER_ERR_CLEAR)));
+                return;
+            }
+            if (gpIff.typeGp() > 0 && !checkBitGrandPrixEvent(liveGrandPrixEvent, gpIff.typeGp())) {
+                session.send(GamePackets.sysAck(
+                        GamePackets.SERVER_START_GAME_FAIL,
+                        GamePackets.shopSys(GamePackets.GP_ENTER_ERR_TYPE)));
+                return;
             }
         }
         GameRoom target = null;
@@ -8012,6 +8042,36 @@ public final class GameHandler {
             }
         }
         return null;
+    }
+
+    /** C# {@code PlayerInfo.checkEquipedItem}: equipped item slots store typeids. */
+    private boolean checkEquippedItem(long uid, int itemTypeid) {
+        GamePackets.UserEquip equip = inventory.userEquip(uid);
+        for (int slotTypeid : equip.itemSlot) {
+            if (slotTypeid == itemTypeid) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** C# {@code requestEnterRoomGrandPrix} avg score gate ({@code condition[0/1]}). */
+    private static boolean avgScoreOutOfRange(float score, int min, int max) {
+        if (score < min) {
+            return true;
+        }
+        if (max <= 0) {
+            return false;
+        }
+        return score > (max & 0xFFFF_FFFFL);
+    }
+
+    /** C# {@code ServerInfo.rate.checkBitGrandPrixEvent}. */
+    static boolean checkBitGrandPrixEvent(int grandPrixEventRate, int type) {
+        if (type == 0) {
+            return false;
+        }
+        return ((grandPrixEventRate >> (type - 1)) & 1) == 1;
     }
 
     private GamePackets.WarehouseItem warehouseById(long uid, int id) {

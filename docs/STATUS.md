@@ -13,8 +13,8 @@ Conteggio Channel: **197** handler `packet_func_sv` registrati in `GameService.i
 
 ## Questo turno
 
-Fatto: **GP ticket gate** (`GrandPrixData.ticket` → `GP_ENTER_ERR_TICKET` when missing); **`ownerSetItem`** + set-item shop buy expands package into multiple `0xAA` rows when IFF loaded.
-Prossimo: pin `.gbin`; capture JP S9; GP time/clear/equip gates; full `getItemOfSetItem` init parity.
+Fatto: **GP enter gates** (equip {@code GrandPrixConditionEquip}, avg score, clear prereq, type bit); **GrandPrixData** extended fields; **GrandPrixConditionEquip.iff** parser.
+Prossimo: pin `.gbin`; capture JP S9; GP time gate; full `getItemOfSetItem` init parity.
 Blocco: pin `.gbin` binaries absent; nessuna capture client JP Season 9.
 
 Percentuale epic: **scheletro 85%** / **parità client reale 43%**.
