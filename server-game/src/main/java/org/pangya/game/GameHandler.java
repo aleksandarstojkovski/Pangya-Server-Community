@@ -7061,6 +7061,9 @@ public final class GameHandler {
                     .toList();
             session.send(GamePackets.papelAwards(GamePackets.unixNow(), awards));
         }
+        if (!result.rewardAwards().isEmpty()) {
+            session.send(GamePackets.papelAwards(GamePackets.unixNow(), result.rewardAwards()));
+        }
         List<GamePackets.QuestClearEntry> clears = result.questClears().stream()
                 .map(c -> new GamePackets.QuestClearEntry(c.achievementTypeid(), c.questTypeid()))
                 .toList();

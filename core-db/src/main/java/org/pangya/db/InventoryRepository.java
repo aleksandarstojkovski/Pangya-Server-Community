@@ -774,7 +774,8 @@ public interface InventoryRepository {
     record CounterApplyResult(
             List<CounterIncrement> increments,
             List<QuestClearRow> questClears,
-            List<GamePackets.AchievementInfo> updatedAchievements) {}
+            List<GamePackets.AchievementInfo> updatedAchievements,
+            List<GamePackets.PapelAward> rewardAwards) {}
 
     record DailyQuestReward(int seq, int typeid, int qntd, int time) {}
 

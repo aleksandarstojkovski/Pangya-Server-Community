@@ -4558,13 +4558,21 @@ class GameFlowIT {
             var inv = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
             cleanupDailyQuest(ds);
             inv.deleteDailyQuestStuff(GamePackets.TYPEID_DAILY_QUEST_STUFF_TEST);
+            inv.deleteDailyQuestRewards(GamePackets.TYPEID_DAILY_ACHIEVEMENT_TEST);
             inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_SHOP_PANG_ITEM);
+            inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_DAILY_REWARD_TEST);
             inv.setPangCookie(10001, 100000, 0);
             try {
                 inv.upsertDailyQuestStuff(
                         GamePackets.TYPEID_DAILY_QUEST_STUFF_TEST,
                         GamePackets.TYPEID_PAPEL_PLAY_COUNTER,
                         1);
+                inv.upsertDailyQuestReward(
+                        GamePackets.TYPEID_DAILY_ACHIEVEMENT_TEST,
+                        0,
+                        GamePackets.TYPEID_DAILY_REWARD_TEST,
+                        2,
+                        0);
                 int achievementId = insertDailyAchievement(ds);
                 LoginRepository repo = new JdbiLoginRepository(DatabaseSupport.jdbi(ds));
                 String loginKey = repo.generateAuthKeyLogin(10001);
@@ -4594,6 +4602,18 @@ class GameFlowIT {
                 assertEquals(1, counterUpd.i32());
                 counterUpd.readBytes(GamePackets.PAPEL_AWARD_PAD);
 
+                PacketReader rewardUpd = awaitOpcode(client, GamePackets.SERVER_DAILY_QUEST_STAMP);
+                rewardUpd.u32();
+                assertEquals(1, rewardUpd.u32());
+                assertEquals(GamePackets.PAPEL_AWARD_TYPE, rewardUpd.u8());
+                assertEquals(GamePackets.TYPEID_DAILY_REWARD_TEST, rewardUpd.u32());
+                rewardUpd.i32();
+                rewardUpd.u32();
+                assertEquals(0, rewardUpd.i32());
+                assertEquals(2, rewardUpd.i32());
+                assertEquals(2, rewardUpd.i32());
+                rewardUpd.readBytes(GamePackets.PAPEL_AWARD_PAD);
+
                 PacketReader questClear = awaitOpcode(client, GamePackets.SERVER_ACHIEVEMENT_CLEAR_QUEST);
                 assertEquals(1, questClear.u32());
                 assertEquals(GamePackets.TYPEID_DAILY_ACHIEVEMENT_TEST, questClear.u32());
@@ -4606,11 +4626,18 @@ class GameFlowIT {
                 assertEquals(GamePackets.TYPEID_DAILY_ACHIEVEMENT_TEST, achUpd.u32());
                 assertEquals(achievementId, achUpd.i32());
                 assertEquals(GamePackets.ACHIEVEMENT_STATUS_CONCLUDED, achUpd.i32());
+                assertEquals(2, inv.warehouse(10001).stream()
+                        .filter(w -> w.typeid == GamePackets.TYPEID_DAILY_REWARD_TEST)
+                        .mapToInt(w -> w.c[0] & 0xffff)
+                        .findFirst()
+                        .orElse(0));
             } finally {
                 cleanupDailyQuest(ds);
                 inv.deleteDailyQuestStuff(GamePackets.TYPEID_DAILY_QUEST_STUFF_TEST);
+                inv.deleteDailyQuestRewards(GamePackets.TYPEID_DAILY_ACHIEVEMENT_TEST);
                 inv.setPangCookie(10001, 100000, 0);
                 inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_SHOP_PANG_ITEM);
+                inv.deleteWarehouseByTypeid(10001, GamePackets.TYPEID_DAILY_REWARD_TEST);
             }
         }
     }

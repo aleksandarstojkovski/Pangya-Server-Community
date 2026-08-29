@@ -550,7 +550,7 @@ public final class JdbiInventoryRepository implements InventoryRepository {
         List<InventoryRepository.CounterIncrement> increments =
                 incrementActiveCounters(uid, counterTypeid, delta);
         if (increments.isEmpty()) {
-            return new InventoryRepository.CounterApplyResult(List.of(), List.of(), List.of());
+            return new InventoryRepository.CounterApplyResult(List.of(), List.of(), List.of(), List.of());
         }
         Instant now = Instant.now();
         java.util.Set<Integer> affectedAchievements = new java.util.HashSet<>();
@@ -635,7 +635,53 @@ public final class JdbiInventoryRepository implements InventoryRepository {
         List<GamePackets.AchievementInfo> updated = achievements(uid).stream()
                 .filter(a -> affectedAchievements.contains(a.id()))
                 .toList();
-        return new InventoryRepository.CounterApplyResult(increments, clears, updated);
+        List<GamePackets.PapelAward> rewardAwards = grantDailyQuestClearRewards(uid, clears);
+        return new InventoryRepository.CounterApplyResult(increments, clears, updated, rewardAwards);
+    }
+
+    /** C# {@code finish_and_update} {@code v_reward} warehouse rows after quest clear. */
+    private List<GamePackets.PapelAward> grantDailyQuestClearRewards(
+            long uid, List<InventoryRepository.QuestClearRow> clears) {
+        if (clears.isEmpty()) {
+            return List.of();
+        }
+        java.util.Set<Integer> achievementTypeids = new java.util.HashSet<>();
+        for (InventoryRepository.QuestClearRow clear : clears) {
+            achievementTypeids.add(clear.achievementTypeid());
+        }
+        List<GamePackets.PapelAward> out = new ArrayList<>();
+        for (int achievementTypeid : achievementTypeids) {
+            for (InventoryRepository.DailyQuestReward reward : dailyQuestRewards(achievementTypeid)) {
+                if (reward.typeid() == 0 || reward.qntd() <= 0) {
+                    continue;
+                }
+                int ant = warehouseItemQntd(uid, reward.typeid());
+                int itemId = addWarehouseItem(uid, reward.typeid(), reward.qntd());
+                out.add(new GamePackets.PapelAward(
+                        GamePackets.PAPEL_AWARD_TYPE,
+                        reward.typeid(),
+                        itemId,
+                        0,
+                        ant,
+                        ant + reward.qntd(),
+                        reward.time() > 0 ? reward.time() : reward.qntd()));
+            }
+        }
+        return out;
+    }
+
+    private int warehouseItemQntd(long uid, int typeid) {
+        return jdbi.withHandle(h -> h.createQuery("""
+                        SELECT "C0" FROM pangya.pangya_item_warehouse
+                         WHERE "UID" = :uid AND typeid = :typeid AND valid = 1
+                         ORDER BY item_id
+                         LIMIT 1
+                        """)
+                .bind("uid", uid)
+                .bind("typeid", typeid)
+                .mapTo(Integer.class)
+                .findOne()
+                .orElse(0)) & 0xffff;
     }
 
     @Override
