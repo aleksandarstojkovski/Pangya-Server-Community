@@ -2718,14 +2718,7 @@ public final class JdbiInventoryRepository implements InventoryRepository {
 
     @Override
     public OptionalInt clubSetWorkShopTipo(int typeid) {
-        return jdbi.withHandle(h -> h.createQuery("""
-                        SELECT work_shop_tipo FROM pangya.iff_clubset WHERE typeid = :typeid
-                        """)
-                .bind("typeid", typeid)
-                .mapTo(Integer.class)
-                .findOne())
-                .map(OptionalInt::of)
-                .orElseGet(OptionalInt::empty);
+        return clubSetIff(typeid).map(ClubSetIff::tipo).map(OptionalInt::of).orElseGet(OptionalInt::empty);
     }
 
     @Override
@@ -2750,6 +2743,10 @@ public final class JdbiInventoryRepository implements InventoryRepository {
 
     @Override
     public Optional<ClubSetIff> clubSetIff(int typeid) {
+        Optional<ClubSetIff> iff = clubSetIffFromLoader(typeid);
+        if (iff.isPresent()) {
+            return iff;
+        }
         return jdbi.withHandle(h -> h.createQuery("""
                         SELECT work_shop_tipo, stats0, stats1, stats2, stats3, stats4,
                                slot0, slot1, slot2, slot3, slot4, tipo_rank_s, total_recovery,
@@ -2778,6 +2775,17 @@ public final class JdbiInventoryRepository implements InventoryRepository {
                         rs.getInt("total_recovery"),
                         rs.getInt("flag_transformar")))
                 .findOne());
+    }
+
+    private static Optional<ClubSetIff> clubSetIffFromLoader(int typeid) {
+        return org.pangya.protocol.iff.PangyaIffLoader.clubSet(typeid)
+                .map(row -> new ClubSetIff(
+                        row.workShopTipo(),
+                        row.stats(),
+                        row.slots(),
+                        row.tipoRankS(),
+                        row.totalRecovery(),
+                        row.flagTransformar()));
     }
 
     @Override
