@@ -1324,6 +1324,7 @@ public final class GameHandler {
         }
         for (Session member : room.snapshot()) {
             queueScoreConsecutivosCounters(member, room);
+            flushPendingAchievementCounters(member, room);
         }
         if (room.tipo == GamePackets.TIPO_MATCH) {
             room.mergeMatchTeamPangToPlayers();
