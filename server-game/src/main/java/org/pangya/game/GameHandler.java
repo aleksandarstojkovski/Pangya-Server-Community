@@ -996,6 +996,8 @@ public final class GameHandler {
             return;
         }
         int oid = session.oid();
+        GameRoom.PlayerShot turnShot = room.shots.computeIfAbsent(oid, id -> new GameRoom.PlayerShot());
+        turnShot.tacadaNum++;
         room.startTurnTimer(room.info.timeVs, () -> onTurnTimeout(room, oid));
     }
 
@@ -1152,6 +1154,12 @@ public final class GameHandler {
         shot.displayState = sync.displayState();
         shot.pang = sync.pang() & 0xFFFFFFFFL;
         shot.bonusPang = sync.bonusPang() & 0xFFFFFFFFL;
+        if (GamePackets.usesTourneyInitialData(room.tipo)) {
+            shot.tacadaNum++;
+            if (shot.shotState == 3 || shot.shotState == 4) {
+                shot.tacadaNum++;
+            }
+        }
         if (room.tipo == GamePackets.TIPO_MATCH) {
             GameRoom.MatchTeam team = room.matchTeams[room.matchTeamId(session)];
             team.pang = shot.pang;
@@ -1185,6 +1193,9 @@ public final class GameHandler {
         List<GamePackets.DropItem> drops =
                 CubeCoinResolver.resolve(catalogs, courseId, holeNum, cubeBody);
         replyInGame(room, session, GamePackets.endShot(session.oid(), drops));
+        if ((shot.displayState & GamePackets.DISPLAY_ACERTO_HOLE) != 0) {
+            recordHoleFinish(session, room, shot);
+        }
         checkEndShotOfHole(session, room, shot);
     }
 
@@ -1225,6 +1236,7 @@ public final class GameHandler {
     /**
      * C# {@code packet006} / {@code requestFinishGame}: {@code UserInfoEx} 265 then
      * Practice {@code finish_game(6)} → {@code 0xCE}/{@code 0x79}/{@code 0x45}/{@code 0x134}/{@code 0xC8}.
+     * Versus stores {@code finish_game} and dumps only when every player has finished.
      */
     private void finishGame(Session session, PacketReader reader) {
         GameRoom room = inGameRoom(session);
@@ -1232,9 +1244,72 @@ public final class GameHandler {
             return;
         }
         GamePackets.UserInfoEx ui = GamePackets.UserInfoEx.read(reader);
+        GameRoom.PlayerShot shot = room.shots.computeIfAbsent(session.oid(), id -> new GameRoom.PlayerShot());
+        shot.userInfo = ui;
+        shot.finishGame = true;
+        if (GamePackets.usesVersusInitialData(room.tipo)) {
+            if (!room.allPlayersFinishedGame()) {
+                return;
+            }
+            for (Session member : room.snapshot()) {
+                finishGamePlayerDump(member, room);
+            }
+            finishGameRoom(room);
+            return;
+        }
+        finishGamePlayerDump(session, room);
+        if (GamePackets.usesTourneyInitialData(room.tipo) || GamePackets.hiddenFromLobby(room.tipo)) {
+            finishGameRoom(room);
+        }
+    }
+
+    /** C# {@code requestSaveInfo} records + {@code score_consecutivos_count} + finish-game dump. */
+    private void finishGamePlayerDump(Session session, GameRoom room) {
+        GameRoom.PlayerShot shot = room.shots.get(session.oid());
+        GamePackets.UserInfoEx ui = shot == null || shot.userInfo == null
+                ? null
+                : shot.userInfo;
+        if (ui == null) {
+            return;
+        }
+        queueScoreConsecutivosCounters(session, room);
         queueRecordAchievementCounters(session, room, ui);
         sendFinishGameDump(session, room, true);
-        finishGameRoom(room);
+    }
+
+    /**
+     * C# {@code GameBase.requestFinishHole}: per-hole score counter and progress buffer for
+     * {@code score_consecutivos_count}.
+     */
+    private void recordHoleFinish(Session session, GameRoom room, GameRoom.PlayerShot shot) {
+        int holeNum = shot.hole == 0 ? 1 : shot.hole;
+        int index = holeNum - 1;
+        if (index < 0 || index >= shot.holeTacada.length) {
+            return;
+        }
+        int courseId = room.info.course & 0x7f;
+        int par = catalogs.parFor(courseId, holeNum);
+        int tacada = Math.max(1, shot.tacadaNum);
+        shot.holeTacada[index] = tacada;
+        shot.holePar[index] = par;
+        int holeCounter = AchievementCounterTypeids.holeScoreCounter(tacada, par);
+        if (holeCounter != 0) {
+            room.addPendingAchievementCounter(session.player().uid, holeCounter, 1);
+        }
+        shot.tacadaNum = 0;
+    }
+
+    private void queueScoreConsecutivosCounters(Session session, GameRoom room) {
+        GameRoom.PlayerShot shot = room.shots.get(session.oid());
+        if (shot == null) {
+            return;
+        }
+        AchievementCounterTypeids.queueScoreConsecutivosCounters(
+                room,
+                session.player().uid,
+                shot.holeTacada,
+                shot.holePar,
+                room.info.holes);
     }
 
     /**
@@ -1246,6 +1321,9 @@ public final class GameHandler {
         GameRoom room = inGameRoom(session);
         if (room == null || !GamePackets.usesVersusInitialData(room.tipo)) {
             return;
+        }
+        for (Session member : room.snapshot()) {
+            queueScoreConsecutivosCounters(member, room);
         }
         if (room.tipo == GamePackets.TIPO_MATCH) {
             room.mergeMatchTeamPangToPlayers();
@@ -7106,7 +7184,7 @@ public final class GameHandler {
     private void queueRecordAchievementCounters(Session session, GameRoom room, GamePackets.UserInfoEx ui) {
         long uid = session.player().uid;
         GameRoom.PlayerShot shot = room.shots.get(session.oid());
-        long gamePang = shot == null ? ui.pang() : shot.pang + shot.bonusPang;
+        long gamePang = shot == null ? ui.pang() : shot.pang;
         AchievementCounterTypeids.queueRecordCounters(room, uid, ui, gamePang, ui.mediaScore());
     }
 

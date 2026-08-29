@@ -81,6 +81,74 @@ final class AchievementCounterTypeids {
         }
     }
 
+    /** C# {@code AchievementSystem.getScoreCounterTypeId} at {@code requestFinishHole}. */
+    static int holeScoreCounter(int tacada, int par) {
+        if (tacada == 1) {
+            return GamePackets.TYPEID_HIO_HOLE_COUNTER;
+        }
+        return switch (tacada - par) {
+            case -3 -> GamePackets.TYPEID_ALBA_HOLE_COUNTER;
+            case -2 -> GamePackets.TYPEID_EAGLE_HOLE_COUNTER;
+            case -1 -> GamePackets.TYPEID_BIRDIE_HOLE_COUNTER;
+            case 0 -> GamePackets.TYPEID_PAR_HOLE_COUNTER;
+            default -> 0;
+        };
+    }
+
+    /**
+     * C# {@code GameBase.score_consecutivos_count}: two or more consecutive holes with the
+     * same score class increment the matching counter when the streak ends.
+     */
+    static void queueScoreConsecutivosCounters(
+            GameRoom room, long uid, int[] holeTacada, int[] holePar, int holes) {
+        int lastScore = -2;
+        int count = 0;
+        for (int i = 0; i < holes; i++) {
+            int score = scoreNum(holeTacada[i], holePar[i]);
+            if ((score != lastScore || i == holes - 1) && lastScore != -2) {
+                if (count >= 1 && lastScore >= 0) {
+                    int typeid = consecutiveScoreCounter(lastScore);
+                    if (typeid != 0) {
+                        room.addPendingAchievementCounter(uid, typeid, 1);
+                    }
+                }
+                count = 0;
+            } else if (score == lastScore) {
+                count++;
+            }
+            lastScore = score;
+        }
+    }
+
+    /** C# {@code AchievementSystem.getScoreNum}: 0 HIO … 6 double bogey, -1 ignored. */
+    static int scoreNum(int tacada, int par) {
+        if (tacada == 1) {
+            return 0;
+        }
+        return switch (tacada - par) {
+            case -3 -> 1;
+            case -2 -> 2;
+            case -1 -> 3;
+            case 0 -> 4;
+            case 1 -> 5;
+            case 2 -> 6;
+            default -> -1;
+        };
+    }
+
+    static int consecutiveScoreCounter(int scoreNum) {
+        return switch (scoreNum) {
+            case 0 -> GamePackets.TYPEID_CONSEC_HIO_COUNTER;
+            case 1 -> GamePackets.TYPEID_CONSEC_ALBA_COUNTER;
+            case 2 -> GamePackets.TYPEID_CONSEC_EAGLE_COUNTER;
+            case 3 -> GamePackets.TYPEID_CONSEC_BIRDIE_COUNTER;
+            case 4 -> GamePackets.TYPEID_CONSEC_PAR_COUNTER;
+            case 5 -> GamePackets.TYPEID_CONSEC_BOGEY_COUNTER;
+            case 6 -> GamePackets.TYPEID_CONSEC_DOUBLE_BOGEY_COUNTER;
+            default -> 0;
+        };
+    }
+
     static int characterCounter(int typeid) {
         return switch (typeid) {
             case 0x4000000 -> 0x6C40000F; // Nuri

@@ -1701,6 +1701,16 @@ public final class GamePackets {
     public static final int TYPEID_BEST_CHIP_IN_COUNTER = 0x6C400058;
     /** C# {@code records_player_achievement} best long-putt counter. */
     public static final int TYPEID_BEST_LONG_PUTT_COUNTER = 0x6C400077;
+    /** C# {@code AchievementSystem.getScoreCounterTypeId} hole-in-one. */
+    public static final int TYPEID_HIO_HOLE_COUNTER = 0x6C400006;
+    /** C# {@code getScoreCounterTypeId} albatross hole score. */
+    public static final int TYPEID_ALBA_HOLE_COUNTER = 0x6C400007;
+    /** C# {@code getScoreCounterTypeId} eagle hole score. */
+    public static final int TYPEID_EAGLE_HOLE_COUNTER = 0x6C400008;
+    /** C# {@code getScoreCounterTypeId} birdie hole score. */
+    public static final int TYPEID_BIRDIE_HOLE_COUNTER = 0x6C400009;
+    /** C# {@code getScoreCounterTypeId} par hole score. */
+    public static final int TYPEID_PAR_HOLE_COUNTER = 0x6C40000A;
     /** C# {@code records_player_achievement} acerto pangya counter. */
     public static final int TYPEID_ACERTO_PANGYA_COUNTER = 0x6C40000B;
     /** C# {@code records_player_achievement} score counter. */
@@ -1709,6 +1719,20 @@ public final class GamePackets {
     public static final int TYPEID_PANG_GAME_COUNTER = 0x6C40000D;
     /** C# {@code requestSaveInfo} game combo counter. */
     public static final int TYPEID_GAME_COMBO_COUNTER = 0x6C40004B;
+    /** C# {@code score_consecutivos_count} consecutive birdie streak. */
+    public static final int TYPEID_CONSEC_BIRDIE_COUNTER = 0x6C40005D;
+    /** C# {@code score_consecutivos_count} consecutive par streak. */
+    public static final int TYPEID_CONSEC_PAR_COUNTER = 0x6C40005E;
+    /** C# {@code score_consecutivos_count} consecutive bogey streak. */
+    public static final int TYPEID_CONSEC_BOGEY_COUNTER = 0x6C40005F;
+    /** C# {@code score_consecutivos_count} consecutive double-bogey streak. */
+    public static final int TYPEID_CONSEC_DOUBLE_BOGEY_COUNTER = 0x6C400060;
+    /** C# {@code score_consecutivos_count} consecutive eagle streak. */
+    public static final int TYPEID_CONSEC_EAGLE_COUNTER = 0x6C400061;
+    /** C# {@code score_consecutivos_count} consecutive albatross streak. */
+    public static final int TYPEID_CONSEC_ALBA_COUNTER = 0x6C400062;
+    /** C# {@code score_consecutivos_count} consecutive HIO streak. */
+    public static final int TYPEID_CONSEC_HIO_COUNTER = 0x6C400063;
     /** C# 18-hole game counter from {@code getQntdHoleCounterTypeId}. */
     public static final int TYPEID_18_HOLES_COUNTER = 0x6C40006C;
     /** C# Blue Lagoon course counter from {@code getCourseCounterTypeId}. */

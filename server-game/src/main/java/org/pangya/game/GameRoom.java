@@ -437,6 +437,27 @@ final class GameRoom {
         long pang;
         /** C# {@code pgi.data.bonus_pang} running total (+ server clear bonus). */
         long bonusPang;
+        /** C# {@code pgi.data.tacada_num} strokes on the current hole. */
+        int tacadaNum;
+        /** C# {@code pgi.finish_game}; set by {@code requestFinishGame}. */
+        boolean finishGame;
+        /** Parsed {@code UserInfoEx} from {@code CLIENT_MY_STATISTICS}. */
+        GamePackets.UserInfoEx userInfo;
+        /** C# {@code pgi.progress.tacada} per-hole stroke counts. */
+        final int[] holeTacada = new int[18];
+        /** C# {@code pgi.progress.par_hole} per-hole par values. */
+        final int[] holePar = new int[18];
+    }
+
+    boolean allPlayersFinishedGame() {
+        int finished = 0;
+        for (Session member : snapshot()) {
+            PlayerShot shot = shots.get(member.oid());
+            if (shot != null && shot.finishGame) {
+                finished++;
+            }
+        }
+        return finished > 0 && finished == players.size();
     }
 
     /** C# {@code UsedItem.Active}: use count vs equipped slot count. */
