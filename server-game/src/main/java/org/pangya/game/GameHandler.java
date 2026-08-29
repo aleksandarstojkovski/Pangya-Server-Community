@@ -1305,6 +1305,7 @@ public final class GameHandler {
                 shot.tacadaNum++;
             }
             shot.giveUp = 1;
+            shot.badConduct++;
         }
         if ((shot.displayState & GamePackets.DISPLAY_ACERTO_HOLE) != 0 || shot.giveUp > 0) {
             shot.finishHole2 = 1;
@@ -1395,6 +1396,10 @@ public final class GameHandler {
                 || shot.giveUp > 0
                 || shot.timeOuts > 0;
         if (holeOut) {
+            if (shot.badConduct >= 3 && (shot.giveUp > 0 || shot.timeOuts > 0)) {
+                grandPrixKickForBadConduct(session, room, shot);
+                return;
+            }
             int holeNum = shot.hole == 0 ? 1 : shot.hole;
             if (room.course != null
                     && room.course.findHoleSeq(holeNum) == room.info.holes) {
@@ -1423,6 +1428,41 @@ public final class GameHandler {
         }
         int holeNum = shot.hole == 0 ? 1 : shot.hole;
         return room.course.findHoleSeq(holeNum) == room.info.holes;
+    }
+
+    /**
+     * C# {@code GrandPrix.deletePlayer} when {@code bad_condute >= 3}: achievement dump,
+     * {@code 0x244}/{@code 0x24F}, then remove player and broadcast {@code 0x61}.
+     */
+    private void grandPrixKickForBadConduct(Session session, GameRoom room, GameRoom.PlayerShot shot) {
+        if (room.gameFlag(session.oid()) != GamePackets.FLAG_GAME_PLAYING) {
+            return;
+        }
+        int oid = session.oid();
+        prepareFinishItemUsed(session, room);
+        queueRainCounters(session, room);
+        queueScoreConsecutivosCounters(session, room);
+        room.addPendingAchievementCounter(
+                session.player().uid, GamePackets.TYPEID_NORMAL_GAME_COMPLETE_COUNTER, 1);
+        flushPendingAchievementCounters(session, room);
+        session.send(GamePackets.treasureHunterDraw());
+        session.send(GamePackets.myStatistics(GamePackets.userInfoPublic(session.player().level)));
+        session.send(GamePackets.prizeList(new int[0]));
+        session.send(GamePackets.exitRoomAck(-1));
+        session.send(GamePackets.newEndGameFlag());
+        session.send(GamePackets.newEndGameFlag2());
+        room.setGameFlag(oid, GamePackets.FLAG_GAME_QUIT);
+        for (Session member : room.snapshot()) {
+            if (member != session) {
+                member.send(GamePackets.scoreLeave(oid));
+            }
+        }
+        GameRoom leftover = room;
+        leaveRoom(session, false);
+        if (leftover.info.numPlayer > 0 && leftover.inGame && leftover.allGrandPrixPlayersClearedHole()) {
+            leftover.clearGrandPrixFinishHoleFlags();
+            leftover.broadcast(GamePackets.gpAllNextHole());
+        }
     }
 
     /**

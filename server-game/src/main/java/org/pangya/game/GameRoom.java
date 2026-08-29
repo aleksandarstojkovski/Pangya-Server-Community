@@ -579,6 +579,8 @@ final class GameRoom {
         byte acertoPangyaFlag;
         /** C# {@code pgi.data.giveup}. */
         int giveUp;
+        /** C# {@code pgi.data.bad_condute}: give-up count toward kick at 3. */
+        int badConduct;
         /** C# {@code pgi.data.tacada_num} strokes on the current hole. */
         int tacadaNum;
         /** C# {@code PlayerGameInfo.finish_hole2}: hole ended; suppress hole timer. */
