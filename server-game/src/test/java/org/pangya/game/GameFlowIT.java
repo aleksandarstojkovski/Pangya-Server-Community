@@ -5,7 +5,9 @@ import org.pangya.db.DatabaseSupport;
 import org.pangya.db.InventoryRepository;
 import org.pangya.db.JdbiInventoryRepository;
 import org.pangya.db.JdbiLoginRepository;
+import org.pangya.db.JdbiRankRepository;
 import org.pangya.db.LoginRepository;
+import org.pangya.db.RankRepository;
 import org.pangya.network.AppConfig;
 import org.pangya.network.auth.AuthOutbound;
 import org.pangya.network.client.PangyaFakeClient;
@@ -3874,6 +3876,78 @@ class GameFlowIT {
                     "C# Tourney.finish_game requestSaveInfo option 0 increments Jogado");
             assertEquals(jogosNaoSeiBefore + 1, jogosNaoSeiAfter,
                     "C# requestSaveInfo option 0 increments jogadosDisconnect / JogosNaoSei");
+        }
+    }
+
+    /**
+     * S-T5: 18-hole Tourney last-hole finish writes {@code pangya_record}
+     * ({@code requestSaveRecordCourse} option 1) then {@code GeraRankAll}
+     * exposes the player on the Blue Lagoon board (C# tipo_rank=1 seq=0).
+     */
+    @Test
+    void tourneyFinishRebuildsRankingRegistry() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config);
+             PangyaFakeClient host = new PangyaFakeClient();
+             PangyaFakeClient guest = new PangyaFakeClient()) {
+            loginTwoPlayers(ds, keys, host, guest, runtime.port());
+            host.sendPlain(GamePackets.clientCreateRoom(GamePackets.TIPO_TOURNEY, "TN-RK", ""));
+            PacketReader created = awaitOpcode(host, GamePackets.SERVER_ROOM_ENTER_RESULT);
+            assertEquals(0, created.i16());
+            byte[] roomInfo = created.readBytes(GamePackets.ROOM_INFO_BYTES);
+            int numero = roomNumberFromInfo(roomInfo);
+            guest.sendPlain(GamePackets.clientJoinRoom(numero, ""));
+            assertEquals(0, awaitOpcode(guest, GamePackets.SERVER_ROOM_ENTER_RESULT).i16());
+
+            host.sendPlain(GamePackets.clientStartGame());
+            awaitOpcode(host, GamePackets.SERVER_START_GAME_FLAG);
+            awaitOpcode(host, GamePackets.SERVER_START_GAME_FLAG2);
+            awaitOpcode(host, GamePackets.SERVER_PANG_RATE);
+            awaitOpcode(host, GamePackets.SERVER_GAME_INIT);
+            awaitOpcode(host, GamePackets.SERVER_COURSE);
+            awaitOpcode(guest, GamePackets.SERVER_GAME_INIT);
+            awaitOpcode(guest, GamePackets.SERVER_COURSE);
+
+            byte[] roomKey = new byte[16];
+            System.arraycopy(roomInfo, 69, roomKey, 0, 16);
+            host.sendPlain(GamePackets.clientInitHole(18, 0, 0, 4, 1.5f, 2.5f, 10f, 20f));
+            awaitOpcode(host, GamePackets.SERVER_WEATHER);
+            awaitOpcode(host, GamePackets.SERVER_WIND);
+            awaitOpcode(host, GamePackets.SERVER_REMAIN_TIME);
+
+            byte[] shotBody = GamePackets.shotEndLocationSample();
+            host.sendPlain(GamePackets.clientEmpty(GamePackets.CLIENT_SHOT_END));
+            host.sendPlain(GamePackets.clientShotEnd(shotBody));
+            awaitOpcode(host, GamePackets.SERVER_SHOT_END);
+            host.sendPlain(GamePackets.clientLoadOk());
+            host.sendPlain(GamePackets.clientShot());
+            int hostOid = oidOf(runtime, 10001);
+            byte[] shotPlain = GamePackets.shotSyncPlain(
+                    hostOid, 1.5f, 0f, 2.5f, 2, 0, 0, 0, 0,
+                    GamePackets.DISPLAY_ACERTO_HOLE, 0x11, 100, 0);
+            host.sendPlain(GamePackets.clientShotResult(GamePackets.xorRoomKey(shotPlain, roomKey)));
+            awaitOpcode(host, GamePackets.SERVER_SYNC_SHOT);
+            host.sendPlain(GamePackets.clientShotAck());
+            awaitOpcode(host, GamePackets.SERVER_END_SHOT);
+            awaitOpcode(host, GamePackets.SERVER_LAST_HOLE);
+            host.sendPlain(GamePackets.clientHoleStat());
+            host.sendPlain(GamePackets.clientFinishGame());
+            awaitOpcode(host, GamePackets.SERVER_PRIZE_LIST);
+            awaitOpcode(host, GamePackets.SERVER_GAME_RESULT);
+
+            RankRepository ranks = new JdbiRankRepository(DatabaseSupport.jdbi(ds));
+            assertTrue(ranks.geraRankAll() > 0);
+            var bl = ranks.findInMenu(1, 0, 10001);
+            assertTrue(bl.isPresent(), "GeraRankAll tipo 1 seq 0 is Blue Lagoon best_score");
+            assertEquals(0, bl.get().value());
         }
     }
 

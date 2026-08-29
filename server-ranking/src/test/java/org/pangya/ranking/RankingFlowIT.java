@@ -2,6 +2,8 @@ package org.pangya.ranking;
 
 import org.junit.jupiter.api.Test;
 import org.pangya.db.DatabaseSupport;
+import org.pangya.db.JdbiRankRepository;
+import org.pangya.db.RankRepository;
 import org.pangya.network.AppConfig;
 import org.pangya.network.auth.AuthOutbound;
 import org.pangya.network.client.PangyaFakeClient;
@@ -23,6 +25,37 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class RankingFlowIT {
+
+    @Test
+    void geraRankAllFirstPageIsServedToFakeClient() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password)) {
+            RankRepository ranks = new JdbiRankRepository(DatabaseSupport.jdbi(ds));
+            assertTrue(ranks.geraRankAll() > 0);
+        }
+
+        try (RankingRuntime runtime = new RankingRuntime(new AppConfig(testYaml(jdbc, user, password)));
+             PangyaFakeClient client = new PangyaFakeClient()) {
+            client.connect("127.0.0.1", runtime.port(), PangyaFakeClient.HelloKind.RANKING);
+            client.awaitHello(5, TimeUnit.SECONDS);
+            client.sendPlain(RankingPackets.clientLogin(10001, "testuser", 2, 3, 0, 0, 0));
+            PacketReader page = new PacketReader(client.awaitPlain(5, TimeUnit.SECONDS));
+            assertEquals(RankingPackets.SERVER_SEND_FIRST_PAGE, page.opcode());
+            assertEquals(0, page.u8());
+            assertEquals(2, page.u8());
+            assertEquals(3, page.u8());
+            page.u8();
+            page.u8();
+            assertTrue(page.u32() >= 1);
+            page.u32();
+            assertTrue(page.u16() >= 1);
+            assertEquals(10001, page.u32());
+        }
+    }
 
     @Test
     void fakeClientLoginReceivesEmptyFirstPage() throws Exception {

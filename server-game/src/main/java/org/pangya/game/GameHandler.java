@@ -1897,8 +1897,9 @@ public final class GameHandler {
             sendGrandPrixFinishDump(session, room, rankIndex, prizeTypeids);
             return;
         }
-        // C# Tourney.finish_game option 6: requestSaveInfo(_session, 0) before dump.
+        // C# Tourney.finish_game option 6: requestSaveRecordCourse then requestSaveInfo(_session, 0).
         if (room.tipo == GamePackets.TIPO_TOURNEY) {
+            saveRecordCourse(session, room, shot, GamePackets.MAP_STAT_TIPO_NORMAL, tourneyRecordOption(room, session, shot));
             requestSaveInfo(session, room, 0, false);
         }
         sendFinishGameDump(session, room, true, prizeTypeids);
@@ -3760,8 +3761,32 @@ public final class GameHandler {
                         == GrandPrixEnterWindow.GP_ABA_ROOKIE;
     }
 
+    /** C# {@code Tourney.finish_game} record option: 1 only on 18-hole last hole / END_GAME. */
+    private static int tourneyRecordOption(GameRoom room, Session session, GameRoom.PlayerShot shot) {
+        if (shot == null || room.info.holes != 18) {
+            return 0;
+        }
+        int holeNum = shot.hole == 0 ? 1 : shot.hole;
+        int holeSeq = room.course != null ? room.course.findHoleSeq(holeNum) : holeNum;
+        if (holeSeq == 18 || room.gameFlag(session.oid()) == GamePackets.FLAG_GAME_END_GAME) {
+            return 1;
+        }
+        return 0;
+    }
+
     /** C# {@code GameBase.requestSaveRecordCourse} for GP early exit (tipo 52). */
     private void saveGrandPrixRecordCourse(Session session, GameRoom room, GameRoom.PlayerShot shot) {
+        int holeNum = shot == null ? 1 : (shot.hole == 0 ? 1 : shot.hole);
+        int holeSeq = room.course != null ? room.course.findHoleSeq(holeNum) : holeNum;
+        int option = room.info.holes == 18
+                && (holeSeq == 18 || room.gameFlag(session.oid()) == GamePackets.FLAG_GAME_END_GAME)
+                ? 1 : 0;
+        saveRecordCourse(session, room, shot, GamePackets.MAP_STAT_TIPO_GRAND_PRIX, option);
+    }
+
+    /** C# {@code GameBase.requestSaveRecordCourse} → {@code CmdUpdateMapStatistics}. */
+    private void saveRecordCourse(
+            Session session, GameRoom room, GameRoom.PlayerShot shot, int tipo, int option) {
         if (shot == null || shot.userInfo == null) {
             return;
         }
@@ -3773,20 +3798,14 @@ public final class GameHandler {
         }
         int course = room.info.course & 0x7f;
         int assist = session.player().assistFlag ? 1 : 0;
-        int tipo = 52;
         org.pangya.db.InventoryRepository.MapStatisticsRow existing =
                 inventory.mapStatistics(uid, tipo, course, assist)
                         .orElse(org.pangya.db.InventoryRepository.MapStatisticsRow.empty(tipo, course, assist));
-        int holeNum = shot.hole == 0 ? 1 : shot.hole;
-        int holeSeq = room.course != null ? room.course.findHoleSeq(holeNum) : holeNum;
-        boolean countRecord = room.info.holes == 18
-                && (holeSeq == 18
-                        || room.gameFlag(session.oid()) == GamePackets.FLAG_GAME_END_GAME);
         int bestScore = existing.bestScore();
         long bestPang = existing.bestPang();
         int characterTypeid = existing.characterTypeid();
         boolean newRecord = false;
-        if (countRecord) {
+        if (option == 1) {
             if (bestScore == 127 || shot.score < bestScore || shot.pang > bestPang) {
                 if (shot.score < bestScore) {
                     bestScore = shot.score;
