@@ -18,4 +18,6 @@ public record IffGrandPrixDataRecord(
         int conditionMin,
         int conditionMax,
         int clearGpTypeid,
-        int lockYn) {}
+        int lockYn,
+        IffSystemTime open,
+        IffSystemTime start) {}

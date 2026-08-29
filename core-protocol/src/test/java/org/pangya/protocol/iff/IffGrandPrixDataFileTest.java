@@ -61,6 +61,17 @@ class IffGrandPrixDataFileTest {
     }
 
     @Test
+    void loadsOpenStartFromScheduledRow() throws Exception {
+        assumeReferenceIffPresent();
+        PangyaIffLoader.reload(JP_IFF);
+        IffGrandPrixDataRecord row = PangyaIffLoader.grandPrixData(0x80102).orElseThrow();
+        assertEquals(1, row.open().hour());
+        assertEquals(0, row.open().minute());
+        assertEquals(1, row.start().hour());
+        assertEquals(10, row.start().minute());
+    }
+
+    @Test
     void fileLoaderMatchesArchiveSize() throws Exception {
         assumeReferenceIffPresent();
         IffGrandPrixDataIndex index = IffGrandPrixDataFile.loadIndex(new PangyaIffArchive(JP_IFF));

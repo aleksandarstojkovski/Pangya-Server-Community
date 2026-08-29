@@ -2021,6 +2021,8 @@ public final class GamePackets {
     public static final int GP_ENTER_ERR_CLEAR = 0x670000A;
     /** C# GP room type inactive CHANNEL sys {@code 0x670000B}. */
     public static final int GP_ENTER_ERR_TYPE = 0x670000B;
+    /** C# GP room outside open/start window CHANNEL sys {@code 0x670000C}. */
+    public static final int GP_ENTER_ERR_TIME = 0x670000C;
     /** C# GP ticket item from JP {@code GrandPrixData.ticket} ({@code 0x1A000264}). */
     public static final int TYPEID_GP_TICKET = 0x1A000264;
     /** C# {@code pacote24E} holes-per-phase literal. */

@@ -4743,6 +4743,7 @@ class GameFlowIT {
              SessionKeyStore keys = new SessionKeyStore(redisUri);
              GameRuntime runtime = new GameRuntime(config);
              PangyaFakeClient client = new PangyaFakeClient()) {
+            runtime.gameHandler().setGpEnterClockForTests(java.time.LocalTime.of(0, 45));
             InventoryRepository inv = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
             inv.deleteWarehouseByTypeid(10001, gpTicket);
             setItemSlot1(ds, 10001, 0);
@@ -4767,6 +4768,7 @@ class GameFlowIT {
             } finally {
                 inv.deleteWarehouseByTypeid(10001, gpTicket);
                 setItemSlot1(ds, 10001, 0);
+                runtime.gameHandler().resetGpEnterClockForTests();
             }
         }
     }
@@ -4791,6 +4793,7 @@ class GameFlowIT {
              SessionKeyStore keys = new SessionKeyStore(redisUri);
              GameRuntime runtime = new GameRuntime(config);
              PangyaFakeClient client = new PangyaFakeClient()) {
+            runtime.gameHandler().setGpEnterClockForTests(java.time.LocalTime.of(0, 5));
             InventoryRepository inv = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
             inv.deleteWarehouseByTypeid(10001, gpTicket);
             try {
@@ -4807,6 +4810,7 @@ class GameFlowIT {
                         awaitOpcode(client, GamePackets.SERVER_START_GAME_FAIL).u32());
             } finally {
                 inv.deleteWarehouseByTypeid(10001, gpTicket);
+                runtime.gameHandler().resetGpEnterClockForTests();
             }
         }
     }

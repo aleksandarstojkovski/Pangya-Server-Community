@@ -68,6 +68,8 @@ public final class GameHandler {
     private volatile int bindPort;
     /** C# {@code shutdown_time}; wired by {@link GameRuntime}. */
     private IntConsumer shutdownScheduler = sec -> log.warn("auth shutdown {} sec (no scheduler wired)", sec);
+    /** Test hook for GP open/start window; production uses {@link java.time.LocalTime#now()}. */
+    private java.util.function.Supplier<java.time.LocalTime> gpEnterClock = java.time.LocalTime::now;
     /** C# {@code PlayerMailBox} / {@code MailBoxManager.sendMessage} in-memory store. */
     private final MailBoxStore mailboxes = new MailBoxStore();
     /** C# {@code Tools.Sanitize} SQL-keyword blacklist (OrdinalIgnoreCase). */
@@ -111,6 +113,15 @@ public final class GameHandler {
 
     void setShutdownScheduler(IntConsumer scheduler) {
         this.shutdownScheduler = scheduler == null ? sec -> {} : scheduler;
+    }
+
+    /** Pins GP enter time gate for integration tests. */
+    void setGpEnterClockForTests(java.time.LocalTime fixed) {
+        gpEnterClock = () -> fixed;
+    }
+
+    void resetGpEnterClockForTests() {
+        gpEnterClock = java.time.LocalTime::now;
     }
 
     public static List<GamePackets.ChannelInfo> loadChannels(AppConfig config) {
@@ -6867,15 +6878,22 @@ public final class GameHandler {
         }
         InventoryRepository.GrandPrixEvent gp = found.get();
         PlayerContext pi = session.player();
-        if (pi.level < gp.minLevel() || (gp.maxLevel() > 0 && pi.level > gp.maxLevel())) {
-            session.send(GamePackets.sysAck(
-                    GamePackets.SERVER_START_GAME_FAIL,
-                    GamePackets.shopSys(GamePackets.GP_ENTER_ERR_LEVEL)));
-            return;
-        }
         var iffGp = org.pangya.protocol.iff.PangyaIffLoader.grandPrixData(typeid);
         if (iffGp.isPresent()) {
             var gpIff = iffGp.get();
+            if (org.pangya.protocol.iff.GrandPrixEnterWindow.outsideEnterWindow(
+                    gpIff.open(), gpIff.start(), gpEnterClock.get())) {
+                session.send(GamePackets.sysAck(
+                        GamePackets.SERVER_START_GAME_FAIL,
+                        GamePackets.shopSys(GamePackets.GP_ENTER_ERR_TIME)));
+                return;
+            }
+            if (pi.level < gpIff.minLevel() || (gpIff.maxLevel() > 0 && pi.level > gpIff.maxLevel())) {
+                session.send(GamePackets.sysAck(
+                        GamePackets.SERVER_START_GAME_FAIL,
+                        GamePackets.shopSys(GamePackets.GP_ENTER_ERR_LEVEL)));
+                return;
+            }
             var equipCondition =
                     org.pangya.protocol.iff.PangyaIffLoader.grandPrixConditionEquip(gpIff.typeIdLink());
             if (equipCondition.isPresent()
@@ -6915,14 +6933,24 @@ public final class GameHandler {
                         GamePackets.shopSys(GamePackets.GP_ENTER_ERR_TYPE)));
                 return;
             }
+        } else if (pi.level < gp.minLevel() || (gp.maxLevel() > 0 && pi.level > gp.maxLevel())) {
+            session.send(GamePackets.sysAck(
+                    GamePackets.SERVER_START_GAME_FAIL,
+                    GamePackets.shopSys(GamePackets.GP_ENTER_ERR_LEVEL)));
+            return;
         }
         GameRoom target = null;
-        for (GameRoom room : rooms.values()) {
-            if (room.tipo == GamePackets.TIPO_GRAND_PRIX
-                    && room.grandPrixTypeid == typeid
-                    && !room.inGame) {
-                target = room;
-                break;
+        boolean forceNewGpRoom = iffGp
+                .map(row -> org.pangya.protocol.iff.GrandPrixEnterWindow.forceNewRoomInstance(row.typeid()))
+                .orElse(false);
+        if (!forceNewGpRoom) {
+            for (GameRoom room : rooms.values()) {
+                if (room.tipo == GamePackets.TIPO_GRAND_PRIX
+                        && room.grandPrixTypeid == typeid
+                        && !room.inGame) {
+                    target = room;
+                    break;
+                }
             }
         }
         if (target != null) {
