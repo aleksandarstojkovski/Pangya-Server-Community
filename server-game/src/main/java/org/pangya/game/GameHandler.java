@@ -1231,7 +1231,8 @@ public final class GameHandler {
         if (room == null || reader.remaining() < GamePackets.USER_INFO_BYTES) {
             return;
         }
-        reader.readBytes(GamePackets.USER_INFO_BYTES);
+        GamePackets.UserInfoEx ui = GamePackets.UserInfoEx.read(reader);
+        queueRecordAchievementCounters(session, room, ui);
         sendFinishGameDump(session, room, true);
         finishGameRoom(room);
     }
@@ -7074,8 +7075,39 @@ public final class GameHandler {
 
     /** C# {@code GameBase.initAchievement}: queue counters accumulated until {@code finish_and_update}. */
     private void queueInitGameAchievementCounters(GameRoom room, Session session) {
-        room.addPendingAchievementCounter(
-                session.player().uid, GamePackets.TYPEID_NORMAL_GAME_COUNTER, 1);
+        long uid = session.player().uid;
+        GamePackets.UserEquip equip = inventory.userEquip(uid);
+        int charTypeid = 0;
+        for (GamePackets.CharacterInfo c : inventory.characters(uid)) {
+            if (c.id == equip.characterId) {
+                charTypeid = c.typeid;
+                break;
+            }
+        }
+        int caddieTypeid = 0;
+        for (GamePackets.CaddieInfo c : inventory.caddies(uid)) {
+            if (c.id == equip.caddieId) {
+                caddieTypeid = c.typeid;
+                break;
+            }
+        }
+        int mascotTypeid = 0;
+        for (GamePackets.MascotInfo m : inventory.mascots(uid)) {
+            if (m.id == equip.mascotId) {
+                mascotTypeid = m.typeid;
+                break;
+            }
+        }
+        AchievementCounterTypeids.queueInitGameCounters(
+                room, uid, charTypeid, caddieTypeid, mascotTypeid);
+    }
+
+    /** C# {@code GameBase.records_player_achievement} from client {@code UserInfoEx}. */
+    private void queueRecordAchievementCounters(Session session, GameRoom room, GamePackets.UserInfoEx ui) {
+        long uid = session.player().uid;
+        GameRoom.PlayerShot shot = room.shots.get(session.oid());
+        long gamePang = shot == null ? ui.pang() : shot.pang + shot.bonusPang;
+        AchievementCounterTypeids.queueRecordCounters(room, uid, ui, gamePang, ui.mediaScore());
     }
 
     /** C# mode finish hooks ({@code finish_versus}, etc.) before {@code finish_and_update}. */

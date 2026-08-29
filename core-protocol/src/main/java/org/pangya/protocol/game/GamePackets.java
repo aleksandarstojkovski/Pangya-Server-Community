@@ -1683,6 +1683,36 @@ public final class GamePackets {
     public static final int TYPEID_NORMAL_GAME_COUNTER = 0x6C400002;
     /** C# Versus {@code finish_versus} normal game complete counter. */
     public static final int TYPEID_NORMAL_GAME_COMPLETE_COUNTER = 0x6C400004;
+    /** C# Versus ctor {@code incrementCounter(0x6C40001D)}. */
+    public static final int TYPEID_VERSUS_GAME_COUNTER = 0x6C40001D;
+    /** C# {@code initAchievement} room master counter. */
+    public static final int TYPEID_ROOM_MASTER_COUNTER = 0x6C400098;
+    /** C# {@code records_player_achievement} OB counter. */
+    public static final int TYPEID_OB_COUNTER = 0x6C40004C;
+    /** C# {@code records_player_achievement} bunker counter. */
+    public static final int TYPEID_BUNKER_COUNTER = 0x6C40004E;
+    /** C# {@code records_player_achievement} shots counter. */
+    public static final int TYPEID_SHOTS_COUNTER = 0x6C400055;
+    /** C# {@code records_player_achievement} yards counter. */
+    public static final int TYPEID_YARDS_COUNTER = 0x6C400056;
+    /** C# {@code records_player_achievement} best drive counter. */
+    public static final int TYPEID_BEST_DRIVE_COUNTER = 0x6C400057;
+    /** C# {@code records_player_achievement} best chip-in counter. */
+    public static final int TYPEID_BEST_CHIP_IN_COUNTER = 0x6C400058;
+    /** C# {@code records_player_achievement} best long-putt counter. */
+    public static final int TYPEID_BEST_LONG_PUTT_COUNTER = 0x6C400077;
+    /** C# {@code records_player_achievement} acerto pangya counter. */
+    public static final int TYPEID_ACERTO_PANGYA_COUNTER = 0x6C40000B;
+    /** C# {@code records_player_achievement} score counter. */
+    public static final int TYPEID_SCORE_COUNTER = 0x6C40000C;
+    /** C# {@code records_player_achievement} pangs gained in one game. */
+    public static final int TYPEID_PANG_GAME_COUNTER = 0x6C40000D;
+    /** C# {@code requestSaveInfo} game combo counter. */
+    public static final int TYPEID_GAME_COMBO_COUNTER = 0x6C40004B;
+    /** C# 18-hole game counter from {@code getQntdHoleCounterTypeId}. */
+    public static final int TYPEID_18_HOLES_COUNTER = 0x6C40006C;
+    /** C# Blue Lagoon course counter from {@code getCourseCounterTypeId}. */
+    public static final int TYPEID_BLUE_LAGOON_COUNTER = 0x6C400020;
     public static final int TYPEID_DAILY_REWARD_TEST = 0x1A000330;
     public static final int TYPEID_UCC_PART_TEST = 0x08000340;
     /** C# transform lottery special typeids. */
@@ -3041,6 +3071,156 @@ public final class GamePackets {
             throw new IllegalStateException("UserInfo size " + body.length);
         }
         return body;
+    }
+
+    /**
+     * C# {@code UserInfoEx.ToRead}: JP {@code UserInfo} 265-byte wire layout used by
+     * {@code CLIENT_MY_STATISTICS} / {@code CLIENT_HOLE_STAT}.
+     */
+    public record UserInfoEx(
+            int tacada,
+            int putt,
+            int tempo,
+            int tempoTacada,
+            float bestDrive,
+            int acertoPangya,
+            int timeout,
+            int ob,
+            int totalDistancia,
+            int hole,
+            int holeIn,
+            int hio,
+            int bunker,
+            int fairway,
+            int albatross,
+            int madConduta,
+            int puttIn,
+            float bestLongPutt,
+            float bestChipIn,
+            int exp,
+            int level,
+            long pang,
+            int mediaScore,
+            int combo) {
+
+        public static UserInfoEx read(PacketReader reader) {
+            int tacada = reader.i32();
+            int putt = reader.i32();
+            int tempo = reader.i32();
+            int tempoTacada = reader.i32();
+            float bestDrive = reader.f32();
+            int acertoPangya = reader.i32();
+            int timeout = reader.i32();
+            int ob = reader.i32();
+            int totalDistancia = reader.i32();
+            int hole = reader.i32();
+            int holeIn = reader.i32();
+            int hio = reader.i32();
+            int bunker = reader.u16();
+            int fairway = reader.i32();
+            int albatross = reader.i32();
+            int madConduta = reader.i32();
+            int puttIn = reader.i32();
+            float bestLongPutt = reader.f32();
+            float bestChipIn = reader.f32();
+            int exp = reader.i32();
+            int level = reader.u8();
+            long pang = reader.u64();
+            int mediaScore = reader.i32();
+            reader.readBytes(5); // best_score
+            reader.u8(); // event_flag
+            reader.readBytes(40); // best_pang[5]
+            reader.u64(); // sum_pang
+            reader.i32(); // jogado
+            reader.i32(); // team_hole
+            reader.i32(); // team_win
+            reader.i32(); // team_game
+            reader.i32(); // ladder_point
+            reader.i32(); // ladder_hole
+            reader.i32(); // ladder_win
+            reader.i32(); // ladder_lose
+            reader.i32(); // ladder_draw
+            int combo = reader.i32();
+            reader.i32(); // all_combo
+            reader.i32(); // quitado
+            reader.u64(); // skin_pang
+            reader.i32(); // skin_win
+            reader.i32(); // skin_lose
+            reader.i32(); // skin_all_in_count
+            reader.i32(); // skin_run_hole
+            reader.i32(); // skin_strike_point
+            reader.i32(); // jogados_disconnect
+            reader.u16(); // event_value
+            reader.i32(); // disconnect
+            reader.readBytes(24); // stMedal
+            reader.i32(); // sys_school_serie
+            reader.i32(); // game_count_season
+            reader.u16(); // _16bit_nao_sei
+            return new UserInfoEx(
+                    tacada,
+                    putt,
+                    tempo,
+                    tempoTacada,
+                    bestDrive,
+                    acertoPangya,
+                    timeout,
+                    ob,
+                    totalDistancia,
+                    hole,
+                    holeIn,
+                    hio,
+                    bunker,
+                    fairway,
+                    albatross,
+                    madConduta,
+                    puttIn,
+                    bestLongPutt,
+                    bestChipIn,
+                    exp,
+                    level,
+                    pang,
+                    mediaScore,
+                    combo);
+        }
+    }
+
+    /** Build {@link UserInfoEx} wire bytes for tests ({@code UserInfo.ToArray} layout). */
+    public static byte[] userInfoExWire(
+            int tacada,
+            int putt,
+            int ob,
+            int hole,
+            long pang,
+            int mediaScore,
+            int combo) {
+        byte[] body = userInfoPublic(0);
+        PacketWriter w = new PacketWriter();
+        w.i32(tacada);
+        w.i32(putt);
+        byte[] head = w.toBytes();
+        System.arraycopy(head, 0, body, 0, 8);
+        writeI32(body, 28, ob);
+        writeI32(body, 36, hole);
+        writeI64(body, 79, pang);
+        writeI32(body, 87, mediaScore);
+        writeI32(body, 181, combo);
+        if (body.length != USER_INFO_BYTES) {
+            throw new IllegalStateException("UserInfoEx wire size " + body.length);
+        }
+        return body;
+    }
+
+    private static void writeI32(byte[] body, int offset, int value) {
+        body[offset] = (byte) value;
+        body[offset + 1] = (byte) (value >> 8);
+        body[offset + 2] = (byte) (value >> 16);
+        body[offset + 3] = (byte) (value >> 24);
+    }
+
+    private static void writeI64(byte[] body, int offset, long value) {
+        for (int i = 0; i < 8; i++) {
+            body[offset + i] = (byte) (value >> (8 * i));
+        }
     }
 
     /** Fail path used by {@code SendLoginAck}: uint32 ack. */
@@ -6516,6 +6696,13 @@ public final class GamePackets {
     /** C# CLIENT {@code 0x06}: {@code UserInfoEx.ToRead} 265 bytes. */
     public static byte[] clientFinishGame() {
         return new PacketWriter().opcode(CLIENT_MY_STATISTICS).zero(USER_INFO_BYTES).toBytes();
+    }
+
+    public static byte[] clientFinishGame(byte[] userInfo) {
+        if (userInfo == null || userInfo.length != USER_INFO_BYTES) {
+            throw new IllegalArgumentException("UserInfoEx must be " + USER_INFO_BYTES + " bytes");
+        }
+        return new PacketWriter().opcode(CLIENT_MY_STATISTICS).bytes(userInfo).toBytes();
     }
 
     /** C# CLIENT {@code 0x31}: {@code UserInfoEx.ToRead} 265 bytes, no reply. */

@@ -5724,6 +5724,89 @@ class GameFlowIT {
     }
 
     @Test
+    void finishGameRecordCountersFromUserInfoEx() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config);
+             PangyaFakeClient client = new PangyaFakeClient()) {
+            InventoryRepository inv = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
+            try {
+                insertCounterItem(ds, 10001, GamePackets.TYPEID_OB_COUNTER);
+                insertCounterItem(ds, 10001, GamePackets.TYPEID_SHOTS_COUNTER);
+                LoginRepository repo = new JdbiLoginRepository(DatabaseSupport.jdbi(ds));
+                String loginKey = repo.generateAuthKeyLogin(10001);
+                String gameKey = repo.generateAuthKeyGame(10001, 20202);
+                keys.putLoginKey(10001, loginKey);
+                keys.putGameKey(10001, 20202, gameKey);
+                loginToChannel(client, runtime.port(), "testuser", 10001, loginKey, gameKey);
+
+                client.sendPlain(GamePackets.clientLobbyItem(GamePackets.ITEM_CHARACTER, 1));
+                awaitOpcode(client, GamePackets.SERVER_ROOM_USER_INFO_CHANGED);
+
+                client.sendPlain(GamePackets.clientCreatePractice("record-counters", "secret"));
+                PacketReader room = awaitOpcode(client, GamePackets.SERVER_ROOM_ENTER_RESULT);
+                assertEquals(0, room.i16());
+                room.readBytes(GamePackets.ROOM_INFO_BYTES);
+
+                client.sendPlain(GamePackets.clientRoomItem(GamePackets.ITEM_CHARACTER, 1));
+                awaitOpcode(client, GamePackets.SERVER_ROOM_USER_INFO_CHANGED);
+
+                client.sendPlain(GamePackets.clientStartGame());
+                awaitOpcode(client, GamePackets.SERVER_START_GAME_FLAG);
+                awaitOpcode(client, GamePackets.SERVER_START_GAME_FLAG2);
+                awaitOpcode(client, GamePackets.SERVER_PANG_RATE);
+                awaitOpcode(client, GamePackets.SERVER_GAME_INIT);
+                PacketReader course = awaitOpcode(client, GamePackets.SERVER_COURSE);
+                skipCoursePacketAfterCourseId(course);
+
+                byte[] userInfo = GamePackets.userInfoExWire(3, 1, 2, 0, 0, 0, 0);
+                client.sendPlain(GamePackets.clientFinishGame(userInfo));
+                awaitOpcode(client, GamePackets.SERVER_PRIZE_LIST);
+                awaitOpcode(client, GamePackets.SERVER_GAME_RESULT);
+                awaitOpcode(client, GamePackets.SERVER_MY_STATISTICS);
+                awaitOpcode(client, GamePackets.SERVER_UPDATE_TREASURE_GIFT_LIST);
+
+                PacketReader counterUpd = awaitOpcode(client, GamePackets.SERVER_DAILY_QUEST_STAMP);
+                counterUpd.u32();
+                int count = counterUpd.u32();
+                assertTrue(count >= 2);
+                for (int i = 0; i < count; i++) {
+                    counterUpd.u8();
+                    counterUpd.u32();
+                    counterUpd.i32();
+                    counterUpd.u32();
+                    counterUpd.i32();
+                    counterUpd.i32();
+                    counterUpd.i32();
+                    counterUpd.readBytes(GamePackets.PAPEL_AWARD_PAD);
+                }
+                assertEquals(0, counterUpd.remaining());
+
+                assertEquals(2, inv.counters(10001).stream()
+                        .filter(c -> c.typeid() == GamePackets.TYPEID_OB_COUNTER)
+                        .mapToInt(GamePackets.CounterItem::value)
+                        .findFirst()
+                        .orElse(-1));
+                assertEquals(4, inv.counters(10001).stream()
+                        .filter(c -> c.typeid() == GamePackets.TYPEID_SHOTS_COUNTER)
+                        .mapToInt(GamePackets.CounterItem::value)
+                        .findFirst()
+                        .orElse(-1));
+                awaitOpcode(client, GamePackets.SERVER_PANG_SPENT);
+            } finally {
+                cleanupDailyQuestForUid(ds, 10001);
+            }
+        }
+    }
+
+    @Test
     void versusLastHoleClearBonusCreditsPang() throws Exception {
         String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
         String user = env("PANGYA_TEST_JDBC_USER", "pangya");
@@ -8085,7 +8168,13 @@ class GameFlowIT {
                             GamePackets.TYPEID_COURSE_PRACTICE_COUNTER,
                             GamePackets.TYPEID_HOLE_REPEAT_COUNTER,
                             GamePackets.TYPEID_NORMAL_GAME_COUNTER,
-                            GamePackets.TYPEID_NORMAL_GAME_COMPLETE_COUNTER))
+                            GamePackets.TYPEID_NORMAL_GAME_COMPLETE_COUNTER,
+                            GamePackets.TYPEID_VERSUS_GAME_COUNTER,
+                            GamePackets.TYPEID_ROOM_MASTER_COUNTER,
+                            GamePackets.TYPEID_OB_COUNTER,
+                            GamePackets.TYPEID_SHOTS_COUNTER,
+                            GamePackets.TYPEID_18_HOLES_COUNTER,
+                            GamePackets.TYPEID_BLUE_LAGOON_COUNTER))
                     .execute();
             h.createUpdate("DELETE FROM pangya.pangya_daily_quest_player WHERE uid = :uid")
                     .bind("uid", uid)

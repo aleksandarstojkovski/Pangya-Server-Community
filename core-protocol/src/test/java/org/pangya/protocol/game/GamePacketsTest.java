@@ -463,6 +463,15 @@ class GamePacketsTest {
         assertEquals(GamePackets.CLIENT_MY_STATISTICS, finish.opcode());
         assertEquals(GamePackets.USER_INFO_BYTES, finish.remaining());
 
+        byte[] userInfoWire = GamePackets.userInfoExWire(3, 1, 2, 4, 50, -3, 0);
+        GamePackets.UserInfoEx parsed = GamePackets.UserInfoEx.read(new PacketReader(userInfoWire));
+        assertEquals(3, parsed.tacada());
+        assertEquals(1, parsed.putt());
+        assertEquals(2, parsed.ob());
+        assertEquals(4, parsed.hole());
+        assertEquals(50, parsed.pang());
+        assertEquals(-3, parsed.mediaScore());
+
         PacketReader hole = new PacketReader(GamePackets.clientHoleStat());
         assertEquals(GamePackets.CLIENT_HOLE_STAT, hole.opcode());
         assertEquals(GamePackets.USER_INFO_BYTES, hole.remaining());
