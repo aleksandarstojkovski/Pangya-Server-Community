@@ -483,6 +483,10 @@ public final class GamePackets {
     public static final int SERVER_ACHIEVEMENT_GUI = 0x22C;
     /** C# {@code pacote22D} achievement GUI data. */
     public static final int SERVER_ACHIEVEMENT_GUI_DATA = 0x22D;
+    /** C# {@code pacote220} achievement update after counter/quest change. */
+    public static final int SERVER_ACHIEVEMENT_UPDATE = 0x220;
+    /** C# {@code pacote22E} cleared quest notification. */
+    public static final int SERVER_ACHIEVEMENT_CLEAR_QUEST = 0x22E;
     /** C# Cadie Magic Box fail/success {@code 0x22F}. */
     public static final int SERVER_CADIE = 0x22F;
     /**
@@ -1481,6 +1485,10 @@ public final class GamePackets {
     public static final int DAILY_QUEST_REWARD_FAIL = 500050;
     /** C# {@code pacote22C(1)} achievement GUI fail. */
     public static final int ACHIEVEMENT_GUI_FAIL = 1;
+    /** C# {@code ACHIEVEMENT_STATUS.ACTIVED}. */
+    public static final int ACHIEVEMENT_STATUS_ACTIVED = 3;
+    /** C# {@code ACHIEVEMENT_STATUS.CONCLUEDED}. */
+    public static final int ACHIEVEMENT_STATUS_CONCLUDED = 4;
     /**
      * C# Cadie {@code count==0||count>4}: CHANNEL sys {@code 5200451}, catch writes
      * {@code sys & 0xFFFF}.
@@ -5833,6 +5841,62 @@ public final class GamePackets {
         }
         return w.toBytes();
     }
+
+    /** C# {@code pacote22E}: cleared quest typeids. */
+    public static byte[] achievementClearQuest(List<QuestClearEntry> clears) {
+        List<QuestClearEntry> rows = clears == null ? List.of() : clears;
+        PacketWriter w = new PacketWriter()
+                .opcode(SERVER_ACHIEVEMENT_CLEAR_QUEST)
+                .u32(rows.size());
+        for (QuestClearEntry row : rows) {
+            w.u32(row.achievementTypeid()).u32(row.questTypeid());
+        }
+        return w.toBytes();
+    }
+
+    /**
+     * C# {@code pacote220}: success i32 0 + updated {@code AchievementInfoEx} rows
+     * with counter typeid/id per quest stuff.
+     */
+    public static byte[] achievementUpdate(
+            List<AchievementInfo> achievements, List<CounterItem> counters) {
+        List<AchievementInfo> rows = achievements == null ? List.of() : achievements;
+        List<CounterItem> counterRows = counters == null ? List.of() : counters;
+        PacketWriter w = new PacketWriter()
+                .opcode(SERVER_ACHIEVEMENT_UPDATE)
+                .i32(0)
+                .u32(rows.size());
+        for (AchievementInfo achievement : rows) {
+            w.u8(achievement.active())
+                    .u32(achievement.typeid())
+                    .i32(achievement.id())
+                    .i32(achievement.status())
+                    .u32(achievement.quests().size());
+            for (QuestStuff quest : achievement.quests()) {
+                w.u32(quest.typeid());
+                if (quest.counterId() > 0) {
+                    CounterItem counter = null;
+                    for (CounterItem c : counterRows) {
+                        if (c.id() == quest.counterId()) {
+                            counter = c;
+                            break;
+                        }
+                    }
+                    if (counter != null) {
+                        w.u32(counter.typeid()).u32(counter.id());
+                    } else {
+                        w.zero(8);
+                    }
+                } else {
+                    w.zero(8);
+                }
+                w.u32(quest.clearDateUnix());
+            }
+        }
+        return w.toBytes();
+    }
+
+    public record QuestClearEntry(int achievementTypeid, int questTypeid) {}
 
     /** C# delete-item catch: {@code 0xC5} sbyte -1. */
     public static byte[] deleteItemFail() {

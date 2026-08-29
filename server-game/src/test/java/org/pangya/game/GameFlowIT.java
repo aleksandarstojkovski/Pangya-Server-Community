@@ -2038,7 +2038,8 @@ class GameFlowIT {
             try {
                 inv.upsertDailyQuestStuff(
                         GamePackets.TYPEID_DAILY_QUEST_STUFF_TEST,
-                        GamePackets.TYPEID_LOGIN_COUNT_COUNTER);
+                        GamePackets.TYPEID_LOGIN_COUNT_COUNTER,
+                        1);
                 inv.upsertItemIff(GamePackets.TYPEID_SHOP_PANG_ITEM);
                 inv.deleteAttendanceReward(10001);
                 inv.upsertAttendanceCatalog(
@@ -2081,6 +2082,33 @@ class GameFlowIT {
                         .mapToInt(GamePackets.CounterItem::value)
                         .findFirst()
                         .orElse(-1));
+
+                PacketReader questClear = awaitOpcode(client, GamePackets.SERVER_ACHIEVEMENT_CLEAR_QUEST);
+                assertEquals(1, questClear.u32());
+                assertEquals(GamePackets.TYPEID_DAILY_ACHIEVEMENT_TEST, questClear.u32());
+                assertEquals(GamePackets.TYPEID_DAILY_QUEST_STUFF_TEST, questClear.u32());
+                assertEquals(0, questClear.remaining());
+
+                PacketReader achUpd = awaitOpcode(client, GamePackets.SERVER_ACHIEVEMENT_UPDATE);
+                assertEquals(0, achUpd.i32());
+                assertEquals(1, achUpd.u32());
+                assertEquals(1, achUpd.u8());
+                assertEquals(GamePackets.TYPEID_DAILY_ACHIEVEMENT_TEST, achUpd.u32());
+                assertEquals(achievementId, achUpd.i32());
+                assertEquals(GamePackets.ACHIEVEMENT_STATUS_CONCLUDED, achUpd.i32());
+                assertEquals(1, achUpd.u32());
+                assertEquals(GamePackets.TYPEID_DAILY_QUEST_STUFF_TEST, achUpd.u32());
+                assertEquals(GamePackets.TYPEID_LOGIN_COUNT_COUNTER, achUpd.u32());
+                assertEquals(counterId, achUpd.u32());
+                assertTrue(achUpd.u32() > 0);
+                assertEquals(0, achUpd.remaining());
+
+                GamePackets.AchievementInfo stored = inv.achievements(10001).stream()
+                        .filter(a -> a.id() == achievementId)
+                        .findFirst()
+                        .orElseThrow();
+                assertEquals(GamePackets.ACHIEVEMENT_STATUS_CONCLUDED, stored.status());
+                assertTrue(stored.quests().get(0).clearDateUnix() > 0);
             } finally {
                 cleanupDailyQuest(ds);
                 inv.deleteDailyQuestStuff(GamePackets.TYPEID_DAILY_QUEST_STUFF_TEST);

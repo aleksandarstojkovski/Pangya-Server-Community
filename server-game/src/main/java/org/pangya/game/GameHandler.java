@@ -6976,8 +6976,8 @@ public final class GameHandler {
      * Draws {@code after}; typeid 0 {@code now} is redrawn (C# {@code IsExist(0)}
      * is false). Sends GP/bot/fortune login bonus mails like C#
      * {@code requestUpdateCountLogin}. Sends {@code 0x216} counter stamps for
-     * active daily quests; achievement GUI ({@code 0x22D}) is still skipped.
-     * Empty catalog → {@code 0x249} u32 {@code ~0}.
+     * active daily quests; {@code 0x22E}/{@code 0x220} when quests clear. Achievement
+     * GUI ({@code 0x22D}) on request is unchanged. Empty catalog → {@code 0x249} u32 {@code ~0}.
      */
     private void attendanceLoginCount(Session session) {
         if (!inChannel(session)) {
@@ -7032,24 +7032,39 @@ public final class GameHandler {
         }
     }
 
-    /** C# {@code sys_achieve.incrementCounter(0x6C4000A0)} + {@code finish_and_update} counter rows. */
+    /**
+     * C# {@code sys_achieve.incrementCounter} + {@code finish_and_update} counter,
+     * clear, and achievement rows.
+     */
     private void sendLoginCounterIncrements(Session session, long uid) {
-        List<InventoryRepository.CounterIncrement> increments = inventory.incrementActiveCounters(
-                uid, GamePackets.TYPEID_LOGIN_COUNT_COUNTER, 1);
-        if (increments.isEmpty()) {
+        finishCounterIncrements(session, uid, GamePackets.TYPEID_LOGIN_COUNT_COUNTER, 1);
+    }
+
+    private void finishCounterIncrements(Session session, long uid, int counterTypeid, int delta) {
+        InventoryRepository.CounterApplyResult result =
+                inventory.applyCounterIncrements(uid, counterTypeid, delta);
+        if (result.updatedAchievements().isEmpty()) {
             return;
         }
-        List<GamePackets.PapelAward> awards = increments.stream()
-                .map(c -> new GamePackets.PapelAward(
-                        GamePackets.PAPEL_AWARD_TYPE,
-                        c.typeid(),
-                        c.id(),
-                        0,
-                        c.before(),
-                        c.after(),
-                        c.delta()))
+        if (!result.increments().isEmpty()) {
+            List<GamePackets.PapelAward> awards = result.increments().stream()
+                    .map(c -> new GamePackets.PapelAward(
+                            GamePackets.PAPEL_AWARD_TYPE,
+                            c.typeid(),
+                            c.id(),
+                            0,
+                            c.before(),
+                            c.after(),
+                            c.delta()))
+                    .toList();
+            session.send(GamePackets.papelAwards(GamePackets.unixNow(), awards));
+        }
+        List<GamePackets.QuestClearEntry> clears = result.questClears().stream()
+                .map(c -> new GamePackets.QuestClearEntry(c.achievementTypeid(), c.questTypeid()))
                 .toList();
-        session.send(GamePackets.papelAwards(GamePackets.unixNow(), awards));
+        session.send(GamePackets.achievementClearQuest(clears));
+        session.send(GamePackets.achievementUpdate(
+                result.updatedAchievements(), inventory.counters(uid)));
     }
 
     /**

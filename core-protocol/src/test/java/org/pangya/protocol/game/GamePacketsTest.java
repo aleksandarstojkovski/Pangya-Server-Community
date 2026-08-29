@@ -985,6 +985,29 @@ class GamePacketsTest {
         assertEquals(7, achData.i32());
         assertEquals(0, achData.u32());
         assertEquals(0, achData.remaining());
+        PacketReader clearQuest = new PacketReader(GamePackets.achievementClearQuest(List.of(
+                new GamePackets.QuestClearEntry(
+                        GamePackets.TYPEID_DAILY_ACHIEVEMENT_TEST,
+                        GamePackets.TYPEID_DAILY_QUEST_STUFF_TEST))));
+        assertEquals(GamePackets.SERVER_ACHIEVEMENT_CLEAR_QUEST, clearQuest.opcode());
+        assertEquals(1, clearQuest.u32());
+        assertEquals(GamePackets.TYPEID_DAILY_ACHIEVEMENT_TEST, clearQuest.u32());
+        assertEquals(GamePackets.TYPEID_DAILY_QUEST_STUFF_TEST, clearQuest.u32());
+        PacketReader achUpdate = new PacketReader(GamePackets.achievementUpdate(List.of(daily), List.of(
+                new GamePackets.CounterItem(91, GamePackets.TYPEID_DAILY_COUNTER_TEST, 1, 7))));
+        assertEquals(GamePackets.SERVER_ACHIEVEMENT_UPDATE, achUpdate.opcode());
+        assertEquals(0, achUpdate.i32());
+        assertEquals(1, achUpdate.u32());
+        assertEquals(1, achUpdate.u8());
+        assertEquals(GamePackets.TYPEID_DAILY_ACHIEVEMENT_TEST, achUpdate.u32());
+        assertEquals(90, achUpdate.i32());
+        assertEquals(3, achUpdate.i32());
+        assertEquals(1, achUpdate.u32());
+        assertEquals(GamePackets.TYPEID_DAILY_QUEST_STUFF_TEST, achUpdate.u32());
+        assertEquals(GamePackets.TYPEID_DAILY_COUNTER_TEST, achUpdate.u32());
+        assertEquals(91, achUpdate.u32());
+        assertEquals(0, achUpdate.u32());
+        assertEquals(0, achUpdate.remaining());
         assertEquals(0, GamePackets.itemGroupIdentify(1));
         assertEquals(GamePackets.IFF_GROUP_ITEM, GamePackets.itemGroupIdentify(0x1A000006));
         assertEquals(1_700_000_000, GamePackets.tzLocalUnixToUnixUtc(1_700_000_000));
@@ -1000,6 +1023,8 @@ class GamePacketsTest {
         assertEquals(GamePackets.SERVER_DAILY_QUEST_INFO, 0x225);
         assertEquals(GamePackets.SERVER_DELETE_ITEM, 0xC5);
         assertEquals(GamePackets.SERVER_ACHIEVEMENT_GUI, 0x22C);
+        assertEquals(GamePackets.SERVER_ACHIEVEMENT_UPDATE, 0x220);
+        assertEquals(GamePackets.SERVER_ACHIEVEMENT_CLEAR_QUEST, 0x22E);
         PacketReader cadieFail = new PacketReader(GamePackets.cadieFail(GamePackets.shopSys(GamePackets.CADIE_ERR_COUNT)));
         assertEquals(GamePackets.SERVER_CADIE, cadieFail.opcode());
         assertEquals(GamePackets.shopSys(GamePackets.CADIE_ERR_COUNT), cadieFail.u32());

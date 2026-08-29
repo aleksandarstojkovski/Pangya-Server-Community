@@ -545,6 +545,100 @@ public final class JdbiInventoryRepository implements InventoryRepository {
     }
 
     @Override
+    public InventoryRepository.CounterApplyResult applyCounterIncrements(
+            long uid, int counterTypeid, int delta) {
+        List<InventoryRepository.CounterIncrement> increments =
+                incrementActiveCounters(uid, counterTypeid, delta);
+        if (increments.isEmpty()) {
+            return new InventoryRepository.CounterApplyResult(List.of(), List.of(), List.of());
+        }
+        Instant now = Instant.now();
+        java.util.Set<Integer> affectedAchievements = new java.util.HashSet<>();
+        List<InventoryRepository.QuestClearRow> clears = new ArrayList<>();
+        jdbi.useTransaction(h -> {
+            for (InventoryRepository.CounterIncrement inc : increments) {
+                record QuestLink(int questId, int achievementId, int questTypeid, int achievementTypeid) {}
+                Optional<QuestLink> quest = h.createQuery("""
+                                SELECT q.id AS quest_id, q.achievement_id, q.typeid AS quest_typeid,
+                                       a."TypeID" AS achievement_typeid
+                                  FROM pangya.pangya_quest q
+                                  JOIN pangya.pangya_achievement a
+                                    ON a."ID_ACHIEVEMENT" = q.achievement_id
+                                   AND a."UID" = :uid
+                                 WHERE q.uid = :uid
+                                   AND q.counter_item_id = :counter
+                                   AND q."Date" IS NULL
+                                """)
+                        .bind("uid", uid)
+                        .bind("counter", inc.id())
+                        .map((rs, ctx) -> new QuestLink(
+                                rs.getInt("quest_id"),
+                                rs.getInt("achievement_id"),
+                                rs.getInt("quest_typeid"),
+                                rs.getInt("achievement_typeid")))
+                        .findOne();
+                if (quest.isEmpty()) {
+                    continue;
+                }
+                QuestLink q = quest.get();
+                affectedAchievements.add(q.achievementId());
+                int target = h.createQuery("""
+                                SELECT counter_qntd
+                                  FROM pangya.iff_daily_quest_stuff
+                                 WHERE quest_typeid = :typeid
+                                """)
+                        .bind("typeid", q.questTypeid())
+                        .mapTo(Integer.class)
+                        .findOne()
+                        .orElse(1);
+                if (target <= 0) {
+                    target = 1;
+                }
+                if (inc.after() < target) {
+                    continue;
+                }
+                h.createUpdate("""
+                                UPDATE pangya.pangya_quest
+                                   SET "Date" = :now
+                                 WHERE id = :id AND uid = :uid
+                                """)
+                        .bind("now", now)
+                        .bind("id", q.questId())
+                        .bind("uid", uid)
+                        .execute();
+                clears.add(new InventoryRepository.QuestClearRow(
+                        q.achievementTypeid(), q.questTypeid()));
+                int uncleared = h.createQuery("""
+                                SELECT COUNT(*)
+                                  FROM pangya.pangya_quest
+                                 WHERE uid = :uid
+                                   AND achievement_id = :achievement
+                                   AND "Date" IS NULL
+                                """)
+                        .bind("uid", uid)
+                        .bind("achievement", q.achievementId())
+                        .mapTo(Integer.class)
+                        .one();
+                if (uncleared == 0) {
+                    h.createUpdate("""
+                                    UPDATE pangya.pangya_achievement
+                                       SET status = 4
+                                     WHERE "UID" = :uid
+                                       AND "ID_ACHIEVEMENT" = :id
+                                    """)
+                            .bind("uid", uid)
+                            .bind("id", q.achievementId())
+                            .execute();
+                }
+            }
+        });
+        List<GamePackets.AchievementInfo> updated = achievements(uid).stream()
+                .filter(a -> affectedAchievements.contains(a.id()))
+                .toList();
+        return new InventoryRepository.CounterApplyResult(increments, clears, updated);
+    }
+
+    @Override
     public List<GamePackets.AchievementInfo> achievements(long uid) {
         return jdbi.withHandle(h -> {
             List<GamePackets.CounterItem> counters = h.createQuery("""
@@ -4635,14 +4729,22 @@ public final class JdbiInventoryRepository implements InventoryRepository {
 
     @Override
     public void upsertDailyQuestStuff(int questTypeid, int counterTypeid) {
+        upsertDailyQuestStuff(questTypeid, counterTypeid, 1);
+    }
+
+    @Override
+    public void upsertDailyQuestStuff(int questTypeid, int counterTypeid, int counterQntd) {
         jdbi.useHandle(h -> h.createUpdate("""
-                        INSERT INTO pangya.iff_daily_quest_stuff (quest_typeid, counter_typeid)
-                        VALUES (:quest, :counter)
+                        INSERT INTO pangya.iff_daily_quest_stuff (
+                            quest_typeid, counter_typeid, counter_qntd)
+                        VALUES (:quest, :counter, :qntd)
                         ON CONFLICT (quest_typeid) DO UPDATE SET
-                            counter_typeid = EXCLUDED.counter_typeid
+                            counter_typeid = EXCLUDED.counter_typeid,
+                            counter_qntd = EXCLUDED.counter_qntd
                         """)
                 .bind("quest", questTypeid)
                 .bind("counter", counterTypeid)
+                .bind("qntd", counterQntd)
                 .execute());
     }
 

@@ -57,6 +57,13 @@ public interface InventoryRepository {
      */
     List<CounterIncrement> incrementActiveCounters(long uid, int counterTypeid, int delta);
 
+    /**
+     * C# {@code incrementCounter} + {@code finish_and_update}: increment, evaluate
+     * SQL quest-stuff targets, mark clears, and return wire rows for {@code 0x216}/
+     * {@code 0x22E}/{@code 0x220}.
+     */
+    CounterApplyResult applyCounterIncrements(long uid, int counterTypeid, int delta);
+
     List<GamePackets.AchievementInfo> achievements(long uid);
 
     Optional<ShopItem> shopItem(int typeid);
@@ -438,6 +445,9 @@ public interface InventoryRepository {
 
     void upsertDailyQuestStuff(int questTypeid, int counterTypeid);
 
+    /** C# IFF {@code QuestStuff.counter_item.qntd} target (default 1). */
+    void upsertDailyQuestStuff(int questTypeid, int counterTypeid, int counterQntd);
+
     void deleteDailyQuestStuff(int questTypeid);
 
     void upsertDailyQuestReward(
@@ -757,6 +767,14 @@ public interface InventoryRepository {
 
     /** Before/after values for C# {@code pacote216} type-2 counter rows. */
     record CounterIncrement(int id, int typeid, int before, int after, int delta) {}
+
+    /** C# {@code AchievementSystem.QuestClear} row for {@code pacote22E}. */
+    record QuestClearRow(int achievementTypeid, int questTypeid) {}
+
+    record CounterApplyResult(
+            List<CounterIncrement> increments,
+            List<QuestClearRow> questClears,
+            List<GamePackets.AchievementInfo> updatedAchievements) {}
 
     record DailyQuestReward(int seq, int typeid, int qntd, int time) {}
 
