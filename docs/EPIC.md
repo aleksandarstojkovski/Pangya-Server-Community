@@ -2,9 +2,9 @@
 
 **Obiettivo ridotto:** Auth + Login + Game Server end-to-end **solo modalità Torneo** (`TIPO_TOURNEY`), con Ranking e Messenger nella misura minima richiesta da quel flusso.
 
-**Fonte comportamento:** `reference/pangya-server-community` (`Server/JP/`, C# branch `Develop_luiz`).  
-**Codice Java:** `Develop` @ `04591c8` (ultimo commit Java: `d79b5f6` merge PR #7 GP).  
-**Non ricostruire** S0–S3 / S-T1–S-T2 già verificati verdi in questo turno.
+**Fonte comportamento:** `reference/pangya-server-community` (`Server/JP/`, branch C# `Develop_luiz`).  
+**Codice Java:** ultimo Java su `Develop` = `d79b5f6` (merge PR #7 GP). `Develop` HEAD docs = `5b3e555` (PR #9 Fase 0 recovery).  
+**Merge:** questo file vince sul DoD/slice di #9 (stale: finish/ranking/crash «non verificati»). Da #9 restano inventario opcode 479/196 e la regola anti-allucinazione.
 
 ---
 
@@ -46,7 +46,7 @@ S-T1 [~]  S-T2 [x]  S-T3 [x]  S-T4 [x]  S-T5 [x]  S-T6 [x]
 
 ### S-T1 — Protocollo / cipher
 
-**Riuso Fase 0 + riconferma questo turno.** Non rifare.
+**Riuso Fase 0 + riconferma.** Non rifare.
 
 ```
 ./gradlew --no-daemon --rerun-tasks :core-protocol:test :core-network:test
@@ -84,7 +84,7 @@ GameFlowIT > tourneyFakeClientPlaysToFinishAndReceivesResult() PASSED
 
 ### S-T4 — Partita Torneo end-to-end
 
-**Chiuso** questo turno.
+**Chiuso.**
 
 C# `Tourney.finish_game` option 6 (`Tourney.cs` ~1552): `requestSaveInfo(_session, 0)`.  
 Java: `GameHandler.finishGamePlayerDump` ora chiama `requestSaveInfo(session, room, 0, false)` se `TIPO_TOURNEY`.
@@ -125,7 +125,7 @@ IT e2e unico: finish 18-hole last-hole → `RankingRuntime` (auto-GeraRankAll) �
 
 ### S-T6 — Hardening leggero
 
-**Chiuso** (test già in repo, riconfermato).
+**Chiuso** (test già in repo, riconfermato). #9 diceva «non verificato»; superato da:
 
 ```
 ./gradlew --no-daemon --rerun-tasks \
@@ -138,7 +138,7 @@ Due client, sink che lancia `RuntimeException`, `seen==2`, server ancora bound. 
 
 ---
 
-## Verifica comandi di questo turno (incollati)
+## Verifica comandi (incollati)
 
 Health dopo `docker compose up --build -d` (2026-08-29T15:26:56Z):
 
@@ -173,15 +173,30 @@ FlywayMigrationTest > migratesAndIsIdempotent() FAILED
 FLYWAY_EXIT=1
 ```
 
+#9 attribuiva il rosso a «second migrate no-op / race parallela». Lo stack reale su Compose condiviso è riga **129** `iff_item` (4 typeid inseriti a runtime da `JdbiInventoryRepository`). Il test non DROPPA lo schema.
+
 ---
 
-## Mappa C# → Java (invariata)
+## Inventario opcode (da PR #9, invariato)
+
+| Metrica | Valore | Comando |
+|---------|--------|---------|
+| C# `GameService.cs` `addPacketCall` | **479** | `grep -cE addPacketCall …/GameService.cs` |
+| Java `GameHandler` `case CLIENT_*` | **196** | `grep -oE 'case GamePackets.CLIENT_' … \| sort -u \| wc -l` |
+
+Il vecchio «193 C# / 0 mancanti» era **errato**. Per l’MVP conta solo il sottoinsieme Torneo.
+
+---
+
+## Mappa C# → Java
 
 | C# (JP) | Java |
 |---------|------|
-| `PangyaAPI.Network.Cryptor.Cipher` | `org.pangya.protocol.crypto.Cipher` |
+| `PangyaAPI.Network.Cryptor.{Cipher,CryptoOracle,MiniLzo}` | `org.pangya.protocol.crypto.*` |
 | `Tourney` / `TourneyBase` | rami `TIPO_TOURNEY` / `usesTourneyInitialData` in `GameHandler` (non classe omonima) |
 | `AuthServer` / `LoginServer` / `GameServer` / `RankingServer` / `MessengerServer` | `:server-auth` … `:server-messenger` |
+| `PangyaAPI.SQL` + stored proc | `org.pangya.db` (Jdbi + SQL esplicito, no JPA) |
+| `server.ini` | `application.yml` + env |
 
 502 stored procedure C# non portate — SQL Jdbi esplicito.
 
@@ -204,4 +219,12 @@ Nessun nuovo opcode. Nessun lavoro Practice/GP/Versus.
 - Client Pangya binario mancante
 - Cambio stack
 - Semantica SQL che cambia il gameplay Torneo
-- Altro codice pregresso dubbio non coperto da Fase 0 / da questa riconferma — segnalare, non decidere
+- Altro codice pregresso dubbio — segnalare, non decidere
+- **Rollback:** #9 raccomandava niente rollback (allucinazioni nei doc, non nel codice). Invariato.
+
+## Regola anti-allucinazione
+
+- Ogni riga «done» deve avere comando + esito reale incollato.
+- Se un comando non è eseguibile → **non verificato**, mai «fatto».
+- Fine turno: aggiornare `STATUS.md` con data/ora.
+- Prima di API C# / SQL / opcode a memoria: cercarli in `reference/`.

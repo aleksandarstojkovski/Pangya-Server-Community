@@ -1,10 +1,12 @@
 # STATUS — Pangya Java 21 JP rewrite (MVP Torneo)
 
 **Branch di lavoro:** `cursor/tourney-mvp-plan-0864` (base `Develop`)  
-**HEAD base verificato (2026-08-29T15:08Z):** `04591c8` — *Add initial project documentation for Pangya server rewrite*  
+**Develop HEAD al merge:** `5b3e555` — *Phase 0 recovery audit* (PR #9).  
 **Fonte comportamento:** `reference/pangya-server-community` (`Server/JP/`, branch C# `Develop_luiz`).  
 **Scope attuale:** Auth + Login + Game **solo modalità Torneo**, con Ranking/Messenger minimi.  
 **Fuori scope MVP:** Versus, Practice, Grand Prix, Grand Zodiac, Guild Battle, Pang Battle, Approach, Chip-in Practice, SSC; manager char/card/caddie oltre il minimo Torneo; load 3000 sessioni.
+
+**Conflitto merge #9:** tenuti i comandi/esiti S-T1…S-T6 di questo branch. Scartate le voci #9 «finish+ranking NON verificato» e «crash sessione NON VERIFICATO» (superate). Da #9 restano inventario opcode 479/196 e il richiamo anti-allucinazione. Flyway: resta la diagnosi riga 129 `iff_item`, non il messaggio «second migrate no-op» di #9.
 
 ---
 
@@ -224,9 +226,8 @@ ranking log: GeraRankAll rows=26 (C# CmdUpdateRankRegistry / init_systems)
 
 | Campo | Valore |
 |-------|--------|
-| Data/ora | 2026-08-29T15:27Z |
-| Fatto | `RankingRuntime` GeraRankAll all’avvio (C# `init_systems`); e2e Tourney finish → ranking fake-client BL; `docker compose up --build` 7/7 healthy |
-| Commit codice | `a3b020a` feat: run GeraRankAll on RankingRuntime start |
+| Data/ora | 2026-08-29T15:40Z |
+| Fatto | Merge `origin/Develop` (`5b3e555` PR #9). Conflitti solo `docs/EPIC.md` + `docs/STATUS.md`: tenuti esiti S-T; da #9 opcode 479/196. |
 | Residuo | Ciphertext golden di rete (gate capture). Flyway `iff_item` invariato. |
 | Blocker | Ciphertext di rete assente. Non inventare. |
 
@@ -238,3 +239,7 @@ Nessuno aperto. Segnalazioni (non decidere da soli):
 
 - `FlywayMigrationTest` vs `iff_item` runtime insert: lavoro pregresso / isolamento test, **non coperto** come “migrate idempotent” dalla Fase 0.
 - Cipher: nessun file golden ciphertext in repo — se si vuole DoD stretto «fixture reali», serve capture; le tabelle C# sono ricostruibili.
+
+### Inventario opcode (da PR #9)
+
+C# `GameService.cs` `addPacketCall` = **479**. Java `GameHandler` `case CLIENT_*` = **196**. Il vecchio «193 / 0 mancanti» era errato.
