@@ -2302,6 +2302,8 @@ public final class GamePackets {
     public static final int TYPEID_GACHA_SUB = 0x1A000083;
     /** Seeded {@code shop_catalog.pang_price} for {@link #TYPEID_SHOP_PANG_ITEM}. */
     public static final int SHOP_PANG_PRICE = 100;
+    /** C# {@code IFF_GROUP.CADDIE} {@code 7}. */
+    public static final int IFF_GROUP_CADDIE = 7;
     /**
      * C# {@code IFF_GROUP.CADDIE} {@code 7 << 26}: Papel caddie {@code 0x1C000000}.
      */

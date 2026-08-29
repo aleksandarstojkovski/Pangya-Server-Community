@@ -862,6 +862,69 @@ class InventoryRepositoryTest {
         }
     }
 
+    @Test
+    void addAwardItemInsertsCardCaddieAndMascot() {
+        String url = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        DatabaseSupport.migrate(url, user, password);
+
+        try (var ds = DatabaseSupport.dataSource(url, user, password)) {
+            InventoryRepository repo = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
+            var jdbi = DatabaseSupport.jdbi(ds);
+            try {
+                repo.deleteCardByTypeid(10002, GamePackets.TYPEID_CARD_NORMAL);
+                jdbi.useHandle(h -> h.createUpdate("""
+                                DELETE FROM pangya.pangya_caddie_information
+                                 WHERE "UID" = 10002 AND typeid = :typeid
+                                """)
+                        .bind("typeid", GamePackets.TYPEID_CADDIE_PAPEL)
+                        .execute());
+                jdbi.useHandle(h -> h.createUpdate("""
+                                DELETE FROM pangya.pangya_mascot_info
+                                 WHERE "UID" = 10002 AND typeid = :typeid
+                                """)
+                        .bind("typeid", GamePackets.TYPEID_MASCOT)
+                        .execute());
+
+                var cardRow = ItemInitializer.MailAwardRow.card(GamePackets.TYPEID_CARD_NORMAL, 3);
+                var cardInsert = repo.addAwardItem(10002, cardRow).orElseThrow();
+                assertEquals(3, cardInsert.addQntd());
+                assertEquals(3, cardInsert.qntdDep());
+
+                var caddieRow = ItemInitializer.MailAwardRow.caddie(
+                        GamePackets.TYPEID_CADDIE_PAPEL, 1, 0);
+                repo.addAwardItem(10002, caddieRow).orElseThrow();
+                assertTrue(repo.caddies(10002).stream()
+                        .anyMatch(c -> c.typeid == GamePackets.TYPEID_CADDIE_PAPEL));
+
+                var mascotRow = ItemInitializer.MailAwardRow.mascot(
+                        GamePackets.TYPEID_MASCOT, 0, "hello", 0);
+                repo.addAwardItem(10002, mascotRow).orElseThrow();
+                assertTrue(repo.mascots(10002).stream()
+                        .anyMatch(m -> m.typeid == GamePackets.TYPEID_MASCOT && "hello".equals(m.message)));
+
+                assertTrue(repo.ownsAwardTypeid(10002, GamePackets.TYPEID_CARD_NORMAL));
+                assertTrue(repo.ownsAwardTypeid(10002, GamePackets.TYPEID_CADDIE_PAPEL));
+                assertTrue(repo.ownsAwardTypeid(10002, GamePackets.TYPEID_MASCOT));
+            } finally {
+                repo.deleteCardByTypeid(10002, GamePackets.TYPEID_CARD_NORMAL);
+                jdbi.useHandle(h -> h.createUpdate("""
+                                DELETE FROM pangya.pangya_caddie_information
+                                 WHERE "UID" = 10002 AND typeid = :typeid
+                                """)
+                        .bind("typeid", GamePackets.TYPEID_CADDIE_PAPEL)
+                        .execute());
+                jdbi.useHandle(h -> h.createUpdate("""
+                                DELETE FROM pangya.pangya_mascot_info
+                                 WHERE "UID" = 10002 AND typeid = :typeid
+                                """)
+                        .bind("typeid", GamePackets.TYPEID_MASCOT)
+                        .execute());
+            }
+        }
+    }
+
     private static String env(String name, String fallback) {
         String v = System.getenv(name);
         return (v == null || v.isBlank()) ? fallback : v;

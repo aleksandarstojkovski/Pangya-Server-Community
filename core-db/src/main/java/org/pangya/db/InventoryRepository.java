@@ -169,6 +169,15 @@ public interface InventoryRepository {
     /** Insert or stack using {@link ItemInitializer.WarehouseInitRow} IFF fields. */
     int addInitializedWarehouseItem(long uid, ItemInitializer.WarehouseInitRow row);
 
+    /**
+     * C# {@code ItemManager.addItem} for mail/award paths: routes by IFF group to
+     * warehouse, caddie, mascot, or card tables.
+     */
+    Optional<AwardInsert> addAwardItem(long uid, ItemInitializer.MailAwardRow row);
+
+    /** C# {@code PlayerInfo.ownerItem}: true when the player already owns {@code typeid}. */
+    boolean ownsAwardTypeid(long uid, int typeid);
+
     /** True when player has a valid warehouse row for {@code typeid}. */
     boolean ownsWarehouseTypeid(long uid, int typeid);
 
@@ -747,4 +756,7 @@ public interface InventoryRepository {
             int useYn) {}
 
     record TutorialFlags(int rookie, int beginner, int advancer) {}
+
+    /** C# {@code stItem.stat} after {@code ItemManager.addItem}. */
+    record AwardInsert(int id, int qntdAnt, int qntdDep, int addQntd) {}
 }

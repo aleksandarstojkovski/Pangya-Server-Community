@@ -12,6 +12,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ItemInitializerTest {
@@ -74,6 +75,20 @@ class ItemInitializerTest {
                 List.of(new ItemInitializer.MailItemRef(0x24200000, 1)));
         assertEquals(3, rows.size());
         assertEquals(0x08006010, rows.get(0).typeid());
+        assertNotNull(rows.get(0).warehouse());
+    }
+
+    @Test
+    void resolveMailItemsInitializesCardWhenIffLoaded() {
+        if (!JP_IFF.toFile().isFile()) {
+            return;
+        }
+        PangyaIffLoader.reload(JP_IFF);
+        var rows = ItemInitializer.resolveMailItems(
+                List.of(new ItemInitializer.MailItemRef(GamePackets.TYPEID_CARD_NORMAL, 2)));
+        assertEquals(1, rows.size());
+        assertEquals(GamePackets.TYPEID_CARD_NORMAL, rows.get(0).typeid());
+        assertEquals(2, rows.get(0).qntd());
     }
 
     @Test

@@ -3842,6 +3842,68 @@ class GameFlowIT {
     }
 
     @Test
+    void mailTakeCardGiftWhenIffLoaded() throws Exception {
+        var jpIff = java.nio.file.Path.of(
+                "reference/pangya-server-community/Server/JP/GameServer/data/pangya_jp.iff");
+        if (!jpIff.toFile().isFile()) {
+            return;
+        }
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        int cardTypeid = GamePackets.TYPEID_CARD_NORMAL;
+        int cardPrice = 100;
+        AppConfig config = new AppConfig(testYamlWithIff(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config);
+             PangyaFakeClient host = new PangyaFakeClient();
+             PangyaFakeClient guest = new PangyaFakeClient()) {
+            var inventory = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
+            DatabaseSupport.jdbi(ds).useHandle(h -> h.createUpdate("""
+                            INSERT INTO pangya.shop_catalog (typeid, pang_price, cookie_price, can_overlap)
+                            VALUES (:typeid, :price, 0, 1)
+                            ON CONFLICT (typeid) DO UPDATE
+                               SET pang_price = EXCLUDED.pang_price, can_overlap = EXCLUDED.can_overlap
+                            """)
+                    .bind("typeid", cardTypeid)
+                    .bind("price", cardPrice)
+                    .execute());
+            inventory.setLevel(10001, GamePackets.GIFT_MIN_LEVEL);
+            inventory.setPangCookie(10001, 100000, 0);
+            inventory.deleteCardByTypeid(10002, cardTypeid);
+            try {
+                loginTwoPlayers(ds, keys, host, guest, runtime.port());
+
+                host.sendPlain(GamePackets.clientGiftItem(
+                        10002, cardTypeid, 2, cardPrice * 2, 0));
+                awaitOpcode(host, GamePackets.SERVER_PANG_SPENT);
+                assertEquals(0, awaitOpcode(host, GamePackets.SERVER_RESPONSE_GIFT_ITEM).u32());
+                awaitOpcode(guest, GamePackets.SERVER_NEW_MAIL);
+
+                guest.sendPlain(GamePackets.clientOpenMailBox(1));
+                PacketReader page = awaitOpcode(guest, GamePackets.SERVER_MAILBOX);
+                assertEquals(0, page.i32());
+                int mailId = page.i32();
+
+                guest.sendPlain(GamePackets.clientTakeMail(mailId));
+                awaitOpcode(guest, GamePackets.SERVER_DAILY_QUEST_STAMP);
+                assertEquals(0, awaitOpcode(guest, GamePackets.SERVER_MAIL_TAKE).u32());
+
+                assertTrue(inventory.cards(10002).stream()
+                        .anyMatch(c -> c.typeid == cardTypeid && c.qntd == 2));
+            } finally {
+                inventory.setLevel(10001, 1);
+                inventory.setPangCookie(10001, 100000, 0);
+                inventory.deleteCardByTypeid(10002, cardTypeid);
+            }
+        }
+    }
+
+    @Test
     void loungeStateBroadcastsPacote196() throws Exception {
         String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
         String user = env("PANGYA_TEST_JDBC_USER", "pangya");

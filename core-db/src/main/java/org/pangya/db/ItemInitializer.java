@@ -1,7 +1,9 @@
 package org.pangya.db;
 
 import org.pangya.protocol.game.GamePackets;
+import org.pangya.protocol.iff.IffCaddieRecord;
 import org.pangya.protocol.iff.IffItemRecord;
+import org.pangya.protocol.iff.IffMascotRecord;
 import org.pangya.protocol.iff.IffPartIndex;
 import org.pangya.protocol.iff.IffSetItemRecord;
 import org.pangya.protocol.iff.PangyaIffLoader;
@@ -12,7 +14,7 @@ import java.util.Optional;
 
 /**
  * C# {@code ItemManager.initItemFromBuyItem} + {@code getItemOfSetItem} for warehouse rows.
- * Phase 1: ITEM, PART, CLUBSET, BALL, SET_ITEM validation paths used by shop/gift/mail.
+ * Phase 2: caddie/mascot/card mail take via {@link MailAwardRow}.
  */
 public final class ItemInitializer {
 
@@ -39,6 +41,41 @@ public final class ItemInitializer {
 
     /** Mail attachment typeid + qntd before {@code checkSetItemOnEmail} / take-mail init. */
     public record MailItemRef(int typeid, int qntd) {}
+
+    /**
+     * Resolved mail award: warehouse row and/or group-specific init used by
+     * {@code ItemManager.addItem} routing.
+     */
+    public record MailAwardRow(
+            int typeid,
+            int qntd,
+            WarehouseInitRow warehouse,
+            int rentFlag,
+            int caddiePeriodDays,
+            int mascotTipo,
+            String mascotMessage,
+            int mascotTimeDays) {
+
+        public int group() {
+            return GamePackets.itemGroupIdentify(typeid);
+        }
+
+        public static MailAwardRow warehouse(WarehouseInitRow row) {
+            return new MailAwardRow(row.typeid(), row.qntdDep(), row, 0, 0, 0, "", 0);
+        }
+
+        public static MailAwardRow caddie(int typeid, int rentFlag, int periodDays) {
+            return new MailAwardRow(typeid, 1, null, rentFlag, periodDays, 0, "", 0);
+        }
+
+        public static MailAwardRow mascot(int typeid, int tipo, String message, int timeDays) {
+            return new MailAwardRow(typeid, 1, null, 0, 0, tipo, message, timeDays);
+        }
+
+        public static MailAwardRow card(int typeid, int qntd) {
+            return new MailAwardRow(typeid, qntd, null, 0, 0, 0, "", 0);
+        }
+    }
 
     private ItemInitializer() {}
 
@@ -80,14 +117,14 @@ public final class ItemInitializer {
 
     /**
      * C# {@code checkSetItemOnEmail} + {@code initItemFromEmailItem} for take-mail:
-     * expands set rows, initializes each warehouse member. Empty when any step fails.
+     * expands set rows, initializes each member. Empty when any step fails.
      */
-    public static List<WarehouseInitRow> resolveMailItems(List<MailItemRef> items) {
+    public static List<MailAwardRow> resolveMailItems(List<MailItemRef> items) {
         if (items == null || items.isEmpty()) {
             return List.of();
         }
         InitContext ctx = new InitContext(0, false, false, true);
-        List<WarehouseInitRow> out = new ArrayList<>();
+        List<MailAwardRow> out = new ArrayList<>();
         for (MailItemRef att : items) {
             if (att.typeid() == 0 || att.qntd() <= 0) {
                 return List.of();
@@ -97,11 +134,13 @@ public final class ItemInitializer {
                 if (expanded.isEmpty()) {
                     return List.of();
                 }
-                out.addAll(expanded);
-            } else if (!isWarehouseMailGroup(att.typeid())) {
+                for (WarehouseInitRow row : expanded) {
+                    out.add(MailAwardRow.warehouse(row));
+                }
+            } else if (!isMailAwardGroup(att.typeid())) {
                 return List.of();
             } else {
-                Optional<WarehouseInitRow> row = initFromBuyItem(ctx, att.typeid(), att.qntd(), 0);
+                Optional<MailAwardRow> row = initMailAward(ctx, att.typeid(), att.qntd());
                 if (row.isEmpty()) {
                     return List.of();
                 }
@@ -116,7 +155,7 @@ public final class ItemInitializer {
         if (refs == null || refs.isEmpty()) {
             return List.of();
         }
-        List<WarehouseInitRow> resolved = resolveMailItems(refs);
+        List<MailAwardRow> resolved = resolveMailItems(refs);
         if (resolved.isEmpty()) {
             return refs.stream()
                     .map(r -> GamePackets.mailInfoItem(
@@ -124,19 +163,32 @@ public final class ItemInitializer {
                     .toList();
         }
         return resolved.stream()
-                .map(r -> GamePackets.mailInfoItem(
-                        -1, r.typeid(), 0, r.qntdDep(), 0, 0L, 0L, 0, 0, "", 0))
+                .map(r -> {
+                    int qntd = r.warehouse() != null ? r.warehouse().qntdDep() : r.qntd();
+                    return GamePackets.mailInfoItem(
+                            -1, r.typeid(), 0, qntd, 0, 0L, 0L, 0, 0, "", 0);
+                })
                 .toList();
     }
 
-    /** Warehouse groups C# {@code requestTakeItemFomMail} adds via {@code addItem}. */
-    public static boolean isWarehouseMailGroup(int typeid) {
+    /** Groups C# {@code requestTakeItemFomMail} initializes via {@code initItemFromEmailItem}. */
+    public static boolean isMailAwardGroup(int typeid) {
         return switch (GamePackets.itemGroupIdentify(typeid)) {
             case GamePackets.IFF_GROUP_ITEM, GamePackets.IFF_GROUP_PART,
                     GamePackets.IFF_GROUP_BALL, GamePackets.IFF_GROUP_CLUBSET,
-                    GamePackets.IFF_GROUP_SET_ITEM -> true;
+                    GamePackets.IFF_GROUP_SET_ITEM, GamePackets.IFF_GROUP_CADDIE,
+                    GamePackets.IFF_GROUP_MASCOT, GamePackets.IFF_GROUP_CARD -> true;
             default -> false;
         };
+    }
+
+    /** @deprecated use {@link #isMailAwardGroup(int)} */
+    @Deprecated
+    public static boolean isWarehouseMailGroup(int typeid) {
+        return isMailAwardGroup(typeid)
+                && GamePackets.itemGroupIdentify(typeid) != GamePackets.IFF_GROUP_CADDIE
+                && GamePackets.itemGroupIdentify(typeid) != GamePackets.IFF_GROUP_MASCOT
+                && GamePackets.itemGroupIdentify(typeid) != GamePackets.IFF_GROUP_CARD;
     }
 
     /** Returns empty when C# would zero {@code _item._typeid}. */
@@ -153,8 +205,61 @@ public final class ItemInitializer {
             case GamePackets.IFF_GROUP_CLUBSET -> initClubSet(typeid);
             case GamePackets.IFF_GROUP_BALL -> initBall(typeid, qntd, ctx.chkLevel());
             case GamePackets.IFF_GROUP_SET_ITEM -> initSetItem(typeid, qntd);
-            default -> Optional.of(WarehouseInitRow.simple(typeid, qntd));
+            default -> Optional.empty();
         };
+    }
+
+    private static Optional<MailAwardRow> initMailAward(InitContext ctx, int typeid, int qntd) {
+        if (typeid == 0 || qntd <= 0) {
+            return Optional.empty();
+        }
+        return switch (GamePackets.itemGroupIdentify(typeid)) {
+            case GamePackets.IFF_GROUP_ITEM, GamePackets.IFF_GROUP_PART,
+                    GamePackets.IFF_GROUP_BALL, GamePackets.IFF_GROUP_CLUBSET ->
+                    initFromBuyItem(ctx, typeid, qntd, 0).map(MailAwardRow::warehouse);
+            case GamePackets.IFF_GROUP_CADDIE -> initCaddie(typeid);
+            case GamePackets.IFF_GROUP_MASCOT -> initMascot(typeid, qntd);
+            case GamePackets.IFF_GROUP_CARD -> initCard(typeid, qntd);
+            default -> Optional.empty();
+        };
+    }
+
+    private static Optional<MailAwardRow> initCaddie(int typeid) {
+        if (!PangyaIffLoader.source().isPresent()) {
+            return Optional.of(MailAwardRow.caddie(typeid, 1, 0));
+        }
+        Optional<IffCaddieRecord> caddieOpt = PangyaIffLoader.caddie(typeid);
+        if (caddieOpt.isEmpty()) {
+            return Optional.empty();
+        }
+        IffCaddieRecord caddie = caddieOpt.get();
+        if (caddie.valorMensal() > 0) {
+            return Optional.of(MailAwardRow.caddie(typeid, GamePackets.CADDIE_RENT_HOLIDAY, 30));
+        }
+        return Optional.of(MailAwardRow.caddie(typeid, 1, 0));
+    }
+
+    private static Optional<MailAwardRow> initMascot(int typeid, int qntd) {
+        if (!PangyaIffLoader.source().isPresent()) {
+            return Optional.of(MailAwardRow.mascot(typeid, 0, "", 0));
+        }
+        Optional<IffMascotRecord> mascotOpt = PangyaIffLoader.mascot(typeid);
+        if (mascotOpt.isEmpty()) {
+            return Optional.empty();
+        }
+        IffMascotRecord mascot = mascotOpt.get();
+        String message = mascot.messageActive() ? "PangYa SuperSS" : "";
+        return Optional.of(MailAwardRow.mascot(typeid, 0, message, 0));
+    }
+
+    private static Optional<MailAwardRow> initCard(int typeid, int qntd) {
+        if (!PangyaIffLoader.source().isPresent()) {
+            return Optional.of(MailAwardRow.card(typeid, qntd));
+        }
+        if (!PangyaIffLoader.cardIndex().contains(typeid)) {
+            return Optional.empty();
+        }
+        return Optional.of(MailAwardRow.card(typeid, qntd));
     }
 
     private static Optional<WarehouseInitRow> initItem(int typeid, int qntd) {

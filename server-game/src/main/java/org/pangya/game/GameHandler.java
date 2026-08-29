@@ -2018,22 +2018,22 @@ public final class GameHandler {
                 .map(item -> new ItemInitializer.MailItemRef(item.typeid, item.qntd))
                 .toList();
         for (ItemInitializer.MailItemRef item : mailRefs) {
-            if (!ItemInitializer.isWarehouseMailGroup(item.typeid())) {
+            if (!ItemInitializer.isMailAwardGroup(item.typeid())) {
                 session.send(GamePackets.mailFail(
                         GamePackets.SERVER_MAIL_TAKE, GamePackets.MAIL_ERR_TAKE_INIT));
                 return;
             }
         }
-        List<ItemInitializer.WarehouseInitRow> resolved = ItemInitializer.resolveMailItems(mailRefs);
+        List<ItemInitializer.MailAwardRow> resolved = ItemInitializer.resolveMailItems(mailRefs);
         if (resolved.isEmpty()) {
             session.send(GamePackets.mailFail(
                     GamePackets.SERVER_MAIL_TAKE, GamePackets.MAIL_ERR_TAKE_INIT));
             return;
         }
-        List<ItemInitializer.WarehouseInitRow> toAdd = new ArrayList<>();
+        List<ItemInitializer.MailAwardRow> toAdd = new ArrayList<>();
         long uid = session.player().uid;
-        for (ItemInitializer.WarehouseInitRow row : resolved) {
-            if (!inventory.itemCanOverlap(row.typeid()) && inventory.ownsWarehouseTypeid(uid, row.typeid())) {
+        for (ItemInitializer.MailAwardRow row : resolved) {
+            if (!inventory.itemCanOverlap(row.typeid()) && inventory.ownsAwardTypeid(uid, row.typeid())) {
                 continue;
             }
             toAdd.add(row);
@@ -2043,23 +2043,21 @@ public final class GameHandler {
                     GamePackets.SERVER_MAIL_TAKE, GamePackets.MAIL_ERR_TAKE_INIT));
             return;
         }
-        List<ItemInitializer.WarehouseInitRow> attachments = List.copyOf(toAdd);
+        List<ItemInitializer.MailAwardRow> attachments = List.copyOf(toAdd);
         List<GamePackets.PapelAward> awards = new ArrayList<>();
         try {
             mailboxes.leftItems(session.player().uid, emailId);
-            for (ItemInitializer.WarehouseInitRow row : attachments) {
-                GamePackets.WarehouseItem existing = warehouseByTypeid(uid, row.typeid());
-                int ant = existing == null ? 0 : existing.c[0] & 0xffff;
-                int id = inventory.addInitializedWarehouseItem(uid, row);
-                int addQntd = row.c0() & 0xffff;
+            for (ItemInitializer.MailAwardRow row : attachments) {
+                InventoryRepository.AwardInsert insert = inventory.addAwardItem(uid, row)
+                        .orElseThrow(() -> new IllegalStateException("award insert failed"));
                 awards.add(new GamePackets.PapelAward(
                         GamePackets.PAPEL_AWARD_TYPE,
                         row.typeid(),
-                        id,
+                        insert.id(),
                         0,
-                        ant,
-                        ant + addQntd,
-                        row.qntdDep()));
+                        insert.qntdAnt(),
+                        insert.qntdDep(),
+                        insert.addQntd()));
             }
             session.send(GamePackets.mailTakeAwards(GamePackets.unixNow(), awards));
             session.send(GamePackets.mailFail(GamePackets.SERVER_MAIL_TAKE, 0));
