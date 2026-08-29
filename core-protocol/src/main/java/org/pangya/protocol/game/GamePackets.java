@@ -2213,6 +2213,10 @@ public final class GamePackets {
     /** C# GP room catch else (full, not shopSys). */
     public static final int GP_ENTER_ERR_DEFAULT = 0x6700000;
     public static final int GP_ENTER_ERR_CREATE = 0x6700002;
+    /** C# GP room {@code uFlag.all_game} CHANNEL sys {@code 0x6700003}. */
+    public static final int GP_ENTER_ERR_ALL_GAME = 0x6700003;
+    /** C# GP room {@code uFlag.grand_prix} CHANNEL sys {@code 0x6700004}. */
+    public static final int GP_ENTER_ERR_GRAND_PRIX = 0x6700004;
     public static final int GP_ENTER_ERR_FULL = 0x6700005;
     public static final int GP_ENTER_ERR_LEVEL = 0x6700006;
     /** C# GP room missing ticket CHANNEL sys {@code 0x6700009}. */

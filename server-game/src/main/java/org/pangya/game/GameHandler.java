@@ -18,6 +18,7 @@ import org.pangya.db.ItemInitializer;
 import org.pangya.db.LoginRepository;
 import org.pangya.network.AppConfig;
 import org.pangya.network.redis.SessionKeyStore;
+import org.pangya.network.session.PlayerBlockFlag;
 import org.pangya.network.session.PlayerContext;
 import org.pangya.network.session.Session;
 import org.pangya.network.session.SessionManager;
@@ -432,6 +433,7 @@ public final class GameHandler {
             pi.level = info.level();
             pi.idState = info.idState();
             pi.blockTime = info.blockTimeSeconds();
+            pi.blockFlag = PlayerBlockFlag.fromIdState(pi.idState) | config.serverBlockFlag();
 
             if (pi.idState != 0) {
                 session.send(GamePackets.loginAckU32(GamePackets.ACK_GENERIC_ERROR));
@@ -7988,6 +7990,19 @@ public final class GameHandler {
         if (!inChannel(session)) {
             return;
         }
+        PlayerContext pi = session.player();
+        if (PlayerBlockFlag.allGame(pi.blockFlag)) {
+            session.send(GamePackets.sysAck(
+                    GamePackets.SERVER_START_GAME_FAIL,
+                    GamePackets.shopSys(GamePackets.GP_ENTER_ERR_ALL_GAME)));
+            return;
+        }
+        if (PlayerBlockFlag.grandPrix(pi.blockFlag)) {
+            session.send(GamePackets.sysAck(
+                    GamePackets.SERVER_START_GAME_FAIL,
+                    GamePackets.shopSys(GamePackets.GP_ENTER_ERR_GRAND_PRIX)));
+            return;
+        }
         if (reader.remaining() < 4) {
             session.send(GamePackets.sysAck(
                     GamePackets.SERVER_START_GAME_FAIL, GamePackets.GP_ENTER_ERR_DEFAULT));
@@ -8002,7 +8017,6 @@ public final class GameHandler {
             return;
         }
         InventoryRepository.GrandPrixEvent gp = found.get();
-        PlayerContext pi = session.player();
         var iffGp = org.pangya.protocol.iff.PangyaIffLoader.grandPrixData(typeid);
         if (iffGp.isPresent()) {
             var gpIff = iffGp.get();

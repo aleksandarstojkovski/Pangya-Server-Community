@@ -18,6 +18,8 @@ public final class PlayerContext {
     public volatile int level;
     public volatile long idState;
     public volatile int blockTime = -1;
+    /** C# {@code block_flag.m_flag.ullFlag} after login merge. */
+    public volatile long blockFlag;
     public volatile int loginState;
     public volatile int tipo;
     public volatile String authKeyLogin = "";

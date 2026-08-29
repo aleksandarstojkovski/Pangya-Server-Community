@@ -2695,6 +2695,8 @@ class GamePacketsTest {
         assertEquals(GamePackets.MEMORIAL_OK, 0);
         assertEquals(GamePackets.MEMORIAL_ERR_SYSTEM, 0x6300305);
         assertEquals(GamePackets.GP_ENTER_ERR_CREATE, 0x6700002);
+        assertEquals(GamePackets.GP_ENTER_ERR_ALL_GAME, 0x6700003);
+        assertEquals(GamePackets.GP_ENTER_ERR_GRAND_PRIX, 0x6700004);
         assertEquals(GamePackets.GP_ENTER_ERR_LEVEL, 0x6700006);
         assertEquals(GamePackets.GP_ENTER_ERR_TICKET, 0x6700009);
         assertEquals(GamePackets.GP_ENTER_ERR_EQUIP, 0x6700007);

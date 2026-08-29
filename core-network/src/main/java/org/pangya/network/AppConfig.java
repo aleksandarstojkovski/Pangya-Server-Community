@@ -129,6 +129,11 @@ public final class AppConfig {
         return nestedInt("server", "rateGrandPrixEvent", 1);
     }
 
+    /** C# {@code ServerInfo.flag.ullFlag} OR'd into player block flags at login. */
+    public long serverBlockFlag() {
+        return nestedLong("server", "blockFlag", 0L);
+    }
+
     /**
      * C# {@code data/pangya_jp.iff} archive path. Empty disables binary IFF overlay;
      * SQL catalogs remain authoritative when unset.
@@ -255,6 +260,21 @@ public final class AppConfig {
             }
             if (v != null) {
                 return Boolean.parseBoolean(String.valueOf(v));
+            }
+        }
+        return fallback;
+    }
+
+    @SuppressWarnings("unchecked")
+    private long nestedLong(String section, String key, long fallback) {
+        Object s = root.get(section);
+        if (s instanceof Map<?, ?> map) {
+            Object v = map.get(key);
+            if (v instanceof Number n) {
+                return n.longValue();
+            }
+            if (v != null) {
+                return Long.parseLong(String.valueOf(v));
             }
         }
         return fallback;
