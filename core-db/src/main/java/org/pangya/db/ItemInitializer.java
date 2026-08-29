@@ -37,6 +37,9 @@ public final class ItemInitializer {
     /** C# {@code initItemFromBuyItem} gift/level flags. */
     public record InitContext(int playerLevel, boolean shop, boolean giftOpt, boolean chkLevel) {}
 
+    /** Mail attachment typeid + qntd before {@code checkSetItemOnEmail} / take-mail init. */
+    public record MailItemRef(int typeid, int qntd) {}
+
     private ItemInitializer() {}
 
     /**
@@ -73,6 +76,49 @@ public final class ItemInitializer {
             out.add(row.get());
         }
         return out;
+    }
+
+    /**
+     * C# {@code checkSetItemOnEmail} + {@code initItemFromEmailItem} for take-mail:
+     * expands set rows, initializes each warehouse member. Empty when any step fails.
+     */
+    public static List<WarehouseInitRow> resolveMailItems(List<MailItemRef> items) {
+        if (items == null || items.isEmpty()) {
+            return List.of();
+        }
+        InitContext ctx = new InitContext(0, false, false, true);
+        List<WarehouseInitRow> out = new ArrayList<>();
+        for (MailItemRef att : items) {
+            if (att.typeid() == 0 || att.qntd() <= 0) {
+                return List.of();
+            }
+            if (GamePackets.itemGroupIdentify(att.typeid()) == GamePackets.IFF_GROUP_SET_ITEM) {
+                List<WarehouseInitRow> expanded = expandSetItem(false, att.typeid());
+                if (expanded.isEmpty()) {
+                    return List.of();
+                }
+                out.addAll(expanded);
+            } else if (!isWarehouseMailGroup(att.typeid())) {
+                return List.of();
+            } else {
+                Optional<WarehouseInitRow> row = initFromBuyItem(ctx, att.typeid(), att.qntd(), 0);
+                if (row.isEmpty()) {
+                    return List.of();
+                }
+                out.add(row.get());
+            }
+        }
+        return out;
+    }
+
+    /** Warehouse groups C# {@code requestTakeItemFomMail} adds via {@code addItem}. */
+    public static boolean isWarehouseMailGroup(int typeid) {
+        return switch (GamePackets.itemGroupIdentify(typeid)) {
+            case GamePackets.IFF_GROUP_ITEM, GamePackets.IFF_GROUP_PART,
+                    GamePackets.IFF_GROUP_BALL, GamePackets.IFF_GROUP_CLUBSET,
+                    GamePackets.IFF_GROUP_SET_ITEM -> true;
+            default -> false;
+        };
     }
 
     /** Returns empty when C# would zero {@code _item._typeid}. */

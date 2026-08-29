@@ -4,6 +4,7 @@ import org.pangya.game.catalog.CubeCoinResolver;
 import org.pangya.game.catalog.GlobalCatalogs;
 import org.pangya.game.catalog.MapCatalog;
 import org.pangya.db.InventoryRepository;
+import org.pangya.db.ItemInitializer;
 import org.pangya.db.LoginRepository;
 import org.pangya.network.AppConfig;
 import org.pangya.network.redis.SessionKeyStore;
@@ -1988,8 +1989,9 @@ public final class GameHandler {
     /**
      * C# {@code packet146}: i32 id. Empty mailbox / invalid id throw →
      * {@code 0x5500100}. No attachments {@code pacote214(1)}. IFF/group miss
-     * {@code pacote214(3)}. ITEM group SQL stand-in: warehouse add, {@code 0x216}
-     * then {@code pacote214(0)}.
+     * {@code pacote214(3)}. Set items expand via {@code checkSetItemOnEmail} /
+     * {@code getItemOfSetItem}; warehouse add uses {@code ItemInitializer}, then
+     * {@code 0x216} and {@code pacote214(0)}.
      */
     private void takeMail(Session session, PacketReader reader) {
         if (!inChannel(session) || reader.remaining() < 4) {
@@ -2006,31 +2008,52 @@ public final class GameHandler {
             return;
         }
         MailBoxStore.MailEntry mail = found.get();
-        for (MailBoxStore.MailAttachment item : mail.items) {
-            if (item.typeid == 0 || item.qntd <= 0
-                    || GamePackets.itemGroupIdentify(item.typeid) != GamePackets.IFF_GROUP_ITEM) {
+        List<ItemInitializer.MailItemRef> mailRefs = mail.items.stream()
+                .map(item -> new ItemInitializer.MailItemRef(item.typeid, item.qntd))
+                .toList();
+        for (ItemInitializer.MailItemRef item : mailRefs) {
+            if (!ItemInitializer.isWarehouseMailGroup(item.typeid())) {
                 session.send(GamePackets.mailFail(
                         GamePackets.SERVER_MAIL_TAKE, GamePackets.MAIL_ERR_TAKE_INIT));
                 return;
             }
         }
-        List<MailBoxStore.MailAttachment> attachments = List.copyOf(mail.items);
+        List<ItemInitializer.WarehouseInitRow> resolved = ItemInitializer.resolveMailItems(mailRefs);
+        if (resolved.isEmpty()) {
+            session.send(GamePackets.mailFail(
+                    GamePackets.SERVER_MAIL_TAKE, GamePackets.MAIL_ERR_TAKE_INIT));
+            return;
+        }
+        List<ItemInitializer.WarehouseInitRow> toAdd = new ArrayList<>();
+        long uid = session.player().uid;
+        for (ItemInitializer.WarehouseInitRow row : resolved) {
+            if (!inventory.itemCanOverlap(row.typeid()) && inventory.ownsWarehouseTypeid(uid, row.typeid())) {
+                continue;
+            }
+            toAdd.add(row);
+        }
+        if (toAdd.isEmpty()) {
+            session.send(GamePackets.mailFail(
+                    GamePackets.SERVER_MAIL_TAKE, GamePackets.MAIL_ERR_TAKE_INIT));
+            return;
+        }
+        List<ItemInitializer.WarehouseInitRow> attachments = List.copyOf(toAdd);
         List<GamePackets.PapelAward> awards = new ArrayList<>();
         try {
             mailboxes.leftItems(session.player().uid, emailId);
-            long uid = session.player().uid;
-            for (MailBoxStore.MailAttachment item : attachments) {
-                GamePackets.WarehouseItem existing = warehouseByTypeid(uid, item.typeid);
+            for (ItemInitializer.WarehouseInitRow row : attachments) {
+                GamePackets.WarehouseItem existing = warehouseByTypeid(uid, row.typeid());
                 int ant = existing == null ? 0 : existing.c[0] & 0xffff;
-                int id = inventory.addWarehouseItem(uid, item.typeid, item.qntd);
+                int id = inventory.addInitializedWarehouseItem(uid, row);
+                int addQntd = row.c0() & 0xffff;
                 awards.add(new GamePackets.PapelAward(
                         GamePackets.PAPEL_AWARD_TYPE,
-                        item.typeid,
+                        row.typeid(),
                         id,
                         0,
                         ant,
-                        ant + item.qntd,
-                        item.qntd));
+                        ant + addQntd,
+                        row.qntdDep()));
             }
             session.send(GamePackets.mailTakeAwards(GamePackets.unixNow(), awards));
             session.send(GamePackets.mailFail(GamePackets.SERVER_MAIL_TAKE, 0));

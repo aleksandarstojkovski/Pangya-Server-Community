@@ -1320,6 +1320,51 @@ public final class JdbiInventoryRepository implements InventoryRepository {
     }
 
     @Override
+    public int addInitializedWarehouseItem(long uid, ItemInitializer.WarehouseInitRow row) {
+        return jdbi.inTransaction(h -> {
+            Integer existing = h.createQuery("""
+                            SELECT item_id FROM pangya.pangya_item_warehouse
+                             WHERE "UID" = :uid AND typeid = :typeid AND valid = 1
+                             ORDER BY item_id
+                             LIMIT 1
+                            """)
+                    .bind("uid", uid)
+                    .bind("typeid", row.typeid())
+                    .mapTo(Integer.class)
+                    .findOne()
+                    .orElse(null);
+            int addC0 = row.c0() & 0xffff;
+            if (existing != null) {
+                h.createUpdate("""
+                                UPDATE pangya.pangya_item_warehouse
+                                   SET "C0" = "C0" + :c0
+                                 WHERE item_id = :id
+                                """)
+                        .bind("c0", addC0)
+                        .bind("id", existing)
+                        .execute();
+                return existing;
+            }
+            return insertWarehouse(h, uid, row);
+        });
+    }
+
+    @Override
+    public boolean ownsWarehouseTypeid(long uid, int typeid) {
+        return jdbi.withHandle(h -> ownsWarehouseTypeid(h, uid, typeid));
+    }
+
+    @Override
+    public boolean itemCanOverlap(int typeid) {
+        ShopItem item = shopItem(typeid).orElse(null);
+        if (item != null) {
+            return item.canOverlap();
+        }
+        int group = GamePackets.itemGroupIdentify(typeid);
+        return group == GamePackets.IFF_GROUP_ITEM || group == GamePackets.IFF_GROUP_BALL;
+    }
+
+    @Override
     public OptionalInt consumeWarehouseByTypeid(long uid, int typeid, int qntd) {
         if (qntd <= 0) {
             return OptionalInt.empty();

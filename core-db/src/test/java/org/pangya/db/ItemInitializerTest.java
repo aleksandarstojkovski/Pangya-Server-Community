@@ -7,6 +7,8 @@ import org.pangya.protocol.iff.PangyaIffLoader;
 
 import java.nio.file.Path;
 
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -45,6 +47,18 @@ class ItemInitializerTest {
         assertEquals(0x08006010, row.typeid());
         assertEquals(0, row.itemType());
         assertEquals(1, row.c0());
+    }
+
+    @Test
+    void resolveMailItemsExpandsGreenlineSet() {
+        if (!JP_IFF.toFile().isFile()) {
+            return;
+        }
+        PangyaIffLoader.reload(JP_IFF);
+        var rows = ItemInitializer.resolveMailItems(
+                List.of(new ItemInitializer.MailItemRef(0x24200000, 1)));
+        assertEquals(3, rows.size());
+        assertEquals(0x08006010, rows.get(0).typeid());
     }
 
     @Test

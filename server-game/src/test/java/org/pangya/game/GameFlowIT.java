@@ -3763,6 +3763,74 @@ class GameFlowIT {
     }
 
     @Test
+    void mailTakeSetGiftExpandsGreenlineSwimsetWhenIffLoaded() throws Exception {
+        var jpIff = java.nio.file.Path.of(
+                "reference/pangya-server-community/Server/JP/GameServer/data/pangya_jp.iff");
+        if (!jpIff.toFile().isFile()) {
+            return;
+        }
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        int setTypeid = 0x24200000;
+        int setPrice = 5000;
+        AppConfig config = new AppConfig(testYamlWithIff(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config);
+             PangyaFakeClient host = new PangyaFakeClient();
+             PangyaFakeClient guest = new PangyaFakeClient()) {
+            var inventory = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
+            DatabaseSupport.jdbi(ds).useHandle(h -> h.createUpdate("""
+                            INSERT INTO pangya.shop_catalog (typeid, pang_price, cookie_price, can_overlap)
+                            VALUES (:typeid, :price, 0, 0)
+                            ON CONFLICT (typeid) DO UPDATE
+                               SET pang_price = EXCLUDED.pang_price, can_overlap = EXCLUDED.can_overlap
+                            """)
+                    .bind("typeid", setTypeid)
+                    .bind("price", setPrice)
+                    .execute());
+            inventory.setLevel(10001, GamePackets.GIFT_MIN_LEVEL);
+            inventory.setPangCookie(10001, 100000, 0);
+            for (int part : new int[] {0x08006010, 0x0801000A, 0x0800080A}) {
+                inventory.deleteWarehouseByTypeid(10002, part);
+            }
+            try {
+                loginTwoPlayers(ds, keys, host, guest, runtime.port());
+
+                host.sendPlain(GamePackets.clientGiftItem(
+                        10002, setTypeid, 1, setPrice, 0));
+                awaitOpcode(host, GamePackets.SERVER_PANG_SPENT);
+                assertEquals(0, awaitOpcode(host, GamePackets.SERVER_RESPONSE_GIFT_ITEM).u32());
+                awaitOpcode(guest, GamePackets.SERVER_NEW_MAIL);
+
+                guest.sendPlain(GamePackets.clientOpenMailBox(1));
+                PacketReader page = awaitOpcode(guest, GamePackets.SERVER_MAILBOX);
+                assertEquals(0, page.i32());
+                int mailId = page.i32();
+
+                guest.sendPlain(GamePackets.clientTakeMail(mailId));
+                awaitOpcode(guest, GamePackets.SERVER_DAILY_QUEST_STAMP);
+                assertEquals(0, awaitOpcode(guest, GamePackets.SERVER_MAIL_TAKE).u32());
+
+                var wh = inventory.warehouse(10002);
+                assertTrue(wh.stream().anyMatch(w -> w.typeid == 0x08006010 && w.c[0] == 1));
+                assertTrue(wh.stream().anyMatch(w -> w.typeid == 0x0801000A && w.c[0] == 1));
+                assertTrue(wh.stream().anyMatch(w -> w.typeid == 0x0800080A && w.c[0] == 1));
+            } finally {
+                inventory.setLevel(10001, 1);
+                inventory.setPangCookie(10001, 100000, 0);
+                for (int part : new int[] {0x08006010, 0x0801000A, 0x0800080A}) {
+                    inventory.deleteWarehouseByTypeid(10002, part);
+                }
+            }
+        }
+    }
+
+    @Test
     void loungeStateBroadcastsPacote196() throws Exception {
         String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
         String user = env("PANGYA_TEST_JDBC_USER", "pangya");

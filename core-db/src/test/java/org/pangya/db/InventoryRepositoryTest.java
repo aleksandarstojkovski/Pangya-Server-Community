@@ -717,6 +717,42 @@ class InventoryRepositoryTest {
     }
 
     @Test
+    void addInitializedWarehouseItemUsesPartTypeItem() {
+        var jpIff = java.nio.file.Path.of(
+                "reference/pangya-server-community/Server/JP/GameServer/data/pangya_jp.iff");
+        if (!jpIff.toFile().isFile()) {
+            return;
+        }
+        String url = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        DatabaseSupport.migrate(url, user, password);
+
+        try (var ds = DatabaseSupport.dataSource(url, user, password)) {
+            InventoryRepository repo = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
+            try {
+                PangyaIffLoader.reload(jpIff);
+                repo.deleteWarehouseByTypeid(10001, 0x08006010);
+                var row = ItemInitializer.initFromBuyItem(
+                        new ItemInitializer.InitContext(10, false, false, true),
+                        0x08006010,
+                        1,
+                        0).orElseThrow();
+                repo.addInitializedWarehouseItem(10001, row);
+                var wh = repo.warehouse(10001).stream()
+                        .filter(w -> w.typeid == 0x08006010)
+                        .findFirst()
+                        .orElseThrow();
+                assertEquals(1, wh.c[0]);
+                assertEquals(row.itemType(), wh.type);
+            } finally {
+                PangyaIffLoader.reload(null);
+                repo.deleteWarehouseByTypeid(10001, 0x08006010);
+            }
+        }
+    }
+
+    @Test
     void setItemIffLoadsGreenlineSwimsetFromReferenceArchive() {
         var jpIff = java.nio.file.Path.of(
                 "reference/pangya-server-community/Server/JP/GameServer/data/pangya_jp.iff");

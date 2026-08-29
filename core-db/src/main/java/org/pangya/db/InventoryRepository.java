@@ -166,6 +166,15 @@ public interface InventoryRepository {
     /** Insert or increment a warehouse consumable (C# {@code C0}). */
     int addWarehouseItem(long uid, int typeid, int qntd);
 
+    /** Insert or stack using {@link ItemInitializer.WarehouseInitRow} IFF fields. */
+    int addInitializedWarehouseItem(long uid, ItemInitializer.WarehouseInitRow row);
+
+    /** True when player has a valid warehouse row for {@code typeid}. */
+    boolean ownsWarehouseTypeid(long uid, int typeid);
+
+    /** SQL {@code shop_catalog.can_overlap} when present; else group heuristic. */
+    boolean itemCanOverlap(int typeid);
+
     /**
      * C# {@code ItemManager.removeItem} for warehouse ITEM: consume {@code qntd}
      * from C0. Empty when the row is missing or C0 is insufficient. Remaining 0
