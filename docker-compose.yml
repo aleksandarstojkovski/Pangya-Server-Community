@@ -9,7 +9,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-pangya}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pangya}
     ports:
-      - "5432:5432"
+      - "0.0.0.0:5432:5432"
     volumes:
       - pangya-pg:/var/lib/postgresql/data
     healthcheck:
@@ -21,7 +21,7 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - "0.0.0.0:6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -46,9 +46,10 @@ services:
       DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-pangya}
       REDIS_URI: redis://host.docker.internal:6379
       PANGYA_MIGRATE_ON_START: "true"
+      PANGYA_IP: ${PANGYA_IP:-127.0.0.1}
     ports:
-      - "7777:7777"
-      - "9077:9077"
+      - "0.0.0.0:7777:7777"
+      - "0.0.0.0:9077:9077"
     restart: on-failure
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9077/health"]
@@ -73,9 +74,10 @@ services:
       DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-pangya}
       REDIS_URI: redis://host.docker.internal:6379
       PANGYA_AUTH_HOST: host.docker.internal
+      PANGYA_IP: ${PANGYA_IP:-127.0.0.1}
     ports:
-      - "10203:10203"
-      - "9103:9103"
+      - "0.0.0.0:10203:10203"
+      - "0.0.0.0:9103:9103"
     restart: on-failure
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9103/health"]
@@ -100,9 +102,10 @@ services:
       DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-pangya}
       REDIS_URI: redis://host.docker.internal:6379
       PANGYA_AUTH_HOST: host.docker.internal
+      PANGYA_IP: ${PANGYA_IP:-127.0.0.1}
     ports:
-      - "20202:20202"
-      - "9202:9202"
+      - "0.0.0.0:20202:20202"
+      - "0.0.0.0:9202:9202"
     restart: on-failure
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9202/health"]
@@ -127,9 +130,10 @@ services:
       DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-pangya}
       REDIS_URI: redis://host.docker.internal:6379
       PANGYA_AUTH_HOST: host.docker.internal
+      PANGYA_IP: ${PANGYA_IP:-127.0.0.1}
     ports:
-      - "4774:4774"
-      - "9474:9474"
+      - "0.0.0.0:4774:4774"
+      - "0.0.0.0:9474:9474"
     restart: on-failure
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9474/health"]
@@ -154,9 +158,10 @@ services:
       DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-pangya}
       REDIS_URI: redis://host.docker.internal:6379
       PANGYA_AUTH_HOST: host.docker.internal
+      PANGYA_IP: ${PANGYA_IP:-127.0.0.1}
     ports:
-      - "30201:30201"
-      - "9302:9302"
+      - "0.0.0.0:30201:30201"
+      - "0.0.0.0:9302:9302"
     restart: on-failure
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9302/health"]

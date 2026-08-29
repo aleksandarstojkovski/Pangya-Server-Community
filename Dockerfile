@@ -29,4 +29,6 @@ ENV MODULE=${MODULE}
 WORKDIR /app
 COPY --from=build /src/${MODULE}/build/install/${MODULE}/ /app/
 ENV JAVA_OPTS=""
+# JP client protocol + HTTP health/metrics (compose publishes all of these on 0.0.0.0).
+EXPOSE 7777 9077 10203 9103 20202 9202 4774 9474 30201 9302
 ENTRYPOINT ["/bin/sh", "-c", "exec /app/bin/$MODULE"]
