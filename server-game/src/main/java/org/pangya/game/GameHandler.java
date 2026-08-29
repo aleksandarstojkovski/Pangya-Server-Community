@@ -1008,10 +1008,11 @@ public final class GameHandler {
         }
         GameRoom.PlayerShot shot = room.shots.computeIfAbsent(session.oid(), id -> new GameRoom.PlayerShot());
         if (room.tipo == GamePackets.TIPO_GRAND_PRIX) {
+            // C# GrandPrix.requestInitShot: stopTimeRule even on duplicate init_shot.
+            room.stopGpRuleTimer(session.oid());
             if (shot.initShot != 0) {
                 return;
             }
-            room.stopGpRuleTimer(session.oid());
             shot.initShot = 1;
         }
         shot.acertoPangyaFlag = GamePackets.readAcertoPangyaFlag(reader);
@@ -1323,6 +1324,7 @@ public final class GameHandler {
         if ((shot.displayState & GamePackets.DISPLAY_ACERTO_HOLE) != 0 || shot.giveUp > 0) {
             shot.finishHole2 = 1;
             room.stopGpHoleTimer(oid);
+            room.stopGpRuleTimer(oid);
         }
     }
 
@@ -1370,6 +1372,7 @@ public final class GameHandler {
             shot.finishShot = 1;
             shot.finishHole3 = 1;
             room.stopGpHoleTimer(session.oid());
+            room.stopGpRuleTimer(session.oid());
             grandPrixChangeTurn(session, room, shot);
             return;
         }
