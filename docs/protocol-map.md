@@ -205,7 +205,7 @@ C#: `GameServer/PangyaEnums/PacketGame.cs` → Java `org.pangya.protocol.game.Ga
 | C | `CLIENT_UCC` | `0xB9` | option 1 i32 item id + owner: owned warehouse item → `0x12E` opt 1 + typeid + PStr idx + owner + WarehouseItem 196 with UCC fields. Unknown/missing → sbyte -1; no channel; opposite CLIENT marker `0x12E` |
 | C | `CLIENT_UCC_WEB_KEY` | `0xC9` | opt+uid+seq+item id; valida uid/item, owner online e warehouse item (`0x5100101`–`104`). Success genera web key e manda `0x153` u8 0 + 1 + i32 item + PStr key + seq; opposite `SERVER_ONELINE_MSG` |
 | C | `CLIENT_CHECK_ATTENDANCE` | `0x16E` | empty catalog → `0x248` u32 `~0`; success i32 0 + u8 login + now + after + counter (SQL catalog stand-in, no IFF/`addItem`); opposite `SERVER_LOCKER_ADD` |
-| C | `CLIENT_ATTENDANCE_LOGIN` | `0x16F` | empty catalog → `0x249` u32 `~0`; success i32 0 + ari (`after` draw); no mailbox GP/bot/fortune; opposite `SERVER_LOCKER_REMOVE` |
+| C | `CLIENT_ATTENDANCE_LOGIN` | `0x16F` | empty catalog → `0x249` u32 `~0`; success i32 0 + ari (`after` draw); GP/bot/fortune login bonus mails (C# `requestUpdateCountLogin`); opposite `SERVER_LOCKER_REMOVE` |
 | C | `CLIENT_CLUB_WORKSHOP_EVENT` | `0x172` | always `0x24E` 0/3000/0/100/0/10/10; opposite `SERVER_LOCKER_PANG` |
 | C | `CLIENT_ENTER_LOBBY_GRAND_PRIX` | `0x176` | `property` bit 11 → lobby dump (no `0xF5`) + `0x250` OK + GP-event bits + v_gpc 0 + f32 avg; already-in-lobby → `0x250` u32 0; opposite `SERVER_LOCKER_MAKE_PASS` |
 | C | `CLIENT_LEAVE_LOBBY_GRAND_PRIX` | `0x177` | leave lobby (no `0xF6`) + `0x251` u32 0 |

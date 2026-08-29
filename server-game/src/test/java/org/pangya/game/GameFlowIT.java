@@ -1920,6 +1920,13 @@ class GameFlowIT {
                 assertEquals(0, loginCount.u32());
                 assertEquals(0, loginCount.remaining());
 
+                client.sendPlain(GamePackets.clientOpenMailBox(1));
+                PacketReader bonusMail = awaitOpcode(client, GamePackets.SERVER_MAILBOX);
+                assertEquals(0, bonusMail.i32());
+                assertEquals(1, bonusMail.i32());
+                assertEquals(1, bonusMail.i32());
+                assertEquals(7, bonusMail.i32());
+
                 var stored = inv.attendanceReward(10001).orElseThrow();
                 assertEquals(0, stored.counter());
                 assertEquals(GamePackets.TYPEID_SHOP_PANG_ITEM, stored.nowTypeid());

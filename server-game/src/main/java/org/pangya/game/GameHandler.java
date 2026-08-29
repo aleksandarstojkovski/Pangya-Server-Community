@@ -6974,8 +6974,9 @@ public final class GameHandler {
     /**
      * C# {@code requestUpdateCountLogin} ({@code packet16F} / {@code pacote249}).
      * Draws {@code after}; typeid 0 {@code now} is redrawn (C# {@code IsExist(0)}
-     * is false). Mailbox GP/bot/fortune grants and achievement GUI are skipped
-     * (IFF/{@code ItemManager} stand-in). Empty catalog → {@code 0x249} u32 {@code ~0}.
+     * is false). Sends GP/bot/fortune login bonus mails like C#
+     * {@code requestUpdateCountLogin}. Achievement GUI is still skipped. Empty
+     * catalog → {@code 0x249} u32 {@code ~0}.
      */
     private void attendanceLoginCount(Session session) {
         if (!inChannel(session)) {
@@ -7013,6 +7014,7 @@ public final class GameHandler {
                     after.get().typeid(),
                     after.get().qntd(),
                     lastLogin));
+            sendAttendanceLoginBonuses(uid);
             session.send(GamePackets.attendanceOk(
                     GamePackets.SERVER_ATTENDANCE_LOGIN,
                     GamePackets.ATTENDANCE_LOGIN_SAME_DAY,
