@@ -1,7 +1,7 @@
 # EPIC — Pangya Java rewrite (C# JP → Java 21+)
 
 **Obiettivo:** riscrittura bit-compatible con client JP Season 9.  
-**Fonte comportamento:** `reference/pangya-server-community` (`Server/JP/`, branch C# `Develop`).  
+**Fonte comportamento:** `reference/pangya-server-community` (`Server/JP/`, branch C# `Develop_luiz`).  
 **Codice attuale:** branch git **`Develop`** — non ricostruire slice già mergeate lì.
 
 **HEAD (2026-08-29):** `d79b5f6` — Merge PR #7 *Grand Prix parity (GP exit, timers, placar, leaveRoom)*.
