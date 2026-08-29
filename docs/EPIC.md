@@ -102,14 +102,36 @@ attesa health. Test dipendono da: Postgres+Redis up e clone `reference/` present
 
 ---
 
+## Fase 1 — mappa finish/ranking Torneo (read-only, VERIFICATO)
+
+Ricerca preparatoria (nessuna modifica di codice) per de-rischiare la Fase 1.
+
+**Flusso C# di riferimento** (`grep -niE 'finish_tourney|finish_game|placar|rank' Tourney.cs TourneyBase.cs`):
+- `Tourney.finish_tourney(session, option)` (`Tourney.cs:277`) → `finish_game(session, 1)` (`:417`)
+  + `requestCalculeRankPlace()` (`:620`) + `requestFinishExpGame()` (`:528/:626`).
+- `TourneyBase.sendPlacar` (`:2408`), `getRankPlace` (`:2574`), `requestFinishGame` → `finish_game(session, 6)` (`:2064`).
+- Progressione hole: `requestFinishLoadHole` / `requestFinishCharIntro` / `requestFinishHoleData` /
+  `requestFinishShot` / `requestFinishHole`.
+
+**Java attuale — cosa c'è / cosa manca:**
+- ✅ Risultato Torneo emesso: `SERVER_GAME_RESULT` in `GameHandler` a 2 siti (`grep gameResult(` → righe **3700**, **4018**); la **4018** è il path last-hole `TIPO_TOURNEY` (`GameHandler:4044 if (room.tipo != TIPO_TOURNEY)`).
+- ⚠️ Path finish/placar ramifica in modo speciale **solo** su `TIPO_GRAND_PRIX` (`sendGrandPrixFinishDump`); Torneo passa dal path generico (`finishGameExp`/`finishGamePlayerDump`/`sendFinishGameDump`) — **parità Tourney finish non verificata**.
+- ❌ **Nessun wiring game→Ranking**: `grep -rniE 'ranking|pangya_rank|rank_config|updateRank|:4774' server-game/src/main` (escludendo `placar/rankIndex` locali) → **0 match**. Il finish partita NON aggiorna il Ranking server / SQL ranking.
+
+> Ambiguità DoD #4 "ranking aggiornato": può significare (i) il **placar/rank in-partita** a fine
+> match (in parte presente) oppure (ii) il **Ranking server** globale (porta 4774) — **non wired**.
+> Da chiarire con l'utente in Fase 1; assumo entrambi finché non confermato (gate: SQL ranking).
+
 ## Piano Fase 1 (dopo conferma utente)
 
 1. **Rendere verde `./gradlew test` in modo deterministico** — de-flakare
    `FlywayMigrationTest` (DB dedicato/DROP, o escluderlo dal run parallelo condiviso).
 2. **IT Torneo end-to-end fino al finish + ranking** (DoD #4): entra canale → iscrive
-   Torneo → gioca gli hole → `finish` → assert risultato/ranking.
+   Torneo → gioca gli hole → `finish` (path last-hole `TIPO_TOURNEY`, `GameHandler:4018`) →
+   assert `SERVER_GAME_RESULT` + placar; verificare/aggiungere aggiornamento Ranking.
 3. **Robustezza sessione** (DoD #5): una eccezione in un handler non deve abbattere il processo.
-4. **Ranking/Messenger** solo quanto serve al flusso Torneo (registrazione ranking a fine partita).
+4. **Ranking/Messenger** solo quanto serve al flusso Torneo: wiring game→ranking a fine partita
+   (oggi assente, 0 match sopra).
 
 ---
 

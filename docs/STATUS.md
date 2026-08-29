@@ -1,6 +1,6 @@
 # STATUS — Pangya Java 21 JP rewrite
 
-**Aggiornato:** 2026-08-29 12:57 UTC
+**Aggiornato:** 2026-08-29 13:01 UTC
 **HEAD:** `5d20738` (branch `Develop`; audit su branch `cursor/phase0-recovery-audit-0d4c`)
 **Fonte comportamento C#:** `reference/pangya-server-community` (`Server/JP/`, branch `Develop`)
 
@@ -153,10 +153,23 @@ MVP** (vedi EPIC). Non buttato: parcheggiato, da validare più avanti.
 | `./gradlew --max-workers=1 :core-db:test` (DB isolato) | BUILD SUCCESSFUL, 45/45 |
 | `grep addPacketCall GameService.cs` | 479 |
 | `grep case CLIENT_ GameHandler.java` | 196 |
+| `grep -rniE 'ranking\|pangya_rank\|:4774' server-game/src/main` (no placar/rankIndex) | **0 match** → game NON aggiorna Ranking a fine partita |
+| `grep gameResult( server-game/src/main` | 2 siti (righe 3700, 4018); 4018 = last-hole `TIPO_TOURNEY` |
 
 ---
 
-## 8. Prossimo passo
+## 8. Prep Fase 1 (read-only, VERIFICATO — nessuna modifica codice)
+
+Mappato il flusso finish/ranking Torneo C#→Java per de-rischiare la Fase 1 (dettaglio in
+`EPIC.md` §"Fase 1 — mappa finish/ranking Torneo"). Sintesi verificata:
+- Risultato Torneo (`SERVER_GAME_RESULT`) **emesso** dal path last-hole `TIPO_TOURNEY` (`GameHandler:4018`).
+- Finish/placar ramifica special-case **solo** su Grand Prix; parità **Tourney finish non verificata**.
+- **Wiring game→Ranking assente** (0 match). DoD #4 "ranking aggiornato": placar in-partita
+  parziale; Ranking server globale non collegato.
+
+---
+
+## 9. Prossimo passo
 
 Fase 0 completa. **Gate:** in attesa di conferma utente per iniziare la Fase 1
-(re-scope MVP Torneo). Dettagli e Definition of Done in `docs/EPIC.md`.
+(re-scope MVP Torneo) e sul rollback (raccomandato NO). Definition of Done e piano in `docs/EPIC.md`.
