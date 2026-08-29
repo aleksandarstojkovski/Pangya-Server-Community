@@ -13,8 +13,8 @@ Conteggio Channel: **197** handler `packet_func_sv` registrati in `GameService.i
 
 ## Questo turno
 
-Fatto: **`findClubSetOriginal`** from `ClubSet.iff` via `text_pangya` (Wingtross `0x1000005D` → 5 originals; SQL had 1 test row); extends existing ClubSet parser.
-Prossimo: pin `.gbin`; capture JP S9; remaining IFF (SetItem, HoleCupDrop, …).
+Fatto: **`SetItem.iff`** parser (268-byte, 1088 rows) + `findSetItem` via `PangyaIffLoader` / `setItemIff` (Greenline Swimset `0x24200000` → 3 PART typeids); `IFF_GROUP_SET_ITEM=9`.
+Prossimo: pin `.gbin`; capture JP S9; remaining IFF (GrandPrixData, HoleCupDrop, …); set-item shop/gift expansion (`getItemOfSetItem`).
 Blocco: pin `.gbin` binaries absent; nessuna capture client JP Season 9.
 
 Percentuale epic: **scheletro 85%** / **parità client reale 43%**.

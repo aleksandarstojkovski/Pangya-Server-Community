@@ -273,6 +273,9 @@ public interface InventoryRepository {
 
     void deleteCutinIff(int typeid);
 
+    /** C# {@code sIff.findSetItem}: empty when {@code pangya_jp.iff} is not loaded. */
+    Optional<SetItemIff> setItemIff(int typeid);
+
     /** C# {@code sBoxSystem.findBox/drawBox}: deterministic SQL reward row. */
     Optional<BoxMailReward> boxMailReward(int boxTypeid);
 
@@ -662,6 +665,9 @@ public interface InventoryRepository {
     /** C# {@code CutinInformation}: fields serialized by {@code requestActiveCutin}. */
     record CutinIff(
             int typeid, int sector, int condition, int[] imageTypes, int tempo, String[] sprites) {}
+
+    /** C# {@code SetItem.packege}: bundle contents for shop/gift expansion. */
+    record SetItemIff(int typeid, int total, int[] itemTypeids, int[] itemQntds, int point, int typeSet) {}
 
     /** C# {@code ctx_box_item} plus Box opened-typeid/message for mail delivery. */
     record BoxMailReward(

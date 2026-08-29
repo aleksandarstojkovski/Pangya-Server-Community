@@ -670,6 +670,34 @@ class InventoryRepositoryTest {
         }
     }
 
+    @Test
+    void setItemIffLoadsGreenlineSwimsetFromReferenceArchive() {
+        var jpIff = java.nio.file.Path.of(
+                "reference/pangya-server-community/Server/JP/GameServer/data/pangya_jp.iff");
+        if (!jpIff.toFile().isFile()) {
+            return;
+        }
+        String url = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        DatabaseSupport.migrate(url, user, password);
+
+        try (var ds = DatabaseSupport.dataSource(url, user, password)) {
+            InventoryRepository repo = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
+            try {
+                PangyaIffLoader.reload(jpIff);
+                var set = repo.setItemIff(0x24200000).orElseThrow();
+                assertEquals(3, set.total());
+                assertEquals(1, set.typeSet());
+                assertEquals(0x08006010, set.itemTypeids()[0]);
+                assertEquals(0x0801000A, set.itemTypeids()[1]);
+                assertEquals(0x0800080A, set.itemTypeids()[2]);
+            } finally {
+                PangyaIffLoader.reload(null);
+            }
+        }
+    }
+
     private static String env(String name, String fallback) {
         String v = System.getenv(name);
         return (v == null || v.isBlank()) ? fallback : v;

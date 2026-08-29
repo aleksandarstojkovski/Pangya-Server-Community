@@ -2633,6 +2633,7 @@ class GamePacketsTest {
         assertEquals(GamePackets.TYPEID_WINGTROSS_EVO, 0x1000005D);
         assertEquals(GamePackets.IFF_GROUP_SKIN, 56);
         assertEquals(GamePackets.itemGroupIdentify(GamePackets.TYPEID_CUTIN_SKIN), 56);
+        assertEquals(GamePackets.IFF_GROUP_SET_ITEM, GamePackets.itemGroupIdentify(0x24200000));
         assertEquals(GamePackets.CUTIN_OK_BODY_BYTES, 193);
         assertEquals(GamePackets.SERVER_BOX_CONSUME, 0xA7);
         assertEquals(GamePackets.BOX_MAIL_OK, 0);

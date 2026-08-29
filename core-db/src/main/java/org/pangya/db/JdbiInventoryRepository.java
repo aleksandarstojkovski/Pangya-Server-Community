@@ -2976,6 +2976,21 @@ public final class JdbiInventoryRepository implements InventoryRepository {
     }
 
     @Override
+    public Optional<SetItemIff> setItemIff(int typeid) {
+        if (!org.pangya.protocol.iff.PangyaIffLoader.source().isPresent()) {
+            return Optional.empty();
+        }
+        return org.pangya.protocol.iff.PangyaIffLoader.setItem(typeid)
+                .map(row -> new SetItemIff(
+                        row.typeid(),
+                        row.packege().total(),
+                        row.packege().itemTypeids(),
+                        row.packege().itemQntds(),
+                        row.point(),
+                        row.typeSet()));
+    }
+
+    @Override
     public void upsertCutinIff(
             int typeid, int sector, int condition, int[] imageTypes, int tempo, String[] sprites) {
         int[] img = imageTypes == null ? new int[4] : imageTypes;

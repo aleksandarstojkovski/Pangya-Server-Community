@@ -2335,6 +2335,8 @@ public final class GamePackets {
     public static final int IFF_GROUP_MASCOT = 16;
     /** C# {@code IFF_GROUP.AUX_PART} {@code 28}. */
     public static final int IFF_GROUP_AUX_PART = 28;
+    /** C# {@code IFF_GROUP.SET_ITEM} {@code 9}: {@code 0x24200000}. */
+    public static final int IFF_GROUP_SET_ITEM = 9;
     /** C# ring catch else {@code 0x330000}. */
     public static final int RING_ERR_DEFAULT = 0x330000;
     /** C# ring typeid 0 {@code 0x330001}. */
