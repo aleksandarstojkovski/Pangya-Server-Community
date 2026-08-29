@@ -968,6 +968,7 @@ public final class GameHandler {
             session.send(GamePackets.remainTime(elapsed));
             if (room.tipo == GamePackets.TIPO_GRAND_PRIX) {
                 room.stopGpHoleTimer(session.oid());
+                room.stopGpRuleTimer(session.oid());
             }
         }
     }
@@ -4539,6 +4540,7 @@ public final class GameHandler {
             return;
         }
         room.stopGpHoleTimer(oid);
+        room.stopGpRuleTimer(oid);
         int holeNum = shot.hole == 0 ? 1 : shot.hole;
         shot.tacadaNum = catalogs.totalShotFor(room.info.course & 0x7f, holeNum);
         shot.timeOuts = 1;
