@@ -1,5 +1,6 @@
 package org.pangya.protocol.iff;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.pangya.protocol.game.GamePackets;
 
@@ -13,6 +14,11 @@ class IffClubSetFileTest {
 
     private static final Path JP_IFF = Path.of(
             "reference/pangya-server-community/Server/JP/GameServer/data/pangya_jp.iff");
+
+    @AfterEach
+    void tearDown() {
+        PangyaIffLoader.reload(null);
+    }
 
     @Test
     void loadsAirKnightClubSetFromClubSetIff() throws Exception {

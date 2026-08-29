@@ -32,6 +32,9 @@ public final class PangyaIffLoader {
             IffClubSetIndex clubSets,
             IffCaddieIndex caddies,
             IffMascotIndex mascots,
+            IffClubSetWorkShopLevelUpLimitIndex clubSetWorkShopLevelUpLimits,
+            IffClubSetWorkShopLevelUpProbIndex clubSetWorkShopLevelUpProbs,
+            IffClubSetWorkShopRankUpExpIndex clubSetWorkShopRankExps,
             Path source) {
         static Snapshot empty() {
             return new Snapshot(
@@ -45,6 +48,9 @@ public final class PangyaIffLoader {
                     IffClubSetIndex.empty(),
                     IffCaddieIndex.empty(),
                     IffMascotIndex.empty(),
+                    IffClubSetWorkShopLevelUpLimitIndex.empty(),
+                    IffClubSetWorkShopLevelUpProbIndex.empty(),
+                    IffClubSetWorkShopRankUpExpIndex.empty(),
                     null);
         }
     }
@@ -71,11 +77,18 @@ public final class PangyaIffLoader {
             IffClubSetIndex clubSets = IffClubSetFile.loadIndex(archive);
             IffCaddieIndex caddies = IffCaddieFile.loadIndex(archive);
             IffMascotIndex mascots = IffMascotFile.loadIndex(archive);
+            IffClubSetWorkShopLevelUpLimitIndex clubSetWorkShopLevelUpLimits =
+                    IffClubSetWorkShopLevelUpLimitFile.loadIndex(archive);
+            IffClubSetWorkShopLevelUpProbIndex clubSetWorkShopLevelUpProbs =
+                    IffClubSetWorkShopLevelUpProbFile.loadIndex(archive);
+            IffClubSetWorkShopRankUpExpIndex clubSetWorkShopRankExps =
+                    IffClubSetWorkShopRankUpExpFile.loadIndex(archive);
             snapshot = new Snapshot(
                     courses, parts, items, cards, characters, characterMastery, enchants, clubSets, caddies,
-                    mascots, path);
+                    mascots, clubSetWorkShopLevelUpLimits, clubSetWorkShopLevelUpProbs, clubSetWorkShopRankExps,
+                    path);
             log.info(
-                    "loaded pangya iff {} ({} courses, {} parts, {} items, {} cards, {} chars, {} mastery, {} enchants, {} clubsets, {} caddies, {} mascots)",
+                    "loaded pangya iff {} ({} courses, {} parts, {} items, {} cards, {} chars, {} mastery, {} enchants, {} clubsets, {} caddies, {} mascots, {} ws limits, {} ws probs, {} ws rank exp)",
                     path,
                     courses.size(),
                     parts.size(),
@@ -86,7 +99,10 @@ public final class PangyaIffLoader {
                     enchants.size(),
                     clubSets.size(),
                     caddies.size(),
-                    mascots.size());
+                    mascots.size(),
+                    clubSetWorkShopLevelUpLimits.rowCount(),
+                    clubSetWorkShopLevelUpProbs.size(),
+                    clubSetWorkShopRankExps.size());
         } catch (Exception e) {
             log.warn("failed to load pangya iff {}: {}", path, e.toString());
             snapshot = Snapshot.empty();
@@ -164,6 +180,49 @@ public final class PangyaIffLoader {
             return Optional.empty();
         }
         return mascots.find(typeid);
+    }
+
+    /** C# {@code sIff.findClubSetWorkShopLevelUpLimit}. */
+    public static Optional<short[]> clubSetWorkShopLevelUpLimit(int tipo, int rank) {
+        IffClubSetWorkShopLevelUpLimitIndex limits = snapshot.clubSetWorkShopLevelUpLimits();
+        if (limits.isEmpty()) {
+            return Optional.empty();
+        }
+        return limits.limit(tipo, rank);
+    }
+
+    public static boolean clubSetWorkShopLevelUpAny(int tipo) {
+        IffClubSetWorkShopLevelUpLimitIndex limits = snapshot.clubSetWorkShopLevelUpLimits();
+        if (limits.isEmpty()) {
+            return false;
+        }
+        return limits.hasTipo(tipo);
+    }
+
+    /** C# {@code sIff.findClubSetWorkShopLevelUpProb}. */
+    public static Optional<int[]> clubSetWorkShopLevelUpProb(int tipo) {
+        IffClubSetWorkShopLevelUpProbIndex probs = snapshot.clubSetWorkShopLevelUpProbs();
+        if (probs.isEmpty()) {
+            return Optional.empty();
+        }
+        return probs.prob(tipo);
+    }
+
+    /** C# {@code sIff.findClubSetWorkShopRankExp}. */
+    public static boolean clubSetWorkShopRankExp(int tipo) {
+        IffClubSetWorkShopRankUpExpIndex rankExps = snapshot.clubSetWorkShopRankExps();
+        if (rankExps.isEmpty()) {
+            return false;
+        }
+        return rankExps.contains(tipo);
+    }
+
+    public static Optional<int[]> clubSetWorkShopRankExpRanks(int tipo) {
+        IffClubSetWorkShopRankUpExpIndex rankExps = snapshot.clubSetWorkShopRankExps();
+        if (rankExps.isEmpty()) {
+            return Optional.empty();
+        }
+        return rankExps.ranks(tipo);
     }
 
     public static Optional<Path> source() {

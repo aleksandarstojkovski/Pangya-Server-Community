@@ -2,6 +2,7 @@ package org.pangya.db;
 
 import org.junit.jupiter.api.Test;
 import org.pangya.protocol.game.GamePackets;
+import org.pangya.protocol.iff.PangyaIffLoader;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -363,6 +364,7 @@ class InventoryRepositoryTest {
             }
             repo.deleteClubSetIff(GamePackets.TYPEID_AIR_KNIGHT);
             repo.deleteClubSetRankExp(0);
+            PangyaIffLoader.reload(null);
             repo.upsertClubSetIff(
                     GamePackets.TYPEID_AIR_KNIGHT,
                     0,
@@ -398,6 +400,7 @@ class InventoryRepositoryTest {
             }
             repo.deleteItemIff(GamePackets.TYPEID_SHOP_PANG_ITEM);
             repo.upsertItemIff(GamePackets.TYPEID_SHOP_PANG_ITEM);
+            PangyaIffLoader.reload(null);
             repo.deleteClubSetLevelUpLimit(0, 0);
             repo.deleteClubSetLevelUpProb(0);
             repo.upsertClubSetLevelUpLimit(0, 0, new short[] {7, 0, 0, 0, 0});

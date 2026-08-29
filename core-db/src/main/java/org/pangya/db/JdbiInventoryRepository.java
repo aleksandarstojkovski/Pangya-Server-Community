@@ -3928,6 +3928,9 @@ public final class JdbiInventoryRepository implements InventoryRepository {
 
     @Override
     public Optional<short[]> clubSetLevelUpLimit(int tipo, int rank) {
+        if (org.pangya.protocol.iff.PangyaIffLoader.source().isPresent()) {
+            return org.pangya.protocol.iff.PangyaIffLoader.clubSetWorkShopLevelUpLimit(tipo, rank);
+        }
         return jdbi.withHandle(h -> h.createQuery("""
                         SELECT c0, c1, c2, c3, c4
                           FROM pangya.iff_clubset_level_up_limit
@@ -3947,6 +3950,9 @@ public final class JdbiInventoryRepository implements InventoryRepository {
 
     @Override
     public boolean clubSetLevelUpAny(int tipo) {
+        if (org.pangya.protocol.iff.PangyaIffLoader.source().isPresent()) {
+            return org.pangya.protocol.iff.PangyaIffLoader.clubSetWorkShopLevelUpAny(tipo);
+        }
         return jdbi.withHandle(h -> h.createQuery("""
                         SELECT 1 FROM pangya.iff_clubset_level_up_limit
                          WHERE tipo = :tipo
@@ -3989,6 +3995,9 @@ public final class JdbiInventoryRepository implements InventoryRepository {
 
     @Override
     public Optional<int[]> clubSetLevelUpProb(int tipo) {
+        if (org.pangya.protocol.iff.PangyaIffLoader.source().isPresent()) {
+            return org.pangya.protocol.iff.PangyaIffLoader.clubSetWorkShopLevelUpProb(tipo);
+        }
         return jdbi.withHandle(h -> h.createQuery("""
                         SELECT c0, c1, c2, c3, c4
                           FROM pangya.iff_clubset_level_up_prob
@@ -4035,6 +4044,9 @@ public final class JdbiInventoryRepository implements InventoryRepository {
 
     @Override
     public boolean clubSetRankExp(int tipo) {
+        if (org.pangya.protocol.iff.PangyaIffLoader.source().isPresent()) {
+            return org.pangya.protocol.iff.PangyaIffLoader.clubSetWorkShopRankExp(tipo);
+        }
         return jdbi.withHandle(h -> h.createQuery("""
                         SELECT 1 FROM pangya.iff_clubset_rank_exp WHERE tipo = :tipo
                         """)
@@ -4046,6 +4058,9 @@ public final class JdbiInventoryRepository implements InventoryRepository {
 
     @Override
     public Optional<int[]> clubSetRankExpRanks(int tipo) {
+        if (org.pangya.protocol.iff.PangyaIffLoader.source().isPresent()) {
+            return org.pangya.protocol.iff.PangyaIffLoader.clubSetWorkShopRankExpRanks(tipo);
+        }
         return jdbi.withHandle(h -> h.createQuery("""
                         SELECT rank0, rank1, rank2, rank3, rank4, rank5
                           FROM pangya.iff_clubset_rank_exp

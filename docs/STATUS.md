@@ -13,8 +13,8 @@ Conteggio Channel: **197** handler `packet_func_sv` registrati in `GameService.i
 
 ## Questo turno
 
-Fatto: **`Mascot.iff`** — 304-byte records (69 mascots); `changeMascotMessage` uses `change_price` (default `0x40000000` **0** pang; SQL seed had **100**).
-Prossimo: pin `.gbin`; capture JP S9; ClubSetWorkShop / Cutin / TimeLimit IFF.
+Fatto: **`ClubSetWorkShop` IFF** — `LevelUpLimit` (20-byte, 30 rows), `LevelUpProb` (24-byte, 5 tipos), `RankUpExp` (28-byte, 4 tipos); workshop up-level / rank / reset paths use IFF when `PANGYA_IFF_PATH` set (tipo 0 limit c0 **14** vs SQL **7**; prob c0 **500** vs SQL **100**).
+Prossimo: pin `.gbin`; capture JP S9; Cutin / TimeLimit IFF.
 Blocco: pin `.gbin` binaries absent; nessuna capture client JP Season 9.
 
 Percentuale epic: **scheletro 85%** / **parità client reale 43%**.
