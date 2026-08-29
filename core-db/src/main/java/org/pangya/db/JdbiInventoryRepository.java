@@ -1385,14 +1385,7 @@ public final class JdbiInventoryRepository implements InventoryRepository {
             if (typeid == null) {
                 return CaddieHolidayResult.fail(pang);
             }
-            Integer price = h.createQuery("""
-                            SELECT valor_mensal FROM pangya.iff_caddie
-                             WHERE typeid = :typeid AND (is_cash = 1 OR valor_mensal > 0)
-                            """)
-                    .bind("typeid", typeid)
-                    .mapTo(Integer.class)
-                    .findOne()
-                    .orElse(null);
+            Integer price = caddieHolidayPrice(typeid);
             if (price == null || pang < price) {
                 return CaddieHolidayResult.fail(pang);
             }
@@ -1416,6 +1409,24 @@ public final class JdbiInventoryRepository implements InventoryRepository {
                     .execute();
             return new CaddieHolidayResult(0, caddieId, pangAfter);
         });
+    }
+
+    private Integer caddieHolidayPrice(int typeid) {
+        return org.pangya.protocol.iff.PangyaIffLoader.caddie(typeid)
+                .filter(org.pangya.protocol.iff.IffCaddieRecord::canPayHoliday)
+                .map(org.pangya.protocol.iff.IffCaddieRecord::valorMensal)
+                .orElseGet(() -> caddieHolidayPriceSql(typeid));
+    }
+
+    private Integer caddieHolidayPriceSql(int typeid) {
+        return jdbi.withHandle(h -> h.createQuery("""
+                        SELECT valor_mensal FROM pangya.iff_caddie
+                         WHERE typeid = :typeid AND (is_cash = 1 OR valor_mensal > 0)
+                        """)
+                .bind("typeid", typeid)
+                .mapTo(Integer.class)
+                .findOne()
+                .orElse(null));
     }
 
     @Override

@@ -1223,7 +1223,7 @@ public final class GamePackets {
     public static final int CADDIE_RENT_HOLIDAY = 2;
     /** C# {@code GetSystemTimeAsUnix() + (30 * 24 * 3600)}. */
     public static final int CADDIE_HOLIDAY_SECONDS = 30 * 24 * 3600;
-    /** Seeded {@code iff_caddie.valor_mensal} for {@link #TYPEID_CADDIE_PAPEL}. */
+    /** Seeded SQL {@code iff_caddie.valor_mensal} for {@link #TYPEID_CADDIE_PAPEL} (JP IFF has 0). */
     public static final int CADDIE_HOLIDAY_PANG = 1000;
     /** C# mascot-message success {@code 0xE2} {@code WriteByte(4)}. */
     public static final int MASCOT_MSG_OK = 4;
