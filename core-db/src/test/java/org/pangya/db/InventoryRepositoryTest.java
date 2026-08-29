@@ -1009,6 +1009,22 @@ class InventoryRepositoryTest {
                         .findFirst()
                         .orElseThrow();
                 assertEquals(GamePackets.TYPEID_CAD_ITEM_PAPEL, caddie.partsTypeid);
+
+                repo.deleteWarehouseByTypeid(10002, GamePackets.TYPEID_SKIN_RABBITS);
+                var timedSkin = ItemInitializer.MailAwardRow.skinTimed(
+                        GamePackets.TYPEID_SKIN_RABBITS, 4, 2);
+                int skinId = repo.addAwardItem(10002, timedSkin).orElseThrow().id();
+                assertTrue(repo.warehouse(10002).stream()
+                        .anyMatch(w -> w.typeid == GamePackets.TYPEID_SKIN_RABBITS && w.flag == 0x40));
+
+                var timedMascot = ItemInitializer.MailAwardRow.mascot(
+                        GamePackets.TYPEID_MASCOT, 1, "rent", 3);
+                repo.addAwardItem(10002, timedMascot).orElseThrow();
+                var extendMascot = ItemInitializer.MailAwardRow.mascot(
+                        GamePackets.TYPEID_MASCOT, 1, "rent", 2);
+                repo.addAwardItem(10002, extendMascot).orElseThrow();
+                assertTrue(repo.mascots(10002).stream()
+                        .anyMatch(m -> m.typeid == GamePackets.TYPEID_MASCOT && m.tipo == 1));
             } finally {
                 repo.deleteWarehouseByTypeid(10002, GamePackets.TYPEID_SKIN_RABBITS);
                 jdbi.useHandle(h -> h.createUpdate("""

@@ -39,8 +39,13 @@ public final class ItemInitializer {
     /** C# {@code initItemFromBuyItem} gift/level flags. */
     public record InitContext(int playerLevel, boolean shop, boolean giftOpt, boolean chkLevel) {}
 
-    /** Mail attachment typeid + qntd before {@code checkSetItemOnEmail} / take-mail init. */
-    public record MailItemRef(int typeid, int qntd) {}
+    /** Mail attachment before {@code checkSetItemOnEmail} / take-mail init. */
+    public record MailItemRef(int typeid, int qntd, int flagTime, int tempoQntd) {
+
+        public MailItemRef(int typeid, int qntd) {
+            this(typeid, qntd, 0, 0);
+        }
+    }
 
     /**
      * Resolved mail award: warehouse row and/or group-specific init used by
@@ -84,6 +89,14 @@ public final class ItemInitializer {
             return new MailAwardRow(typeid, 1, WarehouseInitRow.simple(typeid, 1), 0, 0, 0, "", 0);
         }
 
+        /** Timed skin: {@code rentFlag} = C# {@code flag_time}; {@code caddiePeriodDays} = {@code STDA_C_ITEM_TIME}. */
+        public static MailAwardRow skinTimed(int typeid, int flagTime, int itemTime) {
+            int whFlag = flagTime == 2 ? 0x20 : 0x40;
+            WarehouseInitRow wh = new WarehouseInitRow(
+                    typeid, 1, (short) 1, (short) 0, (short) 0, (short) 0, (short) 0, whFlag, 2, 1);
+            return new MailAwardRow(typeid, 1, wh, flagTime, itemTime, 0, "", 0);
+        }
+
         /** {@code rentFlag} = C# {@code flag_time}; {@code caddiePeriodDays} = {@code STDA_C_ITEM_TIME}. */
         public static MailAwardRow cadItem(int typeid, int flagTime, int itemTime) {
             return new MailAwardRow(typeid, 1, null, flagTime, itemTime, 0, "", 0);
@@ -91,6 +104,32 @@ public final class ItemInitializer {
     }
 
     private ItemInitializer() {}
+
+    /** C# {@code initItemFromEmailItem}: {@code BuyItem.time} from mail row. */
+    public static int resolveMailTime(int flagTime, int tempoQntd, int qntd) {
+        if (flagTime == 2) {
+            if (tempoQntd > 0) {
+                return tempoQntd / 24;
+            }
+            return qntd > 0 ? qntd : 0;
+        }
+        if (tempoQntd > 0) {
+            return tempoQntd;
+        }
+        return qntd > 0 ? qntd : 0;
+    }
+
+    /** C# {@code STDA_TRANSLATE_FLAG_TIME} / {@code STDA_TRANSLATE_FLAG_TIME_TO_HOUR}. */
+    public static long stdaTimeSeconds(int flagTime, int itemTime) {
+        if (itemTime <= 0) {
+            return 0L;
+        }
+        return switch (flagTime) {
+            case 2 -> itemTime * 3600L;
+            case 4 -> itemTime * 86400L;
+            default -> 0L;
+        };
+    }
 
     /**
      * C# {@code getItemOfSetItem}: expand package members with per-item init.
@@ -157,7 +196,7 @@ public final class ItemInitializer {
                     if (compQntd <= 0) {
                         compQntd = 1;
                     }
-                    Optional<MailAwardRow> row = initMailAward(ctx, compTypeid, compQntd);
+                    Optional<MailAwardRow> row = initMailAward(ctx, compTypeid, compQntd, 0, 0);
                     if (row.isEmpty()) {
                         return List.of();
                     }
@@ -166,7 +205,8 @@ public final class ItemInitializer {
             } else if (!isMailAwardGroup(att.typeid())) {
                 return List.of();
             } else {
-                Optional<MailAwardRow> row = initMailAward(ctx, att.typeid(), att.qntd());
+                Optional<MailAwardRow> row = initMailAward(
+                        ctx, att.typeid(), att.qntd(), att.flagTime(), att.tempoQntd());
                 if (row.isEmpty()) {
                     return List.of();
                 }
@@ -191,8 +231,14 @@ public final class ItemInitializer {
         return resolved.stream()
                 .map(r -> {
                     int qntd = r.warehouse() != null ? r.warehouse().qntdDep() : r.qntd();
+                    int flagTime = r.rentFlag();
+                    int tempoQntd = r.caddiePeriodDays();
+                    if (r.group() == GamePackets.IFF_GROUP_MASCOT) {
+                        tempoQntd = r.mascotTimeDays();
+                        flagTime = r.mascotTimeDays() > 0 ? 4 : 0;
+                    }
                     return GamePackets.mailInfoItem(
-                            -1, r.typeid(), 0, qntd, 0, 0L, 0L, 0, 0, "", 0);
+                            -1, r.typeid(), flagTime, qntd, tempoQntd, 0L, 0L, 0, 0, "", 0);
                 })
                 .toList();
     }
@@ -237,7 +283,8 @@ public final class ItemInitializer {
         };
     }
 
-    private static Optional<MailAwardRow> initMailAward(InitContext ctx, int typeid, int qntd) {
+    private static Optional<MailAwardRow> initMailAward(
+            InitContext ctx, int typeid, int qntd, int flagTime, int tempoQntd) {
         if (typeid == 0 || qntd <= 0) {
             return Optional.empty();
         }
@@ -246,36 +293,55 @@ public final class ItemInitializer {
                     GamePackets.IFF_GROUP_BALL, GamePackets.IFF_GROUP_CLUBSET ->
                     initFromBuyItem(ctx, typeid, qntd, 0).map(MailAwardRow::warehouse);
             case GamePackets.IFF_GROUP_CADDIE -> initCaddie(typeid);
-            case GamePackets.IFF_GROUP_MASCOT -> initMascot(typeid, qntd);
+            case GamePackets.IFF_GROUP_MASCOT -> initMascot(typeid, flagTime, tempoQntd, qntd);
             case GamePackets.IFF_GROUP_CARD -> initCard(typeid, qntd);
             case GamePackets.IFF_GROUP_CHARACTER -> initCharacter(typeid);
-            case GamePackets.IFF_GROUP_SKIN_WAREHOUSE -> initSkin(typeid);
-            case GamePackets.IFF_GROUP_CAD_ITEM -> initCadItem(typeid, qntd);
+            case GamePackets.IFF_GROUP_SKIN_WAREHOUSE -> initSkin(typeid, flagTime, tempoQntd, qntd);
+            case GamePackets.IFF_GROUP_CAD_ITEM -> initCadItem(typeid, flagTime, tempoQntd, qntd);
             default -> Optional.empty();
         };
     }
 
-    private static Optional<MailAwardRow> initSkin(int typeid) {
+    private static Optional<MailAwardRow> initSkin(int typeid, int flagTime, int tempoQntd, int qntd) {
         if (!PangyaIffLoader.source().isPresent()) {
-            return Optional.of(MailAwardRow.skin(typeid));
+            return timedSkinOrPermanent(typeid, flagTime, tempoQntd, qntd);
         }
         if (!PangyaIffLoader.skinIndex().contains(typeid)) {
             return Optional.empty();
         }
+        return timedSkinOrPermanent(typeid, flagTime, tempoQntd, qntd);
+    }
+
+    private static Optional<MailAwardRow> timedSkinOrPermanent(
+            int typeid, int flagTime, int tempoQntd, int qntd) {
+        if (flagTime == 2 && tempoQntd > 0) {
+            return Optional.of(MailAwardRow.skinTimed(typeid, 2, tempoQntd));
+        }
+        int days = resolveMailTime(flagTime, tempoQntd, qntd);
+        if (days > 0) {
+            return Optional.of(MailAwardRow.skinTimed(typeid, 4, days));
+        }
         return Optional.of(MailAwardRow.skin(typeid));
     }
 
-    private static Optional<MailAwardRow> initCadItem(int typeid, int qntd) {
+    private static Optional<MailAwardRow> initCadItem(int typeid, int flagTime, int tempoQntd, int qntd) {
         if (!PangyaIffLoader.source().isPresent()) {
-            int flagTime = qntd > 0 ? 4 : 0;
-            int itemTime = qntd > 0 ? qntd : 0;
-            return Optional.of(MailAwardRow.cadItem(typeid, flagTime, itemTime));
+            return timedCadItemOrPermanent(typeid, flagTime, tempoQntd, qntd);
         }
         if (!PangyaIffLoader.caddieItemIndex().contains(typeid)) {
             return Optional.empty();
         }
-        if (qntd > 0) {
-            return Optional.of(MailAwardRow.cadItem(typeid, 4, qntd));
+        return timedCadItemOrPermanent(typeid, flagTime, tempoQntd, qntd);
+    }
+
+    private static Optional<MailAwardRow> timedCadItemOrPermanent(
+            int typeid, int flagTime, int tempoQntd, int qntd) {
+        if (flagTime == 2 && tempoQntd > 0) {
+            return Optional.of(MailAwardRow.cadItem(typeid, 2, tempoQntd));
+        }
+        int days = resolveMailTime(flagTime, tempoQntd, qntd);
+        if (days > 0) {
+            return Optional.of(MailAwardRow.cadItem(typeid, 4, days));
         }
         return Optional.of(MailAwardRow.cadItem(typeid, 0, 0));
     }
@@ -305,16 +371,29 @@ public final class ItemInitializer {
         return Optional.of(MailAwardRow.caddie(typeid, 1, 0));
     }
 
-    private static Optional<MailAwardRow> initMascot(int typeid, int qntd) {
+    private static Optional<MailAwardRow> initMascot(int typeid, int flagTime, int tempoQntd, int qntd) {
         if (!PangyaIffLoader.source().isPresent()) {
-            return Optional.of(MailAwardRow.mascot(typeid, 0, "", 0));
+            return timedMascotOrPermanent(typeid, flagTime, tempoQntd, qntd);
         }
         Optional<IffMascotRecord> mascotOpt = PangyaIffLoader.mascot(typeid);
         if (mascotOpt.isEmpty()) {
             return Optional.empty();
         }
-        IffMascotRecord mascot = mascotOpt.get();
-        String message = mascot.messageActive() ? "PangYa SuperSS" : "";
+        return timedMascotOrPermanent(typeid, flagTime, tempoQntd, qntd, mascotOpt.get());
+    }
+
+    private static Optional<MailAwardRow> timedMascotOrPermanent(
+            int typeid, int flagTime, int tempoQntd, int qntd) {
+        return timedMascotOrPermanent(typeid, flagTime, tempoQntd, qntd, null);
+    }
+
+    private static Optional<MailAwardRow> timedMascotOrPermanent(
+            int typeid, int flagTime, int tempoQntd, int qntd, IffMascotRecord mascot) {
+        String message = mascot != null && mascot.messageActive() ? "PangYa SuperSS" : "";
+        int days = resolveMailTime(flagTime, tempoQntd, qntd);
+        if (days > 0) {
+            return Optional.of(MailAwardRow.mascot(typeid, 1, message, days));
+        }
         return Optional.of(MailAwardRow.mascot(typeid, 0, message, 0));
     }
 

@@ -201,10 +201,18 @@ final class MailBoxStore {
     static final class MailAttachment {
         final int typeid;
         final int qntd;
+        final int flagTime;
+        final int tempoQntd;
 
         MailAttachment(int typeid, int qntd) {
+            this(typeid, qntd, 0, 0);
+        }
+
+        MailAttachment(int typeid, int qntd, int flagTime, int tempoQntd) {
             this.typeid = typeid;
             this.qntd = qntd;
+            this.flagTime = flagTime;
+            this.tempoQntd = tempoQntd;
         }
     }
 

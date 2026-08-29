@@ -1915,7 +1915,8 @@ public final class GameHandler {
         }
         MailBoxStore.MailEntry mail = found.get();
         List<ItemInitializer.MailItemRef> mailRefs = mail.items.stream()
-                .map(item -> new ItemInitializer.MailItemRef(item.typeid, item.qntd))
+                .map(item -> new ItemInitializer.MailItemRef(
+                        item.typeid, item.qntd, item.flagTime, item.tempoQntd))
                 .toList();
         List<byte[]> infoItems = ItemInitializer.mailInfoItems(mailRefs);
         session.send(GamePackets.mailInfoOk(
@@ -2015,7 +2016,8 @@ public final class GameHandler {
         }
         MailBoxStore.MailEntry mail = found.get();
         List<ItemInitializer.MailItemRef> mailRefs = mail.items.stream()
-                .map(item -> new ItemInitializer.MailItemRef(item.typeid, item.qntd))
+                .map(item -> new ItemInitializer.MailItemRef(
+                        item.typeid, item.qntd, item.flagTime, item.tempoQntd))
                 .toList();
         for (ItemInitializer.MailItemRef item : mailRefs) {
             if (!ItemInitializer.isMailAwardGroup(item.typeid())) {
@@ -2034,6 +2036,7 @@ public final class GameHandler {
         long uid = session.player().uid;
         for (ItemInitializer.MailAwardRow row : resolved) {
             if (row.group() != GamePackets.IFF_GROUP_CAD_ITEM
+                    && !(row.group() == GamePackets.IFF_GROUP_MASCOT && row.mascotTimeDays() > 0)
                     && !inventory.itemCanOverlap(row.typeid())
                     && inventory.ownsAwardTypeid(uid, row.typeid())) {
                 continue;
@@ -2686,7 +2689,11 @@ public final class GameHandler {
                 cookieAfter = result.cookie();
                 pangSpent += result.pangSpent();
                 cookieSpent += result.cookieSpent();
-                mailItems.add(new MailBoxStore.MailAttachment(item.typeid(), item.qntd()));
+                mailItems.add(new MailBoxStore.MailAttachment(
+                        item.typeid(),
+                        item.qntd(),
+                        item.time() > 0 ? 4 : 0,
+                        item.time() > 0 ? item.time() : 0));
             }
             String fromId = session.player().nickname == null ? "" : session.player().nickname;
             mailboxes.add(toUid, fromId, msg == null ? "" : msg, mailItems);

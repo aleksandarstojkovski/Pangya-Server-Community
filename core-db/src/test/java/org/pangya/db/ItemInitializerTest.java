@@ -119,6 +119,40 @@ class ItemInitializerTest {
     }
 
     @Test
+    void resolveMailTimeMatchesEmailItemConversion() {
+        assertEquals(7, ItemInitializer.resolveMailTime(4, 7, 1));
+        assertEquals(7, ItemInitializer.resolveMailTime(2, 168, 1));
+        assertEquals(3, ItemInitializer.resolveMailTime(0, 0, 3));
+    }
+
+    @Test
+    void resolveMailItemsInitializesTimedSkinWhenIffLoaded() {
+        if (!JP_IFF.toFile().isFile()) {
+            return;
+        }
+        PangyaIffLoader.reload(JP_IFF);
+        var rows = ItemInitializer.resolveMailItems(List.of(
+                new ItemInitializer.MailItemRef(GamePackets.TYPEID_SKIN_RABBITS, 1, 4, 7)));
+        assertEquals(1, rows.size());
+        assertEquals(4, rows.get(0).rentFlag());
+        assertEquals(7, rows.get(0).caddiePeriodDays());
+        assertEquals(0x40, rows.get(0).warehouse().flag());
+    }
+
+    @Test
+    void resolveMailItemsInitializesTimedMascotWhenIffLoaded() {
+        if (!JP_IFF.toFile().isFile()) {
+            return;
+        }
+        PangyaIffLoader.reload(JP_IFF);
+        var rows = ItemInitializer.resolveMailItems(List.of(
+                new ItemInitializer.MailItemRef(GamePackets.TYPEID_MASCOT, 1, 4, 5)));
+        assertEquals(1, rows.size());
+        assertEquals(1, rows.get(0).mascotTipo());
+        assertEquals(5, rows.get(0).mascotTimeDays());
+    }
+
+    @Test
     void fallsBackWhenIffUnloaded() {
         PangyaIffLoader.reload(null);
         var row = ItemInitializer.initFromBuyItem(

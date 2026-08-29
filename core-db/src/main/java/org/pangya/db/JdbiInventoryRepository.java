@@ -1374,6 +1374,17 @@ public final class JdbiInventoryRepository implements InventoryRepository {
         }
         return jdbi.inTransaction(h -> {
             int id = insertWarehouse(h, uid, row.warehouse());
+            long seconds = ItemInitializer.stdaTimeSeconds(row.rentFlag(), row.caddiePeriodDays());
+            if (seconds > 0) {
+                h.createUpdate("""
+                                UPDATE pangya.pangya_item_warehouse
+                                   SET "EndDate" = NOW() + (:secs * INTERVAL '1 second')
+                                 WHERE item_id = :id
+                                """)
+                        .bind("secs", seconds)
+                        .bind("id", id)
+                        .execute();
+            }
             return Optional.of(new AwardInsert(id, 0, 1, 1));
         });
     }
@@ -1425,7 +1436,7 @@ public final class JdbiInventoryRepository implements InventoryRepository {
         if (itemTime <= 0) {
             return null;
         }
-        long addSeconds = cadItemTimeSeconds(flagTime, itemTime);
+        long addSeconds = ItemInitializer.stdaTimeSeconds(flagTime, itemTime);
         if (addSeconds <= 0) {
             return null;
         }
@@ -1433,14 +1444,6 @@ public final class JdbiInventoryRepository implements InventoryRepository {
                 ? existingEndUnix
                 : java.time.Instant.now().getEpochSecond();
         return java.time.Instant.ofEpochSecond(base + addSeconds);
-    }
-
-    private static long cadItemTimeSeconds(int flagTime, int itemTime) {
-        return switch (flagTime) {
-            case 2 -> itemTime * 3600L;
-            case 4 -> itemTime * 86400L;
-            default -> 0L;
-        };
     }
 
     private Optional<AwardInsert> addWarehouseAward(long uid, ItemInitializer.MailAwardRow row) {
@@ -1514,18 +1517,43 @@ public final class JdbiInventoryRepository implements InventoryRepository {
     private Optional<AwardInsert> addMascotAward(long uid, ItemInitializer.MailAwardRow row) {
         return jdbi.inTransaction(h -> {
             int[] existing = h.createQuery("""
-                            SELECT item_id, "Price" FROM pangya.pangya_mascot_info
+                            SELECT item_id, "Price",
+                                   EXTRACT(EPOCH FROM "EndDate")::bigint AS end_unix
+                              FROM pangya.pangya_mascot_info
                              WHERE "UID" = :uid AND typeid = :typeid AND "Valid" = 1
                              ORDER BY item_id
                              LIMIT 1
                             """)
                     .bind("uid", uid)
                     .bind("typeid", row.typeid())
-                    .map((rs, ctx) -> new int[] {rs.getInt("item_id"), rs.getInt("Price")})
+                    .map((rs, ctx) -> new int[] {
+                            rs.getInt("item_id"),
+                            rs.getInt("Price"),
+                            rs.getLong("end_unix") > 0 ? (int) rs.getLong("end_unix") : 0
+                    })
                     .findOne()
                     .orElse(null);
+            int timeDays = row.mascotTimeDays();
             if (existing != null) {
-                return Optional.empty();
+                if (timeDays <= 0) {
+                    return Optional.empty();
+                }
+                long base = existing[2] > 0
+                        ? existing[2]
+                        : java.time.Instant.now().getEpochSecond();
+                java.time.Instant end = java.time.Instant.ofEpochSecond(base + timeDays * 86400L);
+                h.createUpdate("""
+                                UPDATE pangya.pangya_mascot_info
+                                   SET "Tipo" = 1,
+                                       "Period" = :period,
+                                       "EndDate" = :endDate
+                                 WHERE item_id = :id
+                                """)
+                        .bind("period", timeDays)
+                        .bind("endDate", java.sql.Timestamp.from(end))
+                        .bind("id", existing[0])
+                        .execute();
+                return Optional.of(new AwardInsert(existing[0], 0, 1, 1));
             }
             int price = org.pangya.protocol.iff.PangyaIffLoader.mascot(row.typeid())
                     .map(org.pangya.protocol.iff.IffMascotRecord::changePrice)
@@ -1535,7 +1563,6 @@ public final class JdbiInventoryRepository implements InventoryRepository {
                     });
             String message = row.mascotMessage() == null ? "" : row.mascotMessage();
             int tipo = row.mascotTipo();
-            int timeDays = row.mascotTimeDays();
             Integer id = h.createQuery("""
                             INSERT INTO pangya.pangya_mascot_info (
                                 "UID", typeid, "mLevel", "mExp", "Flag", "Tipo",
