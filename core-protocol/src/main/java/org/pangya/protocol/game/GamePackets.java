@@ -1679,6 +1679,10 @@ public final class GamePackets {
     public static final int TYPEID_HOLE_REPEAT_COUNTER = 0x6C40003D;
     /** C# Practice {@code finish_practice} course-practice modo counter. */
     public static final int TYPEID_COURSE_PRACTICE_COUNTER = 0x6C40003E;
+    /** C# {@code initAchievement} normal game counter. */
+    public static final int TYPEID_NORMAL_GAME_COUNTER = 0x6C400002;
+    /** C# Versus {@code finish_versus} normal game complete counter. */
+    public static final int TYPEID_NORMAL_GAME_COMPLETE_COUNTER = 0x6C400004;
     public static final int TYPEID_DAILY_REWARD_TEST = 0x1A000330;
     public static final int TYPEID_UCC_PART_TEST = 0x08000340;
     /** C# transform lottery special typeids. */

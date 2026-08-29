@@ -5611,6 +5611,7 @@ class GameFlowIT {
                         GamePackets.TYPEID_HOLE_COUNT_COUNTER,
                         1);
                 int achievementId = insertDailyAchievement(ds);
+                insertCounterItem(ds, 10001, GamePackets.TYPEID_COURSE_PRACTICE_COUNTER);
                 LoginRepository repo = new JdbiLoginRepository(DatabaseSupport.jdbi(ds));
                 String loginKey = repo.generateAuthKeyLogin(10001);
                 String gameKey = repo.generateAuthKeyGame(10001, 20202);
@@ -5671,16 +5672,29 @@ class GameFlowIT {
 
                 PacketReader counterUpd = awaitOpcode(client, GamePackets.SERVER_DAILY_QUEST_STAMP);
                 counterUpd.u32();
-                assertEquals(1, counterUpd.u32());
-                assertEquals(GamePackets.PAPEL_AWARD_TYPE, counterUpd.u8());
-                assertEquals(GamePackets.TYPEID_HOLE_COUNT_COUNTER, counterUpd.u32());
-                int holeCounterId = counterUpd.i32();
-                counterUpd.u32();
-                assertEquals(0, counterUpd.i32());
-                assertEquals(1, counterUpd.i32());
-                assertEquals(1, counterUpd.i32());
-                counterUpd.readBytes(GamePackets.PAPEL_AWARD_PAD);
+                assertEquals(2, counterUpd.u32());
+                java.util.Map<Integer, int[]> counterRows = new java.util.HashMap<>();
+                for (int i = 0; i < 2; i++) {
+                    assertEquals(GamePackets.PAPEL_AWARD_TYPE, counterUpd.u8());
+                    int typeid = counterUpd.u32();
+                    int counterId = counterUpd.i32();
+                    counterUpd.u32();
+                    assertEquals(0, counterUpd.i32());
+                    assertEquals(1, counterUpd.i32());
+                    assertEquals(1, counterUpd.i32());
+                    counterUpd.readBytes(GamePackets.PAPEL_AWARD_PAD);
+                    counterRows.put(typeid, new int[] {counterId, 1});
+                }
                 assertEquals(0, counterUpd.remaining());
+                assertTrue(counterRows.containsKey(GamePackets.TYPEID_HOLE_COUNT_COUNTER));
+                assertTrue(counterRows.containsKey(GamePackets.TYPEID_COURSE_PRACTICE_COUNTER));
+                int holeCounterId = counterRows.get(GamePackets.TYPEID_HOLE_COUNT_COUNTER)[0];
+
+                assertEquals(1, inv.counters(10001).stream()
+                        .filter(c -> c.typeid() == GamePackets.TYPEID_COURSE_PRACTICE_COUNTER)
+                        .mapToInt(GamePackets.CounterItem::value)
+                        .findFirst()
+                        .orElse(-1));
 
                 PacketReader questClear = awaitOpcode(client, GamePackets.SERVER_ACHIEVEMENT_CLEAR_QUEST);
                 assertEquals(1, questClear.u32());
@@ -7984,6 +7998,23 @@ class GameFlowIT {
         return insertDailyAchievement(ds, 10001);
     }
 
+    private static void insertCounterItem(javax.sql.DataSource ds, long uid, int typeid) {
+        DatabaseSupport.jdbi(ds).useHandle(h -> h.createUpdate("""
+                        DELETE FROM pangya.pangya_counter_item
+                         WHERE "UID" = :uid AND "TypeID" = :typeid
+                        """)
+                .bind("uid", uid)
+                .bind("typeid", typeid)
+                .execute());
+        DatabaseSupport.jdbi(ds).useHandle(h -> h.createUpdate("""
+                        INSERT INTO pangya.pangya_counter_item ("UID", "TypeID", active, "Count_Num_Item")
+                        VALUES (:uid, :typeid, 1, 0)
+                        """)
+                .bind("uid", uid)
+                .bind("typeid", typeid)
+                .execute());
+    }
+
     private static int insertDailyAchievement(javax.sql.DataSource ds, long uid) {
         return DatabaseSupport.jdbi(ds).inTransaction(h -> {
             int id = h.createQuery("""
@@ -8049,7 +8080,12 @@ class GameFlowIT {
                             GamePackets.TYPEID_DAILY_COUNTER_TEST,
                             GamePackets.TYPEID_LOGIN_COUNT_COUNTER,
                             GamePackets.TYPEID_PERSONAL_SHOP_BUY_COUNTER,
-                            GamePackets.TYPEID_PAPEL_PLAY_COUNTER))
+                            GamePackets.TYPEID_PAPEL_PLAY_COUNTER,
+                            GamePackets.TYPEID_HOLE_COUNT_COUNTER,
+                            GamePackets.TYPEID_COURSE_PRACTICE_COUNTER,
+                            GamePackets.TYPEID_HOLE_REPEAT_COUNTER,
+                            GamePackets.TYPEID_NORMAL_GAME_COUNTER,
+                            GamePackets.TYPEID_NORMAL_GAME_COMPLETE_COUNTER))
                     .execute();
             h.createUpdate("DELETE FROM pangya.pangya_daily_quest_player WHERE uid = :uid")
                     .bind("uid", uid)

@@ -545,6 +545,34 @@ public final class JdbiInventoryRepository implements InventoryRepository {
     }
 
     @Override
+    public List<InventoryRepository.CounterIncrement> incrementCounterItemsByTypeid(
+            long uid, int counterTypeid, int delta) {
+        if (counterTypeid == 0 || delta == 0) {
+            return List.of();
+        }
+        return jdbi.inTransaction(h -> h.createQuery("""
+                        UPDATE pangya.pangya_counter_item c
+                           SET "Count_Num_Item" = c."Count_Num_Item" + :delta
+                         WHERE c."UID" = :uid
+                           AND c."TypeID" = :typeid
+                           AND c.active = 1
+                        RETURNING c."Count_ID", c."TypeID",
+                                  c."Count_Num_Item" - :delta AS before_val,
+                                  c."Count_Num_Item" AS after_val
+                        """)
+                .bind("uid", uid)
+                .bind("typeid", counterTypeid)
+                .bind("delta", delta)
+                .map((rs, ctx) -> new InventoryRepository.CounterIncrement(
+                        rs.getInt("Count_ID"),
+                        rs.getInt("TypeID"),
+                        rs.getInt("before_val"),
+                        rs.getInt("after_val"),
+                        delta))
+                .list());
+    }
+
+    @Override
     public InventoryRepository.CounterApplyResult applyCounterIncrements(
             long uid, int counterTypeid, int delta) {
         return applyCounterIncrements(uid, Map.of(counterTypeid, delta));
@@ -563,7 +591,7 @@ public final class JdbiInventoryRepository implements InventoryRepository {
             if (counterTypeid == 0 || delta == 0) {
                 continue;
             }
-            increments.addAll(incrementActiveCounters(uid, counterTypeid, delta));
+            increments.addAll(incrementCounterItemsByTypeid(uid, counterTypeid, delta));
         }
         if (increments.isEmpty()) {
             return new InventoryRepository.CounterApplyResult(List.of(), List.of(), List.of(), List.of());

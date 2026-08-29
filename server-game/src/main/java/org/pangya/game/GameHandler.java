@@ -858,6 +858,7 @@ public final class GameHandler {
         }
         room.initGameFlags();
         for (var member : room.snapshot()) {
+            queueInitGameAchievementCounters(room, member);
             room.initActiveItems(member.oid(), inventory.userEquip(member.player().uid).itemSlot);
             GamePackets.WarehouseItem auto = warehouseByTypeid(member.player().uid, GamePackets.TYPEID_AUTO_COMMAND);
             int qntd = auto == null ? 0 : auto.c[0] & 0xffff;
@@ -2477,6 +2478,7 @@ public final class GameHandler {
         session.send(GamePackets.gameResult(0, room.info.trophy, 0, 2));
         session.send(GamePackets.myStatistics(GamePackets.userInfoPublic(session.player().level)));
         session.send(GamePackets.treasureHunterItem());
+        queueFinishGameAchievementCounters(session, room);
         flushPendingAchievementCounters(session, room);
         long uid = session.player().uid;
         if (creditPang) {
@@ -7070,8 +7072,25 @@ public final class GameHandler {
         finishCounterIncrements(session, session.player().uid, room.takePendingAchievementCounters(session.player().uid));
     }
 
+    /** C# {@code GameBase.initAchievement}: queue counters accumulated until {@code finish_and_update}. */
+    private void queueInitGameAchievementCounters(GameRoom room, Session session) {
+        room.addPendingAchievementCounter(
+                session.player().uid, GamePackets.TYPEID_NORMAL_GAME_COUNTER, 1);
+    }
+
+    /** C# mode finish hooks ({@code finish_versus}, etc.) before {@code finish_and_update}. */
+    private void queueFinishGameAchievementCounters(Session session, GameRoom room) {
+        if (GamePackets.usesVersusInitialData(room.tipo)) {
+            room.addPendingAchievementCounter(
+                    session.player().uid, GamePackets.TYPEID_NORMAL_GAME_COMPLETE_COUNTER, 1);
+        }
+    }
+
     private void sendCounterApplyResult(Session session, InventoryRepository.CounterApplyResult result) {
-        if (result.updatedAchievements().isEmpty()) {
+        if (result.increments().isEmpty()
+                && result.rewardAwards().isEmpty()
+                && result.questClears().isEmpty()
+                && result.updatedAchievements().isEmpty()) {
             return;
         }
         if (!result.increments().isEmpty()) {
@@ -7090,12 +7109,16 @@ public final class GameHandler {
         if (!result.rewardAwards().isEmpty()) {
             session.send(GamePackets.papelAwards(GamePackets.unixNow(), result.rewardAwards()));
         }
-        List<GamePackets.QuestClearEntry> clears = result.questClears().stream()
-                .map(c -> new GamePackets.QuestClearEntry(c.achievementTypeid(), c.questTypeid()))
-                .toList();
-        session.send(GamePackets.achievementClearQuest(clears));
-        session.send(GamePackets.achievementUpdate(
-                result.updatedAchievements(), inventory.counters(session.player().uid)));
+        if (!result.questClears().isEmpty()) {
+            List<GamePackets.QuestClearEntry> clears = result.questClears().stream()
+                    .map(c -> new GamePackets.QuestClearEntry(c.achievementTypeid(), c.questTypeid()))
+                    .toList();
+            session.send(GamePackets.achievementClearQuest(clears));
+        }
+        if (!result.updatedAchievements().isEmpty()) {
+            session.send(GamePackets.achievementUpdate(
+                    result.updatedAchievements(), inventory.counters(session.player().uid)));
+        }
     }
 
     /**

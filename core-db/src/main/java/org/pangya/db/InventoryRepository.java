@@ -59,6 +59,12 @@ public interface InventoryRepository {
     List<CounterIncrement> incrementActiveCounters(long uid, int counterTypeid, int delta);
 
     /**
+     * C# {@code CmdUpdateCounterItem}: bump all active {@code pangya_counter_item}
+     * rows for {@code uid} + {@code counterTypeid} (not limited to daily quests).
+     */
+    List<CounterIncrement> incrementCounterItemsByTypeid(long uid, int counterTypeid, int delta);
+
+    /**
      * C# {@code incrementCounter} + {@code finish_and_update}: increment, evaluate
      * SQL quest-stuff targets, mark clears, and return wire rows for {@code 0x216}/
      * {@code 0x22E}/{@code 0x220}.
