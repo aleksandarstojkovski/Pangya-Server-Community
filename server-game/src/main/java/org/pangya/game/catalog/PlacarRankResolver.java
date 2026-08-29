@@ -64,4 +64,40 @@ public final class PlacarRankResolver {
         }
         return new int[] {redPoint, bluePoint};
     }
+
+    /**
+     * C# {@code Match.changeTurn} hole-end gate: all clear, odd players, chip-in win,
+     * or point lead exceeds remaining holes.
+     */
+    public static boolean matchHoleEnds(
+            boolean allTeamsCleared,
+            int playerCount,
+            boolean redAcerto,
+            boolean blueAcerto,
+            boolean redTimeout,
+            boolean blueTimeout,
+            int redTacada,
+            int blueTacada,
+            int redPoint,
+            int bluePoint,
+            int holeSeq,
+            int qntdHole) {
+        if (allTeamsCleared) {
+            return true;
+        }
+        if ((playerCount % 2) == 1) {
+            return true;
+        }
+        int holeDiff = qntdHole - holeSeq;
+        if (redAcerto && !blueTimeout && blueTacada > 0 && redTacada < blueTacada + 1) {
+            return true;
+        }
+        if (blueAcerto && !redTimeout && redTacada > 0 && blueTacada < redTacada + 1) {
+            return true;
+        }
+        if (redAcerto && !blueTimeout && redTacada == blueTacada + 1 && redPoint - bluePoint > holeDiff) {
+            return true;
+        }
+        return blueAcerto && !redTimeout && blueTacada == redTacada + 1 && bluePoint - redPoint > holeDiff;
+    }
 }

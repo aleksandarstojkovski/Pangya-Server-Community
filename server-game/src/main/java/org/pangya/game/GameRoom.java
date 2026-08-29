@@ -290,6 +290,15 @@ final class GameRoom {
         return null;
     }
 
+    synchronized Session findByOid(int oid) {
+        for (Session session : players) {
+            if (session.oid() == oid) {
+                return session;
+            }
+        }
+        return null;
+    }
+
     synchronized List<Session> snapshot() {
         return List.copyOf(players);
     }
@@ -313,6 +322,13 @@ final class GameRoom {
             team.acertoHole = false;
             team.tacadaNum = 0;
             team.lastWin = 0;
+            team.timeout = false;
+        }
+    }
+
+    void clearMatchTeamTimeouts() {
+        for (MatchTeam team : matchTeams) {
+            team.timeout = false;
         }
     }
 
@@ -355,6 +371,7 @@ final class GameRoom {
         boolean acertoHole;
         int tacadaNum;
         int lastWin;
+        boolean timeout;
     }
 
     /**

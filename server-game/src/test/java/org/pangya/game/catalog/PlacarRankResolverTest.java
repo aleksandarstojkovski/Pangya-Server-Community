@@ -5,6 +5,8 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PlacarRankResolverTest {
 
@@ -32,6 +34,28 @@ class PlacarRankResolverTest {
         assertEquals(1.0f, PlacarRankResolver.matchExpFactor(2, 0));
         assertEquals(1.0f, PlacarRankResolver.matchExpFactor(0, 0));
         assertEquals(0.6f, PlacarRankResolver.matchExpFactor(0, 1));
+    }
+
+    @Test
+    void matchHoleEndsDetectsChipInWin() {
+        assertTrue(PlacarRankResolver.matchHoleEnds(
+                false, 4, true, false, false, false, 2, 4, 0, 0, 5, 18));
+        assertFalse(PlacarRankResolver.matchHoleEnds(
+                false, 4, true, false, false, false, 0, 0, 0, 0, 5, 18));
+    }
+
+    @Test
+    void matchHoleEndsDetectsPointLeadOverRemainingHoles() {
+        assertTrue(PlacarRankResolver.matchHoleEnds(
+                false, 4, true, false, false, false, 4, 3, 10, 1, 10, 18));
+        assertFalse(PlacarRankResolver.matchHoleEnds(
+                false, 4, true, false, false, false, 4, 3, 3, 2, 10, 18));
+    }
+
+    @Test
+    void matchHoleEndsRespectsOpponentTimeout() {
+        assertFalse(PlacarRankResolver.matchHoleEnds(
+                false, 4, true, false, false, true, 2, 4, 0, 0, 5, 18));
     }
 
     @Test

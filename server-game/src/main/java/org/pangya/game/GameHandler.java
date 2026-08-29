@@ -1017,6 +1017,9 @@ public final class GameHandler {
         }
         shot.turnTempo = 0;
         shot.timeOuts++;
+        if (room.tipo == GamePackets.TIPO_MATCH && room.turnOid == session.oid()) {
+            room.matchTeams[room.matchTeamId(session)].timeout = true;
+        }
         room.broadcast(GamePackets.timeout(session.oid()));
     }
 
@@ -1048,6 +1051,12 @@ public final class GameHandler {
         if (shot.barState == 0 && room.turnOid == oid) {
             shot.turnTempo = 0;
             shot.timeOuts++;
+            if (room.tipo == GamePackets.TIPO_MATCH) {
+                Session turn = room.findByOid(oid);
+                if (turn != null) {
+                    room.matchTeams[room.matchTeamId(turn)].timeout = true;
+                }
+            }
         }
         room.broadcast(GamePackets.timeout(oid));
     }
@@ -1878,7 +1887,10 @@ public final class GameHandler {
         }
         applyVersusTurnEndClearBonus(room, session);
         if (room.tipo == GamePackets.TIPO_MATCH) {
-            finishMatchTeamHoleIfReady(room);
+            if (finishMatchTeamHoleIfReady(room)) {
+                return;
+            }
+            room.clearMatchTeamTimeouts();
         }
         int oid = room.rotateTurn();
         if (oid == 0) {
@@ -1890,27 +1902,47 @@ public final class GameHandler {
     }
 
     /**
-     * C# {@code Match.requestFinishTeamHole}: award team hole point when both teams
-     * cleared the hole.
+     * C# {@code Match.requestFinishTeamHole}: award team hole point when the hole
+     * ends ({@code changeTurn} state != 0). Returns true when the hole ended.
      */
-    private void finishMatchTeamHoleIfReady(GameRoom room) {
-        if (!room.allMatchTeamsClearedHole()) {
-            return;
+    private boolean finishMatchTeamHoleIfReady(GameRoom room) {
+        int turnOid = room.turnOid;
+        GameRoom.PlayerShot turnShot = turnOid == 0 ? null : room.shots.get(turnOid);
+        int holeNum = turnShot == null || turnShot.hole == 0 ? 1 : turnShot.hole;
+        int holeSeq = room.course == null ? holeNum : room.course.findHoleSeq(holeNum);
+        GameRoom.MatchTeam red = room.matchTeams[0];
+        GameRoom.MatchTeam blue = room.matchTeams[1];
+        if (!PlacarRankResolver.matchHoleEnds(
+                room.allMatchTeamsClearedHole(),
+                room.snapshot().size(),
+                red.acertoHole,
+                blue.acertoHole,
+                red.timeout,
+                blue.timeout,
+                red.tacadaNum,
+                blue.tacadaNum,
+                red.point,
+                blue.point,
+                holeSeq,
+                room.info.holes)) {
+            return false;
         }
         int[] points = PlacarRankResolver.awardMatchHolePoint(
-                room.matchTeams[0].point,
-                room.matchTeams[1].point,
-                room.matchTeams[0].acertoHole,
-                room.matchTeams[1].acertoHole,
-                room.matchTeams[0].stateFinish,
-                room.matchTeams[1].stateFinish,
-                room.matchTeams[0].tacadaNum,
-                room.matchTeams[1].tacadaNum);
-        room.matchTeams[0].point = points[0];
-        room.matchTeams[1].point = points[1];
-        room.matchTeams[0].stateFinish = 0;
-        room.matchTeams[1].stateFinish = 0;
+                red.point,
+                blue.point,
+                red.acertoHole,
+                blue.acertoHole,
+                red.stateFinish,
+                blue.stateFinish,
+                red.tacadaNum,
+                blue.tacadaNum);
+        red.point = points[0];
+        blue.point = points[1];
+        red.stateFinish = 0;
+        blue.stateFinish = 0;
         room.clearMatchTeamHoleFlags();
+        room.clearMatchTeamTimeouts();
+        return true;
     }
 
     /**
