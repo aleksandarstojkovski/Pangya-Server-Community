@@ -13,8 +13,8 @@ Conteggio Channel: **197** handler `packet_func_sv` registrati in `GameService.i
 
 ## Questo turno
 
-Fatto: **GP enter gates**; **ItemInitializer** (shop set buy, gift, mail take/info); **addAwardItem** routing (warehouse/caddie/mascot/card); **GrandPrixConditionEquip.iff** parser.
-Prossimo: pin `.gbin`; capture JP S9; skin/CAD_ITEM init; GM IFF name in mail text.
+Fatto: **ItemInitializer** mail awards (warehouse/caddie/mascot/card/**character**); **addAwardItem** routing; **GM giveitem/goldenbell** mail attachments; set mail expansion via per-member init.
+Prossimo: pin `.gbin`; capture JP S9; skin/CAD_ITEM init; GM IFF item name in mail text.
 Blocco: pin `.gbin` binaries absent; nessuna capture client JP Season 9.
 
 Percentuale epic: **scheletro 85%** / **parità client reale 43%**.
