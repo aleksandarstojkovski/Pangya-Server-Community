@@ -3812,6 +3812,17 @@ class GameFlowIT {
                 assertEquals(0, page.i32());
                 int mailId = page.i32();
 
+                guest.sendPlain(GamePackets.clientOpenMail(mailId));
+                PacketReader info = awaitOpcode(guest, GamePackets.SERVER_MAIL_INFO);
+                assertEquals(0, info.u32());
+                assertEquals(mailId, info.i32());
+                info.pstr();
+                info.pstr();
+                info.pstr();
+                info.u8();
+                assertEquals(3, info.i32());
+                assertEquals(3 * GamePackets.MAIL_ITEM_BYTES, info.remaining());
+
                 guest.sendPlain(GamePackets.clientTakeMail(mailId));
                 awaitOpcode(guest, GamePackets.SERVER_DAILY_QUEST_STAMP);
                 assertEquals(0, awaitOpcode(guest, GamePackets.SERVER_MAIL_TAKE).u32());

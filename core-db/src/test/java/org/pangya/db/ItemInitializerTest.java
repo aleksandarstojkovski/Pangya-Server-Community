@@ -4,6 +4,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.pangya.protocol.game.GamePackets;
 import org.pangya.protocol.iff.PangyaIffLoader;
+import org.pangya.protocol.packet.PacketReader;
 
 import java.nio.file.Path;
 
@@ -47,6 +48,20 @@ class ItemInitializerTest {
         assertEquals(0x08006010, row.typeid());
         assertEquals(0, row.itemType());
         assertEquals(1, row.c0());
+    }
+
+    @Test
+    void mailInfoItemsExpandsGreenlineSet() {
+        if (!JP_IFF.toFile().isFile()) {
+            return;
+        }
+        PangyaIffLoader.reload(JP_IFF);
+        var bytes = ItemInitializer.mailInfoItems(
+                List.of(new ItemInitializer.MailItemRef(0x24200000, 1)));
+        assertEquals(3, bytes.size());
+        PacketReader first = new PacketReader(bytes.getFirst());
+        assertEquals(-1, first.i32());
+        assertEquals(0x08006010, first.u32());
     }
 
     @Test

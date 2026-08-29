@@ -5220,18 +5220,72 @@ public final class GamePackets {
     }
 
     /**
+     * C# {@code EmailInfo.item.ToArray} (55 bytes).
+     */
+    public static byte[] mailInfoItem(
+            int id,
+            int typeid,
+            int flagTime,
+            int qntd,
+            int tempoQntd,
+            long pang,
+            long cookie,
+            int gmId,
+            int flagGift,
+            String uccMark,
+            int type) {
+        PacketWriter w = new PacketWriter();
+        w.i32(id);
+        w.u32(typeid);
+        w.u8(flagTime);
+        w.u32(qntd);
+        w.u32(tempoQntd);
+        w.u64(pang);
+        w.u64(cookie);
+        w.i32(gmId);
+        w.u32(flagGift);
+        w.fixedStr(uccMark == null ? "" : uccMark, 9);
+        w.zero(3);
+        w.i16(type);
+        byte[] body = w.toBytes();
+        if (body.length != MAIL_ITEM_BYTES) {
+            throw new IllegalStateException("mailInfoItem size " + body.length);
+        }
+        return body;
+    }
+
+    /**
      * C# {@code pacote212} + {@code EmailInfo.ToArray} with no attachments
      * (count 0 still writes a 55-byte zero item).
      */
     public static byte[] mailInfoOk(int id, String fromId, String date, String msg, int lidaYn) {
+        return mailInfoOk(id, fromId, date, msg, lidaYn, List.of());
+    }
+
+    /**
+     * C# {@code pacote212} + {@code EmailInfo.ToArray}. {@code items} are expanded
+     * {@code EmailInfo.item} rows (e.g. after {@code checkSetItemOnEmail}).
+     */
+    public static byte[] mailInfoOk(
+            int id, String fromId, String date, String msg, int lidaYn, List<byte[]> items) {
         PacketWriter w = new PacketWriter().opcode(SERVER_MAIL_INFO).u32(0);
         w.i32(id);
         w.pstr(fromId == null || fromId.isEmpty() ? MAIL_FROM_ADM : fromId);
         w.pstr(date == null ? "" : date);
         w.pstr(msg == null ? "" : msg);
         w.u8(lidaYn);
-        w.i32(0);
-        w.zero(MAIL_ITEM_BYTES);
+        if (items == null || items.isEmpty()) {
+            w.i32(0);
+            w.zero(MAIL_ITEM_BYTES);
+        } else {
+            w.i32(items.size());
+            for (byte[] item : items) {
+                if (item.length != MAIL_ITEM_BYTES) {
+                    throw new IllegalArgumentException("mail item bytes " + item.length);
+                }
+                w.bytes(item);
+            }
+        }
         return w.toBytes();
     }
 

@@ -111,6 +111,24 @@ public final class ItemInitializer {
         return out;
     }
 
+    /** C# {@code checkSetItemOnEmail} preview rows for {@code pacote212}. */
+    public static List<byte[]> mailInfoItems(List<MailItemRef> refs) {
+        if (refs == null || refs.isEmpty()) {
+            return List.of();
+        }
+        List<WarehouseInitRow> resolved = resolveMailItems(refs);
+        if (resolved.isEmpty()) {
+            return refs.stream()
+                    .map(r -> GamePackets.mailInfoItem(
+                            -1, r.typeid(), 0, r.qntd(), 0, 0L, 0L, 0, 0, "", 0))
+                    .toList();
+        }
+        return resolved.stream()
+                .map(r -> GamePackets.mailInfoItem(
+                        -1, r.typeid(), 0, r.qntdDep(), 0, 0L, 0L, 0, 0, "", 0))
+                .toList();
+    }
+
     /** Warehouse groups C# {@code requestTakeItemFomMail} adds via {@code addItem}. */
     public static boolean isWarehouseMailGroup(int typeid) {
         return switch (GamePackets.itemGroupIdentify(typeid)) {

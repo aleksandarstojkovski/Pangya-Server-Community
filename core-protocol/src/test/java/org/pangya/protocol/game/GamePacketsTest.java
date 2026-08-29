@@ -829,6 +829,21 @@ class GamePacketsTest {
         assertEquals(1, info.u8());
         assertEquals(0, info.i32());
         assertEquals(GamePackets.MAIL_ITEM_BYTES, info.remaining());
+        List<byte[]> three = List.of(
+                GamePackets.mailInfoItem(-1, 0x08006010, 0, 1, 0, 0, 0, 0, 0, "", 0),
+                GamePackets.mailInfoItem(-1, 0x0801000A, 0, 1, 0, 0, 0, 0, 0, "", 0),
+                GamePackets.mailInfoItem(-1, 0x0800080A, 0, 1, 0, 0, 0, 0, 0, "", 0));
+        PacketReader setInfo = new PacketReader(
+                GamePackets.mailInfoOk(8, "TestNick", "28/08/2026", "set", 1, three));
+        assertEquals(GamePackets.SERVER_MAIL_INFO, setInfo.opcode());
+        assertEquals(0, setInfo.u32());
+        assertEquals(8, setInfo.i32());
+        setInfo.pstr();
+        setInfo.pstr();
+        setInfo.pstr();
+        setInfo.u8();
+        assertEquals(3, setInfo.i32());
+        assertEquals(3 * GamePackets.MAIL_ITEM_BYTES, setInfo.remaining());
         PacketReader sendOk = new PacketReader(GamePackets.mailFail(GamePackets.SERVER_MAIL_SEND, 0));
         assertEquals(GamePackets.SERVER_MAIL_SEND, sendOk.opcode());
         assertEquals(0, sendOk.u32());

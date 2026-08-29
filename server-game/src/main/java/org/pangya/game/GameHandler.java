@@ -1900,7 +1900,8 @@ public final class GameHandler {
 
     /**
      * C# {@code packet144} / {@code requestInfoMail}: i32 id → {@code 0x212}.
-     * Missing id is CHANNEL sys 1.
+     * Missing id is CHANNEL sys 1. Set attachments expand via
+     * {@code checkSetItemOnEmail} before {@code EmailInfo.ToArray}.
      */
     private void openMail(Session session, PacketReader reader) {
         if (!inChannel(session) || reader.remaining() < 4) {
@@ -1913,7 +1914,12 @@ public final class GameHandler {
             return;
         }
         MailBoxStore.MailEntry mail = found.get();
-        session.send(GamePackets.mailInfoOk(mail.id, mail.fromId, mail.giftDate, mail.msg, mail.lidaYn));
+        List<ItemInitializer.MailItemRef> mailRefs = mail.items.stream()
+                .map(item -> new ItemInitializer.MailItemRef(item.typeid, item.qntd))
+                .toList();
+        List<byte[]> infoItems = ItemInitializer.mailInfoItems(mailRefs);
+        session.send(GamePackets.mailInfoOk(
+                mail.id, mail.fromId, mail.giftDate, mail.msg, mail.lidaYn, infoItems));
     }
 
     /**
