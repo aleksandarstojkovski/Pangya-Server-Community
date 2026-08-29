@@ -1864,8 +1864,10 @@ public final class GameHandler {
 
     /**
      * C# {@code packet065} / VersusBase {@code requestActiveBooster}: f32 speed →
-     * {@code 0xC7}. Non-premium requires warehouse Time Booster in {@code v_passive};
-     * missing item or spent uses is silent (C# catch).
+     * {@code 0xC7}. Premium users queue passive/time-booster counters immediately;
+     * non-premium requires warehouse Time Booster in {@code v_passive}. Missing item
+     * or spent uses is silent (C# catch). Grand Prix only counts at speed ≥ 3.0f
+     * with inverted premium logic per C# {@code GrandPrix.requestActiveBooster}.
      */
     private void activeBooster(Session session, PacketReader reader) {
         GameRoom room = inGameRoom(session);
@@ -1873,9 +1875,20 @@ public final class GameHandler {
             return;
         }
         float speed = reader.f32();
-        GamePackets.WarehouseItem item = warehouseByTypeid(session.player().uid, PassiveItems.TIME_BOOSTER);
-        int qntd = item == null ? 0 : item.c[0] & 0xffff;
-        if (room.tryUsePassive(session.oid(), PassiveItems.TIME_BOOSTER, qntd) != 0) {
+        boolean premium = (session.player().capability & GamePackets.CAPABILITY_PREMIUM_USER) != 0;
+        if (room.tipo == GamePackets.TIPO_GRAND_PRIX) {
+            if (speed >= 3.0f) {
+                if (premium) {
+                    if (!consumeTimeBoosterPassive(session, room)) {
+                        return;
+                    }
+                } else {
+                    queueTimeBoosterCounters(room, session.player().uid);
+                }
+            }
+        } else if (premium) {
+            queueTimeBoosterCounters(room, session.player().uid);
+        } else if (!consumeTimeBoosterPassive(session, room)) {
             return;
         }
         byte[] pkt = GamePackets.speedRate(speed, session.oid());
@@ -1884,6 +1897,20 @@ public final class GameHandler {
         } else {
             session.send(pkt);
         }
+    }
+
+    /** C# VersusBase non-premium / Grand Prix premium warehouse + {@code v_passive} use. */
+    private boolean consumeTimeBoosterPassive(Session session, GameRoom room) {
+        GamePackets.WarehouseItem item =
+                warehouseByTypeid(session.player().uid, PassiveItems.TIME_BOOSTER);
+        int qntd = item == null ? 0 : item.c[0] & 0xffff;
+        return room.tryUsePassive(session.oid(), PassiveItems.TIME_BOOSTER, qntd) == 0;
+    }
+
+    /** C# VersusBase premium / Grand Prix non-premium immediate achievement counters. */
+    private static void queueTimeBoosterCounters(GameRoom room, long uid) {
+        room.addPendingAchievementCounter(uid, GamePackets.TYPEID_PASSIVE_ITEM_COUNTER, 1);
+        room.addPendingAchievementCounter(uid, GamePackets.TYPEID_TIME_BOOSTER_COUNTER, 1);
     }
 
     /**
