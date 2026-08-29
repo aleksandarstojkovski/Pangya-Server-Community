@@ -2647,6 +2647,7 @@ class GamePacketsTest {
         assertEquals(GamePackets.MEMORIAL_ERR_SYSTEM, 0x6300305);
         assertEquals(GamePackets.GP_ENTER_ERR_CREATE, 0x6700002);
         assertEquals(GamePackets.GP_ENTER_ERR_LEVEL, 0x6700006);
+        assertEquals(GamePackets.GP_ENTER_ERR_TICKET, 0x6700009);
         assertEquals(GamePackets.TIKI_EXCHANGE_ITEM_BYTES, 16);
         assertEquals(GamePackets.TIKI_EXCHANGE_TP_BYTES, 12);
         assertEquals(GamePackets.TIKI_EXCHANGE_OK, 0);

@@ -724,6 +724,35 @@ class InventoryRepositoryTest {
         }
     }
 
+    @Test
+    void ownerSetItemTrueWhenPackagePartOwned() {
+        var jpIff = java.nio.file.Path.of(
+                "reference/pangya-server-community/Server/JP/GameServer/data/pangya_jp.iff");
+        if (!jpIff.toFile().isFile()) {
+            return;
+        }
+        String url = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        DatabaseSupport.migrate(url, user, password);
+
+        try (var ds = DatabaseSupport.dataSource(url, user, password)) {
+            InventoryRepository repo = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
+            try {
+                PangyaIffLoader.reload(jpIff);
+                int setTypeid = 0x24200000;
+                int partTypeid = 0x08006010;
+                repo.deleteWarehouseByTypeid(10001, partTypeid);
+                assertFalse(repo.ownerSetItem(10001, setTypeid));
+                repo.addWarehouseItem(10001, partTypeid, 1);
+                assertTrue(repo.ownerSetItem(10001, setTypeid));
+            } finally {
+                PangyaIffLoader.reload(null);
+                repo.deleteWarehouseByTypeid(10001, 0x08006010);
+            }
+        }
+    }
+
     private static String env(String name, String fallback) {
         String v = System.getenv(name);
         return (v == null || v.isBlank()) ? fallback : v;

@@ -2,6 +2,7 @@ package org.pangya.protocol.iff;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.pangya.protocol.game.GamePackets;
 
 import java.nio.file.Path;
 
@@ -30,6 +31,15 @@ class IffGrandPrixDataFileTest {
         assertEquals(9, row.holes());
         assertEquals(0, row.modo());
         assertEquals(0, row.rule());
+    }
+
+    @Test
+    void loadsGpTicketFromControlPracticeRow() throws Exception {
+        assumeReferenceIffPresent();
+        PangyaIffLoader.reload(JP_IFF);
+        IffGrandPrixDataRecord row = PangyaIffLoader.grandPrixData(0x100).orElseThrow();
+        assertEquals(GamePackets.TYPEID_GP_TICKET, row.ticketTypeid());
+        assertEquals(1, row.ticketQntd());
     }
 
     @Test

@@ -11,4 +11,6 @@ public record IffGrandPrixDataRecord(
         int holes,
         boolean naturalMode,
         int minLevel,
-        int maxLevel) {}
+        int maxLevel,
+        int ticketTypeid,
+        int ticketQntd) {}

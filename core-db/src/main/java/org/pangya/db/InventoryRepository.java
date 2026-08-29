@@ -360,6 +360,9 @@ public interface InventoryRepository {
 
     void deleteGrandPrixEvent(int typeid);
 
+    /** C# {@code PlayerInfo.ownerSetItem}: true when any non-character package member is owned. */
+    boolean ownerSetItem(long uid, int setTypeid);
+
     long legacyTikiPoints(long uid);
 
     void setLegacyTikiPoints(long uid, long points);
@@ -515,10 +518,15 @@ public interface InventoryRepository {
             long pang,
             long cookie,
             long pangSpent,
-            long cookieSpent) {
+            long cookieSpent,
+            List<org.pangya.protocol.game.GamePackets.BoughtItem> awards) {
+
+        public ShopBuyResult {
+            awards = awards == null ? List.of() : List.copyOf(awards);
+        }
 
         public static ShopBuyResult fail(int code) {
-            return new ShopBuyResult(code, 0, 0, 0, 0, 0, 0, 0);
+            return new ShopBuyResult(code, 0, 0, 0, 0, 0, 0, 0, List.of());
         }
     }
 

@@ -631,6 +631,9 @@ public final class JdbiInventoryRepository implements InventoryRepository {
 
     private ShopBuyResult chargeShopItem(
             Handle h, long uid, int typeid, int qntd, int clientPang, int clientCookie, boolean addWarehouse) {
+        if (addWarehouse && GamePackets.itemGroupIdentify(typeid) == GamePackets.IFF_GROUP_SET_ITEM) {
+            return chargeSetShopItem(h, uid, typeid, qntd, clientPang, clientCookie);
+        }
         ShopItem item = h.createQuery("""
                         SELECT typeid, pang_price, cookie_price, can_overlap
                           FROM pangya.shop_catalog
@@ -697,7 +700,132 @@ public final class JdbiInventoryRepository implements InventoryRepository {
                 .bind("uid", uid)
                 .execute();
         return new ShopBuyResult(
-                0, itemId, typeid, qntd, pangAfter, cookieAfter, pangSpent, cookieSpent);
+                0, itemId, typeid, qntd, pangAfter, cookieAfter, pangSpent, cookieSpent, List.of());
+    }
+
+    private ShopBuyResult chargeSetShopItem(
+            Handle h, long uid, int setTypeid, int qntd, int clientPang, int clientCookie) {
+        Optional<SetItemIff> setOpt = setItemIff(setTypeid);
+        if (setOpt.isEmpty()) {
+            return ShopBuyResult.fail(GamePackets.BUY_FAIL_NOT_BUYABLE);
+        }
+        if (ownerSetItem(uid, setTypeid)) {
+            return ShopBuyResult.fail(GamePackets.BUY_FAIL_OWNED);
+        }
+        ShopItem item = h.createQuery("""
+                        SELECT typeid, pang_price, cookie_price, can_overlap
+                          FROM pangya.shop_catalog
+                         WHERE typeid = :typeid
+                        """)
+                .bind("typeid", setTypeid)
+                .map((rs, ctx) -> new ShopItem(
+                        rs.getInt("typeid"),
+                        rs.getInt("pang_price"),
+                        rs.getInt("cookie_price"),
+                        rs.getInt("can_overlap") != 0))
+                .findOne()
+                .orElse(null);
+        if (item == null) {
+            return ShopBuyResult.fail(GamePackets.BUY_FAIL_NOT_BUYABLE);
+        }
+        boolean cash = item.cookiePrice() > 0;
+        int expected = cash ? item.cookiePrice() * qntd : item.pangPrice() * qntd;
+        int offered = cash ? clientCookie : clientPang;
+        if (offered != expected) {
+            return ShopBuyResult.fail(GamePackets.BUY_FAIL_PRICE);
+        }
+        long pang = h.createQuery("SELECT COALESCE(\"Pang\", 0) FROM pangya.user_info WHERE \"UID\" = :uid")
+                .bind("uid", uid)
+                .mapTo(Long.class)
+                .findOne()
+                .orElse(0L);
+        long cookie = h.createQuery("SELECT COALESCE(\"Cookie\", 0) FROM pangya.user_info WHERE \"UID\" = :uid")
+                .bind("uid", uid)
+                .mapTo(Long.class)
+                .findOne()
+                .orElse(0L);
+        long pangSpent = cash ? 0L : (long) item.pangPrice() * qntd;
+        long cookieSpent = cash ? (long) item.cookiePrice() * qntd : 0L;
+        if (pang < pangSpent || cookie < cookieSpent) {
+            return ShopBuyResult.fail(GamePackets.BUY_FAIL_FUNDS);
+        }
+        SetItemIff set = setOpt.get();
+        List<GamePackets.BoughtItem> awards = new ArrayList<>();
+        for (int i = 0; i < set.total(); i++) {
+            int compTypeid = set.itemTypeids()[i];
+            if (compTypeid == 0) {
+                continue;
+            }
+            if (GamePackets.itemGroupIdentify(compTypeid) == GamePackets.IFF_GROUP_CHARACTER) {
+                continue;
+            }
+            if (!item.canOverlap() && ownsWarehouseTypeid(h, uid, compTypeid)) {
+                continue;
+            }
+            int compQntd = set.itemQntds()[i];
+            if (compQntd <= 0) {
+                compQntd = 1;
+            }
+            int id = insertWarehouse(h, uid, compTypeid, compQntd);
+            awards.add(new GamePackets.BoughtItem(compTypeid, id, 0, 0, compQntd));
+        }
+        if (awards.isEmpty()) {
+            return ShopBuyResult.fail(GamePackets.BUY_FAIL_NOT_BUYABLE);
+        }
+        long pangAfter = pang - pangSpent;
+        long cookieAfter = cookie - cookieSpent;
+        h.createUpdate("""
+                        UPDATE pangya.user_info
+                           SET "Pang" = :pang, "Cookie" = :cookie
+                         WHERE "UID" = :uid
+                        """)
+                .bind("pang", pangAfter)
+                .bind("cookie", cookieAfter)
+                .bind("uid", uid)
+                .execute();
+        GamePackets.BoughtItem first = awards.getFirst();
+        return new ShopBuyResult(
+                0, first.id(), setTypeid, first.qntdDep(), pangAfter, cookieAfter, pangSpent, cookieSpent, awards);
+    }
+
+    private static boolean ownsWarehouseTypeid(Handle h, long uid, int typeid) {
+        return h.createQuery("""
+                        SELECT 1 FROM pangya.pangya_item_warehouse
+                         WHERE "UID" = :uid AND typeid = :typeid AND valid = 1
+                         LIMIT 1
+                        """)
+                .bind("uid", uid)
+                .bind("typeid", typeid)
+                .mapTo(Integer.class)
+                .findOne()
+                .isPresent();
+    }
+
+    @Override
+    public boolean ownerSetItem(long uid, int setTypeid) {
+        if (GamePackets.itemGroupIdentify(setTypeid) != GamePackets.IFF_GROUP_SET_ITEM) {
+            return false;
+        }
+        Optional<SetItemIff> setOpt = setItemIff(setTypeid);
+        if (setOpt.isEmpty()) {
+            return false;
+        }
+        SetItemIff set = setOpt.get();
+        return jdbi.withHandle(h -> {
+            for (int i = 0; i < set.total(); i++) {
+                int compTypeid = set.itemTypeids()[i];
+                if (compTypeid == 0) {
+                    continue;
+                }
+                if (GamePackets.itemGroupIdentify(compTypeid) == GamePackets.IFF_GROUP_CHARACTER) {
+                    continue;
+                }
+                if (ownsWarehouseTypeid(h, uid, compTypeid)) {
+                    return true;
+                }
+            }
+            return false;
+        });
     }
 
     @Override

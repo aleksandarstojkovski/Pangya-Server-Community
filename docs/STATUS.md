@@ -13,8 +13,8 @@ Conteggio Channel: **197** handler `packet_func_sv` registrati in `GameService.i
 
 ## Questo turno
 
-Fatto: **`GrandPrixSpecialHole.iff`** (20-byte, 84 rows) + GP hole sequence in `GameCourse` (rank `0x100` → maps 11/16/20); `gpRankTypeid` from `TypeID_Link` on GP enter.
-Prossimo: pin `.gbin`; capture JP S9; GP ticket/time/clear gates; set-item shop/gift expansion (`getItemOfSetItem`).
+Fatto: **GP ticket gate** (`GrandPrixData.ticket` → `GP_ENTER_ERR_TICKET` when missing); **`ownerSetItem`** + set-item shop buy expands package into multiple `0xAA` rows when IFF loaded.
+Prossimo: pin `.gbin`; capture JP S9; GP time/clear/equip gates; full `getItemOfSetItem` init parity.
 Blocco: pin `.gbin` binaries absent; nessuna capture client JP Season 9.
 
 Percentuale epic: **scheletro 85%** / **parità client reale 43%**.

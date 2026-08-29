@@ -2555,8 +2555,14 @@ public final class GameHandler {
                     session.send(GamePackets.buyFailed(result.code()));
                     return;
                 }
-                bought.add(new GamePackets.BoughtItem(
-                        result.typeid(), result.itemId(), 0, 0, result.qntdDep()));
+                if (!result.awards().isEmpty()) {
+                    for (GamePackets.BoughtItem award : result.awards()) {
+                        bought.add(award);
+                    }
+                } else {
+                    bought.add(new GamePackets.BoughtItem(
+                            result.typeid(), result.itemId(), 0, 0, result.qntdDep()));
+                }
                 pang = result.pang();
                 cookie = result.cookie();
                 pangSpent += result.pangSpent();
@@ -6866,6 +6872,19 @@ public final class GameHandler {
                     GamePackets.SERVER_START_GAME_FAIL,
                     GamePackets.shopSys(GamePackets.GP_ENTER_ERR_LEVEL)));
             return;
+        }
+        var iffGp = org.pangya.protocol.iff.PangyaIffLoader.grandPrixData(typeid);
+        if (iffGp.isPresent()) {
+            var gpIff = iffGp.get();
+            if (gpIff.ticketQntd() > 0 && gpIff.ticketTypeid() > 0) {
+                GamePackets.WarehouseItem ticket = warehouseByTypeid(pi.uid, gpIff.ticketTypeid());
+                if (ticket == null || (ticket.c[0] & 0xffff) < gpIff.ticketQntd()) {
+                    session.send(GamePackets.sysAck(
+                            GamePackets.SERVER_START_GAME_FAIL,
+                            GamePackets.shopSys(GamePackets.GP_ENTER_ERR_TICKET)));
+                    return;
+                }
+            }
         }
         GameRoom target = null;
         for (GameRoom room : rooms.values()) {

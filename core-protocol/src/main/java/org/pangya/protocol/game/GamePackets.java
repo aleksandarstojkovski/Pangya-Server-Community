@@ -2011,6 +2011,10 @@ public final class GamePackets {
     public static final int GP_ENTER_ERR_CREATE = 0x6700002;
     public static final int GP_ENTER_ERR_FULL = 0x6700005;
     public static final int GP_ENTER_ERR_LEVEL = 0x6700006;
+    /** C# GP room missing ticket CHANNEL sys {@code 0x6700009}. */
+    public static final int GP_ENTER_ERR_TICKET = 0x6700009;
+    /** C# GP ticket item from JP {@code GrandPrixData.ticket} ({@code 0x1A000264}). */
+    public static final int TYPEID_GP_TICKET = 0x1A000264;
     /** C# {@code pacote24E} holes-per-phase literal. */
     public static final int WORKSHOP_EVENT_HOLES = 3000;
     /** C# {@code requestClubWorkShopEventCount} writes 16 subcodes {@code 1..16}. */
