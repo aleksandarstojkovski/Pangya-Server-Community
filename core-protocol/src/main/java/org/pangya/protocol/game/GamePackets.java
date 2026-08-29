@@ -1065,6 +1065,8 @@ public final class GamePackets {
     /** C# {@code eChatMsg.CHAT_REFUSE_WHISPER}. {@code pacote040} writes nick only. */
     public static final int CHAT_REFUSE_WHISPER = 4;
     public static final int CHAT_OFFLINE = 6;
+    /** C# artefact pang jackpot broadcast on {@code 0x40}. */
+    public static final int CHAT_JACKPOT = 10;
     public static final int CHAT_GM = 0x80;
     public static final int WHISPER_FROM = 0;
     public static final int WHISPER_TO = 1;
@@ -2507,12 +2509,24 @@ public final class GamePackets {
     public static final long DROP_TYPE_COIN_GROUND = 4;
     /** C# {@code DropItem.eTYPE.NORMAL_QNTD}. */
     public static final long DROP_TYPE_NORMAL_QNTD = 1;
+    /** C# {@code DropItem.eTYPE.QNTD_MULTIPLE_500}. */
+    public static final long DROP_TYPE_QNTD_MULTIPLE_500 = 2;
     /** C# {@code SSC_TICKET}. */
     public static final int TYPEID_SSC_TICKET = 0x1A0000F7;
     /** C# {@code drawSSCTicket} achievement counter. */
     public static final int TYPEID_SSC_TICKET_COUNTER = 0x6C400053;
     /** C# {@code ART_FROZEN_FLAME}: active items are not consumed at finish. */
     public static final int ART_FROZEN_FLAME = 0x1A0001FA;
+    /** C# {@code ART_WICKED_BROOMSTICK}. */
+    public static final int ART_WICKED_BROOMSTICK = 0x1A0001B4;
+    /** C# {@code ART_TEORITE_ORE}. */
+    public static final int ART_TEORITE_ORE = 0x1A0001B6;
+    /** C# {@code ART_REDNOSE_WIZBERRY}. */
+    public static final int ART_REDNOSE_WIZBERRY = 0x1A0001B8;
+    /** C# {@code ART_MAGANI_FLOWER}. */
+    public static final int ART_MAGANI_FLOWER = 0x1A0001BA;
+    /** C# {@code ART_ROGER_K_STEERING_WHEEL}. */
+    public static final int ART_ROGER_K_STEERING_WHEEL = 0x1A0001BC;
     /** C# {@code CLUB_PATCHER_TYPEID} {@code 0x1A00018F}. */
     public static final int TYPEID_CLUB_PATCHER = 0x1A00018F;
     /** C# gacha ticket typeid {@code 436207744}. */
@@ -5800,6 +5814,17 @@ public final class GamePackets {
                 .u8(option)
                 .pstr(nick == null ? "" : nick)
                 .pstr(msg == null ? "" : msg)
+                .toBytes();
+    }
+
+    /** C# {@code requestInitDrop} artefact pang jackpot: option 10 + nick + empty msg + pang. */
+    public static byte[] jackpotNotice(String nick, int pang) {
+        return new PacketWriter()
+                .opcode(SERVER_CHAT)
+                .u8(CHAT_JACKPOT)
+                .pstr(nick == null ? "" : nick)
+                .pstr("")
+                .i32(pang)
                 .toBytes();
     }
 

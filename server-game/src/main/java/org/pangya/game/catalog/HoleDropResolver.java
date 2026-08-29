@@ -199,4 +199,47 @@ public final class HoleDropResolver {
         }
         return 1;
     }
+
+    /** C# {@code DropSystem.drawArtefactPang} on last hole of 18-hole games. */
+    public static java.util.Optional<GamePackets.DropItem> drawArtefactPang(
+            int courseId,
+            int holeNum,
+            int qntdHole,
+            int seqHole,
+            int artefactTypeid,
+            int playerCount) {
+        if (qntdHole != 18 || seqHole != qntdHole || artefactTypeid == 0) {
+            return java.util.Optional.empty();
+        }
+        int pangMult = artefactPangMultiplier(artefactTypeid, playerCount);
+        if (pangMult <= 0) {
+            return java.util.Optional.empty();
+        }
+        return java.util.Optional.of(new GamePackets.DropItem(
+                GamePackets.TYPEID_PANG_POUCH,
+                courseId,
+                holeNum,
+                pangMult,
+                GamePackets.DROP_TYPE_QNTD_MULTIPLE_500));
+    }
+
+    /** C# artefact → pang pouch multiplier (warehouse qntd × 500 at save). */
+    static int artefactPangMultiplier(int artefactTypeid, int playerCount) {
+        return switch (artefactTypeid) {
+            case GamePackets.ART_WICKED_BROOMSTICK -> 1;
+            case GamePackets.ART_TEORITE_ORE -> 2;
+            case GamePackets.ART_REDNOSE_WIZBERRY -> 3;
+            case GamePackets.ART_MAGANI_FLOWER -> 6;
+            case GamePackets.ART_ROGER_K_STEERING_WHEEL -> rogerKPang(playerCount);
+            default -> 0;
+        };
+    }
+
+    private static int rogerKPang(int playerCount) {
+        java.util.concurrent.ThreadLocalRandom rng = java.util.concurrent.ThreadLocalRandom.current();
+        if (playerCount < 25) {
+            return 1 + rng.nextInt(6);
+        }
+        return 1 + rng.nextInt(1002);
+    }
 }

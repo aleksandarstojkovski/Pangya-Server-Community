@@ -383,6 +383,19 @@ public interface InventoryRepository {
     /** C# {@code CmdCoinCubeLocationInfo}: live coin/cube coordinates per course. */
     List<CoinCubeLocation> coinCubeLocations();
 
+    /** C# {@code CmdDropCourseInfo}: course → active drop rows. */
+    java.util.Map<Integer, List<CourseDropItem>> courseDropIndex();
+
+    record CourseDropItem(
+            int course,
+            int tipo,
+            int typeid,
+            int qntd,
+            int prob3h,
+            int prob6h,
+            int prob9h,
+            int prob18h) {}
+
     /** C# {@code MapSystem} / IFF {@code Course.Par_Hole} keyed by {@code (courseId << 8) | hole}. */
     java.util.Map<Integer, Integer> courseParIndex();
 

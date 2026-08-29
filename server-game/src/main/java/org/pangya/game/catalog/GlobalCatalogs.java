@@ -33,6 +33,7 @@ public final class GlobalCatalogs {
     private volatile Map<Integer, List<InventoryRepository.AttendanceCatalogItem>> attendanceByTipo = Map.of();
     private volatile Map<Short, Boolean> coinCubeActive = Map.of();
     private volatile Map<Short, List<InventoryRepository.CoinCubeLocation>> coinCubeByCourse = Map.of();
+    private volatile Map<Integer, List<InventoryRepository.CourseDropItem>> courseDropByCourse = Map.of();
     private volatile Map<Integer, Integer> coursePar = Map.of();
     private volatile Map<Short, MapCatalog.CourseCtx> courseMaps = Map.of();
 
@@ -59,7 +60,7 @@ public final class GlobalCatalogs {
                 case 5 -> reloadBoxMail();
                 case 6 -> reloadMemorial();
                 case 7, 14 -> reloadCoinCube();
-                case 8, 9 -> log.info("auth reload tipo={} (treasure/drop not cataloged in SQL yet)", tipo);
+                case 8, 9 -> reloadCourseDrops();
                 case 10 -> reloadAttendance();
                 case 11 -> reloadCourseData();
                 case 12, 13, 15, 16, 17 -> log.info("auth reload event tipo={} (event SQL stub)", tipo);
@@ -85,6 +86,7 @@ public final class GlobalCatalogs {
         reloadMemorial();
         reloadAttendance();
         reloadCoinCube();
+        reloadCourseDrops();
         reloadCourseData();
         log.info("auth reload all global SQL catalogs ok");
     }
@@ -142,6 +144,15 @@ public final class GlobalCatalogs {
         Map<Short, List<InventoryRepository.CoinCubeLocation>> frozen = new HashMap<>();
         byCourse.forEach((k, v) -> frozen.put(k, List.copyOf(v)));
         coinCubeByCourse = Map.copyOf(frozen);
+    }
+
+    private void reloadCourseDrops() {
+        courseDropByCourse = Map.copyOf(inventory.courseDropIndex());
+    }
+
+    /** C# {@code DropSystem.findCourse}. */
+    public List<InventoryRepository.CourseDropItem> courseDropItems(int courseId) {
+        return courseDropByCourse.getOrDefault(courseId, List.of());
     }
 
     private void reloadCourseData() {

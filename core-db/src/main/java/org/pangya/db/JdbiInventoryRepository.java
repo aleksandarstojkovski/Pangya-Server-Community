@@ -4244,6 +4244,35 @@ public final class JdbiInventoryRepository implements InventoryRepository {
     }
 
     @Override
+    public java.util.Map<Integer, List<CourseDropItem>> courseDropIndex() {
+        return jdbi.withHandle(h -> {
+            java.util.Map<Integer, List<CourseDropItem>> out = new java.util.HashMap<>();
+            h.createQuery("""
+                            SELECT course, tipo, typeid, quantidade,
+                                   "probabilidade_3H", "probabilidade_6H",
+                                   "probabilidade_9H", "probabilidade_18H"
+                              FROM pangya.pangya_new_course_drop_item
+                             WHERE active = 1
+                             ORDER BY course, "index"
+                            """)
+                    .map((rs, ctx) -> new CourseDropItem(
+                            rs.getInt("course"),
+                            rs.getInt("tipo"),
+                            rs.getInt("typeid"),
+                            rs.getInt("quantidade"),
+                            rs.getInt("probabilidade_3H"),
+                            rs.getInt("probabilidade_6H"),
+                            rs.getInt("probabilidade_9H"),
+                            rs.getInt("probabilidade_18H")))
+                    .list()
+                    .forEach(row -> out.computeIfAbsent(row.course(), k -> new java.util.ArrayList<>()).add(row));
+            java.util.Map<Integer, List<CourseDropItem>> frozen = new java.util.HashMap<>();
+            out.forEach((k, v) -> frozen.put(k, List.copyOf(v)));
+            return frozen;
+        });
+    }
+
+    @Override
     public java.util.Map<Integer, Integer> courseParIndex() {
         return jdbi.withHandle(h -> {
             java.util.Map<Integer, Integer> out = new java.util.HashMap<>();

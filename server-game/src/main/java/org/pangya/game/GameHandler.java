@@ -1,5 +1,6 @@
 package org.pangya.game;
 
+import org.pangya.game.catalog.CourseDropResolver;
 import org.pangya.game.catalog.CubeCoinResolver;
 import org.pangya.game.catalog.GlobalCatalogs;
 import org.pangya.game.catalog.HoleDropResolver;
@@ -1246,6 +1247,28 @@ public final class GameHandler {
         int charMotion = charMotionItem(session, room);
         int rateDrop = 100;
         int angelWings = 0;
+        int seqHole = holeNum;
+        int qntdHole = room.info.holes;
+        int playerCount = room.players.size();
+
+        if (qntdHole == 18 && seqHole == qntdHole) {
+            HoleDropResolver.drawArtefactPang(
+                            courseId, holeNum, qntdHole, seqHole, room.info.artefato, playerCount)
+                    .ifPresent(drop -> {
+                        appendHoleDrop(shot, drops, drop);
+                        if (drop.qntd() >= 30) {
+                            String nick = session.player().nickname == null ? "" : session.player().nickname;
+                            room.broadcast(GamePackets.jackpotNotice(nick, drop.qntd() * 500));
+                        }
+                    });
+        }
+
+        CourseDropResolver.CourseDropCtx dropCtx = new CourseDropResolver.CourseDropCtx(
+                courseId, holeNum, seqHole, qntdHole, room.info.artefato, charMotion, rateDrop, angelWings);
+        for (GamePackets.DropItem drop : CourseDropResolver.drawCourse(
+                catalogs.courseDropItems(courseId), dropCtx)) {
+            appendHoleDrop(shot, drops, drop);
+        }
 
         List<GamePackets.DropItem> ssc = HoleDropResolver.drawSscTickets(
                 liveRateSscTicket,
@@ -1271,7 +1294,6 @@ public final class GameHandler {
                         PangyaIffLoader.manaArtefactTypeids())
                 .ifPresent(drop -> appendHoleDrop(shot, drops, drop));
 
-        int seqHole = holeNum;
         if (seqHole == room.info.holes && room.tipo != GamePackets.TIPO_GRAND_PRIX) {
             GamePackets.WarehouseItem gp = warehouseByTypeid(
                     session.player().uid, GamePackets.TYPEID_GP_TICKET);
@@ -1525,7 +1547,10 @@ public final class GameHandler {
             if (drop.typeid() == 0 || drop.qntd() <= 0) {
                 continue;
             }
-            byTypeid.merge(drop.typeid(), drop.qntd(), Integer::sum);
+            int qntd = drop.type() == GamePackets.DROP_TYPE_QNTD_MULTIPLE_500
+                    ? drop.qntd() * 500
+                    : drop.qntd();
+            byTypeid.merge(drop.typeid(), qntd, Integer::sum);
         }
         if (byTypeid.isEmpty()) {
             return;
