@@ -1757,6 +1757,10 @@ public final class GamePackets {
     public static final int TYPEID_GP_CLASS_EVENT_COUNTER = 0x6C4000AD;
     /** C# Grand Prix class counter when {@code isGrandPrixEvent}. */
     public static final int TYPEID_GP_CLASS_EVENT_SPECIAL_COUNTER = 0x6C4000AE;
+    /** C# {@code GrandPrix.init_bots}: 1 human + AI fill ({@code 0x6C4000B7}). */
+    public static final int TYPEID_GP_ALL_AI_COUNTER = 0x6C4000B7;
+    /** C# {@code GrandPrix.init_bots}: full room, no AI ({@code 0x6C4000B8}). */
+    public static final int TYPEID_GP_ALL_PLAYER_COUNTER = 0x6C4000B8;
     /** C# {@code records_player_achievement} OB counter. */
     public static final int TYPEID_OB_COUNTER = 0x6C40004C;
     /** C# {@code records_player_achievement} bunker counter. */

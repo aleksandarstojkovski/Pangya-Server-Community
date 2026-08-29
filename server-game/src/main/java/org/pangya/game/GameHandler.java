@@ -9,6 +9,7 @@ import org.pangya.game.catalog.PlacarRankResolver;
 import org.pangya.game.catalog.PlayerRateResolver;
 import org.pangya.game.catalog.PlayerRateResolver.PlayerRates;
 import org.pangya.protocol.iff.IffClubSetRecord;
+import org.pangya.protocol.iff.GrandPrixEnterWindow;
 import org.pangya.protocol.iff.PangyaIffLoader;
 import org.pangya.game.catalog.GlobalCatalogs;
 import org.pangya.game.catalog.HoleDropResolver;
@@ -904,6 +905,9 @@ public final class GameHandler {
                 room.initClubMastery(member.oid(), club.typeid, club.id, clubRate, playerRateClub);
             }
         }
+        if (room.tipo == GamePackets.TIPO_GRAND_PRIX && room.grandPrixTypeid != 0) {
+            AchievementCounterTypeids.queueGrandPrixBotCounters(room);
+        }
         room.broadcast(GamePackets.startGameFlag());
         room.broadcast(GamePackets.startGameFlag2());
         room.broadcast(GamePackets.pangRate(room.info.ratePang));
@@ -1740,6 +1744,14 @@ public final class GameHandler {
                 && room.gameFlag(session.oid()) == GamePackets.FLAG_GAME_PLAYING) {
             finishGrandPrix(session, room, 1);
         }
+        if (room.tipo == GamePackets.TIPO_GRAND_PRIX
+                && room.gameFlag(session.oid()) == GamePackets.FLAG_GAME_END_GAME) {
+            sendGrandPrixEarlyExitDump(session, room);
+            if (room.allGrandPrixPlayersFinished()) {
+                finishGameRoom(room);
+            }
+            return;
+        }
         finishGamePlayerDump(session, room);
         if (GamePackets.usesTourneyInitialData(room.tipo) || GamePackets.hiddenFromLobby(room.tipo)) {
             finishGameRoom(room);
@@ -1887,6 +1899,12 @@ public final class GameHandler {
                 room.info.rateExp,
                 rankIndex,
                 matchTeamFactor);
+        if (exp <= 0) {
+            return;
+        }
+        if (room.tipo == GamePackets.TIPO_GRAND_PRIX && isRookieNormalGrandPrix(room)) {
+            exp = (int) (exp * 0.12f);
+        }
         if (exp <= 0) {
             return;
         }
@@ -3579,6 +3597,38 @@ public final class GameHandler {
         long uid = session.player().uid;
         creditPlayerGamePang(session, room);
         session.send(GamePackets.pangSpent(inventory.pang(uid), 0));
+    }
+
+    /**
+     * C# {@code GrandPrix.finish_game} option 6: achievements + {@code 0x244}/{@code 0x24F} +
+     * {@code 0xC8} without full {@code requestFinishData} reward dump. Rookie GP skips
+     * {@code requestSaveInfo} record counters and hole-drop persistence.
+     */
+    private void sendGrandPrixEarlyExitDump(Session session, GameRoom room) {
+        prepareFinishItemUsed(session, room);
+        queueRainCounters(session, room);
+        queueScoreConsecutivosCounters(session, room);
+        queueItemUsedCounters(session, room);
+        GameRoom.PlayerShot shot = room.shots.get(session.oid());
+        if (!isRookieNormalGrandPrix(room) && shot != null && shot.userInfo != null) {
+            queueRecordAchievementCounters(session, room, shot.userInfo);
+            saveHoleDrops(session, room);
+        }
+        consumeFinishItemUsed(session, room);
+        finishGameExp(session, room, finishRankIndex(room, session));
+        flushPendingAchievementCounters(session, room);
+        session.send(GamePackets.newEndGameFlag());
+        session.send(GamePackets.newEndGameFlag2());
+        session.send(GamePackets.pangSpent(inventory.pang(session.player().uid), 0));
+    }
+
+    private static boolean isRookieNormalGrandPrix(GameRoom room) {
+        if (room.grandPrixTypeid == 0) {
+            return false;
+        }
+        return GrandPrixEnterWindow.isGrandPrixNormal(room.grandPrixTypeid)
+                && GrandPrixEnterWindow.grandPrixAba(room.grandPrixTypeid)
+                        == GrandPrixEnterWindow.GP_ABA_ROOKIE;
     }
 
     /** C# {@code GrandPrix.requestMakeRankPlayerDisplayCharacter} top-3 podium rows. */

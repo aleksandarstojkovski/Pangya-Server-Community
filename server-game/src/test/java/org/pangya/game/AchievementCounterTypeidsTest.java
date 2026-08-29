@@ -83,6 +83,13 @@ class AchievementCounterTypeidsTest {
     }
 
     @Test
+    void grandPrixBotCounterMatchesCsharpRoomSizes() {
+        assertEquals(0, AchievementCounterTypeids.grandPrixBotCounter(2));
+        assertEquals(GamePackets.TYPEID_GP_ALL_AI_COUNTER, AchievementCounterTypeids.grandPrixBotCounter(1));
+        assertEquals(GamePackets.TYPEID_GP_ALL_PLAYER_COUNTER, AchievementCounterTypeids.grandPrixBotCounter(30));
+    }
+
+    @Test
     void grandPrixClassCounterUsesEventSpecialFlag() {
         assertEquals(
                 GamePackets.TYPEID_GP_CLASS_EVENT_SPECIAL_COUNTER,

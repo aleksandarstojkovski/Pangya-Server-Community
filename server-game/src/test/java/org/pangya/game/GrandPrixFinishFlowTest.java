@@ -1,6 +1,8 @@
 package org.pangya.game;
 
+import org.pangya.protocol.iff.GrandPrixEnterWindow;
 import org.pangya.protocol.game.GamePackets;
+import org.pangya.protocol.packet.PacketReader;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -56,6 +58,20 @@ final class GrandPrixFinishFlowTest {
         assertFalse(shot.badConduct >= 3 && (shot.giveUp > 0 || shot.timeOuts > 0));
         shot.badConduct = 3;
         assertTrue(shot.badConduct >= 3 && (shot.giveUp > 0 || shot.timeOuts > 0));
+    }
+
+    @Test
+    void rookieNormalGrandPrixTypeidDetection() {
+        PacketReader created = new PacketReader(
+                GamePackets.clientCreateRoom(GamePackets.TIPO_GRAND_PRIX, "GP", ""));
+        created.opcode();
+        GameRoom room = new GameRoom(GamePackets.readCreateRoom(created), 1, 10001, 100, 100, 0);
+        room.grandPrixTypeid = 0x40000;
+        assertTrue(GrandPrixEnterWindow.isGrandPrixNormal(room.grandPrixTypeid));
+        assertEquals(GrandPrixEnterWindow.GP_ABA_ROOKIE, GrandPrixEnterWindow.grandPrixAba(room.grandPrixTypeid));
+        room.grandPrixTypeid = 0x3000000;
+        assertFalse(GrandPrixEnterWindow.isGrandPrixNormal(room.grandPrixTypeid));
+        assertTrue(GrandPrixEnterWindow.isGrandPrixEvent(room.grandPrixTypeid));
     }
 
     private static boolean allPackets(GameRoom.PlayerShot shot) {

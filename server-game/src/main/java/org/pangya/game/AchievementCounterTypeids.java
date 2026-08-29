@@ -1,5 +1,6 @@
 package org.pangya.game;
 
+import org.pangya.network.session.Session;
 import org.pangya.protocol.game.GamePackets;
 import org.pangya.protocol.iff.GrandPrixEnterWindow;
 import org.pangya.protocol.iff.IffGroups;
@@ -27,6 +28,25 @@ final class AchievementCounterTypeids {
             case GrandPrixEnterWindow.GP_ABA_BEGINNER -> GamePackets.TYPEID_GP_CLASS_BEGINNER_COUNTER;
             case GrandPrixEnterWindow.GP_ABA_JUNIOR -> GamePackets.TYPEID_GP_CLASS_JUNIOR_COUNTER;
             case GrandPrixEnterWindow.GP_ABA_EVENT -> GamePackets.TYPEID_GP_CLASS_EVENT_COUNTER;
+            default -> 0;
+        };
+    }
+
+    /** C# {@code GrandPrix.init_bots} achievement counters by room size. */
+    static void queueGrandPrixBotCounters(GameRoom room) {
+        int counter = grandPrixBotCounter(room.players.size());
+        if (counter == 0) {
+            return;
+        }
+        for (Session member : room.snapshot()) {
+            room.addPendingAchievementCounter(member.player().uid, counter, 1);
+        }
+    }
+
+    static int grandPrixBotCounter(int playerCount) {
+        return switch (playerCount) {
+            case 1 -> GamePackets.TYPEID_GP_ALL_AI_COUNTER;
+            case 30 -> GamePackets.TYPEID_GP_ALL_PLAYER_COUNTER;
             default -> 0;
         };
     }
