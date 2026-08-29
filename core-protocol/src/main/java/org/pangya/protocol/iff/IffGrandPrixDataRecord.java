@@ -12,6 +12,7 @@ public record IffGrandPrixDataRecord(
         int modo,
         int holes,
         boolean naturalMode,
+        boolean shotMode,
         int minLevel,
         int maxLevel,
         int ticketTypeid,
@@ -20,5 +21,6 @@ public record IffGrandPrixDataRecord(
         int conditionMax,
         int clearGpTypeid,
         int lockYn,
+        IffRewardSlots reward,
         IffSystemTime open,
         IffSystemTime start) {}

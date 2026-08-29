@@ -953,6 +953,9 @@ public final class GameHandler {
             session.send(GamePackets.wind(info.wind(), 0, info.degree(), 1));
             int elapsed = (int) Math.max(0, System.currentTimeMillis() - room.startMillis);
             session.send(GamePackets.remainTime(elapsed));
+            if (room.tipo == GamePackets.TIPO_GRAND_PRIX) {
+                room.stopGpHoleTimer(session.oid());
+            }
         }
     }
 
@@ -3773,13 +3776,44 @@ public final class GameHandler {
      */
     private void finishCharIntro(Session session) {
         GameRoom room = inGameRoom(session);
-        if (room == null || !GamePackets.usesVersusInitialData(room.tipo)) {
+        if (room == null) {
             return;
         }
-        if (room.markCharIntro(session)) {
-            room.clearCharIntro();
-            room.broadcast(GamePackets.teeshotReady());
+        if (GamePackets.usesVersusInitialData(room.tipo)) {
+            if (room.markCharIntro(session)) {
+                room.clearCharIntro();
+                room.broadcast(GamePackets.teeshotReady());
+            }
+            return;
         }
+        if (!GamePackets.usesTourneyInitialData(room.tipo)) {
+            return;
+        }
+        GameRoom.PlayerShot shot = room.shots.computeIfAbsent(session.oid(), id -> new GameRoom.PlayerShot());
+        if ((room.info.natural & 0x2) != 0 && room.course != null) {
+            int holeNum = shot.hole == 0 ? 1 : shot.hole;
+            int par = catalogs.parFor(room.info.course & 0x7f, holeNum);
+            shot.tacadaNum = switch (par) {
+                case 5 -> 2;
+                case 4 -> 1;
+                default -> 0;
+            };
+        } else {
+            shot.tacadaNum = 0;
+        }
+        if (room.tipo == GamePackets.TIPO_GRAND_PRIX && room.info.gpTempo > 0) {
+            int oid = session.oid();
+            room.startGpHoleTimer(oid, room.info.gpTempo, () -> gpHoleTimeExpired(room, oid));
+        }
+    }
+
+    /** C# {@code GrandPrix.timeIsOver}: hole timer expired for one player. */
+    private void gpHoleTimeExpired(GameRoom room, int oid) {
+        Session member = room.findByOid(oid);
+        if (member == null || !room.inGame || room.tipo != GamePackets.TIPO_GRAND_PRIX) {
+            return;
+        }
+        member.send(GamePackets.tourneyTimeIsOver());
     }
 
     private GameRoom inGameRoom(Session session) {
@@ -8133,7 +8167,17 @@ public final class GameHandler {
             room.info.gpRankTypeid = org.pangya.protocol.iff.PangyaIffLoader.grandPrixData(typeid)
                     .map(org.pangya.protocol.iff.IffGrandPrixDataRecord::typeIdLink)
                     .orElse(typeid);
-            iffGp.ifPresent(row -> room.info.gpTempo = row.timeHole() * 1000);
+            iffGp.ifPresent(row -> {
+                room.info.gpTempo = row.timeHole() * 1000;
+                int natural = 0;
+                if (row.naturalMode()) {
+                    natural |= 0x1;
+                }
+                if (row.shotMode()) {
+                    natural |= 0x2;
+                }
+                room.info.natural = natural;
+            });
             if (!room.addPlayer(session)) {
                 session.send(GamePackets.sysAck(
                         GamePackets.SERVER_START_GAME_FAIL,

@@ -31,6 +31,8 @@ final class GameRoom {
     volatile int pauseCount;
     /** C# Versus {@code finish_char_intro}; cleared when all players have sent {@code 0x34}. */
     final ConcurrentHashMap<Integer, Boolean> charIntro = new ConcurrentHashMap<>();
+    /** Per-player GP hole timer generation (C# {@code GrandPrix.startTime}). */
+    private final ConcurrentHashMap<Integer, Long> gpHoleTimerGen = new ConcurrentHashMap<>();
     /** C# Versus {@code setLoadHole}; cleared when all players have sent {@code 0x11}. */
     final ConcurrentHashMap<Integer, Boolean> loadHole = new ConcurrentHashMap<>();
     /** C# Versus {@code m_player_turn.oid}; 0 until {@code sendReplyFinishLoadHole}. */
@@ -240,6 +242,7 @@ final class GameRoom {
         shots.remove(session.oid());
         playerInfos.remove(session.oid());
         charIntro.remove(session.oid());
+        stopGpHoleTimer(session.oid());
         loadHole.remove(session.oid());
         activeUses.remove(session.oid());
         passiveUses.remove(session.oid());
@@ -461,6 +464,30 @@ final class GameRoom {
         if (timer != null) {
             timer.interrupt();
         }
+    }
+
+    /** C# {@code GrandPrix.startTime}: per-player hole countdown after char intro. */
+    void startGpHoleTimer(int oid, int millis, Runnable onTimeout) {
+        stopGpHoleTimer(oid);
+        if (millis <= 0 || onTimeout == null) {
+            return;
+        }
+        long gen = System.nanoTime();
+        gpHoleTimerGen.put(oid, gen);
+        Thread.ofVirtual().start(() -> {
+            try {
+                Thread.sleep(millis);
+                if (gen == gpHoleTimerGen.get(oid)) {
+                    onTimeout.run();
+                }
+            } catch (InterruptedException ignored) {
+                Thread.currentThread().interrupt();
+            }
+        });
+    }
+
+    void stopGpHoleTimer(int oid) {
+        gpHoleTimerGen.remove(oid);
     }
 
     void broadcast(byte[] packet) {

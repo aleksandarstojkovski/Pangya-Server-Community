@@ -89,6 +89,8 @@ public final class GamePackets {
     public static final int SERVER_RESPONSE_GIFT_ITEM = 0x6A;
     public static final int SERVER_EQUIP_ACK = 0x6B;
     public static final int SERVER_SYNC_SHOT = 0x6E;
+    /** C# {@code TourneyBase.sendTimeIsOver} empty {@code 0x8C}. */
+    public static final int SERVER_TOURNEY_TIME_OVER = 0x8C;
     public static final int SERVER_REMAIN_TIME = 0x8D;
     /**
      * C# {@code pacote09A} / {@code SERVER_ADMIT_IDENTITY}. Same numeric as
@@ -3684,6 +3686,11 @@ public final class GamePackets {
 
     public static byte[] remainTime(int millis) {
         return new PacketWriter().opcode(SERVER_REMAIN_TIME).u32(millis).toBytes();
+    }
+
+    /** C# {@code TourneyBase.sendTimeIsOver}. */
+    public static byte[] tourneyTimeIsOver() {
+        return new PacketWriter().opcode(SERVER_TOURNEY_TIME_OVER).toBytes();
     }
 
     /** C# {@code TourneyBase.sendSyncShot} {@code 0x6E}. */

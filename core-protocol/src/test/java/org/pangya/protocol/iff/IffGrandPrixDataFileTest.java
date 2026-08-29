@@ -61,6 +61,18 @@ class IffGrandPrixDataFileTest {
     }
 
     @Test
+    void loadsParticipationRewardFromScheduledCupRow() throws Exception {
+        assumeReferenceIffPresent();
+        PangyaIffLoader.reload(JP_IFF);
+        IffGrandPrixDataRecord row = PangyaIffLoader.grandPrixData(0x80101).orElseThrow();
+        assertTrue(row.shotMode());
+        assertEquals(0x1a000010, row.reward().typeids()[0]);
+        assertEquals(300, row.reward().qntd()[0]);
+        assertEquals(0x140000a1, row.reward().typeids()[1]);
+        assertEquals(10, row.reward().qntd()[1]);
+    }
+
+    @Test
     void loadsTimeHoleFromScheduledCupRow() throws Exception {
         assumeReferenceIffPresent();
         PangyaIffLoader.reload(JP_IFF);

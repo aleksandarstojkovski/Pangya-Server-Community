@@ -20,6 +20,7 @@ public final class IffGrandPrixDataFile {
     static final int NAME_BYTES = 66;
     static final int TICKET_OFFSET = 84;
     static final int NATURAL_MODE_OFFSET = 133;
+    static final int SHOT_MODE_OFFSET = 134;
     static final int RULE_OFFSET = 136;
     static final int COURSE_OFFSET = 140;
     static final int MODO_OFFSET = 144;
@@ -31,6 +32,7 @@ public final class IffGrandPrixDataFile {
     static final int START_OFFSET = 256;
     static final int CLEAR_GP_TYPEID_OFFSET = 292;
     static final int LOCK_YN_OFFSET = 296;
+    static final int REWARD_OFFSET = 180;
     static final int TYPE_GP_OFFSET = 12;
     static final int TIME_HOLE_OFFSET = 16;
 
@@ -63,6 +65,7 @@ public final class IffGrandPrixDataFile {
             int modo = ByteBuffer.wrap(data, base + MODO_OFFSET, 4).order(ByteOrder.LITTLE_ENDIAN).getInt();
             int holes = data[base + HOLES_OFFSET] & 0xff;
             boolean naturalMode = data[base + NATURAL_MODE_OFFSET] != 0;
+            boolean shotMode = data[base + SHOT_MODE_OFFSET] != 0;
             int minLevel = data[base + MIN_LEVEL_OFFSET] & 0xff;
             int maxLevel = data[base + MAX_LEVEL_OFFSET] & 0xff;
             int ticketTypeid = ByteBuffer.wrap(data, base + TICKET_OFFSET, 4)
@@ -85,9 +88,11 @@ public final class IffGrandPrixDataFile {
                     .getInt();
             IffSystemTime open = IffSystemTime.read(data, base + OPEN_OFFSET);
             IffSystemTime start = IffSystemTime.read(data, base + START_OFFSET);
+            IffRewardSlots reward = IffRewardSlots.read(data, base + REWARD_OFFSET);
             out.put(typeid, new IffGrandPrixDataRecord(
-                    typeid, typeIdLink, typeGp, timeHole, name, rule, course, modo, holes, naturalMode, minLevel, maxLevel,
-                    ticketTypeid, ticketQntd, conditionMin, conditionMax, clearGpTypeid, lockYn, open, start));
+                    typeid, typeIdLink, typeGp, timeHole, name, rule, course, modo, holes, naturalMode, shotMode,
+                    minLevel, maxLevel, ticketTypeid, ticketQntd, conditionMin, conditionMax, clearGpTypeid, lockYn,
+                    reward, open, start));
         }
         return new IffGrandPrixDataIndex(Map.copyOf(out));
     }
