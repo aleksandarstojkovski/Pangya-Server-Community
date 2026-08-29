@@ -3776,6 +3776,107 @@ class GameFlowIT {
         }
     }
 
+    /**
+     * MVP Torneo S-T4: channel → 1-hole Tourney → hole-out → finish → result
+     * packets + C# {@code requestSaveInfo(..., 0)} persistence ({@code Jogado}).
+     */
+    @Test
+    void tourneyFakeClientPlaysToFinishAndReceivesResult() throws Exception {
+        String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");
+        String user = env("PANGYA_TEST_JDBC_USER", "pangya");
+        String password = env("PANGYA_TEST_JDBC_PASSWORD", "pangya");
+        String redisUri = env("REDIS_URI", "redis://localhost:6379");
+        DatabaseSupport.migrate(jdbc, user, password);
+
+        AppConfig config = new AppConfig(testYaml(jdbc, user, password, redisUri));
+        try (var ds = DatabaseSupport.dataSource(jdbc, user, password);
+             SessionKeyStore keys = new SessionKeyStore(redisUri);
+             GameRuntime runtime = new GameRuntime(config);
+             PangyaFakeClient host = new PangyaFakeClient();
+             PangyaFakeClient guest = new PangyaFakeClient()) {
+            InventoryRepository inv = new JdbiInventoryRepository(DatabaseSupport.jdbi(ds));
+            long jogadoBefore = inv.userInfo(10001).orElseThrow().jogado();
+            long jogosNaoSeiBefore = inv.userInfo(10001).orElseThrow().jogosNaoSei();
+
+            loginTwoPlayers(ds, keys, host, guest, runtime.port());
+            host.sendPlain(GamePackets.clientCreateRoom(GamePackets.TIPO_TOURNEY, "TN-E2E", ""));
+            PacketReader created = awaitOpcode(host, GamePackets.SERVER_ROOM_ENTER_RESULT);
+            assertEquals(0, created.i16());
+            byte[] roomInfo = created.readBytes(GamePackets.ROOM_INFO_BYTES);
+            int numero = roomNumberFromInfo(roomInfo);
+            host.drainPlain(200);
+            host.sendPlain(GamePackets.clientChangeRoomHoles(numero, 1));
+            PacketReader holesUpd = awaitOpcode(host, GamePackets.SERVER_ROOM_UPDATE);
+            assertEquals(-1, holesUpd.i16());
+            holesUpd.u8();
+            holesUpd.u8();
+            assertEquals(1, holesUpd.u8());
+
+            guest.sendPlain(GamePackets.clientJoinRoom(numero, ""));
+            assertEquals(0, awaitOpcode(guest, GamePackets.SERVER_ROOM_ENTER_RESULT).i16());
+
+            host.sendPlain(GamePackets.clientStartGame());
+            awaitOpcode(host, GamePackets.SERVER_START_GAME_FLAG);
+            awaitOpcode(host, GamePackets.SERVER_START_GAME_FLAG2);
+            awaitOpcode(host, GamePackets.SERVER_PANG_RATE);
+            PacketReader init = awaitOpcode(host, GamePackets.SERVER_GAME_INIT);
+            assertEquals(GamePackets.TIPO_TOURNEY, init.u8());
+            PacketReader course = awaitOpcode(host, GamePackets.SERVER_COURSE);
+            assertEquals(0, course.u8());
+            assertEquals(GamePackets.TIPO_TOURNEY, course.u8());
+            awaitOpcode(guest, GamePackets.SERVER_GAME_INIT);
+            awaitOpcode(guest, GamePackets.SERVER_COURSE);
+
+            byte[] roomKey = new byte[16];
+            System.arraycopy(roomInfo, 69, roomKey, 0, 16);
+            host.sendPlain(GamePackets.clientInitHole(1, 0, 0, 4, 1.5f, 2.5f, 10f, 20f));
+            awaitOpcode(host, GamePackets.SERVER_WEATHER);
+            awaitOpcode(host, GamePackets.SERVER_WIND);
+            awaitOpcode(host, GamePackets.SERVER_REMAIN_TIME);
+
+            byte[] shotBody = GamePackets.shotEndLocationSample();
+            host.sendPlain(GamePackets.clientEmpty(GamePackets.CLIENT_SHOT_END));
+            host.sendPlain(GamePackets.clientShotEnd(shotBody));
+            awaitOpcode(host, GamePackets.SERVER_SHOT_END);
+
+            host.sendPlain(GamePackets.clientLoadOk());
+            host.sendPlain(GamePackets.clientShot());
+            int display = GamePackets.DISPLAY_ACERTO_HOLE;
+            int hostOid = oidOf(runtime, 10001);
+            byte[] shotPlain = GamePackets.shotSyncPlain(
+                    hostOid, 1.5f, 0f, 2.5f, 2, 0, 0, 0, 0, display, 0x11, 100, 0);
+            host.sendPlain(GamePackets.clientShotResult(GamePackets.xorRoomKey(shotPlain, roomKey)));
+            awaitOpcode(host, GamePackets.SERVER_SYNC_SHOT);
+
+            host.sendPlain(GamePackets.clientShotAck());
+            awaitOpcode(host, GamePackets.SERVER_END_SHOT);
+            PacketReader lastHole = awaitOpcode(host, GamePackets.SERVER_LAST_HOLE);
+            assertEquals(0, lastHole.remaining());
+
+            host.sendPlain(GamePackets.clientHoleStat());
+            host.sendPlain(GamePackets.clientFinishGame());
+            PacketReader prizes = awaitOpcode(host, GamePackets.SERVER_PRIZE_LIST);
+            assertEquals(0, prizes.u8());
+            PacketReader result = awaitOpcode(host, GamePackets.SERVER_GAME_RESULT);
+            assertEquals(0, result.i32());
+            result.u32();
+            result.u8();
+            assertEquals(2, result.u8());
+            PacketReader stats = awaitOpcode(host, GamePackets.SERVER_MY_STATISTICS);
+            assertEquals(GamePackets.USER_INFO_BYTES + GamePackets.TROPHY_BYTES
+                    + GamePackets.MAP_STATISTICS_EMPTY_BYTES, stats.remaining());
+            awaitOpcode(host, GamePackets.SERVER_UPDATE_TREASURE_GIFT_LIST);
+            awaitOpcode(host, GamePackets.SERVER_PANG_SPENT);
+
+            long jogadoAfter = inv.userInfo(10001).orElseThrow().jogado();
+            long jogosNaoSeiAfter = inv.userInfo(10001).orElseThrow().jogosNaoSei();
+            assertEquals(jogadoBefore + 1, jogadoAfter,
+                    "C# Tourney.finish_game requestSaveInfo option 0 increments Jogado");
+            assertEquals(jogosNaoSeiBefore + 1, jogosNaoSeiAfter,
+                    "C# requestSaveInfo option 0 increments jogadosDisconnect / JogosNaoSei");
+        }
+    }
+
     @Test
     void soloGrandPrixSendsTourneyInit() throws Exception {
         String jdbc = env("PANGYA_TEST_JDBC_URL", "jdbc:postgresql://localhost:5432/pangya");

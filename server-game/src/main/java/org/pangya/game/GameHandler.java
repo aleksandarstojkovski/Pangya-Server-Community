@@ -1897,6 +1897,10 @@ public final class GameHandler {
             sendGrandPrixFinishDump(session, room, rankIndex, prizeTypeids);
             return;
         }
+        // C# Tourney.finish_game option 6: requestSaveInfo(_session, 0) before dump.
+        if (room.tipo == GamePackets.TIPO_TOURNEY) {
+            requestSaveInfo(session, room, 0, false);
+        }
         sendFinishGameDump(session, room, true, prizeTypeids);
     }
 
